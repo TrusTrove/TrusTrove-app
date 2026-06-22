@@ -12,6 +12,7 @@ function parsePoolStats(native: unknown): PoolStats {
   let utilizationRateBps = 0;
   let totalYieldDistributed = 0n;
   let activeInvoiceCount = 0;
+  let totalShares = 0n;
 
   if (native instanceof Map) {
     totalDeposits = getBigInt(native.get('total_deposits'));
@@ -20,6 +21,7 @@ function parsePoolStats(native: unknown): PoolStats {
     utilizationRateBps = getNumber(native.get('utilization_rate_bps'));
     totalYieldDistributed = getBigInt(native.get('total_yield_distributed'));
     activeInvoiceCount = getNumber(native.get('active_invoice_count'));
+    totalShares = getBigInt(native.get('total_shares'));
   } else if (typeof native === 'object' && native !== null) {
     const obj = native as Record<string, unknown>;
     totalDeposits = getBigInt(obj.total_deposits);
@@ -28,6 +30,7 @@ function parsePoolStats(native: unknown): PoolStats {
     utilizationRateBps = getNumber(obj.utilization_rate_bps);
     totalYieldDistributed = getBigInt(obj.total_yield_distributed);
     activeInvoiceCount = getNumber(obj.active_invoice_count);
+    totalShares = getBigInt(obj.total_shares);
   }
 
   return {
@@ -37,6 +40,7 @@ function parsePoolStats(native: unknown): PoolStats {
     utilizationRateBps,
     totalYieldDistributed,
     activeInvoiceCount,
+    totalShares,
   };
 }
 
