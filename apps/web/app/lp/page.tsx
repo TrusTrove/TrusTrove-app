@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PageLayout } from '@/components/shared/PageLayout';
 import { usePool } from '@/hooks/usePool';
 import { useWalletStore } from '@/store/wallet';
@@ -13,9 +13,17 @@ import { Coins, Unlock, Landmark, Wallet, ShieldAlert, Activity } from 'lucide-r
 import { motion } from 'framer-motion';
 import type { AssetType } from '@/types';
 import { ASSET_OPTIONS, formatAmount } from '@/lib/assets';
+import { PoolClient } from '@trusttrove/sdk';
+import { Address, nativeToScVal } from '@stellar/stellar-sdk';
+import { SimulationPreview } from '@/components/shared/SimulationPreview';
+
+const poolContractID = process.env.NEXT_PUBLIC_POOL_CONTRACT_ID || '';
+
 
 export default function LPDashboard() {
-  const { connected } = useWalletStore();
+  const { connected, address } = useWalletStore();
+
+
   const {
     stats,
     isStatsLoading,
@@ -39,6 +47,52 @@ export default function LPDashboard() {
   const [pendingHash, setPendingHash] = useState<string | null>(null);
   const [pendingText, setPendingText] = useState('Waiting for confirmation...');
 
+  // Simulation states
+  const [simDetails, setSimDetails] = useState<any>(null);
+  const [simError, setSimError] = useState<string | null>(null);
+  const [isSimulating, setIsSimulating] = useState(false);
+
+  useEffect(() => {
+    const amountNum = Number(depositAmount);
+    if (!address || isNaN(amountNum) || amountNum <= 0) {
+      setSimDetails(null);
+      setSimError(null);
+      return;
+    }
+
+    let active = true;
+    const runSim = async () => {
+      setIsSimulating(true);
+      setSimError(null);
+      setSimDetails(null);
+
+      try {
+        const poolClient = new PoolClient(poolContractID);
+        const amountStroops = BigInt(Math.floor(amountNum * 10_000_000));
+        const args = [
+          new Address(address).toScVal(),
+          nativeToScVal(amountStroops, { type: 'u128' }),
+        ];
+
+        const simResult = await poolClient.simulateTransaction('deposit', args, address);
+        if (!active) return;
+        setSimDetails(simResult);
+      } catch (err: any) {
+        if (!active) return;
+        setSimError(err.message || 'Simulation failed');
+      } finally {
+        if (active) setIsSimulating(false);
+      }
+    };
+
+    const timer = setTimeout(runSim, 400);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [depositAmount, address]);
+
+
   const handleDeposit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError(null);
@@ -48,12 +102,21 @@ export default function LPDashboard() {
       return;
     }
     
-    setPendingText(`Depositing ${depositAsset} into pool...`);
-    setPendingHash(null);
-    setShowPending(true);
-
     try {
       const amountStroops = BigInt(Math.floor(amountNum * 10_000_000));
+      
+      // Pre-simulate deposit before Freighter opens
+      const poolClient = new PoolClient(poolContractID);
+      const args = [
+        new Address(address!).toScVal(),
+        nativeToScVal(amountStroops, { type: 'u128' }),
+      ];
+      await poolClient.simulateTransaction('deposit', args, address!);
+
+      setPendingText(`Depositing ${depositAsset} into pool...`);
+      setPendingHash(null);
+      setShowPending(true);
+
       // TODO(#19): Pass depositAsset to contract when XLM support is merged
       // Currently PoolClient.deposit() only accepts USDC amount
       const res = await deposit({ amount: amountStroops });
@@ -338,9 +401,16 @@ export default function LPDashboard() {
                       </div>
                     </div>
                     {parsedDep > 0 && (
-                      <span className="text-[10px] font-mono text-slate-400 block mt-1.5 leading-tight">
-                        Depositing {parsedDep.toLocaleString()} {depositAsset} → receive ~{depSharesPreview.toLocaleString()} LP Shares
-                      </span>
+                      <div className="space-y-3 mt-1.5">
+                        <span className="text-[10px] font-mono text-slate-400 block leading-tight">
+                          Depositing {parsedDep.toLocaleString()} {depositAsset} → receive ~{depSharesPreview.toLocaleString()} LP Shares
+                        </span>
+                        <SimulationPreview
+                          details={simDetails}
+                          error={simError}
+                          isLoading={isSimulating}
+                        />
+                      </div>
                     )}
                   </div>
                   <Button

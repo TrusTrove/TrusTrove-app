@@ -1,74 +1,7 @@
 import { Address, nativeToScVal, scValToNative, xdr } from '@stellar/stellar-sdk';
 import { BaseContractClient } from '../base.js';
 import { LPPosition, PoolStats } from '../types/index.js';
-
-function parsePoolStats(native: unknown): PoolStats {
-  const getBigInt = (v: unknown) => typeof v === 'bigint' ? v : BigInt(String(v || 0));
-  const getNumber = (v: unknown) => typeof v === 'bigint' ? Number(v) : Number(v || 0);
-
-  let totalDeposits = 0n;
-  let totalFunded = 0n;
-  let availableLiquidity = 0n;
-  let utilizationRateBps = 0;
-  let totalYieldDistributed = 0n;
-  let activeInvoiceCount = 0;
-
-  if (native instanceof Map) {
-    totalDeposits = getBigInt(native.get('total_deposits'));
-    totalFunded = getBigInt(native.get('total_funded'));
-    availableLiquidity = getBigInt(native.get('available_liquidity'));
-    utilizationRateBps = getNumber(native.get('utilization_rate_bps'));
-    totalYieldDistributed = getBigInt(native.get('total_yield_distributed'));
-    activeInvoiceCount = getNumber(native.get('active_invoice_count'));
-  } else if (typeof native === 'object' && native !== null) {
-    const obj = native as Record<string, unknown>;
-    totalDeposits = getBigInt(obj.total_deposits);
-    totalFunded = getBigInt(obj.total_funded);
-    availableLiquidity = getBigInt(obj.available_liquidity);
-    utilizationRateBps = getNumber(obj.utilization_rate_bps);
-    totalYieldDistributed = getBigInt(obj.total_yield_distributed);
-    activeInvoiceCount = getNumber(obj.active_invoice_count);
-  }
-
-  return {
-    totalDeposits,
-    totalFunded,
-    availableLiquidity,
-    utilizationRateBps,
-    totalYieldDistributed,
-    activeInvoiceCount,
-  };
-}
-
-function parseLPPosition(native: unknown): LPPosition {
-  const getBigInt = (v: unknown) => typeof v === 'bigint' ? v : BigInt(String(v || 0));
-  const getNumber = (v: unknown) => typeof v === 'bigint' ? Number(v) : Number(v || 0);
-
-  let shares = 0n;
-  let usdcValue = 0n;
-  let yieldEarned = 0n;
-  let depositCount = 0;
-
-  if (native instanceof Map) {
-    shares = getBigInt(native.get('shares'));
-    usdcValue = getBigInt(native.get('usdc_value'));
-    yieldEarned = getBigInt(native.get('yield_earned'));
-    depositCount = getNumber(native.get('deposit_count'));
-  } else if (typeof native === 'object' && native !== null) {
-    const obj = native as Record<string, unknown>;
-    shares = getBigInt(obj.shares);
-    usdcValue = getBigInt(obj.usdc_value);
-    yieldEarned = getBigInt(obj.yield_earned);
-    depositCount = getNumber(obj.deposit_count);
-  }
-
-  return {
-    shares,
-    usdcValue,
-    yieldEarned,
-    depositCount,
-  };
-}
+import { parsePoolStats, parseLPPosition } from '../types/schemas.js';
 
 export class PoolClient extends BaseContractClient {
   async deposit(

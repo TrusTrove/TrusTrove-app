@@ -5,6 +5,7 @@ import {
   Networks,
   BASE_FEE,
   xdr,
+  scValToNative,
 } from '@stellar/stellar-sdk';
 import { signTransaction } from '@stellar/freighter-api';
 import { getConfig, getSorobanServer } from './config.js';
@@ -156,5 +157,57 @@ export class BaseContractClient {
     }
 
     return result.hash;
+  }
+
+  public async simulateTransaction(
+    method: string,
+    args: xdr.ScVal[],
+    publicKey: string
+  ): Promise<{
+    estimatedFeeXlm: string;
+    functionName: string;
+    expectedResult: any;
+    footprintSize: number;
+  }> {
+    const config = getConfig();
+    const server = getSorobanServer();
+    const account = await withRetry(() => server.getAccount(publicKey));
+
+    const tx = new TransactionBuilder(account, {
+      fee: BASE_FEE,
+      networkPassphrase: config.networkPassphrase,
+    })
+      .addOperation(this.contract.call(method, ...args))
+      .setTimeout(30)
+      .build();
+
+    const sim = await withRetry(() => server.simulateTransaction(tx));
+    if (rpc.Api.isSimulationError(sim)) {
+      throw new Error(sim.error || 'Simulation failed');
+    }
+
+    const footprintSize = sim.transactionData
+      ? (sim.transactionData.getReadOnly().length + sim.transactionData.getReadWrite().length)
+      : 0;
+
+    const retval = sim.result?.retval;
+    let expectedResult: any = undefined;
+    if (retval) {
+      try {
+        expectedResult = scValToNative(retval);
+      } catch (e) {
+        expectedResult = retval;
+      }
+    }
+
+    const totalStroops = BigInt(BASE_FEE) + BigInt(sim.minResourceFee || '0');
+    const estimatedFeeXlm = (Number(totalStroops) / 10_000_000).toFixed(7);
+
+    return {
+      estimatedFeeXlm,
+      functionName: method,
+      expectedResult,
+      footprintSize,
+    };
   }
 }

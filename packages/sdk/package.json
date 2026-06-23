@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "@stellar/stellar-sdk": "^13.0.0",
-    "@stellar/freighter-api": "^2.0.0"
+    "@stellar/freighter-api": "^2.0.0",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "typescript": "^5.4.5"

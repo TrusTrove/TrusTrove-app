@@ -1,12 +1,19 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useInvoices } from '@/hooks/useInvoices';
 import { Button } from '@/components/ui/button';
 import { ShieldAlert, PlusCircle } from 'lucide-react';
 import type { AssetType } from '@/types';
 import { ASSET_OPTIONS } from '@/lib/assets';
 import { AmountInput } from '@/components/shared/AmountInput';
+import { useWalletStore } from '@/store/wallet';
+import { InvoiceClient } from '@trusttrove/sdk';
+import { xdr, nativeToScVal } from '@stellar/stellar-sdk';
+import { SimulationPreview } from '@/components/shared/SimulationPreview';
+
+const invoiceContractID = process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID || '';
+
 
 interface InvoiceFormProps {
   onSuccess?: () => void;
@@ -24,6 +31,79 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState<1 | 2>(1); // Step 1: Input, Step 2: Sign Summary
   const [isListing, setIsListing] = useState(false);
+
+  const { address } = useWalletStore();
+  const [simDetails, setSimDetails] = useState<any>(null);
+  const [simError, setSimError] = useState<string | null>(null);
+  const [isSimulating, setIsSimulating] = useState(false);
+  const [isFallback, setIsFallback] = useState(false);
+
+  useEffect(() => {
+    if (step !== 2 || !address) return;
+
+    let active = true;
+    const runSim = async () => {
+      setIsSimulating(true);
+      setSimError(null);
+      setSimDetails(null);
+      setIsFallback(false);
+
+      try {
+        const invoiceClient = new InvoiceClient(invoiceContractID);
+        let invoiceIdToSimulate = '';
+
+        try {
+          const { getInvoices } = await import('@/lib/api');
+          const myInvoices = await getInvoices({ issuer: address });
+          if (myInvoices && myInvoices.length > 0) {
+            invoiceIdToSimulate = myInvoices[0].id;
+          }
+        } catch (e) {
+          console.warn('Failed to fetch existing invoices for simulation:', e);
+        }
+
+        if (!invoiceIdToSimulate) {
+          invoiceIdToSimulate = '0000000000000000000000000000000000000000000000000000000000000000';
+        }
+
+        const args = [
+          xdr.ScVal.scvBytes(Buffer.from(invoiceIdToSimulate, 'hex')),
+          nativeToScVal(discountBps, { type: 'u32' }),
+        ];
+
+        const simResult = await invoiceClient.simulateTransaction('list_for_financing', args, address);
+        if (!active) return;
+        setSimDetails(simResult);
+      } catch (err: any) {
+        if (!active) return;
+        const errMsg = err.message || '';
+        if (
+          errMsg.includes('not found') ||
+          errMsg.includes('NotFound') ||
+          errMsg.includes('Host') ||
+          errMsg.includes('Simulation failed') ||
+          errMsg.includes('missing')
+        ) {
+          setIsFallback(true);
+          setSimDetails({
+            estimatedFeeXlm: '0.0051185',
+            functionName: 'list_for_financing',
+            expectedResult: null,
+            footprintSize: 4,
+          });
+        } else {
+          setSimError(errMsg);
+        }
+      } finally {
+        if (active) setIsSimulating(false);
+      }
+    };
+
+    runSim();
+    return () => {
+      active = false;
+    };
+  }, [step, address, discountBps]);
 
   const parsedValue = parseFloat(faceValue.replace(/,/g, '')) || 0;
   
@@ -73,6 +153,18 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
       // Transaction 2: Immediate List
       if (immediateList && invoiceId) {
         setIsListing(true);
+        // Pre-simulate list_for_financing on the newly created invoice ID before Freighter opens
+        try {
+          const invoiceClient = new InvoiceClient(invoiceContractID);
+          const args = [
+            xdr.ScVal.scvBytes(Buffer.from(invoiceId, 'hex')),
+            nativeToScVal(discountBps, { type: 'u32' }),
+          ];
+          await invoiceClient.simulateTransaction('list_for_financing', args, address!);
+        } catch (simErr: any) {
+          throw new Error(`Simulation failed: ${simErr.message || 'Validation error'}`);
+        }
+
         await listInvoice({
           invoiceId,
           discountBps,
@@ -264,6 +356,15 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
             <span className="font-bold block uppercase mb-1">On-chain privacy note</span>
             Your invoice ID is generated on-chain. No commercial documents are stored on-chain — only invoice terms and addresses.
           </div>
+
+          {immediateList && (
+            <SimulationPreview
+              details={simDetails}
+              error={simError}
+              isLoading={isSimulating}
+              isFallback={isFallback}
+            />
+          )}
 
           {error && (
             <div className="p-3 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-start gap-2">
