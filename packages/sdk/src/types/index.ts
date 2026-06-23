@@ -41,6 +41,7 @@ export interface PoolStats {
   utilizationRateBps: number;
   totalYieldDistributed: bigint;
   activeInvoiceCount: number;
+  totalShares: bigint;
 }
 
 export interface LPPosition {
