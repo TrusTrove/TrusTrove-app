@@ -199,18 +199,26 @@ export default function SMEDashboard() {
 
       {/* Create Invoice Dialog Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#080c10]/95 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg relative">
-            <button
-              onClick={() => setShowCreateModal(false)}
-              className="absolute -top-10 right-0 text-slate-500 hover:text-white font-bold font-mono text-xs uppercase"
-            >
-              [Close Esc]
-            </button>
-            <InvoiceForm onSuccess={() => {
-              setShowCreateModal(false);
-              setSelectedInvoice(null);
-            }} />
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-[#080c10]/95 backdrop-blur-sm p-0 md:p-4">
+          <div
+            className="w-full max-w-lg relative bg-card border md:border-border rounded-t-2xl md:rounded-lg max-h-[92vh] md:max-h-[85vh] overflow-hidden flex flex-col shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 pt-4 pb-2 border-b border-border/40 shrink-0">
+              <span className="text-[10px] font-bold font-mono text-slate-500 uppercase tracking-wider">New Invoice</span>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="text-slate-500 hover:text-white font-bold font-mono text-xs uppercase px-2 py-1 min-h-[44px] min-w-[44px] flex items-center justify-center"
+              >
+                [Close Esc]
+              </button>
+            </div>
+            <div className="overflow-y-auto overscroll-contain p-5 pt-3">
+              <InvoiceForm onSuccess={() => {
+                setShowCreateModal(false);
+                setSelectedInvoice(null);
+              }} />
+            </div>
           </div>
         </div>
       )}

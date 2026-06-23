@@ -188,10 +188,23 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
   };
 
   return (
-    <div className="bg-card border border-border rounded-lg p-5">
+    <div className="space-y-5">
       <div className="flex items-center gap-2 mb-4 border-b border-border/40 pb-3">
-        <PlusCircle className="w-4 h-4 text-primary" />
+        <PlusCircle className="w-4 h-4 text-primary shrink-0" />
         <h2 className="text-sm font-bold font-mono tracking-wider uppercase text-white">Create trade Invoice</h2>
+      </div>
+
+      {/* Step Indicators */}
+      <div className="flex items-center gap-2 mb-5 px-1">
+        <div className={`flex items-center gap-1.5 ${step === 1 ? 'text-primary' : 'text-emerald-400'}`}>
+          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold font-mono border ${step === 1 ? 'bg-primary/20 border-primary text-primary' : 'bg-emerald-400/20 border-emerald-400 text-emerald-400'}`}>1</div>
+          <span className="text-[10px] font-bold font-mono uppercase tracking-wider">Terms</span>
+        </div>
+        <div className={`flex-1 h-px mx-1 ${step === 2 ? 'bg-emerald-400/50' : 'bg-border'}`} />
+        <div className={`flex items-center gap-1.5 ${step === 2 ? 'text-primary' : 'text-slate-500'}`}>
+          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold font-mono border ${step === 2 ? 'bg-primary/20 border-primary text-primary' : 'bg-slate-800 border-border text-slate-500'}`}>2</div>
+          <span className="text-[10px] font-bold font-mono uppercase tracking-wider">Sign</span>
+        </div>
       </div>
 
       {step === 1 ? (
@@ -204,7 +217,7 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
             <input
               type="text"
               placeholder="e.g. GBBD47IF6L... (Stellar Public Key)"
-              className="w-full bg-[#080c10] border border-border rounded px-3 py-2 text-white text-xs font-mono focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+              className="w-full bg-[#080c10] border border-border rounded px-3 py-2.5 text-white text-xs font-mono focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all min-h-[44px]"
               value={buyer}
               onChange={(e) => setBuyer(e.target.value)}
               required
@@ -231,7 +244,7 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
               <select
                 value={asset}
                 onChange={(e) => setAsset(e.target.value as AssetType)}
-                className="w-full bg-[#080c10] border border-border rounded px-3 py-2 text-white text-xs font-mono focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                className="w-full bg-[#080c10] border border-border rounded px-3 py-2.5 text-white text-xs font-mono focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all min-h-[44px]"
               >
                 {ASSET_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -244,11 +257,13 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
                 Due Days
               </label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 placeholder="60"
-                className="w-full bg-[#080c10] border border-border rounded px-3 py-2 text-white text-xs font-mono focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                className="w-full bg-[#080c10] border border-border rounded px-3 py-2.5 text-white text-xs font-mono focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all min-h-[44px]"
                 value={dueDays}
-                onChange={(e) => setDueDays(e.target.value)}
+                onChange={(e) => setDueDays(e.target.value.replace(/\D/g, ''))}
                 required
               />
               <span className="text-[10px] font-mono text-slate-500 block mt-1">
@@ -270,7 +285,7 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
               step="10"
               value={discountBps}
               onChange={(e) => setDiscountBps(parseInt(e.target.value))}
-              className="w-full accent-primary bg-slate-900 h-1.5 rounded"
+              className="w-full accent-primary bg-slate-900 h-2 rounded cursor-pointer touch-pan-y"
             />
             <div className="flex justify-between text-[9px] text-slate-600 font-mono">
               <span>0.5% (50 bps)</span>
@@ -279,15 +294,15 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
           </div>
 
           {/* Immediate Listing option */}
-          <div className="flex items-center gap-2 pt-2">
+          <div className="flex items-center gap-3 pt-2">
             <input
               type="checkbox"
               id="immediateList"
-              className="rounded bg-[#080c10] border-border text-primary focus:ring-primary focus:ring-offset-0"
+              className="rounded bg-[#080c10] border-border text-primary focus:ring-primary focus:ring-offset-0 w-5 h-5 shrink-0 cursor-pointer"
               checked={immediateList}
               onChange={(e) => setImmediateList(e.target.checked)}
             />
-            <label htmlFor="immediateList" className="text-xs font-mono text-slate-400 cursor-pointer select-none">
+            <label htmlFor="immediateList" className="text-xs font-mono text-slate-400 cursor-pointer select-none py-2">
               List for immediate LP financing at creation
             </label>
           </div>
@@ -301,7 +316,7 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
 
           <Button
             type="submit"
-            className="w-full bg-primary hover:bg-primary-hover text-black font-bold uppercase tracking-wider text-xs rounded py-2.5 shadow-[0_0_15px_rgba(0,212,170,0.1)]"
+            className="w-full bg-primary hover:bg-primary-hover text-black font-bold uppercase tracking-wider text-xs rounded py-2.5 min-h-[44px] shadow-[0_0_15px_rgba(0,212,170,0.1)]"
           >
             REVIEW FINANCING TERMS
           </Button>
@@ -360,14 +375,14 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
 
           <div className="flex gap-2">
             <Button
-              className="flex-1 border border-border bg-transparent hover:bg-slate-900 text-slate-400 font-bold uppercase py-2"
+              className="flex-1 border border-border bg-transparent hover:bg-slate-900 text-slate-400 font-bold uppercase py-2 min-h-[44px]"
               onClick={() => setStep(1)}
               disabled={isCreating || isListing}
             >
               EDIT
             </Button>
             <Button
-              className="flex-1 bg-primary hover:bg-primary-hover text-black font-bold uppercase py-2 flex items-center justify-center gap-1.5 shadow-[0_0_15px_rgba(0,212,170,0.15)]"
+              className="flex-1 bg-primary hover:bg-primary-hover text-black font-bold uppercase py-2 min-h-[44px] flex items-center justify-center gap-1.5 shadow-[0_0_15px rgba(0,212,170,0.15)]"
               onClick={handleCreate}
               disabled={isCreating || isListing}
             >
