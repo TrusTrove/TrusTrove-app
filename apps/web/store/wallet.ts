@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 interface WalletState {
   address: string | null;
@@ -14,16 +15,28 @@ interface WalletState {
   setRole: (role: 'issuer' | 'buyer' | 'lp') => void;
 }
 
-export const useWalletStore = create<WalletState>((set) => ({
-  address: null,
-  connected: false,
-  network: null,
-  token: null,
-  role: 'issuer',
-  connect: (address, network) => set({ address, connected: true, network }),
-  disconnect: () => set({ address: null, connected: false, network: null, token: null, role: 'issuer' }),
-  setAddress: (address) => set({ address, connected: !!address }),
-  setNetwork: (network) => set({ network }),
-  setToken: (token) => set({ token }),
-  setRole: (role) => set({ role }),
-}));
+export const useWalletStore = create<WalletState>()(
+  persist(
+    (set) => ({
+      address: null,
+      connected: false,
+      network: null,
+      token: null,
+      role: 'issuer',
+      connect: (address, network) => set({ address, connected: true, network }),
+      disconnect: () => set({ address: null, connected: false, network: null, token: null, role: 'issuer' }),
+      setAddress: (address) => set({ address, connected: !!address }),
+      setNetwork: (network) => set({ network }),
+      setToken: (token) => set({ token }),
+      setRole: (role) => set({ role }),
+    }),
+    {
+      name: 'wallet-storage',
+      partialize: (state) => ({
+        address: state.address,
+        network: state.network,
+        role: state.role,
+      }),
+    }
+  )
+);
