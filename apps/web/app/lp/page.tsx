@@ -1,9 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import Link from 'next/link';
 import { PageLayout } from '@/components/shared/PageLayout';
 import { usePool } from '@/hooks/usePool';
 import { useWalletStore } from '@/store/wallet';
+import { useProfile } from '@/hooks/useProfile';
 import { WalletConnect } from '@/components/shared/WalletConnect';
 import { PoolStatsPanelSkeleton, LPPositionCardSkeleton } from '@/components/shared/SkeletonLoader';
 import { Button } from '@/components/ui/button';
@@ -16,14 +18,15 @@ import { ASSET_OPTIONS, formatAmount } from '@/lib/assets';
 import { PoolClient } from '@trusttrove/sdk';
 import { Address, nativeToScVal } from '@stellar/stellar-sdk';
 import { SimulationPreview } from '@/components/shared/SimulationPreview';
+import { useQuery } from '@tanstack/react-query';
+import { getPoolSnapshots } from '@/lib/api';
 
 const poolContractID = process.env.NEXT_PUBLIC_POOL_CONTRACT_ID || '';
 
 
 export default function LPDashboard() {
   const { connected, address } = useWalletStore();
-
-
+  const { isVerified } = useProfile();
   const {
     stats,
     isStatsLoading,
@@ -92,6 +95,51 @@ export default function LPDashboard() {
     };
   }, [depositAmount, address]);
 
+  const { data: snapshots, isLoading: isSnapshotsLoading } = useQuery({
+    queryKey: ['poolSnapshots'],
+    queryFn: getPoolSnapshots,
+  });
+
+  const chartLines = useMemo(() => {
+    if (!snapshots || snapshots.length < 2) return null;
+
+    const sorted = [...snapshots].sort((a, b) => a.timestamp - b.timestamp);
+    const values = sorted.map((s) => s.utilizationRateBps);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = max - min || 1;
+
+    const pad = 10;
+    const chartW = 500;
+    const chartH = 150;
+    const chartTop = pad;
+    const chartBottom = chartH - pad;
+    const chartHeight = chartBottom - chartTop;
+
+    const points = sorted.map((s, i) => {
+      const x = i / (sorted.length - 1) * chartW;
+      const y = chartBottom - ((s.utilizationRateBps - min) / range) * chartHeight;
+      return { x, y };
+    });
+
+    const lineD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+    const areaD = `${lineD} L ${points[points.length - 1].x} ${chartBottom} L ${points[0].x} ${chartBottom} Z`;
+
+    const rawLabels = sorted.map((s) => s.timestamp);
+    const displayIndices = sorted.length <= 5
+      ? rawLabels.map((_, i) => i)
+      : [0, Math.floor((sorted.length - 1) / 4), Math.floor((sorted.length - 1) / 2), Math.floor(3 * (sorted.length - 1) / 4), sorted.length - 1];
+
+    const labels = displayIndices.map((i) => {
+      const snap = sorted[i];
+      const date = new Date(snap.timestamp * 1000);
+      const month = date.toLocaleString('default', { month: 'short' });
+      const day = date.getDate();
+      return `${month} ${day}`;
+    });
+
+    return { lineD, areaD, labels, points };
+  }, [snapshots]);
 
   const handleDeposit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -203,6 +251,19 @@ export default function LPDashboard() {
           </p>
         </div>
 
+        {/* Warning Banner for Unverified Profiles */}
+        {!isVerified && (
+          <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 flex items-start gap-3 font-mono text-xs text-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.02)]">
+            <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <span className="font-bold uppercase">Profile Verification Required</span>
+              <p className="text-slate-400 leading-relaxed text-[11px]">
+                Your connected wallet address is not verified on-chain. To supply liquidity, redeem LP shares, or capture yield, you must register your business credentials. Go to the <Link href="/profile" className="text-primary hover:underline font-bold">[Profile Page]</Link> to register.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* 2-Panel Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           
@@ -284,45 +345,58 @@ export default function LPDashboard() {
               </h3>
               
               <div className="h-44 w-full relative">
-                {/* SVG Line Chart */}
-                <svg className="w-full h-full" viewBox="0 0 500 150">
-                  <defs>
-                    <linearGradient id="chartGlow" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#00d4aa" stopOpacity="0.15" />
-                      <stop offset="100%" stopColor="#00d4aa" stopOpacity="0" />
-                    </linearGradient>
-                  </defs>
-                  {/* Grid Lines */}
-                  <line x1="0" y1="30" x2="500" y2="30" stroke="#1a2330" strokeWidth="0.5" strokeDasharray="3 3" />
-                  <line x1="0" y1="75" x2="500" y2="75" stroke="#1a2330" strokeWidth="0.5" strokeDasharray="3 3" />
-                  <line x1="0" y1="120" x2="500" y2="120" stroke="#1a2330" strokeWidth="0.5" strokeDasharray="3 3" />
-                  
-                  {/* Area fill */}
-                  <path
-                    d="M 0 150 L 0 120 L 100 100 L 200 110 L 300 70 L 400 45 L 500 20 L 500 150 Z"
-                    fill="url(#chartGlow)"
-                  />
-                  
-                  {/* Line path */}
-                  <motion.path
-                    d="M 0 120 L 100 100 L 200 110 L 300 70 L 400 45 L 500 20"
-                    fill="transparent"
-                    stroke="#00d4aa"
-                    strokeWidth="2"
-                    initial={{ pathLength: 0 }}
-                    animate={{ pathLength: 1 }}
-                    transition={{ duration: 1.5, ease: 'easeInOut' }}
-                  />
-                </svg>
+                {isSnapshotsLoading && (
+                  <div className="flex items-center justify-center h-full text-[10px] font-mono text-slate-500 uppercase tracking-wider">
+                    Loading snapshots...
+                  </div>
+                )}
 
-                {/* X Axis Labels */}
-                <div className="flex justify-between mt-1 text-[9px] font-mono text-slate-500 uppercase tracking-widest px-2">
-                  <span>Epoch 1 (Start)</span>
-                  <span>Epoch 2</span>
-                  <span>Epoch 3</span>
-                  <span>Epoch 4</span>
-                  <span>Current Epoch</span>
-                </div>
+                {!isSnapshotsLoading && (!chartLines || !snapshots || snapshots.length < 2) && (
+                  <div className="flex items-center justify-center h-full text-[10px] font-mono text-slate-500 uppercase tracking-wider">
+                    Insufficient historical data
+                  </div>
+                )}
+
+                {chartLines && (
+                  <>
+                    <svg className="w-full h-full" viewBox="0 0 500 150">
+                      <defs>
+                        <linearGradient id="chartGlow" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#00d4aa" stopOpacity="0.15" />
+                          <stop offset="100%" stopColor="#00d4aa" stopOpacity="0" />
+                        </linearGradient>
+                      </defs>
+                      {/* Grid Lines */}
+                      <line x1="0" y1="30" x2="500" y2="30" stroke="#1a2330" strokeWidth="0.5" strokeDasharray="3 3" />
+                      <line x1="0" y1="75" x2="500" y2="75" stroke="#1a2330" strokeWidth="0.5" strokeDasharray="3 3" />
+                      <line x1="0" y1="120" x2="500" y2="120" stroke="#1a2330" strokeWidth="0.5" strokeDasharray="3 3" />
+                      
+                      {/* Area fill */}
+                      <path
+                        d={chartLines.areaD}
+                        fill="url(#chartGlow)"
+                      />
+                      
+                      {/* Line path */}
+                      <motion.path
+                        d={chartLines.lineD}
+                        fill="transparent"
+                        stroke="#00d4aa"
+                        strokeWidth="2"
+                        initial={{ pathLength: 0 }}
+                        animate={{ pathLength: 1 }}
+                        transition={{ duration: 1.5, ease: 'easeInOut' }}
+                      />
+                    </svg>
+
+                    {/* X Axis Labels */}
+                    <div className="flex justify-between mt-1 text-[9px] font-mono text-slate-500 uppercase tracking-widest px-2">
+                      {chartLines.labels.map((label, i) => (
+                        <span key={i}>{label}</span>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -415,8 +489,12 @@ export default function LPDashboard() {
                   </div>
                   <Button
                     type="submit"
-                    disabled={isDepositing}
-                    className="w-full bg-primary hover:bg-primary-hover text-black font-bold uppercase text-xs tracking-wider rounded py-2 shadow-[0_0_15px_rgba(0,212,170,0.1)]"
+                    disabled={isDepositing || !isVerified}
+                    className={`w-full font-bold uppercase text-xs tracking-wider rounded py-2 transition-all ${
+                      isVerified
+                        ? 'bg-primary hover:bg-primary-hover text-black shadow-[0_0_15px_rgba(0,212,170,0.1)]'
+                        : 'bg-neutral-800 text-slate-500 border border-neutral-700 cursor-not-allowed opacity-60'
+                    }`}
                   >
                     {isDepositing ? 'DEPOSITING...' : `DEPOSIT ${depositAsset}`}
                   </Button>
@@ -452,8 +530,12 @@ export default function LPDashboard() {
                   </div>
                   <Button
                     type="submit"
-                    disabled={isWithdrawing}
-                    className="w-full bg-slate-900 border border-border hover:bg-slate-800 text-slate-300 font-bold uppercase text-xs tracking-wider rounded py-2"
+                    disabled={isWithdrawing || !isVerified}
+                    className={`w-full font-bold uppercase text-xs tracking-wider rounded py-2 transition-all ${
+                      isVerified
+                        ? 'bg-slate-900 border border-border hover:bg-slate-800 text-slate-300'
+                        : 'bg-neutral-800 text-slate-500 border border-neutral-700 cursor-not-allowed opacity-60'
+                    }`}
                   >
                     {isWithdrawing ? 'REDEEMING...' : 'REDEEM SHARES'}
                   </Button>

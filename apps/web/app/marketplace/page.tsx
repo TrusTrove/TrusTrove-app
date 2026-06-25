@@ -1,17 +1,21 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import Link from 'next/link';
 import { PageLayout } from '@/components/shared/PageLayout';
 import { InvoiceTable } from '@/components/invoice/InvoiceTable';
 import { InvoiceCard } from '@/components/invoice/InvoiceCard';
 import { useInvoices } from '@/hooks/useInvoices';
 import { usePool } from '@/hooks/usePool';
 import { useWalletStore } from '@/store/wallet';
+import { useProfile } from '@/hooks/useProfile';
 import { Invoice } from '@/types';
 import { formatAmount } from '@/lib/assets';
+import { ShieldAlert } from 'lucide-react';
 
 export default function Marketplace() {
   const { connected, role } = useWalletStore();
+  const { isVerified } = useProfile();
   const { stats, isStatsLoading } = usePool();
   const [statusFilter, setStatusFilter] = useState<string>('Listed');
   
@@ -85,6 +89,19 @@ export default function Marketplace() {
             </div>
           </div>
         </div>
+
+        {/* Warning Banner for Unverified Profiles */}
+        {connected && !isVerified && (
+          <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 flex items-start gap-3 font-mono text-xs text-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.02)]">
+            <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <span className="font-bold uppercase">Profile Verification Required</span>
+              <p className="text-slate-400 leading-relaxed text-[11px]">
+                Your connected wallet address is not verified on-chain. To fund invoices or execute smart contract operations, you must register your business credentials. Go to the <Link href="/profile" className="text-primary hover:underline font-bold">[Profile Page]</Link> to register.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Filter bar */}
         <div className="bg-[#0d131a] border border-border rounded-lg p-4 grid grid-cols-1 md:grid-cols-4 gap-4 font-mono text-xs items-end">
@@ -165,6 +182,25 @@ export default function Marketplace() {
               invoices={filteredAndSortedInvoices} 
               onSelectInvoice={(invoice) => setSelectedInvoice(invoice)} 
               activeId={selectedInvoice?.id}
+              emptyState={
+                <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+                  <p className="text-slate-500 text-xs font-mono mb-6 leading-relaxed max-w-xs">
+                    No invoices match your filters
+                  </p>
+                  <button
+                    onClick={() => {
+                      setStatusFilter('Listed');
+                      setMinAmount('');
+                      setMaxAmount('');
+                      setMaxDiscount('500');
+                      setSelectedInvoice(null);
+                    }}
+                    className="border border-border hover:border-primary/50 text-slate-300 hover:text-white font-bold text-xs uppercase tracking-wider rounded px-4 py-2.5 transition-all"
+                  >
+                    Reset Filters
+                  </button>
+                </div>
+              }
             />
 
             {/* Mobile Cards view (hidden on desktop, but let's implement layout) */}

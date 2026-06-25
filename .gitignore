@@ -40,3 +40,5 @@ pnpm-debug.log*
 .DS_Store
 Thumbs.db
 .neon
+create_pr.ps1
+build_output.txt

@@ -10,6 +10,12 @@ export interface EventLog {
   data: Record<string, any>;
 }
 
+export interface PoolSnapshot {
+  timestamp: number;
+  utilizationRateBps: number;
+  totalYieldDistributed: string;
+}
+
 export interface TxHistoryItem {
   id: string;
   type: string;

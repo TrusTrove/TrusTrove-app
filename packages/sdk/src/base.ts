@@ -10,6 +10,18 @@ import {
 import { signTransaction } from '@stellar/freighter-api';
 import { getConfig, getSorobanServer } from './config.js';
 
+const MAX_TRANSACTION_POLL_ATTEMPTS = 30;
+
+export class TransactionTimeoutError extends Error {
+  readonly txHash: string;
+
+  constructor(txHash: string) {
+    super(`Transaction confirmation timed out for hash: ${txHash}`);
+    this.name = 'TransactionTimeoutError';
+    this.txHash = txHash;
+  }
+}
+
 function isNetworkError(err: unknown): boolean {
   if (err instanceof TypeError) return true;
   const msg = err instanceof Error ? err.message.toLowerCase() : '';
@@ -147,9 +159,18 @@ export class BaseContractClient {
     }
 
     let response = await withRetry(() => server.getTransaction(result.hash));
-    while (response.status === rpc.Api.GetTransactionStatus.NOT_FOUND) {
+    let attempts = 1;
+    while (
+      response.status === rpc.Api.GetTransactionStatus.NOT_FOUND &&
+      attempts < MAX_TRANSACTION_POLL_ATTEMPTS
+    ) {
       await new Promise(r => setTimeout(r, 1000));
       response = await withRetry(() => server.getTransaction(result.hash));
+      attempts++;
+    }
+
+    if (response.status === rpc.Api.GetTransactionStatus.NOT_FOUND) {
+      throw new TransactionTimeoutError(result.hash);
     }
 
     if (response.status === rpc.Api.GetTransactionStatus.FAILED) {

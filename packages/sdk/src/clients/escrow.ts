@@ -24,12 +24,12 @@ export class EscrowClient extends BaseContractClient {
 
   async releaseToPool(
     invoiceIdHex: string,
-    withYield: boolean,
+    repaymentAmount: bigint,
     signerPublicKey: string
   ): Promise<boolean> {
     const args = [
       xdr.ScVal.scvBytes(Buffer.from(invoiceIdHex, 'hex')),
-      nativeToScVal(withYield, { type: 'bool' }),
+      nativeToScVal(repaymentAmount, { type: 'u128' }),
     ];
     return this.writeContract('release_to_pool', args, signerPublicKey).then(() => true);
   }

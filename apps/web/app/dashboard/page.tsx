@@ -9,9 +9,10 @@ import { InvoiceCard } from '@/components/invoice/InvoiceCard';
 import { useInvoices } from '@/hooks/useInvoices';
 import { useRecentEvents } from '@/hooks/useEvents';
 import { useWalletStore } from '@/store/wallet';
+import { useProfile } from '@/hooks/useProfile';
 import { WalletConnect } from '@/components/shared/WalletConnect';
 import { InvoiceTableSkeleton, ActivityTimelineSkeleton } from '@/components/shared/SkeletonLoader';
-import { Layers, Plus } from 'lucide-react';
+import { Layers, Plus, ShieldAlert } from 'lucide-react';
 import { Invoice } from '@/types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatAmount } from '@/lib/assets';
@@ -22,6 +23,7 @@ export default function SMEDashboard() {
   const { events, isLoading: eventsLoading } = useRecentEvents(10);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const { isVerified } = useProfile();
 
   // Compute stats
   const totalFunded = invoices.reduce((sum, inv) => sum + inv.fundedAmount, 0n);
@@ -126,13 +128,35 @@ export default function SMEDashboard() {
           </div>
           
           <button
-            onClick={() => setShowCreateModal(true)}
-            className="bg-primary hover:bg-primary-hover text-black font-bold uppercase tracking-wider text-xs rounded px-4 py-2.5 flex items-center gap-1.5 shadow-[0_0_15px_rgba(0,212,170,0.1)] transition-all"
+            onClick={() => {
+              if (!isVerified) return;
+              setShowCreateModal(true);
+            }}
+            disabled={!isVerified}
+            className={`font-bold uppercase tracking-wider text-xs rounded px-4 py-2.5 flex items-center gap-1.5 transition-all ${
+              isVerified
+                ? 'bg-primary hover:bg-primary-hover text-black shadow-[0_0_15px_rgba(0,212,170,0.1)]'
+                : 'bg-neutral-800 text-slate-500 border border-neutral-700 cursor-not-allowed opacity-60'
+            }`}
+            title={!isVerified ? 'Verification required to create invoices' : undefined}
           >
             <Plus className="w-4 h-4" />
             <span>Create Invoice</span>
           </button>
         </div>
+
+        {/* Warning Banner for Unverified Profiles */}
+        {!isVerified && (
+          <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 flex items-start gap-3 font-mono text-xs text-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.02)]">
+            <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <span className="font-bold uppercase">Profile Verification Required</span>
+              <p className="text-slate-400 leading-relaxed text-[11px]">
+                Your connected wallet address is not verified on-chain. Go to the <Link href="/profile" className="text-primary hover:underline font-bold">[Profile Page]</Link> to register your business credentials and unlock dashboard operations.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Stats Row */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
@@ -183,6 +207,20 @@ export default function SMEDashboard() {
                 invoices={invoices} 
                 onSelectInvoice={(invoice) => setSelectedInvoice(invoice)}
                 activeId={selectedInvoice?.id}
+                emptyState={
+                  <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+                    <p className="text-slate-500 text-xs font-mono mb-6 leading-relaxed max-w-xs">
+                      Create your first invoice to get started
+                    </p>
+                    <button
+                      onClick={() => setShowCreateModal(true)}
+                      className="bg-primary hover:bg-primary-hover text-black font-bold uppercase tracking-wider text-xs rounded px-4 py-2.5 flex items-center gap-1.5 shadow-[0_0_15px_rgba(0,212,170,0.1)] transition-all"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Create Invoice
+                    </button>
+                  </div>
+                }
               />
             )}
 

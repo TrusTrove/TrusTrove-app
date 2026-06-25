@@ -100,6 +100,7 @@ func SyncPoolStats(ctx context.Context, cfg *config.Config, serverKP *keypair.Fu
 	utilizationRateBps := 0
 	totalYieldDistributed := "0"
 	activeInvoiceCount := 0
+	totalShares := "0"
 
 	if val, ok := getMapValue(scValResult, "total_deposits"); ok {
 		totalDeposits = parseU128(val)
@@ -119,6 +120,9 @@ func SyncPoolStats(ctx context.Context, cfg *config.Config, serverKP *keypair.Fu
 	if val, ok := getMapValue(scValResult, "active_invoice_count"); ok {
 		activeInvoiceCount = parseU32(val)
 	}
+	if val, ok := getMapValue(scValResult, "total_shares"); ok {
+		totalShares = parseU128(val)
+	}
 
 	dbStats := &db.DbPoolStats{
 		TotalDeposits:         totalDeposits,
@@ -127,6 +131,7 @@ func SyncPoolStats(ctx context.Context, cfg *config.Config, serverKP *keypair.Fu
 		UtilizationRateBps:    utilizationRateBps,
 		TotalYieldDistributed: totalYieldDistributed,
 		ActiveInvoiceCount:    activeInvoiceCount,
+		TotalShares:           totalShares,
 	}
 
 	err = db.UpdatePoolStats(ctx, dbStats)

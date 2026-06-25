@@ -1,375 +1,84 @@
-'use client';
-
-import React, { useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { PageLayout } from '@/components/shared/PageLayout';
-import { useInvoice, useInvoices } from '@/hooks/useInvoices';
-import { useWalletStore } from '@/store/wallet';
-import { InvoiceStatus } from '@/components/invoice/InvoiceStatus';
-import { StatusTimeline } from '@/components/invoice/StatusTimeline';
-import { Button } from '@/components/ui/button';
-import { TransactionPending } from '@/components/shared/TransactionPending';
-import {
-  Calendar, 
-  ShieldAlert, 
-  Copy, 
-  Check, 
-  ArrowLeft, 
-  Lock, 
-  Users, 
-  Activity, 
-  TrendingUp
-} from 'lucide-react';
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
+import { Invoice } from '@/types';
 import { formatAmount } from '@/lib/assets';
+import InvoiceDetailClient from './InvoiceDetailClient';
 
-export default function InvoiceDetailPage() {
-  const params = useParams();
-  const router = useRouter();
-  const invoiceId = params.invoiceId as string;
-  const { address, connected, role } = useWalletStore();
-  
-  const { invoice, isLoading, refetch } = useInvoice(invoiceId);
-  const { shipInvoice, confirmDelivery, repayInvoice, defaultInvoice } = useInvoices();
-  
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  
-  // Clipboard states
-  const [copiedId, setCopiedId] = useState(false);
-  const [copiedIssuer, setCopiedIssuer] = useState(false);
-  const [copiedBuyer, setCopiedBuyer] = useState(false);
+const inter = Inter({ subsets: ['latin'] });
 
-  // Pending Modal states
-  const [showPending, setShowPending] = useState(false);
-  const [pendingHash, setPendingHash] = useState<string | null>(null);
-  const [pendingText, setPendingText] = useState('Waiting for confirmation...');
+const getIndexerApiUrl = () => {
+  return process.env.NEXT_PUBLIC_INDEXER_API_URL || 'http://localhost:8080';
+};
 
-  const formatAddress = (addr: string) => {
-    if (!addr) return '';
-    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-  };
-
-  const copyToClipboard = async (text: string, type: 'id' | 'issuer' | 'buyer') => {
-    await navigator.clipboard.writeText(text);
-    if (type === 'id') {
-      setCopiedId(true);
-      setTimeout(() => setCopiedId(false), 2000);
-    } else if (type === 'issuer') {
-      setCopiedIssuer(true);
-      setTimeout(() => setCopiedIssuer(false), 2000);
-    } else {
-      setCopiedBuyer(true);
-      setTimeout(() => setCopiedBuyer(false), 2000);
-    }
-  };
-
-  const handleAction = async (actionFn: () => Promise<any>, text: string, errorMsg: string) => {
-    setSubmitting(true);
-    setError(null);
-    setPendingText(text);
-    setPendingHash(null);
-    setShowPending(true);
-    
-    try {
-      const res = await actionFn();
-      if (typeof res === 'string') {
-        setPendingHash(res);
-      }
-      await refetch();
-    } catch (err: any) {
-      setError(err.message || errorMsg);
-      setShowPending(false);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <PageLayout>
-        <div className="flex flex-col items-center justify-center py-20 min-h-[50vh] font-mono text-xs text-primary animate-pulse uppercase">
-          Fetching invoice state from ledger...
-        </div>
-      </PageLayout>
-    );
+async function fetchInvoiceById(invoiceId: string): Promise<Invoice | null> {
+  try {
+    const res = await fetch(`${getIndexerApiUrl()}/invoices/${invoiceId}`, { cache: 'no-store' });
+    if (!res.ok) return null;
+    const raw = await res.json();
+    return {
+      id: raw.id,
+      issuer: raw.issuer,
+      buyer: raw.buyer,
+      faceValue: BigInt(raw.face_value || 0),
+      asset: raw.asset || 'USDC',
+      discountBps: Number(raw.discount_bps || 0),
+      fundedAmount: BigInt(raw.funded_amount || 0),
+      dueDate: Number(raw.due_date || 0),
+      status: raw.status,
+      createdAt: Number(raw.created_at || 0),
+      fundedAt: raw.funded_at ? Number(raw.funded_at) : null,
+      shippedAt: raw.shipped_at ? Number(raw.shipped_at) : null,
+      issuerConfirmed: !!raw.issuer_confirmed,
+      buyerConfirmed: !!raw.buyer_confirmed,
+      repaidAt: raw.repaid_at ? Number(raw.repaid_at) : null,
+    };
+  } catch {
+    return null;
   }
+}
 
-  if (!invoice) {
-    return (
-      <PageLayout>
-        <div className="flex flex-col items-center justify-center py-20 min-h-[50vh] text-center max-w-sm mx-auto space-y-4">
-          <ShieldAlert className="w-12 h-12 text-amber-500" />
-          <h1 className="text-md font-bold font-mono text-white uppercase">Ledger entry not found</h1>
-          <p className="text-slate-500 text-xs font-mono">
-            The invoice ID: {invoiceId} was not found on-chain. Please verify the address.
-          </p>
-          <Button
-            className="border border-border text-slate-300 font-mono text-xs uppercase px-4 py-2 hover:bg-slate-900"
-            onClick={() => router.push('/marketplace')}
-          >
-            Return to Marketplace
-          </Button>
-        </div>
-      </PageLayout>
-    );
-  }
+export const dynamic = 'force-dynamic';
 
-  // Calculate days remaining
-  const nowSecs = Math.floor(Date.now() / 1000);
-  const secondsRemaining = Number(invoice.dueDate) - nowSecs;
-  const daysRemaining = Math.ceil(secondsRemaining / (24 * 3600));
-  const isOverdue = secondsRemaining < 0;
+export async function generateMetadata({ params }: { params: { invoiceId: string } }): Promise<Metadata> {
+  const invoice = await fetchInvoiceById(params.invoiceId);
+  const dueDate = invoice ? new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(invoice.dueDate * 1000)) : undefined;
+  const title = invoice
+    ? `TrusTrove Invoice #${invoice.id} — ${formatAmount(invoice.faceValue)} USDC`
+    : 'TrusTrove Invoice';
+  const description = invoice
+    ? `Trade finance invoice on Stellar. Status: ${invoice.status}. Due: ${dueDate}.`
+    : 'Trade finance invoice on Stellar.';
 
-  // Staging timestamps
-  const timestamps = {
-    created: invoice.createdAt,
-    funded: invoice.fundedAt || undefined,
-    shipped: invoice.shippedAt || undefined,
-    confirmed: invoice.buyerConfirmed ? invoice.shippedAt ? invoice.shippedAt + 3600 : invoice.createdAt + 7200 : undefined,
-    repaid: invoice.repaidAt || undefined,
+  // Construct an absolute origin for social image URLs. Prefer an explicit public URL
+  // if provided via `NEXT_PUBLIC_APP_URL`, otherwise fall back to localhost.
+  const origin = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const ogImage = `${origin.replace(/\/$/, '')}/og-image.png`;
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      type: 'website',
+      images: [
+        {
+          url: ogImage,
+          width: 1200,
+          height: 630,
+          alt: 'TrusTrove Invoice preview image',
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: [ogImage],
+    },
   };
+}
 
-  return (
-    <PageLayout>
-      <div className="space-y-6 py-4">
-        {/* Navigation Breadcrumb */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => router.back()}
-            className="flex items-center gap-1.5 text-xs font-bold font-mono text-slate-500 hover:text-white uppercase transition-colors"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" /> Back
-          </button>
-          <span className="text-slate-600 font-mono text-xs">/</span>
-          <span className="text-slate-400 font-mono text-xs font-bold">Ledger Details</span>
-        </div>
-
-        {/* Header Title */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/40 pb-5">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <h1 className="text-md font-bold font-mono text-white">INVOICE AUDIT LEDGER</h1>
-              <InvoiceStatus status={invoice.status} />
-            </div>
-            <div className="flex items-center gap-1.5 font-mono text-xs text-slate-500">
-              <span>HASH: <strong className="text-slate-400">{invoice.id}</strong></span>
-              <button
-                onClick={() => copyToClipboard(invoice.id, 'id')}
-                className="text-slate-600 hover:text-primary transition-colors"
-              >
-                {copiedId ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-              </button>
-            </div>
-          </div>
-
-          <div className="bg-[#0d131a] border border-border rounded px-4 py-2 font-mono text-right">
-            <span className="text-[10px] text-slate-500 font-bold uppercase block">Face Value Obligations</span>
-            <span className="text-lg font-bold text-white block mt-0.5">{formatAmount(invoice.faceValue)}</span>
-          </div>
-        </div>
-
-        {/* Lifecycle progress timeline */}
-        <div className="bg-card border border-border rounded-lg p-5 space-y-4">
-          <h3 className="text-xs font-bold font-mono text-white uppercase tracking-wider flex items-center gap-1.5">
-            <Activity className="w-3.5 h-3.5 text-primary" />
-            Soroban Transaction Progress
-          </h3>
-          <StatusTimeline status={invoice.status} timestamps={timestamps} />
-        </div>
-
-        {/* Details Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Main Info (Left) */}
-          <div className="lg:col-span-8 space-y-6">
-            <div className="bg-card border border-border rounded-lg p-5 space-y-4">
-              <h3 className="text-xs font-bold font-mono text-white uppercase tracking-wider border-b border-border/40 pb-2 flex items-center gap-1.5">
-                <Users className="w-3.5 h-3.5 text-primary" />
-                Obligation Parties
-              </h3>
-
-              <div className="space-y-4 font-mono text-xs">
-                {/* Issuer */}
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 p-2.5 bg-[#080c10]/40 rounded border border-border/30">
-                  <div className="space-y-0.5">
-                    <span className="text-[10px] text-slate-500 font-bold uppercase block">SME Issuer (Vendor)</span>
-                    <span className="text-slate-300 break-all select-all font-bold">{invoice.issuer}</span>
-                  </div>
-                  <button
-                    onClick={() => copyToClipboard(invoice.issuer, 'issuer')}
-                    className="self-end sm:self-center border border-border bg-[#0d131a] text-slate-400 hover:text-white px-2 py-1 rounded flex items-center gap-1"
-                  >
-                    {copiedIssuer ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                    <span>{copiedIssuer ? 'COPIED' : 'COPY'}</span>
-                  </button>
-                </div>
-
-                {/* Buyer */}
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 p-2.5 bg-[#080c10]/40 rounded border border-border/30">
-                  <div className="space-y-0.5">
-                    <span className="text-[10px] text-slate-500 font-bold uppercase block">Buyer Party (Debtor)</span>
-                    <span className="text-slate-300 break-all select-all font-bold">{invoice.buyer}</span>
-                  </div>
-                  <button
-                    onClick={() => copyToClipboard(invoice.buyer, 'buyer')}
-                    className="self-end sm:self-center border border-border bg-[#0d131a] text-slate-400 hover:text-white px-2 py-1 rounded flex items-center gap-1"
-                  >
-                    {copiedBuyer ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                    <span>{copiedBuyer ? 'COPIED' : 'COPY'}</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Escrow Details */}
-            <div className="bg-card border border-border rounded-lg p-5 space-y-4">
-              <h3 className="text-xs font-bold font-mono text-white uppercase tracking-wider border-b border-border/40 pb-2 flex items-center gap-1.5">
-                <Lock className="w-3.5 h-3.5 text-primary" />
-                Escrow Security Vault
-              </h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-mono text-xs">
-                <div className="bg-[#080c10] border border-border/40 p-3 rounded">
-                  <span className="text-[10px] text-slate-500 font-bold uppercase block">{invoice.asset} Locked in Escrow</span>
-                  <span className="text-md font-bold text-sky-400 block mt-1">
-                    {invoice.status === 'Funded' || invoice.status === 'Active' || invoice.status === 'Confirmed' 
-                      ? formatAmount(invoice.faceValue, invoice.asset) 
-                      : `0.00 ${invoice.asset}`}
-                  </span>
-                </div>
-                <div className="bg-[#080c10] border border-border/40 p-3 rounded">
-                  <span className="text-[10px] text-slate-500 font-bold uppercase block">Escrow Condition</span>
-                  <span className="text-slate-300 block mt-1 font-bold">
-                    {invoice.status === 'Funded' ? (
-                      'Locked (Awaiting SME shipment proof)'
-                    ) : invoice.status === 'Active' ? (
-                      'Locked (Goods Shipped, Awaiting Buyer delivery confirmation)'
-                    ) : invoice.status === 'Confirmed' ? (
-                      'Active (Delivered, Awaiting Buyer repayment)'
-                    ) : invoice.status === 'Repaid' ? (
-                      'Released (Repayment completed)'
-                    ) : (
-                      'Unlocked / Empty'
-                    )}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Action / Maturity Panel (Right) */}
-          <div className="lg:col-span-4 space-y-6">
-            <div className="bg-[#0d131a] border border-border rounded-lg p-5 space-y-4">
-              <h3 className="text-xs font-bold font-mono text-white uppercase tracking-wider border-b border-border/40 pb-2 flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-primary" />
-                Maturity Parameters
-              </h3>
-
-              <div className="space-y-4 font-mono text-xs">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Maturity Date:</span>
-                  <span className="text-slate-300 font-bold">
-                    {new Date(invoice.dueDate * 1000).toLocaleDateString()}
-                  </span>
-                </div>
-
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Maturity Status:</span>
-                  <span className={`font-bold ${isOverdue && invoice.status !== 'Repaid' ? 'text-amber-500' : 'text-slate-300'}`}>
-                    {isOverdue && invoice.status !== 'Repaid' ? 'OVERDUE' : `${daysRemaining} days remaining`}
-                  </span>
-                </div>
-
-                <div className="flex justify-between border-t border-border/20 pt-3">
-                  <span className="text-slate-500">Discount Rate:</span>
-                  <span className="text-primary font-bold">
-                    {invoice.discountBps > 0 ? `${(invoice.discountBps / 100).toFixed(2)}%` : '—'}
-                  </span>
-                </div>
-
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Net Discount Fee:</span>
-                  <span className="text-slate-300 font-bold">
-                    {formatAmount(invoice.faceValue - invoice.fundedAmount)}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Smart Contract Triggers */}
-            {connected && (
-              <div className="bg-[#0d131a] border border-border rounded-lg p-5 space-y-4">
-                <h3 className="text-xs font-bold font-mono text-white uppercase tracking-wider border-b border-border/40 pb-2 flex items-center gap-1.5">
-                  <TrendingUp className="w-3.5 h-3.5 text-primary" />
-                  Contract Triggers
-                </h3>
-
-                {error && (
-                  <div className="p-3 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 text-[10px] font-mono leading-normal">
-                    <ShieldAlert className="w-3.5 h-3.5 inline mr-1" />
-                    {error}
-                  </div>
-                )}
-
-                <div className="space-y-3">
-                  {invoice.status === 'Funded' && role === 'issuer' && (
-                    <Button
-                      className="w-full bg-primary hover:bg-primary-hover text-black font-bold uppercase text-xs tracking-wider py-2.5 rounded"
-                      onClick={() => handleAction(() => shipInvoice({ invoiceId: invoice.id }), 'Submitting shipment confirmation...', 'Failed to mark as shipped')}
-                      disabled={submitting}
-                    >
-                      MARK GOODS SHIPPED
-                    </Button>
-                  )}
-
-                  {invoice.status === 'Active' && role === 'buyer' && !invoice.buyerConfirmed && (
-                    <Button
-                      className="w-full bg-primary hover:bg-primary-hover text-black font-bold uppercase text-xs tracking-wider py-2.5 rounded"
-                      onClick={() => handleAction(() => confirmDelivery({ invoiceId: invoice.id }), 'Submitting delivery confirmation...', 'Failed to confirm delivery')}
-                      disabled={submitting}
-                    >
-                      CONFIRM DELIVERY
-                    </Button>
-                  )}
-
-                  {(invoice.status === 'Confirmed' || invoice.status === 'Active') && role === 'buyer' && (
-                    <Button
-                      className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold uppercase text-xs tracking-wider py-2.5 rounded shadow-[0_0_15px_rgba(16,185,129,0.15)]"
-                      onClick={() => handleAction(() => repayInvoice({ invoiceId: invoice.id }), 'Submitting USDC repayment...', 'Failed to repay invoice')}
-                      disabled={submitting}
-                    >
-                      REPAY {formatAmount(invoice.faceValue)}
-                    </Button>
-                  )}
-
-                  {invoice.status === 'Active' && isOverdue && (
-                    <Button
-                      className="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold uppercase text-xs tracking-wider py-2.5 rounded"
-                      onClick={() => handleAction(() => defaultInvoice({ invoiceId: invoice.id }), 'Triggering default on-chain...', 'Failed to trigger default')}
-                      disabled={submitting}
-                    >
-                      TRIGGER DEFAULT (OVERDUE)
-                    </Button>
-                  )}
-
-                  {/* If no action fits role */}
-                  <div className="text-[10px] font-mono text-slate-500 text-center uppercase tracking-wider py-2 leading-relaxed">
-                    Connected wallet: {formatAddress(address!)} <br />
-                    Consoling role: <span className="text-primary font-bold">{role.toUpperCase()}</span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Transaction Pending Modal */}
-      <TransactionPending
-        isOpen={showPending}
-        txHash={pendingHash}
-        statusText={pendingText}
-        onClose={pendingHash ? () => setShowPending(false) : undefined}
-      />
-    </PageLayout>
-  );
+export default function InvoiceDetailPage({ params }: { params: { invoiceId: string } }) {
+  return <InvoiceDetailClient invoiceId={params.invoiceId} />;
 }

@@ -23,11 +23,12 @@ CREATE TABLE IF NOT EXISTS pool_snapshots (
     utilization_rate_bps INTEGER NOT NULL DEFAULT 0,
     total_yield_distributed NUMERIC NOT NULL DEFAULT 0,
     active_invoice_count INTEGER NOT NULL DEFAULT 0,
+    total_shares NUMERIC NOT NULL DEFAULT 0,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-INSERT INTO pool_snapshots (id, total_deposits, total_funded, available_liquidity, utilization_rate_bps, total_yield_distributed, active_invoice_count)
-VALUES (1, 0, 0, 0, 0, 0, 0)
+INSERT INTO pool_snapshots (id, total_deposits, total_funded, available_liquidity, utilization_rate_bps, total_yield_distributed, active_invoice_count, total_shares)
+VALUES (1, 0, 0, 0, 0, 0, 0, 0)
 ON CONFLICT (id) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS events_log (

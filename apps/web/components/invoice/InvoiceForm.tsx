@@ -55,8 +55,8 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
         try {
           const { getInvoices } = await import('@/lib/api');
           const myInvoices = await getInvoices({ issuer: address });
-          if (myInvoices && myInvoices.length > 0) {
-            invoiceIdToSimulate = myInvoices[0].id;
+          if (myInvoices && myInvoices.data.length > 0) {
+            invoiceIdToSimulate = myInvoices.data[0].id;
           }
         } catch (e) {
           console.warn('Failed to fetch existing invoices for simulation:', e);
@@ -382,7 +382,7 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
               EDIT
             </Button>
             <Button
-              className="flex-1 bg-primary hover:bg-primary-hover text-black font-bold uppercase py-2 min-h-[44px] flex items-center justify-center gap-1.5 shadow-[0_0_15px rgba(0,212,170,0.15)]"
+              className="flex-1 bg-primary hover:bg-primary-hover text-black font-bold uppercase py-2 min-h-[44px] flex items-center justify-center gap-1.5 shadow-[0_0_15px_rgba(0,212,170,0.15)]"
               onClick={handleCreate}
               disabled={isCreating || isListing}
             >
