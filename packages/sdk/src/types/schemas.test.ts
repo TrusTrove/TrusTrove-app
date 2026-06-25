@@ -1,0 +1,112 @@
+/**
+ * Unit tests for parsePoolStats — feat/sdk-poolstats-totalshares
+ *
+ * Tests that:
+ *  1. totalShares is parsed correctly from a plain JS object (camelCase key)
+ *  2. totalShares is parsed correctly from a Map with snake_case key
+ *     (mirrors the output of scValToNative on a Soroban ScVal map)
+ *  3. totalShares defaults to 0n when the field is absent (backward compat)
+ *  4. The PoolStats TypeScript interface includes totalShares: bigint
+ */
+
+import { strict as assert } from 'node:assert';
+import { describe, it } from 'node:test';
+import { parsePoolStats } from './schemas.js';
+import type { PoolStats } from './index.js';
+
+// Helper: build a minimal valid PoolStats plain object with all required fields.
+function baseStats(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    total_deposits: 1_000_000n,
+    total_funded: 500_000n,
+    available_liquidity: 500_000n,
+    utilization_rate_bps: 5000,
+    total_yield_distributed: 10_000n,
+    active_invoice_count: 3,
+    ...overrides,
+  };
+}
+
+describe('parsePoolStats — totalShares', () => {
+
+  it('parses total_shares from a plain object (snake_case keys from scValToNative)', () => {
+    const raw = baseStats({ total_shares: 250_000n });
+    const result: PoolStats = parsePoolStats(raw);
+
+    assert.equal(typeof result.totalShares, 'bigint',
+      'totalShares should be a bigint');
+    assert.equal(result.totalShares, 250_000n,
+      'totalShares should equal the input value');
+  });
+
+  it('parses total_shares from a Map (scValToNative returns Map for Soroban struct)', () => {
+    const map = new Map<string, unknown>([
+      ['total_deposits',          1_000_000n],
+      ['total_funded',              500_000n],
+      ['available_liquidity',       500_000n],
+      ['utilization_rate_bps',          5000],
+      ['total_yield_distributed',    10_000n],
+      ['active_invoice_count',              3],
+      ['total_shares',              999_888n], // ← the field under test
+    ]);
+
+    const result: PoolStats = parsePoolStats(map);
+
+    assert.equal(result.totalShares, 999_888n,
+      'totalShares should be correctly read from a Map with snake_case key');
+  });
+
+  it('coerces numeric total_shares to bigint', () => {
+    // Contract may return number for small values depending on SDK version.
+    const raw = baseStats({ total_shares: 42 });
+    const result: PoolStats = parsePoolStats(raw);
+
+    assert.equal(result.totalShares, 42n,
+      'numeric total_shares should be coerced to bigint');
+  });
+
+  it('coerces string total_shares to bigint', () => {
+    const raw = baseStats({ total_shares: '123456789012345678901234567890' });
+    const result: PoolStats = parsePoolStats(raw);
+
+    assert.equal(result.totalShares, 123456789012345678901234567890n);
+  });
+
+  it('defaults totalShares to 0n when field is absent (backward compatibility)', () => {
+    // Old contract responses without total_shares should still parse safely.
+    const raw = baseStats(); // no total_shares key
+    const result: PoolStats = parsePoolStats(raw);
+
+    assert.equal(result.totalShares, 0n,
+      'absent total_shares should default to 0n via bigintSchema preprocess');
+  });
+
+  it('parses all existing PoolStats fields alongside totalShares (no regression)', () => {
+    const raw = baseStats({ total_shares: 777n });
+    const result: PoolStats = parsePoolStats(raw);
+
+    assert.equal(result.totalDeposits,        1_000_000n);
+    assert.equal(result.totalFunded,            500_000n);
+    assert.equal(result.availableLiquidity,     500_000n);
+    assert.equal(result.utilizationRateBps,         5000);
+    assert.equal(result.totalYieldDistributed,   10_000n);
+    assert.equal(result.activeInvoiceCount,             3);
+    assert.equal(result.totalShares,                777n);
+  });
+
+  it('TypeScript interface check — totalShares: bigint is assignable', () => {
+    // This is a compile-time check: if PoolStats is missing totalShares the
+    // TypeScript compiler will fail on this file during `tsc --noEmit`.
+    const stats: PoolStats = {
+      totalDeposits:         1_000_000n,
+      totalFunded:             500_000n,
+      availableLiquidity:      500_000n,
+      utilizationRateBps:          5000,
+      totalYieldDistributed:    10_000n,
+      activeInvoiceCount:             3,
+      totalShares:              250_000n, // ← must compile without error
+    };
+    assert.equal(typeof stats.totalShares, 'bigint');
+  });
+
+});
