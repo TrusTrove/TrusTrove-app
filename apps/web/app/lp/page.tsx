@@ -193,10 +193,8 @@ export default function LPDashboard() {
 
     try {
       const sharesStroops = BigInt(Math.floor(sharesNum * 10_000_000));
-      const res = await withdraw({ shares: sharesStroops });
-      if (typeof res === 'string') {
-        setPendingHash(res);
-      }
+      const txHash = await withdraw({ shares: sharesStroops });
+      setPendingHash(txHash);
       setWithdrawShares('');
     } catch (err: any) {
       setLocalError(err.message || 'Withdrawal failed');
