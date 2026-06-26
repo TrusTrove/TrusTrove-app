@@ -16,6 +16,7 @@ import { Layers, Plus, ShieldAlert } from 'lucide-react';
 import { Invoice } from '@/types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatAmount } from '@/lib/assets';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 
 export default function SMEDashboard() {
   const { address, connected, role } = useWalletStore();
@@ -24,6 +25,7 @@ export default function SMEDashboard() {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const { isVerified } = useProfile();
+  const createModalRef = useFocusTrap<HTMLDivElement>(showCreateModal, () => setShowCreateModal(false));
 
   // Compute stats
   const totalFunded = invoices.reduce((sum, inv) => sum + inv.fundedAmount, 0n);
@@ -297,7 +299,14 @@ export default function SMEDashboard() {
 
       {/* Create Invoice Dialog Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-[#080c10]/95 backdrop-blur-sm p-0 md:p-4">
+        <div
+          ref={createModalRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Create Invoice"
+          tabIndex={-1}
+          className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-[#080c10]/95 backdrop-blur-sm p-0 md:p-4"
+        >
           <div
             className="w-full max-w-lg relative bg-card border md:border-border rounded-t-2xl md:rounded-lg max-h-[92vh] md:max-h-[85vh] overflow-hidden flex flex-col shadow-2xl"
             onClick={(e) => e.stopPropagation()}

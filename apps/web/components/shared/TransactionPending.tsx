@@ -3,6 +3,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Loader2, ExternalLink, ShieldCheck } from 'lucide-react';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 
 interface TransactionPendingProps {
   isOpen: boolean;
@@ -12,10 +13,19 @@ interface TransactionPendingProps {
 }
 
 export function TransactionPending({ isOpen, txHash, statusText = 'Waiting for confirmation...', onClose }: TransactionPendingProps) {
+  const overlayRef = useFocusTrap<HTMLDivElement>(isOpen, onClose ?? undefined);
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#080c10]/95 backdrop-blur-sm p-4">
+    <div
+      ref={overlayRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Transaction Pending"
+      tabIndex={-1}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#080c10]/95 backdrop-blur-sm p-4"
+    >
       <div className="w-full max-w-md bg-card border border-border rounded-lg p-6 flex flex-col items-center justify-center text-center shadow-[0_0_50px_rgba(0,212,170,0.05)]">
         {/* Animated Stellar Orbit Logo */}
         <div className="relative w-28 h-28 flex items-center justify-center mb-6">
