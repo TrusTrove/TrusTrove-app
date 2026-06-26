@@ -6,17 +6,44 @@ import { Navbar } from '@/components/shared/Navbar';
 import { InvoiceFeed } from '@/components/shared/InvoiceFeed';
 import { LpYieldCalculator } from '@/components/shared/LpYieldCalculator';
 import { DiscountCalculator } from '@/components/shared/DiscountCalculator';
+import { usePool } from '@/hooks/usePool';
+import { useInvoices } from '@/hooks/useInvoices';
 import { 
   ShieldCheck, 
   FileCheck2, 
   Layers, 
-  Coins, 
+  Coins,
   Database,
   ArrowRightLeft,
   Landmark
 } from 'lucide-react';
 
 export default function Home() {
+  const { stats, isStatsLoading, statsError } = usePool();
+
+  // Format big numbers for display
+  const formatNumber = (num: bigint | number, decimals = 6) => {
+    if (typeof num === 'bigint') {
+      return (Number(num) / Math.pow(10, decimals)).toLocaleString(undefined, { maximumFractionDigits: 1 });
+    }
+    return num.toLocaleString(undefined, { maximumFractionDigits: 1 });
+  };
+  
+  // Format number for display in millions (e.g., 12.4M)
+  const formatMillions = (num: bigint | number) => {
+    if (typeof num === 'bigint') {
+      return (Number(num) / Math.pow(10, 12)).toLocaleString(undefined, { maximumFractionDigits: 1 }); // divid by 10^12 to get millions
+    }
+    return (num / Math.pow(10, 12)).toLocaleString(undefined, { maximumFractionDigits: 1 });
+  };
+  
+  // Format number for display in thousands (e.g., 245.8K)
+  const formatThousands = (num: bigint | number) => {
+    if (typeof num === 'bigint') {
+      return (Number(num) / Math.pow(10, 9)).toLocaleString(undefined, { maximumFractionDigits: 1 }); // divid by 10^9 to get thousands
+    }
+    return (num / Math.pow(10, 9)).toLocaleString(undefined, { maximumFractionDigits: 1 });
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col selection:bg-primary selection:text-black">
@@ -63,26 +90,61 @@ export default function Home() {
 
             {/* Core Stats Row */}
             <div className="grid grid-cols-3 gap-4 border-t border-b border-border/40 py-6">
+              {/* Pool Value */}
               <div className="text-center lg:text-left">
-                <span className="text-xl sm:text-2xl font-bold font-mono text-white block">
-                  12.4M
-                </span>
+                {isStatsLoading ? (
+                  <span className="text-xl sm:text-2xl font-bold font-mono text-white block animate-pulse">
+                    --.-M
+                  </span>
+                ) : statsError ? (
+                  <span className="text-xl sm:text-2xl font-bold font-mono text-white block">
+                    --.-M
+                  </span>
+                ) : (
+                  <span className="text-xl sm:text-2xl font-bold font-mono text-white block">
+                    {stats ? `${formatMillions(stats.totalDeposits || stats.totalFunded)}M` : '--.-M'}
+                  </span>
+                )}
                 <span className="text-[10px] font-mono text-slate-500 uppercase font-bold tracking-wider block mt-1">
                   USDC POOL VALUE
                 </span>
               </div>
+              
+              {/* Invoices Funded */}
               <div className="text-center lg:text-left">
-                <span className="text-xl sm:text-2xl font-bold font-mono text-white block">
-                  4,821
-                </span>
+                {isStatsLoading ? (
+                  <span className="text-xl sm:text-2xl font-bold font-mono text-white block animate-pulse">
+                    --,---
+                  </span>
+                ) : statsError ? (
+                  <span className="text-xl sm:text-2xl font-bold font-mono text-white block">
+                    --,---
+                  </span>
+                ) : (
+                  <span className="text-xl sm:text-2xl font-bold font-mono text-white block">
+                    {stats ? stats.activeInvoiceCount?.toLocaleString() : '--,---'}
+                  </span>
+                )}
                 <span className="text-[10px] font-mono text-slate-500 uppercase font-bold tracking-wider block mt-1">
                   INVOICES FUNDED
                 </span>
               </div>
+              
+              {/* Yield Distributed */}
               <div className="text-center lg:text-left">
-                <span className="text-xl sm:text-2xl font-bold font-mono text-white block">
-                  245.8K
-                </span>
+                {isStatsLoading ? (
+                  <span className="text-xl sm:text-2xl font-bold font-mono text-white block animate-pulse">
+                    --.-K
+                  </span>
+                ) : statsError ? (
+                  <span className="text-xl sm:text-2xl font-bold font-mono text-white block">
+                    --.-K
+                  </span>
+                ) : (
+                  <span className="text-xl sm:text-2xl font-bold font-mono text-white block">
+                    {stats ? `${formatThousands(stats.totalYieldDistributed)}K` : '--.-K'}
+                  </span>
+                )}
                 <span className="text-[10px] font-mono text-slate-500 uppercase font-bold tracking-wider block mt-1">
                   YIELD DISTRIBUTED
                 </span>
@@ -90,7 +152,7 @@ export default function Home() {
             </div>
 
             <div className="text-xs font-mono text-slate-400 border-l-2 border-primary pl-3">
-              &quot;From invoice to USDC in minutes. Not weeks.&quot;
+              "From invoice to USDC in minutes. Not weeks."
             </div>
           </div>
 
@@ -225,7 +287,15 @@ export default function Home() {
               </p>
               <div className="bg-[#080c10] border border-border/40 p-2.5 rounded text-[10px] font-mono flex justify-between text-slate-500">
                 <span>UTILIZATION RATE:</span>
-                <span className="text-white font-bold">78.5% capacity</span>
+                {isStatsLoading ? (
+                  <span className="text-white font-bold animate-pulse">--.-%</span>
+                ) : statsError ? (
+                  <span className="text-white font-bold">--.-%</span>
+                ) : (
+                  <span className="text-white font-bold">
+                    {(stats?.utilizationRateBps || 0) / 100}% capacity
+                  </span>
+                )}
               </div>
             </div>
           </div>
