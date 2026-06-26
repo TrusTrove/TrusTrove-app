@@ -15,6 +15,7 @@ type DbInvoice struct {
 	Issuer          string `json:"issuer"`
 	Buyer           string `json:"buyer"`
 	FaceValue       string `json:"face_value"` // BigInt represented as string for JSON/SQL numeric safety
+	Asset           string `json:"asset"`
 	DiscountBps     int    `json:"discount_bps"`
 	FundedAmount    string `json:"funded_amount"`
 	DueDate         int64  `json:"due_date"`
@@ -80,10 +81,10 @@ func GetProtocolStats(ctx context.Context) (*ProtocolStats, error) {
 func InsertInvoice(ctx context.Context, inv *DbInvoice) error {
 	query := `
 		INSERT INTO invoices (
-			id, issuer, buyer, face_value, discount_bps, funded_amount, due_date, status, created_at,
+			id, issuer, buyer, face_value, asset, discount_bps, funded_amount, due_date, status, created_at,
 			funded_at, shipped_at, issuer_confirmed, buyer_confirmed, repaid_at
 		) VALUES (
-			@id, @issuer, @buyer, @face_value, @discount_bps, @funded_amount, @due_date, @status, @created_at,
+			@id, @issuer, @buyer, @face_value, @asset, @discount_bps, @funded_amount, @due_date, @status, @created_at,
 			@funded_at, @shipped_at, @issuer_confirmed, @buyer_confirmed, @repaid_at
 		)
 	`
@@ -92,6 +93,7 @@ func InsertInvoice(ctx context.Context, inv *DbInvoice) error {
 		"issuer":           inv.Issuer,
 		"buyer":            inv.Buyer,
 		"face_value":       inv.FaceValue,
+		"asset":            inv.Asset,
 		"discount_bps":     inv.DiscountBps,
 		"funded_amount":    inv.FundedAmount,
 		"due_date":         inv.DueDate,
@@ -113,7 +115,7 @@ func InsertInvoice(ctx context.Context, inv *DbInvoice) error {
 func GetInvoiceByID(ctx context.Context, id string) (*DbInvoice, error) {
 	query := `
 		SELECT 
-			id, issuer, buyer, face_value, discount_bps, funded_amount, due_date, status, created_at,
+			id, issuer, buyer, face_value, asset, discount_bps, funded_amount, due_date, status, created_at,
 			funded_at, shipped_at, issuer_confirmed, buyer_confirmed, repaid_at
 		FROM invoices
 		WHERE id = $1
@@ -121,7 +123,7 @@ func GetInvoiceByID(ctx context.Context, id string) (*DbInvoice, error) {
 	row := Pool.QueryRow(ctx, query, id)
 	var inv DbInvoice
 	err := row.Scan(
-		&inv.ID, &inv.Issuer, &inv.Buyer, &inv.FaceValue, &inv.DiscountBps, &inv.FundedAmount, &inv.DueDate, &inv.Status, &inv.CreatedAt,
+		&inv.ID, &inv.Issuer, &inv.Buyer, &inv.FaceValue, &inv.Asset, &inv.DiscountBps, &inv.FundedAmount, &inv.DueDate, &inv.Status, &inv.CreatedAt,
 		&inv.FundedAt, &inv.ShippedAt, &inv.IssuerConfirmed, &inv.BuyerConfirmed, &inv.RepaidAt,
 	)
 	if err != nil {
@@ -147,7 +149,7 @@ func GetInvoicesPage(ctx context.Context, status, issuer string, limit, offset i
 
 	query := `
 		SELECT 
-			id, issuer, buyer, face_value, discount_bps, funded_amount, due_date, status, created_at,
+			id, issuer, buyer, face_value, asset, discount_bps, funded_amount, due_date, status, created_at,
 			funded_at, shipped_at, issuer_confirmed, buyer_confirmed, repaid_at
 		FROM invoices
 		WHERE ($1 = '' OR status = $1)
@@ -165,7 +167,7 @@ func GetInvoicesPage(ctx context.Context, status, issuer string, limit, offset i
 	for rows.Next() {
 		var inv DbInvoice
 		err := rows.Scan(
-			&inv.ID, &inv.Issuer, &inv.Buyer, &inv.FaceValue, &inv.DiscountBps, &inv.FundedAmount, &inv.DueDate, &inv.Status, &inv.CreatedAt,
+			&inv.ID, &inv.Issuer, &inv.Buyer, &inv.FaceValue, &inv.Asset, &inv.DiscountBps, &inv.FundedAmount, &inv.DueDate, &inv.Status, &inv.CreatedAt,
 			&inv.FundedAt, &inv.ShippedAt, &inv.IssuerConfirmed, &inv.BuyerConfirmed, &inv.RepaidAt,
 		)
 		if err != nil {
