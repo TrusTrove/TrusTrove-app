@@ -111,6 +111,9 @@ importers:
       typescript:
         specifier: ^5
         version: 5.9.3
+      vite:
+        specifier: ^8.1.0
+        version: 8.1.0(@types/node@20.19.42)(jiti@1.21.7)
       vitest:
         specifier: ^4.1.9
         version: 4.1.9(@types/node@20.19.42)(@vitest/coverage-v8@4.1.9)(jsdom@29.1.1)(vite@8.1.0(@types/node@20.19.42)(jiti@1.21.7))
