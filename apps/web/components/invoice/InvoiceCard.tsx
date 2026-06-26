@@ -10,6 +10,7 @@ import { useProfile } from '@/hooks/useProfile';
 import { Calendar, ShieldAlert, Copy, Check, Truck, Landmark, Wallet, CheckSquare, Clock, X } from 'lucide-react';
 import { formatAmount } from '@/lib/assets';
 
+
 interface InvoiceCardProps {
   invoice: Invoice;
   role?: 'issuer' | 'buyer' | 'lp';
@@ -125,6 +126,7 @@ export function InvoiceCard({ invoice, role, onSelect, isSelected }: InvoiceCard
                 copyToClipboard(invoice.id, 'id');
               }}
               className="text-slate-600 hover:text-primary transition-colors p-0.5"
+              aria-label="Copy invoice ID"
             >
               {copiedId ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
             </button>
@@ -160,6 +162,7 @@ export function InvoiceCard({ invoice, role, onSelect, isSelected }: InvoiceCard
                 copyToClipboard(invoice.buyer, 'buyer');
               }}
               className="text-slate-600 hover:text-primary transition-colors"
+              aria-label="Copy buyer address"
             >
               {copiedBuyer ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
             </button>
@@ -334,27 +337,27 @@ export function InvoiceCard({ invoice, role, onSelect, isSelected }: InvoiceCard
             </Button>
           )}
 
-          {(invoice.status === 'Confirmed' || invoice.status === 'Active') && role === 'buyer' && (
-            <Button
-              className={`w-full font-bold uppercase tracking-wider text-xs rounded py-2 flex items-center justify-center gap-1.5 transition-all ${
-                isVerified
-                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                  : 'bg-neutral-800 text-slate-500 border border-neutral-700 cursor-not-allowed opacity-60'
-              }`}
-              onClick={() => {
-                if (!isVerified) return;
-                requestConfirmation({
-                  label: 'Repay Invoice',
-                  fn: () => repayInvoice({ invoiceId: invoice.id }),
-                  errorMsg: 'Failed to repay invoice',
-                });
-              }}
-              disabled={loading || !isVerified}
-            >
-              <Wallet className="w-3.5 h-3.5" />
-              {loading ? 'REPAYING...' : 'REPAY INVOICE'}
-            </Button>
-          )}
+{invoice.status === 'Confirmed' && role === 'buyer' && (
+             <Button
+               className={`w-full font-bold uppercase tracking-wider text-xs rounded py-2 flex items-center justify-center gap-1.5 transition-all ${
+                 isVerified
+                   ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                   : 'bg-neutral-800 text-slate-500 border border-neutral-700 cursor-not-allowed opacity-60'
+               }`}
+               onClick={() => {
+                 if (!isVerified) return;
+                 requestConfirmation({
+                   label: 'Repay Invoice',
+                   fn: () => repayInvoice({ invoiceId: invoice.id }),
+                   errorMsg: 'Failed to repay invoice',
+                 });
+               }}
+               disabled={loading || !isVerified}
+             >
+               <Wallet className="w-3.5 h-3.5" />
+               {loading ? 'REPAYING...' : 'REPAY INVOICE'}
+             </Button>
+           )}
 
           {invoice.status === 'Active' && isOverdue && (
             <Button
@@ -401,6 +404,7 @@ export function InvoiceCard({ invoice, role, onSelect, isSelected }: InvoiceCard
               <button
                 onClick={handleCancelConfirmation}
                 className="text-slate-500 hover:text-slate-300 transition-colors"
+                aria-label="Close confirmation dialog"
               >
                 <X className="w-4 h-4" />
               </button>

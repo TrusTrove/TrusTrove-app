@@ -45,13 +45,6 @@ func invoiceHandlerUnderTest(fn invoicesPageFunc) http.HandlerFunc {
 		status := r.URL.Query().Get("status")
 		issuer := r.URL.Query().Get("issuer")
 
-		import_strconv := func(s string) (int, error) {
-			var v int
-			_, err := fmt.Sscanf(s, "%d", &v)
-			return v, err
-		}
-		_ = import_strconv // unused; using strconv inline below
-
 		page := 1
 		limit := 20
 

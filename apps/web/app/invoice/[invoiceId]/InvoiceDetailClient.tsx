@@ -182,6 +182,7 @@ export default function InvoiceDetailClient({ invoiceId }: InvoiceDetailClientPr
               <button
                 onClick={() => copyToClipboard(invoice.id, 'id')}
                 className="text-slate-600 hover:text-primary transition-colors"
+                aria-label="Copy invoice ID"
               >
                 {copiedId ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
               </button>
@@ -387,15 +388,15 @@ export default function InvoiceDetailClient({ invoiceId }: InvoiceDetailClientPr
                     </Button>
                   )}
 
-                  {(invoice.status === 'Confirmed' || invoice.status === 'Active') && role === 'buyer' && (
-                    <Button
-                      className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold uppercase text-xs tracking-wider py-2.5 rounded shadow-[0_0_15px_rgba(16,185,129,0.15)]"
-                      onClick={() => handleAction(() => repayInvoice({ invoiceId: invoice.id }), 'Submitting USDC repayment...', 'Failed to repay invoice')}
-                      disabled={submitting}
-                    >
-                      REPAY {formatAmount(invoice.faceValue)}
-                    </Button>
-                  )}
+{invoice.status === 'Confirmed' && role === 'buyer' && (
+                     <Button
+                       className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold uppercase text-xs tracking-wider py-2.5 rounded shadow-[0_0_15px_rgba(16,185,129,0.15)]"
+                       onClick={() => handleAction(() => repayInvoice({ invoiceId: invoice.id }), 'Submitting USDC repayment...', 'Failed to repay invoice')}
+                       disabled={submitting}
+                     >
+                       REPAY {formatAmount(invoice.faceValue)}
+                     </Button>
+                   )}
 
                   {invoice.status === 'Active' && isOverdue && (
                     <Button

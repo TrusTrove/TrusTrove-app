@@ -378,3 +378,26 @@ func GetLatestProcessedLedger(ctx context.Context) (int32, error) {
 	return ledger, nil
 }
 
+func GetCheckpoint(ctx context.Context) (int32, error) {
+	query := `SELECT value FROM indexer_checkpoint WHERE key = 'latest_processed_ledger'`
+	var ledger int32
+	err := Pool.QueryRow(ctx, query).Scan(&ledger)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("queries: get checkpoint: %w", err)
+	}
+	return ledger, nil
+}
+
+func UpsertCheckpoint(ctx context.Context, ledger int32) error {
+	query := `INSERT INTO indexer_checkpoint (key, value) VALUES ('latest_processed_ledger', $1)
+	          ON CONFLICT (key) DO UPDATE SET value = $1`
+	_, err := Pool.Exec(ctx, query, ledger)
+	if err != nil {
+		return fmt.Errorf("queries: upsert checkpoint: %w", err)
+	}
+	return nil
+}
+

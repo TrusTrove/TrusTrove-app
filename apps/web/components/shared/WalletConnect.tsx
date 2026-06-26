@@ -91,6 +91,7 @@ export function WalletConnect() {
               onClick={handleCopy}
               className="p-1.5 text-slate-500 hover:text-teal-400 transition-colors"
               title="Copy Address"
+              aria-label="Copy wallet address"
             >
               {copied ? (
                 <Check className="h-3.5 w-3.5 text-emerald-400" />
@@ -105,6 +106,7 @@ export function WalletConnect() {
               className="p-1.5 text-slate-500 hover:text-rose-400 transition-colors"
               onClick={disconnectWallet}
               title="Disconnect Wallet"
+              aria-label="Disconnect wallet"
             >
               <LogOut className="h-3.5 w-3.5" />
             </button>

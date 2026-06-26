@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowDownLeft, Zap } from 'lucide-react';
 
 interface FeedItem {
@@ -24,24 +25,22 @@ const mockFeedItems: FeedItem[] = [
 
 export function InvoiceFeed() {
   const [items, setItems] = useState<FeedItem[]>(mockFeedItems.slice(0, 4));
-  const [counter, setCounter] = useState(4);
+  const indexRef = useRef(4);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      // Pick next item from mock list
-      const nextItem = mockFeedItems[counter % mockFeedItems.length];
-      
-      // Update items: prepend next item and drop last
+      const nextItem = mockFeedItems[indexRef.current % mockFeedItems.length];
+
       setItems((prev) => [
-        { ...nextItem, id: String(Date.now()) }, // Ensure unique id for animations
-        ...prev.slice(0, 3)
+        { ...nextItem, id: String(Date.now()) },
+        ...prev.slice(0, 3),
       ]);
-      
-      setCounter((prev) => prev + 1);
-    }, 3000); // cycle every 3s
+
+      indexRef.current += 1;
+    }, 3000);
 
     return () => clearInterval(interval);
-  }, [counter]);
+  }, []);
 
   return (
     <div className="border border-border/80 bg-[#0d131a] rounded-lg overflow-hidden h-[340px] flex flex-col">

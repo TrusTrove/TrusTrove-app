@@ -117,20 +117,21 @@ export function useInvoices(filters?: { status?: string; issuer?: string; page?:
     },
   });
 
-  const confirmDeliveryMutation = useMutation({
-    mutationFn: async ({ invoiceId }: { invoiceId: string }) => {
-      if (!address) throw new Error('Wallet not connected');
-      const invoiceClient = new InvoiceClient(invoiceContractID);
-      return invoiceClient.confirmDelivery(invoiceId, address, address);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['invoices'] });
-      showSuccessToast('Delivery Confirmed');
-    },
-    onError: (error) => {
-      showErrorToast('Confirmation Failed', error instanceof Error ? error : undefined);
-    },
-  });
+const confirmDeliveryMutation = useMutation({
+      mutationFn: async ({ invoiceId }: { invoiceId: string }) => {
+        if (!address) throw new Error('Wallet not connected');
+        const invoiceClient = new InvoiceClient(invoiceContractID);
+        const invoice = await getInvoiceByID(invoiceId);
+        return invoiceClient.confirmDelivery(invoiceId, invoice.buyer, address);
+      },
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['invoices'] });
+        showSuccessToast('Delivery Confirmed');
+      },
+      onError: (error) => {
+        showErrorToast('Confirmation Failed', error instanceof Error ? error : undefined);
+      },
+    });
 
   const repayInvoiceMutation = useMutation({
     mutationFn: async ({ invoiceId }: { invoiceId: string }) => {
