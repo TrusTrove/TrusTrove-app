@@ -5,84 +5,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"math/big"
 	"time"
 
 	"trusttrove/indexer/api"
 	"trusttrove/indexer/config"
 	"trusttrove/indexer/db"
+	"trusttrove/indexer/xdrutil"
 
 	"github.com/stellar/go-stellar-sdk/keypair"
-	"github.com/stellar/go-stellar-sdk/strkey"
 	"github.com/stellar/go-stellar-sdk/xdr"
 )
 
-// Helper parsers for XDR ScVal objects
-func parseAddress(val xdr.ScVal) string {
-	if val.Type != xdr.ScValTypeScvAddress || val.Address == nil {
-		return ""
-	}
-	addr := val.Address
-	switch addr.Type {
-	case xdr.ScAddressTypeScAddressTypeAccount:
-		if addr.AccountId != nil && addr.AccountId.Ed25519 != nil {
-			address, _ := strkey.Encode(strkey.VersionByteAccountID, addr.AccountId.Ed25519[:])
-			return address
-		}
-	case xdr.ScAddressTypeScAddressTypeContract:
-		if addr.ContractId != nil {
-			address, _ := strkey.Encode(strkey.VersionByteContract, addr.ContractId[:])
-			return address
-		}
-	}
-	return ""
-}
-
-func parseBytes(val xdr.ScVal) string {
-	if val.Type != xdr.ScValTypeScvBytes || val.Bytes == nil {
-		return ""
-	}
-	return fmt.Sprintf("%x", *val.Bytes)
-}
-
-func parseU128(val xdr.ScVal) string {
-	if val.Type != xdr.ScValTypeScvU128 || val.U128 == nil {
-		return "0"
-	}
-	hi := big.NewInt(int64(val.U128.Hi))
-	lo := big.NewInt(int64(val.U128.Lo))
-	result := new(big.Int).Lsh(hi, 64)
-	result.Or(result, lo)
-	return result.String()
-}
-
-func parseU32(val xdr.ScVal) int {
-	if val.Type != xdr.ScValTypeScvU32 || val.U32 == nil {
-		return 0
-	}
-	return int(*val.U32)
-}
-
-func parseU64(val xdr.ScVal) int64 {
-	if val.Type != xdr.ScValTypeScvU64 || val.U64 == nil {
-		return 0
-	}
-	return int64(*val.U64)
-}
-
-func getMapValue(val xdr.ScVal, key string) (xdr.ScVal, bool) {
-	if val.Type != xdr.ScValTypeScvMap || val.Map == nil || *val.Map == nil {
-		return xdr.ScVal{}, false
-	}
-	for _, entry := range **val.Map {
-		if entry.Key.Type == xdr.ScValTypeScvSymbol && entry.Key.Sym != nil {
-			if string(*entry.Key.Sym) == key {
-				return entry.Val, true
-			}
-		}
-	}
-	return xdr.ScVal{}, false
-}
 
 // SyncPoolStats retrieves latest pool statistics from the contract on-chain and updates the database
 func SyncPoolStats(ctx context.Context, cfg *config.Config, serverKP *keypair.Full) error {
@@ -100,24 +33,28 @@ func SyncPoolStats(ctx context.Context, cfg *config.Config, serverKP *keypair.Fu
 	utilizationRateBps := 0
 	totalYieldDistributed := "0"
 	activeInvoiceCount := 0
+	totalShares := "0"
 
-	if val, ok := getMapValue(scValResult, "total_deposits"); ok {
-		totalDeposits = parseU128(val)
+	if val, ok := xdrutil.GetMapVal(scValResult, "total_deposits"); ok {
+		totalDeposits = xdrutil.ParseU128(val)
 	}
-	if val, ok := getMapValue(scValResult, "total_funded"); ok {
-		totalFunded = parseU128(val)
+	if val, ok := xdrutil.GetMapVal(scValResult, "total_funded"); ok {
+		totalFunded = xdrutil.ParseU128(val)
 	}
-	if val, ok := getMapValue(scValResult, "available_liquidity"); ok {
-		availableLiquidity = parseU128(val)
+	if val, ok := xdrutil.GetMapVal(scValResult, "available_liquidity"); ok {
+		availableLiquidity = xdrutil.ParseU128(val)
 	}
-	if val, ok := getMapValue(scValResult, "utilization_rate_bps"); ok {
-		utilizationRateBps = parseU32(val)
+	if val, ok := xdrutil.GetMapVal(scValResult, "utilization_rate_bps"); ok {
+		utilizationRateBps = int(xdrutil.ParseU32(val))
 	}
-	if val, ok := getMapValue(scValResult, "total_yield_distributed"); ok {
-		totalYieldDistributed = parseU128(val)
+	if val, ok := xdrutil.GetMapVal(scValResult, "total_yield_distributed"); ok {
+		totalYieldDistributed = xdrutil.ParseU128(val)
 	}
-	if val, ok := getMapValue(scValResult, "active_invoice_count"); ok {
-		activeInvoiceCount = parseU32(val)
+	if val, ok := xdrutil.GetMapVal(scValResult, "active_invoice_count"); ok {
+		activeInvoiceCount = int(xdrutil.ParseU32(val))
+	}
+	if val, ok := xdrutil.GetMapVal(scValResult, "total_shares"); ok {
+		totalShares = xdrutil.ParseU128(val)
 	}
 
 	dbStats := &db.DbPoolStats{
@@ -127,6 +64,7 @@ func SyncPoolStats(ctx context.Context, cfg *config.Config, serverKP *keypair.Fu
 		UtilizationRateBps:    utilizationRateBps,
 		TotalYieldDistributed: totalYieldDistributed,
 		ActiveInvoiceCount:    activeInvoiceCount,
+		TotalShares:           totalShares,
 	}
 
 	err = db.UpdatePoolStats(ctx, dbStats)
@@ -154,20 +92,20 @@ func (l *EventListener) handleInvoiceCreated(ctx context.Context, event SorobanE
 	faceValue := "0"
 	dueDate := int64(0)
 
-	if idVal, ok := getMapValue(val, "id"); ok {
-		id = parseBytes(idVal)
+	if idVal, ok := xdrutil.GetMapVal(val, "id"); ok {
+		id = xdrutil.ParseBytes(idVal)
 	}
-	if issuerVal, ok := getMapValue(val, "issuer"); ok {
-		issuer = parseAddress(issuerVal)
+	if issuerVal, ok := xdrutil.GetMapVal(val, "issuer"); ok {
+		issuer = xdrutil.ParseAddress(issuerVal)
 	}
-	if buyerVal, ok := getMapValue(val, "buyer"); ok {
-		buyer = parseAddress(buyerVal)
+	if buyerVal, ok := xdrutil.GetMapVal(val, "buyer"); ok {
+		buyer = xdrutil.ParseAddress(buyerVal)
 	}
-	if faceVal, ok := getMapValue(val, "face_value"); ok {
-		faceValue = parseU128(faceVal)
+	if faceVal, ok := xdrutil.GetMapVal(val, "face_value"); ok {
+		faceValue = xdrutil.ParseU128(faceVal)
 	}
-	if dueVal, ok := getMapValue(val, "due_date"); ok {
-		dueDate = parseU64(dueVal)
+	if dueVal, ok := xdrutil.GetMapVal(val, "due_date"); ok {
+		dueDate = xdrutil.ParseU64(dueVal)
 	}
 
 	if id == "" || issuer == "" || buyer == "" {
@@ -208,14 +146,14 @@ func (l *EventListener) handleInvoiceListed(ctx context.Context, event SorobanEv
 	if err != nil {
 		return fmt.Errorf("parse topic invoice_id: %w", err)
 	}
-	invoiceID := parseBytes(idVal)
+	invoiceID := xdrutil.ParseBytes(idVal)
 
 	var val xdr.ScVal
 	err = xdr.SafeUnmarshalBase64(event.Value, &val)
 	if err != nil {
 		return fmt.Errorf("parse value: %w", err)
 	}
-	discountBps := parseU32(val)
+	discountBps := int(xdrutil.ParseU32(val))
 
 	err = db.UpdateInvoiceListed(ctx, invoiceID, "Listed", discountBps)
 	if err != nil {
@@ -237,14 +175,14 @@ func (l *EventListener) handleInvoiceFunded(ctx context.Context, event SorobanEv
 	if err != nil {
 		return fmt.Errorf("parse topic invoice_id: %w", err)
 	}
-	invoiceID := parseBytes(idVal)
+	invoiceID := xdrutil.ParseBytes(idVal)
 
 	var val xdr.ScVal
 	err = xdr.SafeUnmarshalBase64(event.Value, &val)
 	if err != nil {
 		return fmt.Errorf("parse value: %w", err)
 	}
-	fundedAmount := parseU128(val)
+	fundedAmount := xdrutil.ParseU128(val)
 
 	err = db.UpdateInvoiceFunded(ctx, invoiceID, "Funded", fundedAmount, ledgerClosedAt)
 	if err != nil {
@@ -268,7 +206,7 @@ func (l *EventListener) handleInvoiceShipped(ctx context.Context, event SorobanE
 	if err != nil {
 		return fmt.Errorf("parse topic invoice_id: %w", err)
 	}
-	invoiceID := parseBytes(idVal)
+	invoiceID := xdrutil.ParseBytes(idVal)
 
 	err = db.UpdateInvoiceShipped(ctx, invoiceID, "Active", ledgerClosedAt)
 	if err != nil {
@@ -289,7 +227,7 @@ func (l *EventListener) handleDeliveryConfirmed(ctx context.Context, event Sorob
 	if err != nil {
 		return fmt.Errorf("parse topic invoice_id: %w", err)
 	}
-	invoiceID := parseBytes(idVal)
+	invoiceID := xdrutil.ParseBytes(idVal)
 
 	err = db.UpdateInvoiceDeliveryConfirmed(ctx, invoiceID, "Confirmed", ledgerClosedAt)
 	if err != nil {
@@ -310,7 +248,7 @@ func (l *EventListener) handleInvoiceRepaid(ctx context.Context, event SorobanEv
 	if err != nil {
 		return fmt.Errorf("parse topic invoice_id: %w", err)
 	}
-	invoiceID := parseBytes(idVal)
+	invoiceID := xdrutil.ParseBytes(idVal)
 
 	err = db.UpdateInvoiceRepaid(ctx, invoiceID, "Repaid", ledgerClosedAt)
 	if err != nil {
@@ -334,7 +272,7 @@ func (l *EventListener) handleInvoiceDefaulted(ctx context.Context, event Soroba
 	if err != nil {
 		return fmt.Errorf("parse topic invoice_id: %w", err)
 	}
-	invoiceID := parseBytes(idVal)
+	invoiceID := xdrutil.ParseBytes(idVal)
 
 	err = db.UpdateInvoiceStatus(ctx, invoiceID, "Defaulted")
 	if err != nil {
@@ -403,8 +341,38 @@ func (l *EventListener) handleEvent(ctx context.Context, event SorobanEvent) err
 		return fmt.Errorf("handler for %s failed: %w", eventName, err)
 	}
 
+	// Build structured data for the event log
+	logData := map[string]interface{}{}
+
+	// Try to extract invoice_id from topic[1] for events that carry it
+	if len(event.Topic) >= 2 && eventName != "create" && eventName != "InvoiceCreated" {
+		var topicVal xdr.ScVal
+		if err := xdr.SafeUnmarshalBase64(event.Topic[1], &topicVal); err == nil {
+			invoiceID := xdrutil.ParseBytes(topicVal)
+			if invoiceID != "" {
+				logData["invoice_id"] = invoiceID
+			}
+		}
+	}
+
+	// For InvoiceCreated, extract from the value payload
+	if eventName == "create" || eventName == "InvoiceCreated" {
+		var val xdr.ScVal
+		if err := xdr.SafeUnmarshalBase64(event.Value, &val); err == nil {
+			if idVal, ok := xdrutil.GetMapVal(val, "id"); ok {
+				logData["invoice_id"] = xdrutil.ParseBytes(idVal)
+			}
+			if issuerVal, ok := xdrutil.GetMapVal(val, "issuer"); ok {
+				logData["issuer"] = xdrutil.ParseAddress(issuerVal)
+			}
+			if buyerVal, ok := xdrutil.GetMapVal(val, "buyer"); ok {
+				logData["buyer"] = xdrutil.ParseAddress(buyerVal)
+			}
+		}
+	}
+
 	// Log event in database to prevent double processing
-	err = db.LogEvent(ctx, event.ID, event.ContractID, event.Ledger, ledgerClosedAt, eventName, event.Value)
+	err = db.LogEvent(ctx, event.ID, event.ContractID, event.Ledger, ledgerClosedAt, eventName, logData)
 	if err != nil {
 		slog.Error("Failed to log event in DB", "eventId", event.ID, "error", err)
 	}

@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getPoolStats, getLPPosition } from '@/lib/api';
 import { PoolClient } from '@trusttrove/sdk';
 import { useWalletStore } from '@/store/wallet';
+import { showSuccessToast, showErrorToast } from '@/lib/toast';
 
 const poolContractID = process.env.NEXT_PUBLIC_POOL_CONTRACT_ID || '';
 
@@ -60,9 +61,13 @@ export function usePool() {
       const poolClient = new PoolClient(poolContractID);
       return poolClient.deposit(address, amount, address);
     },
-    onSuccess: () => {
+    onSuccess: (txHash: string) => {
       queryClient.invalidateQueries({ queryKey: ['poolStats'] });
       queryClient.invalidateQueries({ queryKey: ['lpPosition', address] });
+      showSuccessToast('Deposit Complete', txHash);
+    },
+    onError: (error) => {
+      showErrorToast('Deposit Failed', error instanceof Error ? error : undefined);
     },
   });
 
@@ -78,9 +83,13 @@ export function usePool() {
       const poolClient = new PoolClient(poolContractID);
       return poolClient.withdraw(address, shares, address);
     },
-    onSuccess: () => {
+    onSuccess: (txHash: string) => {
       queryClient.invalidateQueries({ queryKey: ['poolStats'] });
       queryClient.invalidateQueries({ queryKey: ['lpPosition', address] });
+      showSuccessToast('Withdrawal Complete', txHash);
+    },
+    onError: (error) => {
+      showErrorToast('Withdrawal Failed', error instanceof Error ? error : undefined);
     },
   });
 

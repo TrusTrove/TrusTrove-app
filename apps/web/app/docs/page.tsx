@@ -1,15 +1,21 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Navbar } from '@/components/shared/Navbar';
 import { TopStatusBar } from '@/components/shared/TopStatusBar';
 import { BookOpen, Terminal, ExternalLink, Loader2 } from 'lucide-react';
 
 export default function DocsPage() {
+  const router = useRouter();
   const [logs, setLogs] = useState<string[]>([]);
-  const [countdown, setCountdown] = useState(3);
   const [bootFinished, setBootFinished] = useState(false);
   const docUrl = 'https://k1ngd4vid.gitbook.io/trustrove/';
+
+  // Navigate only on explicit user action — no forced/auto redirects.
+  const goToDocs = () => {
+    router.push(docUrl);
+  };
 
   useEffect(() => {
     const logMessages = [
@@ -34,23 +40,6 @@ export default function DocsPage() {
 
     return () => clearInterval(logInterval);
   }, []);
-
-  useEffect(() => {
-    if (!bootFinished) return;
-
-    const countdownInterval = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) {
-          clearInterval(countdownInterval);
-          window.location.href = docUrl;
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(countdownInterval);
-  }, [bootFinished]);
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col selection:bg-primary selection:text-black">
@@ -93,14 +82,24 @@ export default function DocsPage() {
               </div>
             ))}
             {!bootFinished && (
-              <div className="flex items-center gap-2 pt-1">
-                <Loader2 className="w-3 h-3 text-primary animate-spin" />
-                <span className="text-primary tracking-widest select-none">RESOLVING...</span>
-              </div>
+              <>
+                <div className="flex items-center gap-2 pt-1">
+                  <Loader2 className="w-3 h-3 text-primary animate-spin" />
+                  <span className="text-primary tracking-widest select-none">RESOLVING...</span>
+                </div>
+                <div className="pt-3">
+                  <button
+                    onClick={goToDocs}
+                    className="text-[10px] text-primary/70 hover:text-primary underline underline-offset-2 transition-colors uppercase tracking-wider"
+                  >
+                    [Skip to Docs]
+                  </button>
+                </div>
+              </>
             )}
             {bootFinished && (
               <div className="text-primary font-bold pt-2 select-none">
-                ✓ HANDSHAKE RESOLVED. REDIRECTING IN {countdown}...
+                ✓ HANDSHAKE RESOLVED. READY WHEN YOU ARE.
               </div>
             )}
           </div>
@@ -121,13 +120,13 @@ export default function DocsPage() {
               </div>
             </div>
 
-            <a
-              href={docUrl}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary/90 text-[#0d131a] text-xs font-bold uppercase rounded transition-colors"
+            <button
+              onClick={goToDocs}
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary/90 text-[#0d131a] text-xs font-bold uppercase rounded transition-colors cursor-pointer"
             >
               <span>Access Docs</span>
               <ExternalLink className="w-3.5 h-3.5" />
-            </a>
+            </button>
           </div>
 
           {/* Footer Status */}

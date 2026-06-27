@@ -1,15 +1,15 @@
 import { useState } from 'react';
 import { useWalletStore } from '@/store/wallet';
 import { signTransaction } from '@stellar/freighter-api';
-import { Networks } from '@stellar/stellar-sdk';
+import { fetchChallenge, verifyChallenge } from '@/lib/api';
 
 /**
  * Custom hook for authenticating the connected Stellar wallet via SEP-10.
  *
  * Performs a three-step challenge-sign-verify flow:
- * 1. Fetches a challenge transaction XDR from the indexer API.
+ * 1. Fetches a challenge transaction XDR from the indexer API via fetchChallenge.
  * 2. Signs the XDR with the Freighter wallet extension.
- * 3. Submits the signed XDR to the indexer to receive a JWT.
+ * 3. Submits the signed XDR to the indexer via verifyChallenge to receive a JWT.
  *
  * Requires a wallet to be connected first (i.e. `useWallet` must have been called).
  *
@@ -33,11 +33,7 @@ export function useAuth() {
   const [error, setError] = useState<string | null>(null);
 
   /**
-   * Initiates the SEP-10 wallet authentication flow.
-   *
-   * Fetches a challenge XDR from `NEXT_PUBLIC_INDEXER_API_URL`, signs it via
-   * Freighter using `NEXT_PUBLIC_NETWORK_PASSPHRASE` (defaults to Testnet),
-   * then submits the signed transaction to obtain and store a JWT.
+   * Initiates the SEP-10 wallet authentication flow using the api utility functions.
    *
    * @throws Sets `error` state instead of throwing; caller does not need try/catch.
    */
@@ -51,39 +47,19 @@ export function useAuth() {
     setError(null);
 
     try {
-      const apiBaseUrl = process.env.NEXT_PUBLIC_INDEXER_API_URL || 'http://localhost:8080';
+      // 1. Fetch challenge XDR; network_passphrase is returned by the server
+      const { transaction, network_passphrase } = await fetchChallenge(address);
 
-      // 1. Fetch challenge XDR
-      const challengeRes = await fetch(`${apiBaseUrl}/auth?address=${address}`);
-      if (!challengeRes.ok) {
-        throw new Error(`Failed to fetch auth challenge: ${challengeRes.statusText}`);
-      }
-      const challengeData = await challengeRes.json();
-      const { transaction } = challengeData;
-
-      // 2. Sign with Freighter wallet
-      const networkPassphrase = process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE || Networks.TESTNET;
+      // 2. Sign with Freighter wallet using the server-provided passphrase
       const signedXdr = await signTransaction(transaction, {
         network: 'TESTNET',
-        networkPassphrase,
+        networkPassphrase: network_passphrase,
         accountToSign: address,
       });
 
       // 3. Submit signed challenge to verify and receive JWT
-      const verifyRes = await fetch(`${apiBaseUrl}/auth`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ transaction: signedXdr }),
-      });
-
-      if (!verifyRes.ok) {
-        throw new Error('Authentication failed');
-      }
-
-      const verifyData = await verifyRes.json();
-      setToken(verifyData.token);
+      const { token: jwt } = await verifyChallenge(signedXdr);
+      setToken(jwt);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Authentication failed';
       setError(message);

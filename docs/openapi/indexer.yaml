@@ -1,0 +1,460 @@
+openapi: 3.0.3
+info:
+  title: TrusTrove Indexer API
+  version: 1.0.0
+  description: |
+    Structured API documentation for the TrusTrove Go indexer/API service.
+
+    ## SEP-10 authentication flow
+
+    1. The frontend calls `GET /auth?account=<stellar_public_key>` to request an authentication challenge.
+    2. The client signs the returned SEP-10 challenge transaction with Freighter or another Stellar wallet.
+    3. The client sends the signed challenge to `POST /auth`.
+    4. The indexer validates the signed challenge and returns a JWT.
+    5. Protected endpoints use `Authorization: Bearer <jwt>`.
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+  - url: https://api.trusttrove.example
+    description: Deployment placeholder
+
+tags:
+  - name: Health
+  - name: Auth
+  - name: Invoices
+  - name: Stats
+  - name: Pool
+  - name: Events
+
+security:
+  - bearerAuth: []
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      security: []
+      responses:
+        '200':
+          description: API is alive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              examples:
+                ok:
+                  value:
+                    status: ok
+
+  /auth:
+    get:
+      tags: [Auth]
+      summary: Create SEP-10 challenge
+      description: Returns a SEP-10 challenge transaction for the supplied Stellar account.
+      security: []
+      parameters:
+        - name: account
+          in: query
+          required: true
+          schema:
+            type: string
+          example: GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF
+      responses:
+        '200':
+          description: Challenge transaction generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthChallengeResponse'
+              examples:
+                challenge:
+                  value:
+                    transaction: AAAAAgAAA...
+                    network_passphrase: Test SDF Network ; September 2015
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    post:
+      tags: [Auth]
+      summary: Exchange signed SEP-10 challenge for JWT
+      description: Validates the signed challenge transaction and returns a bearer token.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthRequest'
+            examples:
+              signedChallenge:
+                value:
+                  transaction: AAAAAgAAA...signed...
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokenResponse'
+              examples:
+                token:
+                  value:
+                    token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                    expires_in: 86400
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /events:
+    get:
+      tags: [Events]
+      summary: List indexed Soroban events
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Indexed events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Event'
+                  next_cursor:
+                    type: string
+                    nullable: true
+
+  /invoices:
+    get:
+      tags: [Invoices]
+      summary: List invoices
+      security: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pending, funded, shipped, delivered, repaid, defaulted]
+        - name: issuer
+          in: query
+          required: false
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Invoice list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  invoices:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Invoice'
+                  next_cursor:
+                    type: string
+                    nullable: true
+    post:
+      tags: [Invoices]
+      summary: Create invoice
+      description: Creates an off-chain/indexed invoice record. Requires JWT from the SEP-10 auth flow.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInvoiceRequest'
+            examples:
+              invoice:
+                value:
+                  buyer: GBUYERAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+                  face_value: '1000.00'
+                  due_date: 1735689600
+                  asset: USDC
+      responses:
+        '201':
+          description: Invoice created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invoice'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /invoices/{id}:
+    get:
+      tags: [Invoices]
+      summary: Get invoice by ID
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: inv_01HZY...
+      responses:
+        '200':
+          description: Invoice found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invoice'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /stats:
+    get:
+      tags: [Stats]
+      summary: Protocol statistics
+      security: []
+      responses:
+        '200':
+          description: Protocol aggregate stats
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProtocolStats'
+
+  /pool/stats:
+    get:
+      tags: [Pool]
+      summary: Liquidity pool statistics
+      security: []
+      responses:
+        '200':
+          description: Pool aggregate stats
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PoolStats'
+
+  /pool/position/{address}:
+    get:
+      tags: [Pool]
+      summary: LP position by address
+      security: []
+      parameters:
+        - name: address
+          in: path
+          required: true
+          schema:
+            type: string
+          example: GLPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+      responses:
+        '200':
+          description: LP position
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LPPosition'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        type: string
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            invalid:
+              value:
+                error: invalid request payload
+    Unauthorized:
+      description: Missing, invalid, or expired bearer token
+      content:
+        text/plain:
+          schema:
+            type: string
+          example: 'Unauthorized: missing token'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            notFound:
+              value:
+                error: not found
+
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          example: ok
+
+    AuthChallengeResponse:
+      type: object
+      required: [transaction]
+      properties:
+        transaction:
+          type: string
+          description: Base64-encoded SEP-10 challenge transaction XDR.
+        network_passphrase:
+          type: string
+
+    AuthRequest:
+      type: object
+      required: [transaction]
+      properties:
+        transaction:
+          type: string
+          description: Base64-encoded signed SEP-10 challenge transaction XDR.
+
+    AuthTokenResponse:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+        expires_in:
+          type: integer
+          description: Token lifetime in seconds.
+
+    CreateInvoiceRequest:
+      type: object
+      required: [buyer, face_value, due_date]
+      properties:
+        buyer:
+          type: string
+        face_value:
+          type: string
+          example: '1000.00'
+        due_date:
+          type: integer
+          format: int64
+          description: Unix timestamp.
+        asset:
+          type: string
+          default: USDC
+
+    Invoice:
+      type: object
+      properties:
+        id:
+          type: string
+        issuer:
+          type: string
+        buyer:
+          type: string
+        face_value:
+          type: string
+        due_date:
+          type: integer
+          format: int64
+        asset:
+          type: string
+        status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Event:
+      type: object
+      properties:
+        id:
+          type: string
+        contract_id:
+          type: string
+        topic:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+        ledger:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    ProtocolStats:
+      type: object
+      properties:
+        total_invoices:
+          type: integer
+        total_financed:
+          type: string
+        total_repaid:
+          type: string
+        active_lps:
+          type: integer
+
+    PoolStats:
+      type: object
+      properties:
+        total_liquidity:
+          type: string
+        available_liquidity:
+          type: string
+        utilization_bps:
+          type: integer
+        apy_bps:
+          type: integer
+
+    LPPosition:
+      type: object
+      properties:
+        address:
+          type: string
+        shares:
+          type: string
+        deposited:
+          type: string
+        claimable_yield:
+          type: string
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string

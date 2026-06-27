@@ -11,10 +11,12 @@ import (
 	"math/big"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"trusttrove/indexer/config"
 	"trusttrove/indexer/db"
+	"trusttrove/indexer/xdrutil"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v5"
@@ -25,8 +27,11 @@ import (
 )
 
 type APIHandler struct {
-	cfg      *config.Config
-	serverKP *keypair.Full
+	cfg         *config.Config
+	serverKP    *keypair.Full
+	statsMu     sync.Mutex
+	statsData   *db.ProtocolStats
+	statsCached time.Time
 }
 
 func NewAPIHandler(cfg *config.Config) (*APIHandler, error) {
@@ -212,10 +217,7 @@ func ReadContract(
 		IncrementSequenceNum: false,
 		BaseFee:              txnbuild.MinBaseFee,
 		Preconditions: txnbuild.Preconditions{
-			TimeBounds: txnbuild.TimeBounds{
-				MinTime: 0,
-				MaxTime: time.Now().Add(1 * time.Hour).Unix(),
-			},
+			TimeBounds: txnbuild.NewTimebounds(0, time.Now().Add(1*time.Hour).Unix()),
 		},
 		Operations: []txnbuild.Operation{op},
 	})
@@ -247,37 +249,6 @@ func ReadContract(
 	return val, nil
 }
 
-func GetMapVal(val xdr.ScVal, key string) (xdr.ScVal, bool) {
-	if val.Type != xdr.ScValTypeScvMap || val.Map == nil || *val.Map == nil {
-		return xdr.ScVal{}, false
-	}
-	for _, entry := range **val.Map {
-		if entry.Key.Type == xdr.ScValTypeScvSymbol && entry.Key.Sym != nil {
-			if string(*entry.Key.Sym) == key {
-				return entry.Val, true
-			}
-		}
-	}
-	return xdr.ScVal{}, false
-}
-
-func GetU128Val(val xdr.ScVal) (string, bool) {
-	if val.Type != xdr.ScValTypeScvU128 || val.U128 == nil {
-		return "0", false
-	}
-	hi := big.NewInt(int64(val.U128.Hi))
-	lo := big.NewInt(int64(val.U128.Lo))
-	result := new(big.Int).Lsh(hi, 64)
-	result.Or(result, lo)
-	return result.String(), true
-}
-
-func GetU32Val(val xdr.ScVal) (uint32, bool) {
-	if val.Type != xdr.ScValTypeScvU32 || val.U32 == nil {
-		return 0, false
-	}
-	return uint32(*val.U32), true
-}
 
 func ParseInvoiceIDFromResult(resultXDR string) (string, error) {
 	var val xdr.ScVal
@@ -307,10 +278,7 @@ func GenerateChallenge(serverKP *keypair.Full, clientAddr string, passphrase str
 		IncrementSequenceNum: false,
 		BaseFee:              txnbuild.MinBaseFee,
 		Preconditions: txnbuild.Preconditions{
-			TimeBounds: txnbuild.TimeBounds{
-				MinTime: time.Now().Unix(),
-				MaxTime: time.Now().Add(15 * time.Minute).Unix(),
-			},
+			TimeBounds: txnbuild.NewTimebounds(time.Now().Unix(), time.Now().Add(15*time.Minute).Unix()),
 		},
 		Operations: []txnbuild.Operation{
 			&txnbuild.ManageData{
@@ -552,10 +520,7 @@ func (h *APIHandler) HandleCreateInvoice(w http.ResponseWriter, r *http.Request)
 		IncrementSequenceNum: true,
 		BaseFee:              txnbuild.MinBaseFee,
 		Preconditions: txnbuild.Preconditions{
-			TimeBounds: txnbuild.TimeBounds{
-				MinTime: 0,
-				MaxTime: time.Now().Add(1 * time.Hour).Unix(),
-			},
+			TimeBounds: txnbuild.NewTimebounds(0, time.Now().Add(1*time.Hour).Unix()),
 		},
 		Operations: []txnbuild.Operation{op},
 	})
@@ -661,12 +626,51 @@ func (h *APIHandler) HandleCreateInvoice(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	type GetTransactionResult struct {
+		Hash   string `json:"hash"`
+		Status string `json:"status"`
+		Error  string `json:"error"`
+	}
+	const maxPollAttempts = 30
+	pollDelay := 1 * time.Second
+	var txResult GetTransactionResult
+	pollAttempts := 0
+
+	for {
+		err = CallSorobanRPC(h.cfg.SorobanRPCURL, "getTransaction", map[string]string{"hash": submitResp.Hash}, &txResult)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to poll transaction: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+
+		if txResult.Status == "SUCCESS" {
+			break
+		}
+
+		if txResult.Status == "FAILED" {
+			errMsg := "transaction failed on-chain"
+			if txResult.Error != "" {
+				errMsg = fmt.Sprintf("transaction failed on-chain: %s", txResult.Error)
+			}
+			http.Error(w, errMsg, http.StatusInternalServerError)
+			return
+		}
+
+		pollAttempts++
+		if pollAttempts >= maxPollAttempts {
+			http.Error(w, fmt.Sprintf("transaction confirmation timed out after %d attempts: %s", maxPollAttempts, submitResp.Hash), http.StatusGatewayTimeout)
+			return
+		}
+
+		time.Sleep(pollDelay)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusAccepted)
+	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]string{
 		"invoice_id":       invoiceID,
 		"transaction_hash": submitResp.Hash,
-		"status":           submitResp.Status,
+		"status":           txResult.Status,
 	})
 }
 
@@ -698,14 +702,87 @@ func (h *APIHandler) HandleGetInvoices(w http.ResponseWriter, r *http.Request) {
 	status := r.URL.Query().Get("status")
 	issuer := r.URL.Query().Get("issuer")
 
-	invoices, err := db.GetInvoices(r.Context(), status, issuer)
+	// Parse pagination params
+	page := 1
+	limit := 20
+
+	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
+		if v, err := strconv.Atoi(pageStr); err == nil && v >= 1 {
+			page = v
+		} else {
+			http.Error(w, "invalid page parameter: must be a positive integer", http.StatusBadRequest)
+			return
+		}
+	}
+
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		if v, err := strconv.Atoi(limitStr); err == nil && v >= 1 {
+			if v > 100 {
+				limit = 100
+			} else {
+				limit = v
+			}
+		} else {
+			http.Error(w, "invalid limit parameter: must be a positive integer", http.StatusBadRequest)
+			return
+		}
+	}
+
+	offset := (page - 1) * limit
+
+	invoices, total, err := db.GetInvoicesPage(r.Context(), status, issuer, limit, offset)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to retrieve invoices: %s", err.Error()), http.StatusInternalServerError)
 		return
 	}
 
+	// Ensure data is always a JSON array, never null
+	if invoices == nil {
+		invoices = []*db.DbInvoice{}
+	}
+
+	totalPages := (total + limit - 1) / limit
+	if totalPages < 1 {
+		totalPages = 1
+	}
+
+	resp := map[string]interface{}{
+		"data":        invoices,
+		"total":       total,
+		"page":        page,
+		"limit":       limit,
+		"totalPages":  totalPages,
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(invoices)
+	json.NewEncoder(w).Encode(resp)
+}
+
+// GET /stats
+func (h *APIHandler) HandleGetStats(w http.ResponseWriter, r *http.Request) {
+	h.statsMu.Lock()
+	if h.statsData != nil && time.Since(h.statsCached) < 30*time.Second {
+		data := h.statsData
+		h.statsMu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(data)
+		return
+	}
+	h.statsMu.Unlock()
+
+	stats, err := db.GetProtocolStats(r.Context())
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to retrieve protocol stats: %s", err.Error()), http.StatusInternalServerError)
+		return
+	}
+
+	h.statsMu.Lock()
+	h.statsData = stats
+	h.statsCached = time.Now()
+	h.statsMu.Unlock()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(stats)
 }
 
 // GET /pool/stats
@@ -730,6 +807,30 @@ func (h *APIHandler) HandleGetPoolStats(w http.ResponseWriter, r *http.Request) 
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(stats)
+}
+
+// GET /events
+func (h *APIHandler) HandleGetEvents(w http.ResponseWriter, r *http.Request) {
+	limitStr := r.URL.Query().Get("limit")
+	limit := 20
+	if limitStr != "" {
+		if parsed, err := strconv.Atoi(limitStr); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+
+	events, err := db.GetRecentEvents(r.Context(), limit)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to retrieve events: %s", err.Error()), http.StatusInternalServerError)
+		return
+	}
+
+	if events == nil {
+		events = []*db.EventLog{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(events)
 }
 
 // GET /pool/position/{address}
@@ -762,18 +863,17 @@ func (h *APIHandler) HandleGetLPPosition(w http.ResponseWriter, r *http.Request)
 	yieldEarned := "0"
 	depositCount := 0
 
-	if val, ok := GetMapVal(scValResult, "shares"); ok {
-		shares, _ = GetU128Val(val)
+	if val, ok := xdrutil.GetMapVal(scValResult, "shares"); ok {
+		shares = xdrutil.ParseU128(val)
 	}
-	if val, ok := GetMapVal(scValResult, "usdc_value"); ok {
-		usdcValue, _ = GetU128Val(val)
+	if val, ok := xdrutil.GetMapVal(scValResult, "usdc_value"); ok {
+		usdcValue = xdrutil.ParseU128(val)
 	}
-	if val, ok := GetMapVal(scValResult, "yield_earned"); ok {
-		yieldEarned, _ = GetU128Val(val)
+	if val, ok := xdrutil.GetMapVal(scValResult, "yield_earned"); ok {
+		yieldEarned = xdrutil.ParseU128(val)
 	}
-	if val, ok := GetMapVal(scValResult, "deposit_count"); ok {
-		depVal, _ := GetU32Val(val)
-		depositCount = int(depVal)
+	if val, ok := xdrutil.GetMapVal(scValResult, "deposit_count"); ok {
+		depositCount = int(xdrutil.ParseU32(val))
 	}
 
 	w.Header().Set("Content-Type", "application/json")

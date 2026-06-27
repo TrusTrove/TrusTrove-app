@@ -4,6 +4,7 @@ import "./globals.css";
 import Providers from "./providers";
 import { Analytics } from '@vercel/analytics/next';
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { cn } from "@/lib/utils";
 
 const inter = Inter({
   subsets: ['latin'],
@@ -30,6 +31,16 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${jetbrainsMono.variable} antialiased bg-background text-foreground font-sans min-h-screen`}
       >
+        <a
+          href="#main-content"
+          className={cn(
+            "sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[100]",
+            "focus:px-4 focus:py-2 focus:bg-primary focus:text-black focus:font-bold focus:text-sm focus:rounded",
+            "focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background"
+          )}
+        >
+          Skip to main content
+        </a>
         <Providers>
           {children}
           <SpeedInsights />

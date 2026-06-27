@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -56,14 +58,89 @@ func AuthMiddleware(jwtSecret string) func(http.Handler) http.Handler {
 	}
 }
 
-func CORSMiddleware() func(http.Handler) http.Handler {
+func CORSMiddleware(allowedOrigins []string) func(http.Handler) http.Handler {
+	originSet := make(map[string]struct{}, len(allowedOrigins))
+	for _, o := range allowedOrigins {
+		originSet[o] = struct{}{}
+	}
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Access-Control-Allow-Origin", "*")
+			origin := r.Header.Get("Origin")
+
+			if _, ok := originSet[origin]; ok {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+			} else if origin == "" {
+				w.Header().Set("Access-Control-Allow-Origin", "")
+			}
+
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
 			if r.Method == "OPTIONS" {
-				w.WriteHeader(http.StatusOK)
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func SecurityHeadersMiddleware() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Security-Policy", "default-src 'self'")
+			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+			w.Header().Set("X-Content-Type-Options", "nosniff")
+			w.Header().Set("X-Frame-Options", "DENY")
+			w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+type rateLimiter struct {
+	mu       sync.Mutex
+	tokens   float64
+	last     time.Time
+	rps      float64
+	burst    int
+}
+
+func newRateLimiter(rps int, burst int) *rateLimiter {
+	return &rateLimiter{
+		tokens: float64(burst),
+		last:   time.Now(),
+		rps:    float64(rps),
+		burst:  burst,
+	}
+}
+
+func (rl *rateLimiter) allow() bool {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	now := time.Now()
+	elapsed := now.Sub(rl.last).Seconds()
+	rl.tokens += elapsed * rl.rps
+	if rl.tokens > float64(rl.burst) {
+		rl.tokens = float64(rl.burst)
+	}
+	rl.last = now
+
+	if rl.tokens >= 1 {
+		rl.tokens--
+		return true
+	}
+	return false
+}
+
+func RateLimitMiddleware(rl *rateLimiter) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if !rl.allow() {
+				w.Header().Set("Retry-After", "1")
+				http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -74,11 +151,16 @@ func CORSMiddleware() func(http.Handler) http.Handler {
 func NewRouter(h *APIHandler) *chi.Mux {
 	r := chi.NewRouter()
 
+	// Global middleware
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
-	r.Use(CORSMiddleware())
+	r.Use(CORSMiddleware(h.cfg.CORSAllowedOrigins))
+	r.Use(SecurityHeadersMiddleware())
+
+	// Global rate limiter for auth and invoice creation
+	rl := newRateLimiter(h.cfg.RateLimitRPS, h.cfg.RateLimitRPS*2)
 
 	// Health check
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -87,19 +169,27 @@ func NewRouter(h *APIHandler) *chi.Mux {
 		w.Write([]byte(`{"status": "ok"}`))
 	})
 
-	// Unprotected authentication routes
-	r.Get("/auth", h.HandleGetAuth)
-	r.Post("/auth", h.HandlePostAuth)
+	// Unprotected authentication routes (rate limited)
+	r.Group(func(r chi.Router) {
+		r.Use(RateLimitMiddleware(rl))
+		r.Get("/auth", h.HandleGetAuth)
+		r.Post("/auth", h.HandlePostAuth)
+	})
 
-	// Invoices and Pool routes
+	// Public protocol stats (cached, no auth)
+	r.Get("/stats", h.HandleGetStats)
+
+	// Invoices, Events, and Pool routes
+	r.Get("/events", h.HandleGetEvents)
 	r.Get("/invoices/{id}", h.HandleGetInvoiceByID)
 	r.Get("/invoices", h.HandleGetInvoices)
 	r.Get("/pool/stats", h.HandleGetPoolStats)
 	r.Get("/pool/position/{address}", h.HandleGetLPPosition)
 
-	// Protected routes
+	// Protected routes (rate limited)
 	r.Group(func(r chi.Router) {
 		r.Use(AuthMiddleware(h.cfg.JWTSecret))
+		r.Use(RateLimitMiddleware(rl))
 		r.Post("/invoices", h.HandleCreateInvoice)
 	})
 

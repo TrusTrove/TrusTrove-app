@@ -39,11 +39,10 @@ export function AmountInput({
       </label>
       <div className="relative">
         <input
-          type="number"
-          step="0.0000001"
-          min="0"
+          type="text"
+          inputMode="decimal"
           placeholder={placeholder}
-          className="w-full bg-[#080c10] border border-border rounded px-3 py-2 text-white text-xs font-mono focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+          className="w-full bg-[#080c10] border border-border rounded px-3 py-2.5 text-white text-xs font-mono focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all min-h-[44px]"
           value={value}
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}

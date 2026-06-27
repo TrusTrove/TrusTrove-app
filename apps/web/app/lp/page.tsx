@@ -1,10 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import Link from 'next/link';
 import { PageLayout } from '@/components/shared/PageLayout';
 import { usePool } from '@/hooks/usePool';
 import { useWalletStore } from '@/store/wallet';
+import { useProfile } from '@/hooks/useProfile';
 import { WalletConnect } from '@/components/shared/WalletConnect';
+import { PoolStatsPanelSkeleton, LPPositionCardSkeleton } from '@/components/shared/SkeletonLoader';
 import { Button } from '@/components/ui/button';
 import { TransactionPending } from '@/components/shared/TransactionPending';
 import { AmountInput } from '@/components/shared/AmountInput';
@@ -12,9 +15,18 @@ import { Coins, Unlock, Landmark, Wallet, ShieldAlert, Activity } from 'lucide-r
 import { motion } from 'framer-motion';
 import type { AssetType } from '@/types';
 import { ASSET_OPTIONS, formatAmount } from '@/lib/assets';
+import { PoolClient } from '@trusttrove/sdk';
+import { Address, nativeToScVal } from '@stellar/stellar-sdk';
+import { SimulationPreview } from '@/components/shared/SimulationPreview';
+import { useQuery } from '@tanstack/react-query';
+import { getPoolSnapshots } from '@/lib/api';
+
+const poolContractID = process.env.NEXT_PUBLIC_POOL_CONTRACT_ID || '';
+
 
 export default function LPDashboard() {
-  const { connected } = useWalletStore();
+  const { connected, address } = useWalletStore();
+  const { isVerified } = useProfile();
   const {
     stats,
     isStatsLoading,
@@ -38,6 +50,97 @@ export default function LPDashboard() {
   const [pendingHash, setPendingHash] = useState<string | null>(null);
   const [pendingText, setPendingText] = useState('Waiting for confirmation...');
 
+  // Simulation states
+  const [simDetails, setSimDetails] = useState<any>(null);
+  const [simError, setSimError] = useState<string | null>(null);
+  const [isSimulating, setIsSimulating] = useState(false);
+
+  useEffect(() => {
+    const amountNum = Number(depositAmount);
+    if (!address || isNaN(amountNum) || amountNum <= 0) {
+      setSimDetails(null);
+      setSimError(null);
+      return;
+    }
+
+    let active = true;
+    const runSim = async () => {
+      setIsSimulating(true);
+      setSimError(null);
+      setSimDetails(null);
+
+      try {
+        const poolClient = new PoolClient(poolContractID);
+        const amountStroops = BigInt(Math.floor(amountNum * 10_000_000));
+        const args = [
+          new Address(address).toScVal(),
+          nativeToScVal(amountStroops, { type: 'u128' }),
+        ];
+
+        const simResult = await poolClient.simulateTransaction('deposit', args, address);
+        if (!active) return;
+        setSimDetails(simResult);
+      } catch (err: any) {
+        if (!active) return;
+        setSimError(err.message || 'Simulation failed');
+      } finally {
+        if (active) setIsSimulating(false);
+      }
+    };
+
+    const timer = setTimeout(runSim, 400);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [depositAmount, address]);
+
+  const { data: snapshots, isLoading: isSnapshotsLoading } = useQuery({
+    queryKey: ['poolSnapshots'],
+    queryFn: getPoolSnapshots,
+  });
+
+  const chartLines = useMemo(() => {
+    if (!snapshots || snapshots.length < 2) return null;
+
+    const sorted = [...snapshots].sort((a, b) => a.timestamp - b.timestamp);
+    const values = sorted.map((s) => s.utilizationRateBps);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = max - min || 1;
+
+    const pad = 10;
+    const chartW = 500;
+    const chartH = 150;
+    const chartTop = pad;
+    const chartBottom = chartH - pad;
+    const chartHeight = chartBottom - chartTop;
+
+    const points = sorted.map((s, i) => {
+      const x = i / (sorted.length - 1) * chartW;
+      const y = chartBottom - ((s.utilizationRateBps - min) / range) * chartHeight;
+      return { x, y };
+    });
+
+    const lineD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+    const areaD = `${lineD} L ${points[points.length - 1].x} ${chartBottom} L ${points[0].x} ${chartBottom} Z`;
+
+    const rawLabels = sorted.map((s) => s.timestamp);
+    const displayIndices = sorted.length <= 5
+      ? rawLabels.map((_, i) => i)
+      : [0, Math.floor((sorted.length - 1) / 4), Math.floor((sorted.length - 1) / 2), Math.floor(3 * (sorted.length - 1) / 4), sorted.length - 1];
+
+    const labels = displayIndices.map((i) => {
+      const snap = sorted[i];
+      const date = new Date(snap.timestamp * 1000);
+      const month = date.toLocaleString('default', { month: 'short' });
+      const day = date.getDate();
+      return `${month} ${day}`;
+    });
+
+    return { lineD, areaD, labels, points };
+  }, [snapshots]);
+
   const handleDeposit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError(null);
@@ -47,12 +150,21 @@ export default function LPDashboard() {
       return;
     }
     
-    setPendingText(`Depositing ${depositAsset} into pool...`);
-    setPendingHash(null);
-    setShowPending(true);
-
     try {
       const amountStroops = BigInt(Math.floor(amountNum * 10_000_000));
+      
+      // Pre-simulate deposit before Freighter opens
+      const poolClient = new PoolClient(poolContractID);
+      const args = [
+        new Address(address!).toScVal(),
+        nativeToScVal(amountStroops, { type: 'u128' }),
+      ];
+      await poolClient.simulateTransaction('deposit', args, address!);
+
+      setPendingText(`Depositing ${depositAsset} into pool...`);
+      setPendingHash(null);
+      setShowPending(true);
+
       // TODO(#19): Pass depositAsset to contract when XLM support is merged
       // Currently PoolClient.deposit() only accepts USDC amount
       const res = await deposit({ amount: amountStroops });
@@ -81,10 +193,8 @@ export default function LPDashboard() {
 
     try {
       const sharesStroops = BigInt(Math.floor(sharesNum * 10_000_000));
-      const res = await withdraw({ shares: sharesStroops });
-      if (typeof res === 'string') {
-        setPendingHash(res);
-      }
+      const txHash = await withdraw({ shares: sharesStroops });
+      setPendingHash(txHash);
       setWithdrawShares('');
     } catch (err: any) {
       setLocalError(err.message || 'Withdrawal failed');
@@ -139,11 +249,27 @@ export default function LPDashboard() {
           </p>
         </div>
 
+        {/* Warning Banner for Unverified Profiles */}
+        {!isVerified && (
+          <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 flex items-start gap-3 font-mono text-xs text-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.02)]">
+            <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <span className="font-bold uppercase">Profile Verification Required</span>
+              <p className="text-slate-400 leading-relaxed text-[11px]">
+                Your connected wallet address is not verified on-chain. To supply liquidity, redeem LP shares, or capture yield, you must register your business credentials. Go to the <Link href="/profile" className="text-primary hover:underline font-bold">[Profile Page]</Link> to register.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* 2-Panel Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           
           {/* LEFT PANEL: Pool Overview */}
           <div className="lg:col-span-7 space-y-6">
+            {isStatsLoading ? (
+              <PoolStatsPanelSkeleton />
+            ) : (
             <div className="bg-card border border-border rounded-lg p-6 flex flex-col md:flex-row items-center gap-8 shadow-[0_0_20px_rgba(0,212,170,0.01)]">
               {/* Circular Gauge */}
               <div className="relative w-36 h-36 shrink-0 flex items-center justify-center">
@@ -171,7 +297,7 @@ export default function LPDashboard() {
                 </svg>
                 <div className="absolute flex flex-col items-center justify-center text-center font-mono">
                   <span className="text-2xl font-extrabold text-white">
-                    {isStatsLoading ? '—' : `${utilizationRate.toFixed(1)}%`}
+                    {`${utilizationRate.toFixed(1)}%`}
                   </span>
                   <span className="text-[8px] text-slate-500 font-bold uppercase tracking-wider">
                     UTILIZATION
@@ -184,29 +310,30 @@ export default function LPDashboard() {
                 <div>
                   <span className="text-[10px] text-slate-500 font-bold uppercase block">Total Deposits</span>
                   <span className="text-md font-bold text-white block mt-1">
-                    {isStatsLoading ? 'Syncing...' : formatAmount(stats?.totalDeposits)}
+                    {formatAmount(stats?.totalDeposits)}
                   </span>
                 </div>
                 <div>
                   <span className="text-[10px] text-slate-500 font-bold uppercase block">Available Liquidity</span>
                   <span className="text-md font-bold text-primary block mt-1">
-                    {isStatsLoading ? 'Syncing...' : formatAmount(stats?.availableLiquidity)}
+                    {formatAmount(stats?.availableLiquidity)}
                   </span>
                 </div>
                 <div>
                   <span className="text-[10px] text-slate-500 font-bold uppercase block">Yield Distributed</span>
                   <span className="text-md font-bold text-emerald-400 block mt-1">
-                    {isStatsLoading ? 'Syncing...' : formatAmount(stats?.totalYieldDistributed)}
+                    {formatAmount(stats?.totalYieldDistributed)}
                   </span>
                 </div>
                 <div>
                   <span className="text-[10px] text-slate-500 font-bold uppercase block">Active Invoices</span>
                   <span className="text-md font-bold text-slate-300 block mt-1">
-                    {isStatsLoading ? 'Syncing...' : `${stats?.activeInvoiceCount || 0} active`}
+                    {`${stats?.activeInvoiceCount || 0} active`}
                   </span>
                 </div>
               </div>
             </div>
+            )}
 
             {/* Historical Yield Line Chart (SVG based) */}
             <div className="bg-card border border-border rounded-lg p-5 space-y-4">
@@ -216,51 +343,67 @@ export default function LPDashboard() {
               </h3>
               
               <div className="h-44 w-full relative">
-                {/* SVG Line Chart */}
-                <svg className="w-full h-full" viewBox="0 0 500 150">
-                  <defs>
-                    <linearGradient id="chartGlow" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#00d4aa" stopOpacity="0.15" />
-                      <stop offset="100%" stopColor="#00d4aa" stopOpacity="0" />
-                    </linearGradient>
-                  </defs>
-                  {/* Grid Lines */}
-                  <line x1="0" y1="30" x2="500" y2="30" stroke="#1a2330" strokeWidth="0.5" strokeDasharray="3 3" />
-                  <line x1="0" y1="75" x2="500" y2="75" stroke="#1a2330" strokeWidth="0.5" strokeDasharray="3 3" />
-                  <line x1="0" y1="120" x2="500" y2="120" stroke="#1a2330" strokeWidth="0.5" strokeDasharray="3 3" />
-                  
-                  {/* Area fill */}
-                  <path
-                    d="M 0 150 L 0 120 L 100 100 L 200 110 L 300 70 L 400 45 L 500 20 L 500 150 Z"
-                    fill="url(#chartGlow)"
-                  />
-                  
-                  {/* Line path */}
-                  <motion.path
-                    d="M 0 120 L 100 100 L 200 110 L 300 70 L 400 45 L 500 20"
-                    fill="transparent"
-                    stroke="#00d4aa"
-                    strokeWidth="2"
-                    initial={{ pathLength: 0 }}
-                    animate={{ pathLength: 1 }}
-                    transition={{ duration: 1.5, ease: 'easeInOut' }}
-                  />
-                </svg>
+                {isSnapshotsLoading && (
+                  <div className="flex items-center justify-center h-full text-[10px] font-mono text-slate-500 uppercase tracking-wider">
+                    Loading snapshots...
+                  </div>
+                )}
 
-                {/* X Axis Labels */}
-                <div className="flex justify-between mt-1 text-[9px] font-mono text-slate-500 uppercase tracking-widest px-2">
-                  <span>Epoch 1 (Start)</span>
-                  <span>Epoch 2</span>
-                  <span>Epoch 3</span>
-                  <span>Epoch 4</span>
-                  <span>Current Epoch</span>
-                </div>
+                {!isSnapshotsLoading && (!chartLines || !snapshots || snapshots.length < 2) && (
+                  <div className="flex items-center justify-center h-full text-[10px] font-mono text-slate-500 uppercase tracking-wider">
+                    Insufficient historical data
+                  </div>
+                )}
+
+                {chartLines && (
+                  <>
+                    <svg className="w-full h-full" viewBox="0 0 500 150">
+                      <defs>
+                        <linearGradient id="chartGlow" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#00d4aa" stopOpacity="0.15" />
+                          <stop offset="100%" stopColor="#00d4aa" stopOpacity="0" />
+                        </linearGradient>
+                      </defs>
+                      {/* Grid Lines */}
+                      <line x1="0" y1="30" x2="500" y2="30" stroke="#1a2330" strokeWidth="0.5" strokeDasharray="3 3" />
+                      <line x1="0" y1="75" x2="500" y2="75" stroke="#1a2330" strokeWidth="0.5" strokeDasharray="3 3" />
+                      <line x1="0" y1="120" x2="500" y2="120" stroke="#1a2330" strokeWidth="0.5" strokeDasharray="3 3" />
+                      
+                      {/* Area fill */}
+                      <path
+                        d={chartLines.areaD}
+                        fill="url(#chartGlow)"
+                      />
+                      
+                      {/* Line path */}
+                      <motion.path
+                        d={chartLines.lineD}
+                        fill="transparent"
+                        stroke="#00d4aa"
+                        strokeWidth="2"
+                        initial={{ pathLength: 0 }}
+                        animate={{ pathLength: 1 }}
+                        transition={{ duration: 1.5, ease: 'easeInOut' }}
+                      />
+                    </svg>
+
+                    {/* X Axis Labels */}
+                    <div className="flex justify-between mt-1 text-[9px] font-mono text-slate-500 uppercase tracking-widest px-2">
+                      {chartLines.labels.map((label, i) => (
+                        <span key={i}>{label}</span>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
 
           {/* RIGHT PANEL: My Position */}
           <div className="lg:col-span-5 space-y-6">
+            {isPositionLoading ? (
+              <LPPositionCardSkeleton />
+            ) : (
             <div className="bg-[#0d131a] border border-border rounded-lg p-5 space-y-4">
               <h3 className="text-xs font-bold font-mono text-white uppercase tracking-wider border-b border-border/40 pb-2 flex items-center gap-1.5">
                 <Wallet className="w-3.5 h-3.5 text-primary" />
@@ -271,7 +414,7 @@ export default function LPDashboard() {
                 <div>
                   <span className="text-[10px] text-slate-500 font-bold uppercase block">Current USDC Value</span>
                   <span className="text-xl font-bold text-white block mt-1">
-                    {isPositionLoading ? 'Syncing...' : formatAmount(position?.usdcValue)}
+                    {formatAmount(position?.usdcValue)}
                   </span>
                 </div>
 
@@ -279,18 +422,19 @@ export default function LPDashboard() {
                   <div>
                     <span className="text-[10px] text-slate-500 font-bold uppercase block">Redeemable Shares</span>
                     <span className="text-sm font-bold text-slate-300 block mt-0.5">
-                      {isPositionLoading ? '...' : (Number(position?.shares || 0n) / 10_000_000).toLocaleString(undefined, { minimumFractionDigits: 4 })}
+                      {(Number(position?.shares || 0n) / 10_000_000).toLocaleString(undefined, { minimumFractionDigits: 4 })}
                     </span>
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-500 font-bold uppercase block">Yield Earned</span>
                     <span className="text-sm font-bold text-emerald-400 block mt-0.5">
-                      {isPositionLoading ? '...' : formatAmount(position?.yieldEarned)}
+                      {formatAmount(position?.yieldEarned)}
                     </span>
                   </div>
                 </div>
               </div>
             </div>
+            )}
 
             {/* Deposit & Withdraw forms */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-6">
@@ -329,15 +473,26 @@ export default function LPDashboard() {
                       </div>
                     </div>
                     {parsedDep > 0 && (
-                      <span className="text-[10px] font-mono text-slate-400 block mt-1.5 leading-tight">
-                        Depositing {parsedDep.toLocaleString()} {depositAsset} → receive ~{depSharesPreview.toLocaleString()} LP Shares
-                      </span>
+                      <div className="space-y-3 mt-1.5">
+                        <span className="text-[10px] font-mono text-slate-400 block leading-tight">
+                          Depositing {parsedDep.toLocaleString()} {depositAsset} → receive ~{depSharesPreview.toLocaleString()} LP Shares
+                        </span>
+                        <SimulationPreview
+                          details={simDetails}
+                          error={simError}
+                          isLoading={isSimulating}
+                        />
+                      </div>
                     )}
                   </div>
                   <Button
                     type="submit"
-                    disabled={isDepositing}
-                    className="w-full bg-primary hover:bg-primary-hover text-black font-bold uppercase text-xs tracking-wider rounded py-2 shadow-[0_0_15px_rgba(0,212,170,0.1)]"
+                    disabled={isDepositing || !isVerified}
+                    className={`w-full font-bold uppercase text-xs tracking-wider rounded py-2 transition-all ${
+                      isVerified
+                        ? 'bg-primary hover:bg-primary-hover text-black shadow-[0_0_15px_rgba(0,212,170,0.1)]'
+                        : 'bg-neutral-800 text-slate-500 border border-neutral-700 cursor-not-allowed opacity-60'
+                    }`}
                   >
                     {isDepositing ? 'DEPOSITING...' : `DEPOSIT ${depositAsset}`}
                   </Button>
@@ -373,8 +528,12 @@ export default function LPDashboard() {
                   </div>
                   <Button
                     type="submit"
-                    disabled={isWithdrawing}
-                    className="w-full bg-slate-900 border border-border hover:bg-slate-800 text-slate-300 font-bold uppercase text-xs tracking-wider rounded py-2"
+                    disabled={isWithdrawing || !isVerified}
+                    className={`w-full font-bold uppercase text-xs tracking-wider rounded py-2 transition-all ${
+                      isVerified
+                        ? 'bg-slate-900 border border-border hover:bg-slate-800 text-slate-300'
+                        : 'bg-neutral-800 text-slate-500 border border-neutral-700 cursor-not-allowed opacity-60'
+                    }`}
                   >
                     {isWithdrawing ? 'REDEEMING...' : 'REDEEM SHARES'}
                   </Button>

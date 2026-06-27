@@ -1,7 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getInvoices, getInvoiceByID, createInvoice } from '@/lib/api';
+import { getInvoices, getInvoiceByID, createInvoice, PaginatedInvoices } from '@/lib/api';
 import { InvoiceClient, PoolClient } from '@trusttrove/sdk';
 import { useWalletStore } from '@/store/wallet';
+import { showSuccessToast, showErrorToast } from '@/lib/toast';
 
 const invoiceContractID = process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID || '';
 const poolContractID = process.env.NEXT_PUBLIC_POOL_CONTRACT_ID || '';
@@ -12,12 +13,18 @@ const poolContractID = process.env.NEXT_PUBLIC_POOL_CONTRACT_ID || '';
  * Combines React Query for data fetching with on-chain mutations via the TrusTrove SDK.
  * All mutations require a connected wallet; they throw if `address` is not set.
  *
- * @param filters - Optional filters to narrow the invoice list.
+ * @param filters - Optional filters and pagination to narrow the invoice list.
  * @param filters.status - Filter by invoice status (e.g. `'pending'`, `'funded'`).
  * @param filters.issuer - Filter by the issuer's Stellar public key.
+ * @param filters.page - Page number (1-based, default `1`).
+ * @param filters.limit - Items per page (default `20`, max `100`).
  *
  * @returns An object containing:
- *   - `invoices` — Array of invoices matching the current filters (defaults to `[]`).
+ *   - `invoices` — Array of invoices for the current page (defaults to `[]`).
+ *   - `total` — Total number of matching invoices across all pages.
+ *   - `totalPages` — Total number of pages.
+ *   - `page` — Current page number.
+ *   - `limit` — Current page size.
  *   - `isLoading` — `true` while the invoice list is being fetched.
  *   - `error` — Fetch error, or `null` if no error.
  *   - `refetch` — Function to manually re-trigger the invoice list query.
@@ -39,13 +46,13 @@ const poolContractID = process.env.NEXT_PUBLIC_POOL_CONTRACT_ID || '';
  * @throws On-chain mutations throw `Error('Wallet not connected')` when `address` is absent.
  *
  * @example
- * const { invoices, isLoading, createInvoice, isCreating } = useInvoices({ status: 'pending' });
+ * const { invoices, total, totalPages, page } = useInvoices({ status: 'pending', page: 2, limit: 10 });
  */
-export function useInvoices(filters?: { status?: string; issuer?: string }) {
+export function useInvoices(filters?: { status?: string; issuer?: string; page?: number; limit?: number }) {
   const queryClient = useQueryClient();
   const { address } = useWalletStore();
 
-  const invoicesQuery = useQuery({
+  const invoicesQuery = useQuery<PaginatedInvoices>({
     queryKey: ['invoices', filters],
     queryFn: () => getInvoices(filters),
   });
@@ -56,6 +63,10 @@ export function useInvoices(filters?: { status?: string; issuer?: string }) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      showSuccessToast('Invoice Created');
+    },
+    onError: (error) => {
+      showErrorToast('Invoice Creation Failed', error instanceof Error ? error : undefined);
     },
   });
 
@@ -67,6 +78,10 @@ export function useInvoices(filters?: { status?: string; issuer?: string }) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      showSuccessToast('Invoice Listed for Financing');
+    },
+    onError: (error) => {
+      showErrorToast('Listing Failed', error instanceof Error ? error : undefined);
     },
   });
 
@@ -80,6 +95,10 @@ export function useInvoices(filters?: { status?: string; issuer?: string }) {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['poolStats'] });
       queryClient.invalidateQueries({ queryKey: ['lpPosition', address] });
+      showSuccessToast('Invoice Funded');
+    },
+    onError: (error) => {
+      showErrorToast('Funding Failed', error instanceof Error ? error : undefined);
     },
   });
 
@@ -91,19 +110,28 @@ export function useInvoices(filters?: { status?: string; issuer?: string }) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      showSuccessToast('Invoice Shipped');
+    },
+    onError: (error) => {
+      showErrorToast('Shipping Failed', error instanceof Error ? error : undefined);
     },
   });
 
-  const confirmDeliveryMutation = useMutation({
-    mutationFn: async ({ invoiceId }: { invoiceId: string }) => {
-      if (!address) throw new Error('Wallet not connected');
-      const invoiceClient = new InvoiceClient(invoiceContractID);
-      return invoiceClient.confirmDelivery(invoiceId, address, address);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['invoices'] });
-    },
-  });
+const confirmDeliveryMutation = useMutation({
+      mutationFn: async ({ invoiceId }: { invoiceId: string }) => {
+        if (!address) throw new Error('Wallet not connected');
+        const invoiceClient = new InvoiceClient(invoiceContractID);
+        const invoice = await getInvoiceByID(invoiceId);
+        return invoiceClient.confirmDelivery(invoiceId, invoice.buyer, address);
+      },
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['invoices'] });
+        showSuccessToast('Delivery Confirmed');
+      },
+      onError: (error) => {
+        showErrorToast('Confirmation Failed', error instanceof Error ? error : undefined);
+      },
+    });
 
   const repayInvoiceMutation = useMutation({
     mutationFn: async ({ invoiceId }: { invoiceId: string }) => {
@@ -115,6 +143,10 @@ export function useInvoices(filters?: { status?: string; issuer?: string }) {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['poolStats'] });
       queryClient.invalidateQueries({ queryKey: ['lpPosition', address] });
+      showSuccessToast('Invoice Repaid');
+    },
+    onError: (error) => {
+      showErrorToast('Repayment Failed', error instanceof Error ? error : undefined);
     },
   });
 
@@ -128,11 +160,19 @@ export function useInvoices(filters?: { status?: string; issuer?: string }) {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['poolStats'] });
       queryClient.invalidateQueries({ queryKey: ['lpPosition', address] });
+      showSuccessToast('Invoice Defaulted');
+    },
+    onError: (error) => {
+      showErrorToast('Default Action Failed', error instanceof Error ? error : undefined);
     },
   });
 
   return {
-    invoices: invoicesQuery.data || [],
+    invoices: invoicesQuery.data?.data ?? [],
+    total: invoicesQuery.data?.total ?? 0,
+    totalPages: invoicesQuery.data?.totalPages ?? 1,
+    page: invoicesQuery.data?.page ?? filters?.page ?? 1,
+    limit: invoicesQuery.data?.limit ?? filters?.limit ?? 20,
     isLoading: invoicesQuery.isLoading,
     error: invoicesQuery.error,
     refetch: invoicesQuery.refetch,

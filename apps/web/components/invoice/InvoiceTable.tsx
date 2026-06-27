@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { ReactNode } from 'react';
 import { Invoice } from '@/types';
 import { InvoiceStatus } from './InvoiceStatus';
 import { formatAmount } from '@/lib/assets';
@@ -9,14 +9,23 @@ interface InvoiceTableProps {
   invoices: Invoice[];
   onSelectInvoice?: (invoice: Invoice) => void;
   activeId?: string | null;
+  emptyState?: ReactNode;
 }
 
-export function InvoiceTable({ invoices, onSelectInvoice, activeId }: InvoiceTableProps) {
+export function InvoiceTable({ invoices, onSelectInvoice, activeId, emptyState }: InvoiceTableProps) {
 
   const truncateAddr = (addr: string) => {
     if (!addr) return '';
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
   };
+
+  if (invoices.length === 0 && emptyState) {
+    return (
+      <div className="bg-card border border-border rounded-lg overflow-hidden">
+        {emptyState}
+      </div>
+    );
+  }
 
   return (
     <div className="bg-card border border-border rounded-lg overflow-hidden">
