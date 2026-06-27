@@ -99,9 +99,13 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
       }
     };
 
-    runSim();
+    const timerId = setTimeout(() => {
+      runSim();
+    }, 300);
+
     return () => {
       active = false;
+      clearTimeout(timerId);
     };
   }, [step, address, discountBps]);
 
