@@ -9,7 +9,7 @@ import { ASSET_OPTIONS } from '@/lib/assets';
 import { AmountInput } from '@/components/shared/AmountInput';
 import { useWalletStore } from '@/store/wallet';
 import { InvoiceClient } from '@trusttrove/sdk';
-import { xdr, nativeToScVal } from '@stellar/stellar-sdk';
+import { xdr, nativeToScVal, StrKey } from '@stellar/stellar-sdk';
 import { SimulationPreview } from '@/components/shared/SimulationPreview';
 
 const invoiceContractID = process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID || '';
@@ -127,10 +127,12 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
     e.preventDefault();
     setError(null);
 
-    if (!buyer || buyer.length !== 56 || !buyer.startsWith('G')) {
-      setError('Buyer must be a valid Stellar public key (56 characters, starting with G)');
+    const trimmedBuyer = buyer.trim();
+    if (!trimmedBuyer || !StrKey.isValidEd25519PublicKey(trimmedBuyer)) {
+      setError('Buyer must be a valid Stellar public key (G... account address)');
       return;
     }
+    if (trimmedBuyer !== buyer) setBuyer(trimmedBuyer);
 
     if (parsedValue <= 0) {
       setError('Face value must be a positive number');
