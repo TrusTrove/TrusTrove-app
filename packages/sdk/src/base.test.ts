@@ -6,6 +6,15 @@ import * as freighter from '@stellar/freighter-api';
 
 vi.mock('./config.js');
 vi.mock('@stellar/freighter-api');
+vi.mock('@stellar/stellar-sdk', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@stellar/stellar-sdk')>();
+  class MockTransactionBuilder extends actual.TransactionBuilder {}
+  MockTransactionBuilder.fromXDR = vi.fn().mockReturnValue('mock-tx') as any;
+  return {
+    ...actual,
+    TransactionBuilder: MockTransactionBuilder
+  };
+});
 
 class TestClient extends BaseContractClient {
   public testReadContract(method: string, args: xdr.ScVal[], publicKey: string, parse: (val: xdr.ScVal) => any) {
@@ -22,11 +31,11 @@ describe('BaseContractClient', () => {
   let mockServer: any;
 
   beforeEach(() => {
-    client = new TestClient('CCXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX');
+    client = new TestClient('CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4');
     
     mockServer = {
       getAccount: vi.fn().mockResolvedValue({
-        accountId: () => 'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+        accountId: () => 'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB',
         sequenceNumber: () => '1',
         incrementSequenceNumber: vi.fn()
       }),
@@ -43,10 +52,10 @@ describe('BaseContractClient', () => {
       horizonUrl: 'https://horizon-testnet.stellar.org',
       sorobanRpcUrl: 'https://soroban-testnet.stellar.org',
       contractIds: {
-        registry: 'CCREG',
-        invoice: 'CCINV',
-        pool: 'CCPOOL',
-        escrow: 'CCESC'
+        registry: 'CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4',
+        invoice: 'CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4',
+        pool: 'CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4',
+        escrow: 'CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4'
       },
       usdc: {
         issuer: 'GBUSDC',
@@ -69,7 +78,7 @@ describe('BaseContractClient', () => {
       const result = await client.testReadContract(
         'test_method',
         [],
-        'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+        'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB',
         (val) => val.u32()
       );
 
@@ -86,7 +95,7 @@ describe('BaseContractClient', () => {
         client.testReadContract(
           'test_method',
           [],
-          'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+          'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB',
           (val) => val.u32()
         )
       ).rejects.toThrow('Simulation failed for test_method: Simulation failed');
@@ -116,7 +125,7 @@ describe('BaseContractClient', () => {
       const hash = await client.testWriteContract(
         'test_method',
         [],
-        'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+        'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB'
       );
 
       expect(hash).toBe('mock-hash');
@@ -150,18 +159,19 @@ describe('BaseContractClient', () => {
       // However to not block the whole test run we will just simulate it
       vi.useFakeTimers();
       
-      const promise = client.testWriteContract(
-        'test_method',
-        [],
-        'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
-      );
+      const promise = expect(
+        client.testWriteContract(
+          'test_method',
+          [],
+          'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB'
+        )
+      ).rejects.toThrow(TransactionTimeoutError);
 
-      // Advance timers by 30 * 1000 = 30000ms
       for (let i = 0; i < 35; i++) {
         await vi.advanceTimersByTimeAsync(1000);
       }
 
-      await expect(promise).rejects.toThrow(TransactionTimeoutError);
+      await promise;
       
       vi.useRealTimers();
     });

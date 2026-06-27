@@ -19,7 +19,7 @@ describe('EscrowClient', () => {
   let client: EscrowClient;
 
   beforeEach(() => {
-    client = new EscrowClient('CCESC');
+    client = new EscrowClient('CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4');
   });
 
   describe('lock', () => {
@@ -29,14 +29,14 @@ describe('EscrowClient', () => {
       const result = await client.lock(
         'abcd',
         1000n,
-        'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+        'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB'
       );
 
       expect(result).toBe(true);
       expect(client['writeContract']).toHaveBeenCalledWith(
         'lock',
         expect.any(Array),
-        'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+        'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB'
       );
     });
   });
@@ -47,14 +47,14 @@ describe('EscrowClient', () => {
 
       const result = await client.releaseToIssuer(
         'abcd',
-        'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+        'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB'
       );
 
       expect(result).toBe(true);
       expect(client['writeContract']).toHaveBeenCalledWith(
         'release_to_issuer',
         expect.any(Array),
-        'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+        'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB'
       );
     });
   });
@@ -66,14 +66,14 @@ describe('EscrowClient', () => {
       const result = await client.releaseToPool(
         'abcd',
         1000n,
-        'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+        'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB'
       );
 
       expect(result).toBe(true);
       expect(client['writeContract']).toHaveBeenCalledWith(
         'release_to_pool',
         expect.any(Array),
-        'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+        'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB'
       );
     });
   });
@@ -84,14 +84,14 @@ describe('EscrowClient', () => {
 
       const result = await client.handleDefault(
         'abcd',
-        'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+        'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB'
       );
 
       expect(result).toBe(true);
       expect(client['writeContract']).toHaveBeenCalledWith(
         'handle_default',
         expect.any(Array),
-        'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+        'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB'
       );
     });
   });
@@ -100,13 +100,13 @@ describe('EscrowClient', () => {
     it('calls readContract with correct arguments', async () => {
       vi.mocked(client['readContract']).mockResolvedValue(1000n);
 
-      const result = await client.getLocked('abcd', 'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX');
+      const result = await client.getLocked('abcd', 'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB');
 
       expect(result).toBe(1000n);
       expect(client['readContract']).toHaveBeenCalledWith(
         'get_locked',
         expect.any(Array),
-        'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+        'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB',
         expect.any(Function)
       );
     });

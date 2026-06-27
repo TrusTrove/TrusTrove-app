@@ -19,7 +19,7 @@ describe('InvoiceClient', () => {
   let client: InvoiceClient;
 
   beforeEach(() => {
-    client = new InvoiceClient('CCINV');
+    client = new InvoiceClient('CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4');
   });
 
   describe('create', () => {
@@ -27,18 +27,18 @@ describe('InvoiceClient', () => {
       vi.mocked(client['writeContract']).mockResolvedValue('mock-hash');
 
       const result = await client.create(
-        'GBISSUER',
-        'GBBUYER',
+        'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB',
+        'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB',
         1000n,
         1234567890,
-        'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+        'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB'
       );
 
       expect(result).toBe('mock-hash');
       expect(client['writeContract']).toHaveBeenCalledWith(
         'create',
         expect.any(Array),
-        'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+        'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB'
       );
     });
   });
@@ -50,14 +50,14 @@ describe('InvoiceClient', () => {
       const result = await client.listForFinancing(
         'abcd',
         500,
-        'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+        'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB'
       );
 
       expect(result).toBe(true);
       expect(client['writeContract']).toHaveBeenCalledWith(
         'list_for_financing',
         expect.any(Array),
-        'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+        'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB'
       );
     });
   });
@@ -68,14 +68,14 @@ describe('InvoiceClient', () => {
 
       const result = await client.markShipped(
         'abcd',
-        'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+        'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB'
       );
 
       expect(result).toBe(true);
       expect(client['writeContract']).toHaveBeenCalledWith(
         'mark_shipped',
         expect.any(Array),
-        'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+        'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB'
       );
     });
   });
@@ -86,15 +86,15 @@ describe('InvoiceClient', () => {
 
       const result = await client.confirmDelivery(
         'abcd',
-        'GBCONFIRMER',
-        'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+        'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB',
+        'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB'
       );
 
       expect(result).toBe(true);
       expect(client['writeContract']).toHaveBeenCalledWith(
         'confirm_delivery',
         expect.any(Array),
-        'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+        'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB'
       );
     });
   });
@@ -105,14 +105,14 @@ describe('InvoiceClient', () => {
 
       const result = await client.repay(
         'abcd',
-        'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+        'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB'
       );
 
       expect(result).toBe(true);
       expect(client['writeContract']).toHaveBeenCalledWith(
         'repay',
         expect.any(Array),
-        'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+        'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB'
       );
     });
   });
@@ -123,14 +123,14 @@ describe('InvoiceClient', () => {
 
       const result = await client.triggerDefault(
         'abcd',
-        'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+        'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB'
       );
 
       expect(result).toBe(true);
       expect(client['writeContract']).toHaveBeenCalledWith(
         'trigger_default',
         expect.any(Array),
-        'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+        'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB'
       );
     });
   });
@@ -140,13 +140,13 @@ describe('InvoiceClient', () => {
       const mockInvoice = { id: 'abcd', status: 'created' };
       vi.mocked(client['readContract']).mockResolvedValue(mockInvoice);
 
-      const result = await client.get('abcd', 'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX');
+      const result = await client.get('abcd', 'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB');
 
       expect(result).toEqual(mockInvoice);
       expect(client['readContract']).toHaveBeenCalledWith(
         'get',
         expect.any(Array),
-        'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+        'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB',
         expect.any(Function)
       );
     });
@@ -157,13 +157,13 @@ describe('InvoiceClient', () => {
       const mockInvoices = [{ id: 'abcd', status: 'created' }];
       vi.mocked(client['readContract']).mockResolvedValue(mockInvoices);
 
-      const result = await client.getByStatus('created' as any, 'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX');
+      const result = await client.getByStatus('created' as any, 'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB');
 
       expect(result).toEqual(mockInvoices);
       expect(client['readContract']).toHaveBeenCalledWith(
         'get_by_status',
         expect.any(Array),
-        'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+        'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB',
         expect.any(Function)
       );
     });
@@ -174,13 +174,13 @@ describe('InvoiceClient', () => {
       const mockInvoices = [{ id: 'abcd', status: 'created' }];
       vi.mocked(client['readContract']).mockResolvedValue(mockInvoices);
 
-      const result = await client.getByIssuer('GBISSUER', 'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX');
+      const result = await client.getByIssuer('GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB', 'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB');
 
       expect(result).toEqual(mockInvoices);
       expect(client['readContract']).toHaveBeenCalledWith(
         'get_by_issuer',
         expect.any(Array),
-        'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+        'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB',
         expect.any(Function)
       );
     });
@@ -191,13 +191,13 @@ describe('InvoiceClient', () => {
       const mockInvoices = [{ id: 'abcd', status: 'created' }];
       vi.mocked(client['readContract']).mockResolvedValue(mockInvoices);
 
-      const result = await client.getByBuyer('GBBUYER', 'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX');
+      const result = await client.getByBuyer('GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB', 'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB');
 
       expect(result).toEqual(mockInvoices);
       expect(client['readContract']).toHaveBeenCalledWith(
         'get_by_buyer',
         expect.any(Array),
-        'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+        'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB',
         expect.any(Function)
       );
     });

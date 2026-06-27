@@ -2,64 +2,70 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { InvoiceCard } from './InvoiceCard';
+import { useWallet } from '@/hooks/useWallet';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Mock the hooks
-vi.mock('@/hooks/useRole', () => ({
-  useRole: () => ({ role: 'issuer' })
+vi.mock('@/store/wallet', () => ({
+  useWalletStore: vi.fn(() => ({ address: 'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB' }))
 }));
 
-vi.mock('@/hooks/useSoroban', () => ({
-  useSoroban: () => ({ address: 'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX' })
+vi.mock('@/hooks/useProfile', () => ({
+  useProfile: vi.fn(() => ({ isVerified: true }))
 }));
 
 const mockInvoice = {
   id: 'abcd',
-  status: 'created',
-  issuer: 'GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
-  buyer: 'GBBUYER',
-  faceValue: 1000n,
+  status: 'Created',
+  issuer: 'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB',
+  buyer: 'GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB',
+  faceValue: 10000000000n, // 1000.00 USDC
   dueDate: 1234567890
+};
+
+const queryClient = new QueryClient();
+
+const renderWithQueryClient = (ui: React.ReactElement) => {
+  return render(
+    <QueryClientProvider client={queryClient}>
+      {ui}
+    </QueryClientProvider>
+  );
 };
 
 describe('InvoiceCard', () => {
   it('renders invoice details correctly', () => {
-    render(<InvoiceCard invoice={mockInvoice as any} />);
-    expect(screen.getByText(/1000/)).toBeInTheDocument();
+    renderWithQueryClient(<InvoiceCard invoice={mockInvoice as any} />);
+    expect(screen.getByText(/1,000.00 USDC/)).toBeInTheDocument();
   });
 
   it('renders correct action buttons for created status (issuer)', () => {
-    render(<InvoiceCard invoice={{...mockInvoice, status: 'created'} as any} />);
+    renderWithQueryClient(<InvoiceCard invoice={{...mockInvoice, status: 'Created'} as any} role="issuer" />);
     // Issuer can list for financing when created
-    expect(screen.getByText(/List for Financing/i)).toBeInTheDocument();
+    expect(screen.getByText(/Configure financing terms/i)).toBeInTheDocument();
   });
 
-  it('renders correct action buttons for listed status (investor)', () => {
-    vi.mocked(require('@/hooks/useRole').useRole).mockReturnValue({ role: 'investor' });
-    render(<InvoiceCard invoice={{...mockInvoice, status: 'listed'} as any} />);
-    // Investor can fund when listed
-    expect(screen.getByText(/Fund Invoice/i)).toBeInTheDocument();
+  it('renders correct action buttons for listed status (lp)', () => {
+    renderWithQueryClient(<InvoiceCard invoice={{...mockInvoice, status: 'Listed'} as any} role="lp" />);
+    // LP can fund when listed
+    expect(screen.getByText(/FUND INVOICE/i)).toBeInTheDocument();
   });
 
   it('renders correct action buttons for funded status (issuer)', () => {
-    vi.mocked(require('@/hooks/useRole').useRole).mockReturnValue({ role: 'issuer' });
-    render(<InvoiceCard invoice={{...mockInvoice, status: 'funded'} as any} />);
+    renderWithQueryClient(<InvoiceCard invoice={{...mockInvoice, status: 'Funded'} as any} role="issuer" />);
     // Issuer can mark shipped when funded
-    expect(screen.getByText(/Mark Shipped/i)).toBeInTheDocument();
+    expect(screen.getByText(/MARK GOODS SHIPPED/i)).toBeInTheDocument();
   });
 
   it('renders correct action buttons for shipped status (buyer)', () => {
-    vi.mocked(require('@/hooks/useRole').useRole).mockReturnValue({ role: 'buyer' });
-    vi.mocked(require('@/hooks/useSoroban').useSoroban).mockReturnValue({ address: 'GBBUYER' });
-    render(<InvoiceCard invoice={{...mockInvoice, status: 'shipped'} as any} />);
-    // Buyer can confirm delivery when shipped
-    expect(screen.getByText(/Confirm Delivery/i)).toBeInTheDocument();
+    renderWithQueryClient(<InvoiceCard invoice={{...mockInvoice, status: 'Active'} as any} role="buyer" />);
+    // Buyer can confirm delivery when shipped (in contract it's Active)
+    expect(screen.getByText(/CONFIRM DELIVERY/i)).toBeInTheDocument();
   });
 
   it('renders correct action buttons for delivered status (buyer)', () => {
-    vi.mocked(require('@/hooks/useRole').useRole).mockReturnValue({ role: 'buyer' });
-    vi.mocked(require('@/hooks/useSoroban').useSoroban).mockReturnValue({ address: 'GBBUYER' });
-    render(<InvoiceCard invoice={{...mockInvoice, status: 'delivered'} as any} />);
-    // Buyer can repay when delivered
-    expect(screen.getByText(/Repay/i)).toBeInTheDocument();
+    renderWithQueryClient(<InvoiceCard invoice={{...mockInvoice, status: 'Confirmed'} as any} role="buyer" />);
+    // Buyer can repay when delivered (in contract it's Confirmed)
+    expect(screen.getByText(/REPAY INVOICE/i)).toBeInTheDocument();
   });
 });
