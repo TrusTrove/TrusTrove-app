@@ -29,7 +29,7 @@ import (
 type APIHandler struct {
 	cfg         *config.Config
 	serverKP    *keypair.Full
-	statsMu     sync.Mutex
+	statsMu     sync.RWMutex
 	statsData   *db.ProtocolStats
 	statsCached time.Time
 }
@@ -759,7 +759,21 @@ func (h *APIHandler) HandleGetInvoices(w http.ResponseWriter, r *http.Request) {
 
 // GET /stats
 func (h *APIHandler) HandleGetStats(w http.ResponseWriter, r *http.Request) {
+	// Try to read the cache with a read lock
+	h.statsMu.RLock()
+	if h.statsData != nil && time.Since(h.statsCached) < 30*time.Second {
+		data := h.statsData
+		h.statsMu.RUnlock()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(data)
+		return
+	}
+	h.statsMu.RUnlock()
+
+	// Cache is missing or expired, we need to update it.
+	// Take a write lock (but first we must release the read lock, which we did above).
 	h.statsMu.Lock()
+	// Double-check the cache after acquiring the write lock.
 	if h.statsData != nil && time.Since(h.statsCached) < 30*time.Second {
 		data := h.statsData
 		h.statsMu.Unlock()
@@ -767,15 +781,15 @@ func (h *APIHandler) HandleGetStats(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(data)
 		return
 	}
-	h.statsMu.Unlock()
 
+	// Cache is still invalid, fetch from DB and update.
 	stats, err := db.GetProtocolStats(r.Context())
 	if err != nil {
+		h.statsMu.Unlock()
 		http.Error(w, fmt.Sprintf("failed to retrieve protocol stats: %s", err.Error()), http.StatusInternalServerError)
 		return
 	}
 
-	h.statsMu.Lock()
 	h.statsData = stats
 	h.statsCached = time.Now()
 	h.statsMu.Unlock()
