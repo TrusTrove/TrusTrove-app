@@ -47,9 +47,9 @@ describe("useWallet", () => {
     expect(result.current.network).toBe("testnet");
   });
 
-  it("connectWallet fails", async () => {
+  it("connectWallet handles Freighter not installed error", async () => {
     vi.mocked(connectFreighter).mockRejectedValue(
-      new Error("Freighter not installed"),
+      new Error("Freighter wallet is not installed"),
     );
 
     const { result } = renderHook(() => useWallet());
@@ -58,8 +58,25 @@ describe("useWallet", () => {
       await result.current.connectWallet();
     });
 
-    expect(result.current.error).toBe("Freighter not installed");
+    expect(result.current.error).toBe("Freighter wallet is not installed");
     expect(result.current.connected).toBe(false);
+    expect(result.current.address).toBeNull();
+  });
+
+  it("connectWallet handles user rejection error", async () => {
+    vi.mocked(connectFreighter).mockRejectedValue(
+      new Error("User rejected access"),
+    );
+
+    const { result } = renderHook(() => useWallet());
+
+    await act(async () => {
+      await result.current.connectWallet();
+    });
+
+    expect(result.current.error).toBe("User rejected access");
+    expect(result.current.connected).toBe(false);
+    expect(result.current.address).toBeNull();
   });
 
   it("disconnectWallet works", async () => {
