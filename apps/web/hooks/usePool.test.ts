@@ -1,27 +1,27 @@
-import { renderHook, act } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { usePool } from './usePool';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { PoolClient } from '@trusttrove/sdk';
-import { useWalletStore } from '@/store/wallet';
-import * as toast from '@/lib/toast';
+import { renderHook, act } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { usePool } from "./usePool";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { PoolClient } from "@trusttrove/sdk";
+import { useWalletStore } from "@/store/wallet";
+import * as toast from "@/lib/toast";
 
-vi.mock('@tanstack/react-query', () => ({
+vi.mock("@tanstack/react-query", () => ({
   useQuery: vi.fn(),
   useMutation: vi.fn(),
   useQueryClient: vi.fn(),
 }));
 
-vi.mock('@trusttrove/sdk', () => ({
+vi.mock("@trusttrove/sdk", () => ({
   PoolClient: vi.fn(function () {}),
 }));
 
-vi.mock('@/lib/toast', () => ({
+vi.mock("@/lib/toast", () => ({
   showSuccessToast: vi.fn(),
   showErrorToast: vi.fn(),
 }));
 
-describe('usePool', () => {
+describe("usePool", () => {
   let mockInvalidateQueries: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
@@ -58,15 +58,17 @@ describe('usePool', () => {
     });
   });
 
-  it('deposit works', async () => {
+  it("deposit works", async () => {
     act(() => {
-      useWalletStore.getState().connect('G123', 'testnet');
+      useWalletStore.getState().connect("G123", "testnet");
     });
-    
-    const mockDeposit = vi.fn().mockResolvedValue('ok');
-    vi.mocked(PoolClient).mockImplementation(function() { return {
-      deposit: mockDeposit,
-    } } as any);
+
+    const mockDeposit = vi.fn().mockResolvedValue("ok");
+    vi.mocked(PoolClient).mockImplementation(function () {
+      return {
+        deposit: mockDeposit,
+      };
+    } as any);
 
     const { result } = renderHook(() => usePool());
 
@@ -74,33 +76,39 @@ describe('usePool', () => {
       await result.current.deposit({ amount: 100n });
     });
 
-    expect(mockDeposit).toHaveBeenCalledWith('G123', 100n, 'G123');
-    expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: ['poolStats'] });
-    expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: ['lpPosition', 'G123'] });
+    expect(mockDeposit).toHaveBeenCalledWith("G123", 100n, "G123");
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["poolStats"],
+    });
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["lpPosition", "G123"],
+    });
     expect(toast.showSuccessToast).toHaveBeenCalled();
   });
 
-  it('deposit fails if no wallet', async () => {
+  it("deposit fails if no wallet", async () => {
     const { result } = renderHook(() => usePool());
 
     await expect(
       act(async () => {
         await result.current.deposit({ amount: 100n });
-      })
-    ).rejects.toThrow('Wallet not connected');
+      }),
+    ).rejects.toThrow("Wallet not connected");
 
     expect(toast.showErrorToast).toHaveBeenCalled();
   });
 
-  it('withdraw works', async () => {
+  it("withdraw works", async () => {
     act(() => {
-      useWalletStore.getState().connect('G123', 'testnet');
+      useWalletStore.getState().connect("G123", "testnet");
     });
-    
-    const mockWithdraw = vi.fn().mockResolvedValue('ok');
-    vi.mocked(PoolClient).mockImplementation(function() { return {
-      withdraw: mockWithdraw,
-    } } as any);
+
+    const mockWithdraw = vi.fn().mockResolvedValue("ok");
+    vi.mocked(PoolClient).mockImplementation(function () {
+      return {
+        withdraw: mockWithdraw,
+      };
+    } as any);
 
     const { result } = renderHook(() => usePool());
 
@@ -108,9 +116,13 @@ describe('usePool', () => {
       await result.current.withdraw({ shares: 50n });
     });
 
-    expect(mockWithdraw).toHaveBeenCalledWith('G123', 50n, 'G123');
-    expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: ['poolStats'] });
-    expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: ['lpPosition', 'G123'] });
+    expect(mockWithdraw).toHaveBeenCalledWith("G123", 50n, "G123");
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["poolStats"],
+    });
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["lpPosition", "G123"],
+    });
     expect(toast.showSuccessToast).toHaveBeenCalled();
   });
 });

@@ -1,18 +1,18 @@
-import { z } from 'zod';
-import { Profile, Invoice, PoolStats, LPPosition } from './index.js';
+import { z } from "zod";
+import { Profile, Invoice, PoolStats, LPPosition } from "./index.js";
 
 // Coercion preprocessing utilities
 const bigintSchema = z.preprocess((val) => {
-  if (typeof val === 'bigint') return val;
-  if (typeof val === 'number') return BigInt(val);
-  if (typeof val === 'string') return BigInt(val);
+  if (typeof val === "bigint") return val;
+  if (typeof val === "number") return BigInt(val);
+  if (typeof val === "string") return BigInt(val);
   return 0n;
 }, z.bigint());
 
 const numberSchema = z.preprocess((val) => {
-  if (typeof val === 'number') return val;
-  if (typeof val === 'bigint') return Number(val);
-  if (typeof val === 'string') return Number(val);
+  if (typeof val === "number") return val;
+  if (typeof val === "bigint") return Number(val);
+  if (typeof val === "string") return Number(val);
   return 0;
 }, z.number());
 
@@ -23,9 +23,9 @@ const booleanSchema = z.preprocess((val) => {
 const nullableNumberSchema = z.preprocess((val) => {
   if (val === null || val === undefined) return null;
   if (val === 0n || val === 0) return null;
-  if (typeof val === 'number') return val;
-  if (typeof val === 'bigint') return Number(val);
-  if (typeof val === 'string') return Number(val);
+  if (typeof val === "number") return val;
+  if (typeof val === "bigint") return Number(val);
+  if (typeof val === "string") return Number(val);
   return null;
 }, z.number().nullable());
 
@@ -36,12 +36,12 @@ function toCamelCase(str: string): string {
 
 // Normalizes Map or Object from scValToNative to a standard JS camelCase object
 function normalize(native: unknown): Record<string, any> {
-  if (!native || typeof native !== 'object') return {};
-  
+  if (!native || typeof native !== "object") return {};
+
   const rawObj: Record<string, any> = {};
   if (native instanceof Map) {
     for (const [key, value] of native.entries()) {
-      if (typeof key === 'string') {
+      if (typeof key === "string") {
         rawObj[key] = value;
       }
     }
@@ -59,8 +59,10 @@ function normalize(native: unknown): Record<string, any> {
 
 // Profile Schema
 export const profileSchema = z.object({
-  address: z.string().regex(/^[GC][A-Z2-7]{55}$/, 'Invalid Stellar address format'),
-  role: z.enum(['issuer', 'buyer']),
+  address: z
+    .string()
+    .regex(/^[GC][A-Z2-7]{55}$/, "Invalid Stellar address format"),
+  role: z.enum(["issuer", "buyer"]),
   verified: booleanSchema,
   registeredAt: numberSchema,
 });
@@ -72,21 +74,36 @@ export function parseProfile(native: unknown): Profile {
 
 // Invoice Schema
 export const invoiceSchema = z.object({
-  id: z.preprocess((val) => {
-    if (typeof val === 'string') return val;
-    if (val instanceof Uint8Array || Buffer.isBuffer(val)) {
-      return Buffer.from(val).toString('hex');
-    }
-    return String(val || '');
-  }, z.string().regex(/^[a-fA-F0-9]{64}$/, 'Invalid invoice ID format')),
-  issuer: z.string().regex(/^[GC][A-Z2-7]{55}$/, 'Invalid Stellar address format'),
-  buyer: z.string().regex(/^[GC][A-Z2-7]{55}$/, 'Invalid Stellar address format'),
+  id: z.preprocess(
+    (val) => {
+      if (typeof val === "string") return val;
+      if (val instanceof Uint8Array || Buffer.isBuffer(val)) {
+        return Buffer.from(val).toString("hex");
+      }
+      return String(val || "");
+    },
+    z.string().regex(/^[a-fA-F0-9]{64}$/, "Invalid invoice ID format"),
+  ),
+  issuer: z
+    .string()
+    .regex(/^[GC][A-Z2-7]{55}$/, "Invalid Stellar address format"),
+  buyer: z
+    .string()
+    .regex(/^[GC][A-Z2-7]{55}$/, "Invalid Stellar address format"),
   faceValue: bigintSchema,
-  asset: z.enum(['USDC', 'XLM']).default('USDC'),
+  asset: z.enum(["USDC", "XLM"]).default("USDC"),
   discountBps: numberSchema,
   fundedAmount: bigintSchema,
   dueDate: numberSchema,
-  status: z.enum(['Created', 'Listed', 'Funded', 'Active', 'Confirmed', 'Repaid', 'Defaulted']),
+  status: z.enum([
+    "Created",
+    "Listed",
+    "Funded",
+    "Active",
+    "Confirmed",
+    "Repaid",
+    "Defaulted",
+  ]),
   createdAt: numberSchema,
   fundedAt: nullableNumberSchema,
   shippedAt: nullableNumberSchema,

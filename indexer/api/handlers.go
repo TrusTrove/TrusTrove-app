@@ -249,7 +249,6 @@ func ReadContract(
 	return val, nil
 }
 
-
 func ParseInvoiceIDFromResult(resultXDR string) (string, error) {
 	var val xdr.ScVal
 	err := xdr.SafeUnmarshalBase64(resultXDR, &val)
@@ -747,11 +746,11 @@ func (h *APIHandler) HandleGetInvoices(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := map[string]interface{}{
-		"data":        invoices,
-		"total":       total,
-		"page":        page,
-		"limit":       limit,
-		"totalPages":  totalPages,
+		"data":       invoices,
+		"total":      total,
+		"page":       page,
+		"limit":      limit,
+		"totalPages": totalPages,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

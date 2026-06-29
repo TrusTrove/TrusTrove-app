@@ -1,6 +1,6 @@
 # registry_contract
 
-Tracks verified issuers and buyers. Every other contract calls `is_verified()` 
+Tracks verified issuers and buyers. Every other contract calls `is_verified()`
 before allowing any action.
 
 ### initialize
@@ -39,7 +39,7 @@ Same as `register_issuer` but sets `role: Buyer`.
 is_verified(env: Env, address: Address) -> bool
 ```
 
-Read-only. Returns `true` if the address is registered and `verified = true`. 
+Read-only. Returns `true` if the address is registered and `verified = true`.
 Returns `false` if the address is not registered — does not panic.
 
 ### get_profile
@@ -48,7 +48,7 @@ Returns `false` if the address is not registered — does not panic.
 get_profile(env: Env, address: Address) -> Profile
 ```
 
-Returns the full `Profile` struct for a registered address. Panics with `NotFound` 
+Returns the full `Profile` struct for a registered address. Panics with `NotFound`
 if the address is not registered.
 
 ### revoke
@@ -57,5 +57,5 @@ if the address is not registered.
 revoke(env: Env, address: Address) -> bool
 ```
 
-Sets `verified = false` on the profile. Admin only. The address can no longer 
+Sets `verified = false` on the profile. Admin only. The address can no longer
 participate in new invoice transactions.

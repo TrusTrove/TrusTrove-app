@@ -1,4 +1,4 @@
-import { toast } from 'sonner';
+import { toast } from "sonner";
 
 const explorerUrl = (txHash: string) =>
   `https://stellar.expert/explorer/testnet/tx/${txHash}`;

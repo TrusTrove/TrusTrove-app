@@ -1,11 +1,19 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import { useWallet } from '@/hooks/useWallet';
-import { Button } from '@/components/ui/button';
-import { isFreighterInstalled } from '@/lib/freighter';
-import { useWalletStore } from '@/store/wallet';
-import { Wallet, LogOut, AlertCircle, Loader2, Copy, Check, ExternalLink } from 'lucide-react';
+import React, { useState, useEffect } from "react";
+import { useWallet } from "@/hooks/useWallet";
+import { Button } from "@/components/ui/button";
+import { isFreighterInstalled } from "@/lib/freighter";
+import { useWalletStore } from "@/store/wallet";
+import {
+  Wallet,
+  LogOut,
+  AlertCircle,
+  Loader2,
+  Copy,
+  Check,
+  ExternalLink,
+} from "lucide-react";
 
 export function WalletConnect() {
   const {
@@ -16,7 +24,7 @@ export function WalletConnect() {
     loading,
     error: walletError,
   } = useWallet();
-  
+
   const { network } = useWalletStore();
   const [installed, setInstalled] = useState<boolean | null>(null);
   const [copied, setCopied] = useState(false);
@@ -56,12 +64,12 @@ export function WalletConnect() {
       {/* Network Badge */}
       {connected && (
         <div className="flex items-center gap-2">
-          {network === 'testnet' ? (
+          {network === "testnet" ? (
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-amber-500/10 border border-amber-500/20 text-amber-400 font-mono">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
               Testnet
             </span>
-          ) : network === 'mainnet' ? (
+          ) : network === "mainnet" ? (
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               Mainnet
@@ -86,7 +94,7 @@ export function WalletConnect() {
             <span className="text-xs font-semibold font-mono text-slate-300">
               {formatAddress(address)}
             </span>
-            
+
             <button
               onClick={handleCopy}
               className="p-1.5 text-slate-500 hover:text-teal-400 transition-colors"
@@ -99,9 +107,9 @@ export function WalletConnect() {
                 <Copy className="h-3.5 w-3.5" />
               )}
             </button>
-            
+
             <div className="w-px h-4 bg-border mx-1" />
-            
+
             <button
               className="p-1.5 text-slate-500 hover:text-rose-400 transition-colors"
               onClick={disconnectWallet}
@@ -122,7 +130,7 @@ export function WalletConnect() {
             ) : (
               <Wallet className="h-4 w-4" />
             )}
-            <span>{loading ? 'CONNECTING...' : 'CONNECT WALLET'}</span>
+            <span>{loading ? "CONNECTING..." : "CONNECT WALLET"}</span>
           </Button>
         )}
       </div>

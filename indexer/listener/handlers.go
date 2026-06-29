@@ -16,7 +16,6 @@ import (
 	"github.com/stellar/go-stellar-sdk/xdr"
 )
 
-
 // SyncPoolStats retrieves latest pool statistics from the contract on-chain and updates the database
 func SyncPoolStats(ctx context.Context, cfg *config.Config, serverKP *keypair.Full) error {
 	slog.Info("Syncing pool stats from chain...")

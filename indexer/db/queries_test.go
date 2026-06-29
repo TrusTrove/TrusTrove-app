@@ -35,15 +35,15 @@ func TestInsertAndGetInvoice(t *testing.T) {
 	ctx := context.Background()
 	id := fmt.Sprintf("testid%d", time.Now().UnixNano())
 	inv := &DbInvoice{
-		ID:          id,
-		Issuer:      "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
-		Buyer:       "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN",
-		FaceValue:   "1000000000",
-		DiscountBps: 0,
+		ID:           id,
+		Issuer:       "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+		Buyer:        "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN",
+		FaceValue:    "1000000000",
+		DiscountBps:  0,
 		FundedAmount: "0",
-		DueDate:     time.Now().Add(30 * 24 * time.Hour).Unix(),
-		Status:      "Created",
-		CreatedAt:   time.Now().Unix(),
+		DueDate:      time.Now().Add(30 * 24 * time.Hour).Unix(),
+		Status:       "Created",
+		CreatedAt:    time.Now().Unix(),
 	}
 
 	if err := InsertInvoice(ctx, inv); err != nil {

@@ -1,16 +1,16 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { Navbar } from '@/components/shared/Navbar';
-import { TopStatusBar } from '@/components/shared/TopStatusBar';
-import { BookOpen, Terminal, ExternalLink, Loader2 } from 'lucide-react';
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Navbar } from "@/components/shared/Navbar";
+import { TopStatusBar } from "@/components/shared/TopStatusBar";
+import { BookOpen, Terminal, ExternalLink, Loader2 } from "lucide-react";
 
 export default function DocsPage() {
   const router = useRouter();
   const [logs, setLogs] = useState<string[]>([]);
   const [bootFinished, setBootFinished] = useState(false);
-  const docUrl = 'https://k1ngd4vid.gitbook.io/trustrove/';
+  const docUrl = "https://k1ngd4vid.gitbook.io/trustrove/";
 
   // Navigate only on explicit user action — no forced/auto redirects.
   const goToDocs = () => {
@@ -19,18 +19,18 @@ export default function DocsPage() {
 
   useEffect(() => {
     const logMessages = [
-      'INITIATING SECURE DOCS DISPATCH ROUTER...',
-      'RESOLVING SYSTEM ROUTE: /docs',
-      'ESTABLISHING CONNECTION WITH GITBOOK PROTOCOL...',
-      'FEDERATED SPACE IDENTIFIED: TrusTrove Docs',
-      'EXTERNAL GATEWAY SECURED: k1ngd4vid.gitbook.io',
-      'DELEGATING TRAFFIC TO SECURE SOURCE...'
+      "INITIATING SECURE DOCS DISPATCH ROUTER...",
+      "RESOLVING SYSTEM ROUTE: /docs",
+      "ESTABLISHING CONNECTION WITH GITBOOK PROTOCOL...",
+      "FEDERATED SPACE IDENTIFIED: TrusTrove Docs",
+      "EXTERNAL GATEWAY SECURED: k1ngd4vid.gitbook.io",
+      "DELEGATING TRAFFIC TO SECURE SOURCE...",
     ];
 
     let currentLogIndex = 0;
     const logInterval = setInterval(() => {
       if (currentLogIndex < logMessages.length) {
-        setLogs(prev => [...prev, logMessages[currentLogIndex]]);
+        setLogs((prev) => [...prev, logMessages[currentLogIndex]]);
         currentLogIndex++;
       } else {
         clearInterval(logInterval);
@@ -45,7 +45,7 @@ export default function DocsPage() {
     <div className="min-h-screen bg-background text-foreground flex flex-col selection:bg-primary selection:text-black">
       {/* Top Status Bar */}
       <TopStatusBar />
-      
+
       {/* Main navigation */}
       <Navbar />
 
@@ -75,8 +75,16 @@ export default function DocsPage() {
           <div className="min-h-[160px] bg-[#03060a] border border-border/40 rounded p-4 text-[11px] leading-relaxed text-slate-400 space-y-1 mb-6">
             {logs.map((log, idx) => (
               <div key={idx} className="flex gap-2">
-                <span className="text-slate-600 font-bold select-none">[LOG_{idx}]</span>
-                <span className={idx === logs.length - 1 && !bootFinished ? "text-primary" : "text-slate-300"}>
+                <span className="text-slate-600 font-bold select-none">
+                  [LOG_{idx}]
+                </span>
+                <span
+                  className={
+                    idx === logs.length - 1 && !bootFinished
+                      ? "text-primary"
+                      : "text-slate-300"
+                  }
+                >
                   {log}
                 </span>
               </div>
@@ -85,7 +93,9 @@ export default function DocsPage() {
               <>
                 <div className="flex items-center gap-2 pt-1">
                   <Loader2 className="w-3 h-3 text-primary animate-spin" />
-                  <span className="text-primary tracking-widest select-none">RESOLVING...</span>
+                  <span className="text-primary tracking-widest select-none">
+                    RESOLVING...
+                  </span>
                 </div>
                 <div className="pt-3">
                   <button
@@ -115,7 +125,8 @@ export default function DocsPage() {
                   TrusTrove GitBook
                 </h2>
                 <p className="text-[11px] text-slate-500 mt-1 max-w-[280px]">
-                  Protocol mechanics, economic modeling, smart contracts, and developer references.
+                  Protocol mechanics, economic modeling, smart contracts, and
+                  developer references.
                 </p>
               </div>
             </div>

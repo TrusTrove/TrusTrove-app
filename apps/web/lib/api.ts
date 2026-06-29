@@ -1,21 +1,34 @@
-import { useWalletStore } from '@/store/wallet';
-import { AssetType, Invoice, PoolStats, LPPosition, EventLog, PoolSnapshot } from '@/types';
+import { useWalletStore } from "@/store/wallet";
+import {
+  AssetType,
+  Invoice,
+  PoolStats,
+  LPPosition,
+  EventLog,
+  PoolSnapshot,
+} from "@/types";
 
 const getApiUrl = () => {
-  return process.env.NEXT_PUBLIC_INDEXER_API_URL || 'http://localhost:8080';
+  return process.env.NEXT_PUBLIC_INDEXER_API_URL || "http://localhost:8080";
 };
 
-async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function apiFetch<T>(
+  path: string,
+  options: RequestInit = {},
+): Promise<T> {
   const token = useWalletStore.getState().token;
   const headers = new Headers(options.headers || {});
-  
+
   if (token) {
-    headers.set('Authorization', `Bearer ${token}`);
+    headers.set("Authorization", `Bearer ${token}`);
   }
-  if (!headers.has('Content-Type') && (options.method === 'POST' || options.method === 'PUT')) {
-    headers.set('Content-Type', 'application/json');
+  if (
+    !headers.has("Content-Type") &&
+    (options.method === "POST" || options.method === "PUT")
+  ) {
+    headers.set("Content-Type", "application/json");
   }
-  
+
   const res = await fetch(`${getApiUrl()}${path}`, {
     ...options,
     headers,
@@ -35,7 +48,7 @@ function parseRawInvoice(raw: any): Invoice {
     issuer: raw.issuer,
     buyer: raw.buyer,
     faceValue: BigInt(raw.face_value || 0),
-    asset: (raw.asset || 'USDC') as AssetType,
+    asset: (raw.asset || "USDC") as AssetType,
     discountBps: Number(raw.discount_bps || 0),
     fundedAmount: BigInt(raw.funded_amount || 0),
     dueDate: Number(raw.due_date || 0),
@@ -50,8 +63,12 @@ function parseRawInvoice(raw: any): Invoice {
 
   return Object.assign(invoice, {
     listedAt: raw.listed_at ? Number(raw.listed_at) : null,
-    issuerConfirmedAt: raw.issuer_confirmed_at ? Number(raw.issuer_confirmed_at) : null,
-    buyerConfirmedAt: raw.buyer_confirmed_at ? Number(raw.buyer_confirmed_at) : null,
+    issuerConfirmedAt: raw.issuer_confirmed_at
+      ? Number(raw.issuer_confirmed_at)
+      : null,
+    buyerConfirmedAt: raw.buyer_confirmed_at
+      ? Number(raw.buyer_confirmed_at)
+      : null,
     defaultedAt: raw.defaulted_at ? Number(raw.defaulted_at) : null,
     transactionHashes: raw.transaction_hashes,
     txHashes: raw.tx_hashes,
@@ -86,13 +103,19 @@ function parseRawLPPosition(raw: any): LPPosition {
   };
 }
 
-export async function fetchChallenge(address: string): Promise<{ transaction: string; network_passphrase: string }> {
-  return apiFetch<{ transaction: string; network_passphrase: string }>(`/auth?address=${address}`);
+export async function fetchChallenge(
+  address: string,
+): Promise<{ transaction: string; network_passphrase: string }> {
+  return apiFetch<{ transaction: string; network_passphrase: string }>(
+    `/auth?address=${address}`,
+  );
 }
 
-export async function verifyChallenge(transaction: string): Promise<{ token: string }> {
-  return apiFetch<{ token: string }>('/auth', {
-    method: 'POST',
+export async function verifyChallenge(
+  transaction: string,
+): Promise<{ token: string }> {
+  return apiFetch<{ token: string }>("/auth", {
+    method: "POST",
     body: JSON.stringify({ transaction }),
   });
 }
@@ -101,10 +124,14 @@ export async function createInvoice(
   buyer: string,
   faceValue: string,
   dueDate: number,
-  asset: AssetType = 'USDC'
+  asset: AssetType = "USDC",
 ): Promise<{ invoice_id: string; transaction_hash: string; status: string }> {
-  return apiFetch<{ invoice_id: string; transaction_hash: string; status: string }>('/invoices', {
-    method: 'POST',
+  return apiFetch<{
+    invoice_id: string;
+    transaction_hash: string;
+    status: string;
+  }>("/invoices", {
+    method: "POST",
     body: JSON.stringify({
       buyer,
       face_value: faceValue,
@@ -134,11 +161,11 @@ export async function getInvoices(filters?: {
   limit?: number;
 }): Promise<PaginatedInvoices> {
   const params = new URLSearchParams();
-  if (filters?.status) params.append('status', filters.status);
-  if (filters?.issuer) params.append('issuer', filters.issuer);
-  if (filters?.page != null) params.append('page', String(filters.page));
-  if (filters?.limit != null) params.append('limit', String(filters.limit));
-  const query = params.size > 0 ? `?${params.toString()}` : '';
+  if (filters?.status) params.append("status", filters.status);
+  if (filters?.issuer) params.append("issuer", filters.issuer);
+  if (filters?.page != null) params.append("page", String(filters.page));
+  if (filters?.limit != null) params.append("limit", String(filters.limit));
+  const query = params.size > 0 ? `?${params.toString()}` : "";
 
   const raw = await apiFetch<{
     data: any[];
@@ -158,7 +185,7 @@ export async function getInvoices(filters?: {
 }
 
 export async function getPoolStats(): Promise<PoolStats> {
-  const raw = await apiFetch<any>('/pool/stats');
+  const raw = await apiFetch<any>("/pool/stats");
   return parseRawPoolStats(raw);
 }
 
@@ -168,7 +195,7 @@ export async function getLPPosition(address: string): Promise<LPPosition> {
 }
 
 export async function getRecentEvents(limit?: number): Promise<EventLog[]> {
-  const query = limit ? `?limit=${limit}` : '';
+  const query = limit ? `?limit=${limit}` : "";
   const rawList = await apiFetch<any[]>(`/events${query}`);
   return rawList.map(parseRawEventLog);
 }
@@ -186,5 +213,5 @@ function parseRawEventLog(raw: any): EventLog {
 }
 
 export async function getPoolSnapshots(): Promise<PoolSnapshot[]> {
-  return apiFetch<PoolSnapshot[]>('/pool/snapshots');
+  return apiFetch<PoolSnapshot[]>("/pool/snapshots");
 }
