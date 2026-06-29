@@ -109,6 +109,7 @@ export const invoiceSchema = z.object({
   shippedAt: nullableNumberSchema,
   issuerConfirmed: booleanSchema,
   buyerConfirmed: booleanSchema,
+  buyerConfirmedAt: nullableNumberSchema.optional(),
   repaidAt: nullableNumberSchema,
 });
 

@@ -7,6 +7,7 @@ import {
 } from "@/lib/api";
 import { InvoiceClient, PoolClient } from "@trusttrove/sdk";
 import { useWalletStore } from "@/store/wallet";
+import { useTokenAllowance } from "./useTokenAllowance";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
 
 const invoiceContractID = process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID || "";
@@ -61,6 +62,7 @@ export function useInvoices(filters?: {
 }) {
   const queryClient = useQueryClient();
   const { address } = useWalletStore();
+  const { ensureAllowance } = useTokenAllowance();
 
   const invoicesQuery = useQuery<PaginatedInvoices>({
     queryKey: ["invoices", filters],
@@ -178,6 +180,10 @@ export function useInvoices(filters?: {
     mutationFn: async ({ invoiceId }: { invoiceId: string }) => {
       if (!address) throw new Error("Wallet not connected");
       const invoiceClient = new InvoiceClient(invoiceContractID);
+      // Read the invoice on-chain to determine the repayment amount (face value)
+      const invoice = await invoiceClient.get(invoiceId, address);
+      // Ensure the invoice contract has sufficient USDC allowance before repaying
+      await ensureAllowance(invoiceContractID, invoice.faceValue);
       return invoiceClient.repay(invoiceId, address);
     },
     onSuccess: () => {

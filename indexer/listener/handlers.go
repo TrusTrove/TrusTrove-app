@@ -216,7 +216,7 @@ func (l *EventListener) handleInvoiceShipped(ctx context.Context, event SorobanE
 	return nil
 }
 
-func (l *EventListener) handleDeliveryConfirmed(ctx context.Context, event SorobanEvent) error {
+func (l *EventListener) handleDeliveryConfirmed(ctx context.Context, event SorobanEvent, ledgerClosedAt int64) error {
 	if len(event.Topic) < 2 {
 		return fmt.Errorf("invalid topic length for confirmed event")
 	}
@@ -228,7 +228,7 @@ func (l *EventListener) handleDeliveryConfirmed(ctx context.Context, event Sorob
 	}
 	invoiceID := xdrutil.ParseBytes(idVal)
 
-	err = db.UpdateInvoiceDeliveryConfirmed(ctx, invoiceID, "Confirmed")
+	err = db.UpdateInvoiceDeliveryConfirmed(ctx, invoiceID, "Confirmed", ledgerClosedAt)
 	if err != nil {
 		return err
 	}
@@ -326,7 +326,7 @@ func (l *EventListener) handleEvent(ctx context.Context, event SorobanEvent) err
 	case "mark_shipped", "InvoiceShipped":
 		err = l.handleInvoiceShipped(ctx, event, ledgerClosedAt)
 	case "confirm_delivery", "DeliveryConfirmed":
-		err = l.handleDeliveryConfirmed(ctx, event)
+		err = l.handleDeliveryConfirmed(ctx, event, ledgerClosedAt)
 	case "repay", "InvoiceRepaid":
 		err = l.handleInvoiceRepaid(ctx, event, serverKP, ledgerClosedAt)
 	case "trigger_default", "InvoiceDefaulted":

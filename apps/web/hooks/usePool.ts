@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getPoolStats, getLPPosition } from "@/lib/api";
 import { PoolClient } from "@trusttrove/sdk";
 import { useWalletStore } from "@/store/wallet";
+import { useTokenAllowance } from "./useTokenAllowance";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
 
 const poolContractID = process.env.NEXT_PUBLIC_POOL_CONTRACT_ID || "";
@@ -36,6 +37,7 @@ const poolContractID = process.env.NEXT_PUBLIC_POOL_CONTRACT_ID || "";
 export function usePool() {
   const queryClient = useQueryClient();
   const { address } = useWalletStore();
+  const { ensureAllowance } = useTokenAllowance();
 
   const statsQuery = useQuery({
     queryKey: ["poolStats"],
@@ -58,6 +60,8 @@ export function usePool() {
   const depositMutation = useMutation({
     mutationFn: async ({ amount }: { amount: bigint }) => {
       if (!address) throw new Error("Wallet not connected");
+      // Ensure the pool contract has sufficient USDC allowance before depositing
+      await ensureAllowance(poolContractID, amount);
       const poolClient = new PoolClient(poolContractID);
       return poolClient.deposit(address, amount, address);
     },

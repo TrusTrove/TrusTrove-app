@@ -31,6 +31,7 @@ export interface Invoice {
   shippedAt: number | null;
   issuerConfirmed: boolean;
   buyerConfirmed: boolean;
+  buyerConfirmedAt?: number | null;
   repaidAt: number | null;
 }
 
