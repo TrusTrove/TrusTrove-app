@@ -64,3 +64,7 @@ pnpm --filter web lint
 cd indexer
 go vet ./...
 ```
+
+
+
+
