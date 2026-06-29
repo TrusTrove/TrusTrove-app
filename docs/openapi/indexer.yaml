@@ -37,12 +37,12 @@ paths:
       summary: Health check
       security: []
       responses:
-        '200':
+        "200":
           description: API is alive
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HealthResponse'
+                $ref: "#/components/schemas/HealthResponse"
               examples:
                 ok:
                   value:
@@ -62,19 +62,19 @@ paths:
             type: string
           example: GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF
       responses:
-        '200':
+        "200":
           description: Challenge transaction generated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthChallengeResponse'
+                $ref: "#/components/schemas/AuthChallengeResponse"
               examples:
                 challenge:
                   value:
                     transaction: AAAAAgAAA...
                     network_passphrase: Test SDF Network ; September 2015
-        '400':
-          $ref: '#/components/responses/BadRequest'
+        "400":
+          $ref: "#/components/responses/BadRequest"
     post:
       tags: [Auth]
       summary: Exchange signed SEP-10 challenge for JWT
@@ -85,27 +85,27 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AuthRequest'
+              $ref: "#/components/schemas/AuthRequest"
             examples:
               signedChallenge:
                 value:
                   transaction: AAAAAgAAA...signed...
       responses:
-        '200':
+        "200":
           description: Authentication successful
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthTokenResponse'
+                $ref: "#/components/schemas/AuthTokenResponse"
               examples:
                 token:
                   value:
                     token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
                     expires_in: 86400
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /events:
     get:
@@ -113,10 +113,10 @@ paths:
       summary: List indexed Soroban events
       security: []
       parameters:
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Cursor'
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
       responses:
-        '200':
+        "200":
           description: Indexed events
           content:
             application/json:
@@ -126,7 +126,7 @@ paths:
                   events:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Event'
+                      $ref: "#/components/schemas/Event"
                   next_cursor:
                     type: string
                     nullable: true
@@ -148,10 +148,10 @@ paths:
           required: false
           schema:
             type: string
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Cursor'
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
       responses:
-        '200':
+        "200":
           description: Invoice list
           content:
             application/json:
@@ -161,7 +161,7 @@ paths:
                   invoices:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Invoice'
+                      $ref: "#/components/schemas/Invoice"
                   next_cursor:
                     type: string
                     nullable: true
@@ -176,25 +176,25 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateInvoiceRequest'
+              $ref: "#/components/schemas/CreateInvoiceRequest"
             examples:
               invoice:
                 value:
                   buyer: GBUYERAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-                  face_value: '1000.00'
+                  face_value: "1000.00"
                   due_date: 1735689600
                   asset: USDC
       responses:
-        '201':
+        "201":
           description: Invoice created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Invoice'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+                $ref: "#/components/schemas/Invoice"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /invoices/{id}:
     get:
@@ -209,14 +209,14 @@ paths:
             type: string
           example: inv_01HZY...
       responses:
-        '200':
+        "200":
           description: Invoice found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Invoice'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                $ref: "#/components/schemas/Invoice"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /stats:
     get:
@@ -224,12 +224,12 @@ paths:
       summary: Protocol statistics
       security: []
       responses:
-        '200':
+        "200":
           description: Protocol aggregate stats
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ProtocolStats'
+                $ref: "#/components/schemas/ProtocolStats"
 
   /pool/stats:
     get:
@@ -237,12 +237,12 @@ paths:
       summary: Liquidity pool statistics
       security: []
       responses:
-        '200':
+        "200":
           description: Pool aggregate stats
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PoolStats'
+                $ref: "#/components/schemas/PoolStats"
 
   /pool/position/{address}:
     get:
@@ -257,14 +257,14 @@ paths:
             type: string
           example: GLPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
       responses:
-        '200':
+        "200":
           description: LP position
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LPPosition'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                $ref: "#/components/schemas/LPPosition"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
 components:
   securitySchemes:
@@ -296,7 +296,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
+            $ref: "#/components/schemas/ErrorResponse"
           examples:
             invalid:
               value:
@@ -307,13 +307,13 @@ components:
         text/plain:
           schema:
             type: string
-          example: 'Unauthorized: missing token'
+          example: "Unauthorized: missing token"
     NotFound:
       description: Resource not found
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
+            $ref: "#/components/schemas/ErrorResponse"
           examples:
             notFound:
               value:
@@ -364,7 +364,7 @@ components:
           type: string
         face_value:
           type: string
-          example: '1000.00'
+          example: "1000.00"
         due_date:
           type: integer
           format: int64

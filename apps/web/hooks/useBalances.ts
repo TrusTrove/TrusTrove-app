@@ -1,14 +1,15 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Horizon } from '@stellar/stellar-sdk';
-import { useWalletStore } from '@/store/wallet';
-import { ASSET_INFO } from '@/lib/assets';
+import { useState, useEffect, useCallback } from "react";
+import { Horizon } from "@stellar/stellar-sdk";
+import { useWalletStore } from "@/store/wallet";
+import { ASSET_INFO } from "@/lib/assets";
 
 export interface Balances {
   usdc: string | null;
   xlm: string | null;
 }
 
-const HORIZON_URL = process.env.NEXT_PUBLIC_HORIZON_URL || 'https://horizon-testnet.stellar.org';
+const HORIZON_URL =
+  process.env.NEXT_PUBLIC_HORIZON_URL || "https://horizon-testnet.stellar.org";
 
 export function useBalances() {
   const { address, connected } = useWalletStore();
@@ -36,14 +37,14 @@ export function useBalances() {
       let xlm: string | null = null;
 
       for (const balance of account.balances) {
-        if ('asset_type' in balance) {
-          if (balance.asset_type === 'native') {
+        if ("asset_type" in balance) {
+          if (balance.asset_type === "native") {
             xlm = balance.balance;
           } else if (
-            balance.asset_type === 'credit_alphanum4' &&
-            'asset_code' in balance &&
-            balance.asset_code === 'USDC' &&
-            'asset_issuer' in balance &&
+            balance.asset_type === "credit_alphanum4" &&
+            "asset_code" in balance &&
+            balance.asset_code === "USDC" &&
+            "asset_issuer" in balance &&
             balance.asset_issuer === usdcIssuer
           ) {
             usdc = balance.balance;
@@ -53,15 +54,15 @@ export function useBalances() {
 
       setBalances({ usdc, xlm });
     } catch (err: unknown) {
-      if (err instanceof Error && 'response' in err) {
+      if (err instanceof Error && "response" in err) {
         const resp = (err as { response?: { status: number } }).response;
         if (resp?.status === 404) {
-          setBalances({ usdc: null, xlm: '0' });
+          setBalances({ usdc: null, xlm: "0" });
         } else {
-          setError('Failed to fetch balances');
+          setError("Failed to fetch balances");
         }
       } else {
-        setError('Failed to fetch balances');
+        setError("Failed to fetch balances");
       }
     } finally {
       setLoading(false);
@@ -69,10 +70,11 @@ export function useBalances() {
   }, [address, connected]);
 
   useEffect(() => {
+    if (!connected) return;
     fetchBalances();
     const interval = setInterval(fetchBalances, 30000);
     return () => clearInterval(interval);
-  }, [fetchBalances]);
+  }, [connected, fetchBalances]);
 
   return { balances, loading, error, refetch: fetchBalances };
 }

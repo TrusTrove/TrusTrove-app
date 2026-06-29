@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import React from 'react';
-import { ArrowUpRight } from 'lucide-react';
+import React from "react";
+import { ArrowUpRight } from "lucide-react";
 
 interface TickerItem {
   id: string;
@@ -13,11 +13,46 @@ interface TickerItem {
 }
 
 const tickerItems: TickerItem[] = [
-  { id: '1', sme: 'Lagos Textile Supplier', amount: '34,500 USDC', discount: '2.1%', time: '3m ago', country: '🇳🇬' },
-  { id: '2', sme: 'Nairobi Agri-Exporter', amount: '18,200 USDC', discount: '1.8%', time: '8m ago', country: '🇰🇪' },
-  { id: '3', sme: 'Accra Electronics', amount: '52,000 USDC', discount: '2.5%', time: '12m ago', country: '🇬🇭' },
-  { id: '4', sme: 'Mombasa Logistics Ltd', amount: '27,800 USDC', discount: '2.0%', time: '22m ago', country: '🇰🇪' },
-  { id: '5', sme: 'Dakar Fish Processing', amount: '41,300 USDC', discount: '2.3%', time: '35m ago', country: '🇸🇳' },
+  {
+    id: "1",
+    sme: "Lagos Textile Supplier",
+    amount: "34,500 USDC",
+    discount: "2.1%",
+    time: "3m ago",
+    country: "🇳🇬",
+  },
+  {
+    id: "2",
+    sme: "Nairobi Agri-Exporter",
+    amount: "18,200 USDC",
+    discount: "1.8%",
+    time: "8m ago",
+    country: "🇰🇪",
+  },
+  {
+    id: "3",
+    sme: "Accra Electronics",
+    amount: "52,000 USDC",
+    discount: "2.5%",
+    time: "12m ago",
+    country: "🇬🇭",
+  },
+  {
+    id: "4",
+    sme: "Mombasa Logistics Ltd",
+    amount: "27,800 USDC",
+    discount: "2.0%",
+    time: "22m ago",
+    country: "🇰🇪",
+  },
+  {
+    id: "5",
+    sme: "Dakar Fish Processing",
+    amount: "41,300 USDC",
+    discount: "2.3%",
+    time: "35m ago",
+    country: "🇸🇳",
+  },
 ];
 
 export function TopStatusBar() {
@@ -38,23 +73,32 @@ export function TopStatusBar() {
       <div className="flex-1 overflow-hidden relative h-4 flex items-center">
         <div className="flex gap-12 whitespace-nowrap animate-[marquee_25s_linear_infinite] hover:[animation-play-state:paused]">
           {[...tickerItems, ...tickerItems].map((item, idx) => (
-            <div key={`${item.id}-${idx}`} className="inline-flex items-center gap-2 text-[10px] font-mono">
+            <div
+              key={`${item.id}-${idx}`}
+              className="inline-flex items-center gap-2 text-[10px] font-mono"
+            >
               <span className="text-slate-500">{item.country}</span>
               <span className="text-slate-300 font-bold">{item.sme}</span>
               <span className="text-primary font-bold">{item.amount}</span>
               <span className="text-slate-500">at</span>
-              <span className="text-sky-400 font-semibold">{item.discount} discount</span>
+              <span className="text-sky-400 font-semibold">
+                {item.discount} discount
+              </span>
               <span className="text-slate-600">({item.time})</span>
               <ArrowUpRight className="w-3 h-3 text-primary/45 shrink-0" />
             </div>
           ))}
         </div>
       </div>
-      
+
       <style jsx global>{`
         @keyframes marquee {
-          0% { transform: translateX(0%); }
-          100% { transform: translateX(-50%); }
+          0% {
+            transform: translateX(0%);
+          }
+          100% {
+            transform: translateX(-50%);
+          }
         }
       `}</style>
     </div>

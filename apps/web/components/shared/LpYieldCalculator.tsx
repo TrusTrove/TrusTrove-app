@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import { AmountInput } from './AmountInput';
-import { TrendingUp, PiggyBank, Landmark } from 'lucide-react';
+import React, { useState } from "react";
+import { AmountInput } from "./AmountInput";
+import { TrendingUp, PiggyBank, Landmark } from "lucide-react";
 
 const SAVINGS_APY = 5.0;
 const TBILLS_APY = 4.5;
@@ -10,7 +10,7 @@ const AVG_DISCOUNT_RATE = 2.0;
 const AVG_MATURITY_DAYS = 60;
 
 export function LpYieldCalculator() {
-  const [deposit, setDeposit] = useState('10000');
+  const [deposit, setDeposit] = useState("10000");
   const [utilization, setUtilization] = useState(75);
 
   const parsedDeposit = parseFloat(deposit) || 0;
@@ -21,7 +21,7 @@ export function LpYieldCalculator() {
     (365 / AVG_MATURITY_DAYS) *
     100;
 
-  const monthlyEarnings = parsedDeposit * (annualYieldPct / 100) / 12;
+  const monthlyEarnings = (parsedDeposit * (annualYieldPct / 100)) / 12;
 
   const maxApy = Math.max(annualYieldPct, SAVINGS_APY, TBILLS_APY);
   const trustroveWidth = maxApy > 0 ? (annualYieldPct / maxApy) * 100 : 0;
@@ -79,10 +79,11 @@ export function LpYieldCalculator() {
             Monthly Earnings
           </span>
           <span className="text-sm font-bold font-mono text-white">
-            {monthlyEarnings.toLocaleString('en-US', {
+            {monthlyEarnings.toLocaleString("en-US", {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
-            })} USDC
+            })}{" "}
+            USDC
           </span>
         </div>
       </div>
@@ -99,7 +100,9 @@ export function LpYieldCalculator() {
                 <TrendingUp className="w-3 h-3" />
                 TrusTrove LP
               </span>
-              <span className="text-white font-bold">{annualYieldPct.toFixed(2)}%</span>
+              <span className="text-white font-bold">
+                {annualYieldPct.toFixed(2)}%
+              </span>
             </div>
             <div className="w-full h-3 bg-slate-800 rounded-sm overflow-hidden">
               <div
@@ -115,7 +118,9 @@ export function LpYieldCalculator() {
                 <PiggyBank className="w-3 h-3" />
                 Savings Account
               </span>
-              <span className="text-white font-bold">{SAVINGS_APY.toFixed(2)}%</span>
+              <span className="text-white font-bold">
+                {SAVINGS_APY.toFixed(2)}%
+              </span>
             </div>
             <div className="w-full h-3 bg-slate-800 rounded-sm overflow-hidden">
               <div
@@ -131,7 +136,9 @@ export function LpYieldCalculator() {
                 <Landmark className="w-3 h-3" />
                 T-Bills
               </span>
-              <span className="text-white font-bold">{TBILLS_APY.toFixed(2)}%</span>
+              <span className="text-white font-bold">
+                {TBILLS_APY.toFixed(2)}%
+              </span>
             </div>
             <div className="w-full h-3 bg-slate-800 rounded-sm overflow-hidden">
               <div
@@ -145,7 +152,8 @@ export function LpYieldCalculator() {
 
       <div className="border-t border-border/40 pt-3">
         <span className="text-[10px] font-mono text-slate-600 block leading-relaxed">
-          Yield depends on pool utilization and invoice repayment rate. Smart contract risk exists.
+          Yield depends on pool utilization and invoice repayment rate. Smart
+          contract risk exists.
         </span>
       </div>
     </div>

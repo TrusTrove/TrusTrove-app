@@ -37,9 +37,9 @@ The Asian Development Bank estimates the global trade finance gap at $2.5 trilli
 
 ## Maintainers
 
-| | Name | Role | GitHub | Telegram |
-|---|---|---|---|---|
-| | **Fuhad (K1NGD4VID)** | Founder & Lead Developer | [@k1ngd4vid](https://github.com/k1ngd4vid) | [@k1ngd4vid](https://t.me/k1ngd4vid) |
+|     | Name                  | Role                     | GitHub                                     | Telegram                             |
+| --- | --------------------- | ------------------------ | ------------------------------------------ | ------------------------------------ |
+|     | **Fuhad (K1NGD4VID)** | Founder & Lead Developer | [@k1ngd4vid](https://github.com/k1ngd4vid) | [@k1ngd4vid](https://t.me/k1ngd4vid) |
 
 Join the contributor community: **[t.me/trusttrove](https://t.me/trusttrove)**
 
@@ -65,33 +65,34 @@ Yield distributes to LP shares
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
+| Layer           | Technology                                                                                |
+| --------------- | ----------------------------------------------------------------------------------------- |
 | Smart Contracts | Rust, Soroban SDK — [TrusTrove-contract](https://github.com/TrusTrove/TrusTrove-contract) |
-| Frontend | Next.js 14, TypeScript, Tailwind CSS, Framer Motion |
-| Wallet | Freighter browser extension |
-| Payments | USDC on Stellar |
-| SDK | Custom TypeScript contract client wrappers |
-| Indexer | Go 1.22, chi router, pgx v5 |
-| Database | PostgreSQL 15 |
-| Hosting | Vercel (frontend), Render (indexer + database) |
+| Frontend        | Next.js 14, TypeScript, Tailwind CSS, Framer Motion                                       |
+| Wallet          | Freighter browser extension                                                               |
+| Payments        | USDC on Stellar                                                                           |
+| SDK             | Custom TypeScript contract client wrappers                                                |
+| Indexer         | Go 1.22, chi router, pgx v5                                                               |
+| Database        | PostgreSQL 15                                                                             |
+| Hosting         | Vercel (frontend), Render (indexer + database)                                            |
 
 ---
 
 ## Deployed Contracts (Stellar Testnet)
 
-| Contract | Address |
-|----------|---------|
+| Contract          | Address                                                    |
+| ----------------- | ---------------------------------------------------------- |
 | registry_contract | `CABGWVIZFF62FG67ZGFEP67NEEY4WYTMFURDMFTKKNRDAFPKPOJDTN4C` |
-| invoice_contract | `CA4O3MR7LWHRSUDBNU6FY6UDFFYBN7TGBZXBDZB4OYYXFYXIFJ6RJF6B` |
-| escrow_contract | `CAJWGUKDTTC3SKN4RAAY72J4DVIIYSCFHX6GIMNTT22ABMISJK4GBCEH` |
-| pool_contract | `CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS` |
+| invoice_contract  | `CA4O3MR7LWHRSUDBNU6FY6UDFFYBN7TGBZXBDZB4OYYXFYXIFJ6RJF6B` |
+| escrow_contract   | `CAJWGUKDTTC3SKN4RAAY72J4DVIIYSCFHX6GIMNTT22ABMISJK4GBCEH` |
+| pool_contract     | `CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS` |
 
 ---
 
 ## Configuration and API documentation
 
 - Root [`.env.example`](./.env.example) is the single source of truth for frontend, SDK, and Go indexer variables. It lists each variable's layer, type, required status, default value, description, and source.
+- For Render deployments, set `ALLOWED_ORIGINS` to `https://trustrove.vercel.app,http://localhost:3000` so the indexer accepts requests only from the production Vercel domain and local development origins.
 - Indexer OpenAPI documentation lives at [`docs/openapi/indexer.yaml`](./docs/openapi/indexer.yaml), including health, SEP-10 auth, invoices, events, stats, and pool endpoints.
 - Web app setup instructions live at [`apps/web/README.md`](./apps/web/README.md).
 
@@ -153,6 +154,7 @@ We welcome contributions from the Stellar community. Before opening a PR, please
 ### Find an issue
 
 Browse open issues labeled by complexity:
+
 - `complexity:low` — isolated scope, good starting point
 - `complexity:medium` — touches 2–3 components
 - `complexity:high` — architectural changes
@@ -166,6 +168,7 @@ Browse open issues labeled by complexity:
 ### Commit format
 
 We use Conventional Commits:
+
 ```
 feat(web): add invoice status timeline component
 fix(sdk): handle soroban rpc timeout with retry
