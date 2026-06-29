@@ -8,6 +8,64 @@ import {
   PoolSnapshot,
 } from "@/types";
 
+interface RawInvoiceResponse {
+  id: string;
+  issuer: string;
+  buyer: string;
+  face_value?: string;
+  asset?: string;
+  discount_bps?: number;
+  funded_amount?: string;
+  due_date?: number;
+  status: string;
+  created_at?: number;
+  funded_at?: string | number | null;
+  shipped_at?: string | number | null;
+  issuer_confirmed?: boolean;
+  buyer_confirmed?: boolean;
+  repaid_at?: string | number | null;
+  listed_at?: string | number | null;
+  issuer_confirmed_at?: string | number | null;
+  buyer_confirmed_at?: string | number | null;
+  defaulted_at?: string | number | null;
+  transaction_hashes?: string[];
+  tx_hashes?: string[];
+  created_tx_hash?: string;
+  listed_tx_hash?: string;
+  funded_tx_hash?: string;
+  shipped_tx_hash?: string;
+  issuer_confirmed_tx_hash?: string;
+  buyer_confirmed_tx_hash?: string;
+  repaid_tx_hash?: string;
+  defaulted_tx_hash?: string;
+}
+
+interface RawPoolStatsResponse {
+  total_deposits?: string;
+  total_funded?: string;
+  available_liquidity?: string;
+  utilization_rate_bps?: number;
+  total_yield_distributed?: string;
+  active_invoice_count?: number;
+}
+
+interface RawLPPositionResponse {
+  shares?: string;
+  usdc_value?: string;
+  yield_earned?: string;
+  deposit_count?: number;
+}
+
+interface RawEventLogResponse {
+  id: number;
+  event_id: string;
+  contract_id: string;
+  ledger: number;
+  ledger_closed_at: number;
+  event_type: string;
+  data?: Record<string, unknown>;
+}
+
 const getApiUrl = () => {
   return process.env.NEXT_PUBLIC_INDEXER_API_URL || "http://localhost:8080";
 };
@@ -42,7 +100,7 @@ async function apiFetch<T>(
   return res.json() as Promise<T>;
 }
 
-function parseRawInvoice(raw: any): Invoice {
+function parseRawInvoice(raw: RawInvoiceResponse): Invoice {
   const invoice: Invoice = {
     id: raw.id,
     issuer: raw.issuer,
@@ -83,7 +141,7 @@ function parseRawInvoice(raw: any): Invoice {
   });
 }
 
-function parseRawPoolStats(raw: any): PoolStats {
+function parseRawPoolStats(raw: RawPoolStatsResponse): PoolStats {
   return {
     totalDeposits: BigInt(raw.total_deposits || 0),
     totalFunded: BigInt(raw.total_funded || 0),
@@ -94,7 +152,7 @@ function parseRawPoolStats(raw: any): PoolStats {
   };
 }
 
-function parseRawLPPosition(raw: any): LPPosition {
+function parseRawLPPosition(raw: RawLPPositionResponse): LPPosition {
   return {
     shares: BigInt(raw.shares || 0),
     usdcValue: BigInt(raw.usdc_value || 0),
@@ -142,7 +200,7 @@ export async function createInvoice(
 }
 
 export async function getInvoiceByID(id: string): Promise<Invoice> {
-  const raw = await apiFetch<any>(`/invoices/${id}`);
+  const raw = await apiFetch<RawInvoiceResponse>(`/invoices/${id}`);
   return parseRawInvoice(raw);
 }
 
@@ -168,7 +226,7 @@ export async function getInvoices(filters?: {
   const query = params.size > 0 ? `?${params.toString()}` : "";
 
   const raw = await apiFetch<{
-    data: any[];
+    data: RawInvoiceResponse[];
     total: number;
     page: number;
     limit: number;
@@ -185,22 +243,22 @@ export async function getInvoices(filters?: {
 }
 
 export async function getPoolStats(): Promise<PoolStats> {
-  const raw = await apiFetch<any>("/pool/stats");
+  const raw = await apiFetch<RawPoolStatsResponse>("/pool/stats");
   return parseRawPoolStats(raw);
 }
 
 export async function getLPPosition(address: string): Promise<LPPosition> {
-  const raw = await apiFetch<any>(`/pool/position/${address}`);
+  const raw = await apiFetch<RawLPPositionResponse>(`/pool/position/${address}`);
   return parseRawLPPosition(raw);
 }
 
 export async function getRecentEvents(limit?: number): Promise<EventLog[]> {
   const query = limit ? `?limit=${limit}` : "";
-  const rawList = await apiFetch<any[]>(`/events${query}`);
+  const rawList = await apiFetch<RawEventLogResponse[]>(`/events${query}`);
   return rawList.map(parseRawEventLog);
 }
 
-function parseRawEventLog(raw: any): EventLog {
+function parseRawEventLog(raw: RawEventLogResponse): EventLog {
   return {
     id: raw.id,
     event_id: raw.event_id,
