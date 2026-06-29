@@ -22,19 +22,21 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <ConfigBanner />
-      {children}
-      <ConfirmationDialog />
-      <Toaster
-        position="bottom-right"
-        toastOptions={{
-          style: {
-            background: "#0d131a",
-            border: "1px solid #1a2330",
-            color: "#e2e8f0",
-            fontFamily: "ui-monospace, monospace",
-          },
-        }}
-      />
+       {children}
+       <ConfirmationDialog />
+       <div aria-live="polite" className="sr-only">
+         <Toaster
+           position="bottom-right"
+           toastOptions={{
+             style: {
+               background: "#0d131a",
+               border: "1px solid #1a2330",
+               color: "#e2e8f0",
+               fontFamily: "ui-monospace, monospace",
+             },
+           }}
+         />
+       </div>
     </QueryClientProvider>
   );
 }
