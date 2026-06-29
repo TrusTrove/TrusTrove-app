@@ -1,9 +1,16 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import { ExternalLink, CheckCircle, XCircle, Copy, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useTxHistory } from '@/hooks/useTxHistory';
-import { SkeletonShimmer } from './SkeletonLoader';
+import React, { useState } from "react";
+import {
+  ExternalLink,
+  CheckCircle,
+  XCircle,
+  Copy,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
+import { useTxHistory } from "@/hooks/useTxHistory";
+import { SkeletonShimmer } from "./SkeletonLoader";
 
 interface TxHistoryProps {
   address: string;
@@ -28,7 +35,17 @@ function TxRowSkeleton() {
 }
 
 export function TxHistory({ address }: TxHistoryProps) {
-  const { transactions, isLoading, error, hasNext, hasPrev, goNext, goPrev, page, refetch } = useTxHistory(address);
+  const {
+    transactions,
+    isLoading,
+    error,
+    hasNext,
+    hasPrev,
+    goNext,
+    goPrev,
+    page,
+    refetch,
+  } = useTxHistory(address);
   const [copiedHash, setCopiedHash] = useState<string | null>(null);
 
   const handleCopy = async (hash: string) => {
@@ -56,7 +73,9 @@ export function TxHistory({ address }: TxHistoryProps) {
 
       {error && (
         <div className="text-center py-6">
-          <p className="text-rose-400 text-sm mb-2">Failed to load transactions</p>
+          <p className="text-rose-400 text-sm mb-2">
+            Failed to load transactions
+          </p>
           <button
             onClick={() => refetch()}
             className="text-xs text-blue-400 hover:text-blue-300 underline"
@@ -89,13 +108,15 @@ export function TxHistory({ address }: TxHistoryProps) {
                 className="flex justify-between items-center bg-slate-950/45 border border-slate-900 rounded-xl p-4 transition-all hover:bg-slate-900/60"
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  {tx.status === 'success' ? (
+                  {tx.status === "success" ? (
                     <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
                   ) : (
                     <XCircle className="w-5 h-5 text-rose-400 shrink-0" />
                   )}
                   <div className="min-w-0">
-                    <span className="font-semibold text-white text-sm block truncate">{tx.type}</span>
+                    <span className="font-semibold text-white text-sm block truncate">
+                      {tx.type}
+                    </span>
                     <span className="text-xs text-slate-500">
                       {new Date(tx.timestamp * 1000).toLocaleString()}
                     </span>
@@ -104,7 +125,7 @@ export function TxHistory({ address }: TxHistoryProps) {
                 <div className="text-right shrink-0 ml-3">
                   {tx.amount && (
                     <span className="text-sm font-bold text-white block">
-                      {tx.amount} {tx.token || 'USDC'}
+                      {tx.amount} {tx.token || "USDC"}
                     </span>
                   )}
                   <div className="flex items-center gap-1.5 justify-end mt-1">
@@ -114,7 +135,9 @@ export function TxHistory({ address }: TxHistoryProps) {
                       title="Copy transaction hash"
                     >
                       {copiedHash === tx.hash ? (
-                        <span className="text-emerald-400 text-[10px] font-mono">Copied!</span>
+                        <span className="text-emerald-400 text-[10px] font-mono">
+                          Copied!
+                        </span>
                       ) : (
                         <Copy className="w-3 h-3" />
                       )}
@@ -143,7 +166,9 @@ export function TxHistory({ address }: TxHistoryProps) {
               <ChevronLeft className="w-3.5 h-3.5" />
               Previous
             </button>
-            <span className="text-xs text-slate-500 font-mono">Page {page}</span>
+            <span className="text-xs text-slate-500 font-mono">
+              Page {page}
+            </span>
             <button
               onClick={goNext}
               disabled={!hasNext}

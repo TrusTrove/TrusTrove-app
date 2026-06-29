@@ -1,6 +1,6 @@
 # invoice_contract
 
-Manages the full invoice lifecycle. Enforces state transitions. Emits events 
+Manages the full invoice lifecycle. Enforces state transitions. Emits events
 consumed by the Go indexer.
 
 ### create
@@ -15,8 +15,8 @@ create(
 ) -> BytesN<32>
 ```
 
-Creates an invoice on-chain. `face_value` is in USDC stroops (1 USDC = 10,000,000). 
-`due_date` is a Unix timestamp in seconds. Both `issuer` and `buyer` must be 
+Creates an invoice on-chain. `face_value` is in USDC stroops (1 USDC = 10,000,000).
+`due_date` is a Unix timestamp in seconds. Both `issuer` and `buyer` must be
 registered in `registry_contract`. Returns a unique `invoice_id`.
 
 ### list_for_financing
@@ -25,7 +25,7 @@ registered in `registry_contract`. Returns a unique `invoice_id`.
 list_for_financing(env: Env, invoice_id: BytesN<32>, discount_bps: u32) -> bool
 ```
 
-Lists the invoice in the marketplace. `discount_bps` is basis points (200 = 2%). 
+Lists the invoice in the marketplace. `discount_bps` is basis points (200 = 2%).
 Max 5000 (50%). Issuer auth required. Invoice must be in `Created` status.
 
 ### mark_funded
@@ -34,7 +34,7 @@ Max 5000 (50%). Issuer auth required. Invoice must be in `Created` status.
 mark_funded(env: Env, invoice_id: BytesN<32>, funded_amount: u128) -> bool
 ```
 
-Called only by `pool_contract`. Records that the invoice has been funded and 
+Called only by `pool_contract`. Records that the invoice has been funded and
 transitions status to `Funded`. The frontend never calls this directly.
 
 ### mark_shipped
@@ -51,8 +51,8 @@ Issuer confirms goods or services have been shipped. Status transitions to `Acti
 confirm_delivery(env: Env, invoice_id: BytesN<32>, confirmer: Address) -> bool
 ```
 
-Records a delivery confirmation from either the issuer or the buyer. Both must 
-confirm before status transitions to `Confirmed`. Calling with the same address 
+Records a delivery confirmation from either the issuer or the buyer. Both must
+confirm before status transitions to `Confirmed`. Calling with the same address
 twice does not count as two confirmations.
 
 ### repay
@@ -61,8 +61,8 @@ twice does not count as two confirmations.
 repay(env: Env, invoice_id: BytesN<32>) -> bool
 ```
 
-Buyer transfers `face_value` USDC to the pool. Invoice must be in `Confirmed` status. 
-Calls `pool_contract.receive_repayment()` after the transfer. Status transitions 
+Buyer transfers `face_value` USDC to the pool. Invoice must be in `Confirmed` status.
+Calls `pool_contract.receive_repayment()` after the transfer. Status transitions
 to `Repaid`.
 
 ### trigger_default
@@ -71,7 +71,7 @@ to `Repaid`.
 trigger_default(env: Env, invoice_id: BytesN<32>) -> bool
 ```
 
-Can be called by admin or `pool_contract` after the due date has passed. Invoice 
+Can be called by admin or `pool_contract` after the due date has passed. Invoice
 must be in `Funded`, `Active`, or `Confirmed` status. Calls `pool_contract.handle_default()`.
 
 ### get

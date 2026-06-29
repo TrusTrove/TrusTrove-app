@@ -5,10 +5,10 @@
 TrusTrove is currently in active development and deployed on Stellar testnet only.
 No mainnet deployment exists. Smart contracts have not undergone a formal audit.
 
-| Version | Supported |
-|-------|---------|
-| 0.1.x (testnet) | ✅ |
-| mainnet | ❌ Not deployed |
+| Version         | Supported       |
+| --------------- | --------------- |
+| 0.1.x (testnet) | ✅              |
+| mainnet         | ❌ Not deployed |
 
 ## Scope
 
@@ -37,6 +37,7 @@ Report vulnerabilities by emailing: **security@trusttrove.xyz**
 via the Security tab on this repository.)
 
 Include in your report:
+
 - Description of the vulnerability
 - Steps to reproduce
 - Affected contract or component
@@ -45,11 +46,11 @@ Include in your report:
 
 ## Response Timeline
 
-| Action | Target Time |
-|------|-----------|
-| Acknowledgement | 48 hours |
-| Initial assessment | 5 business days |
-| Fix or mitigation | 14 business days |
+| Action             | Target Time      |
+| ------------------ | ---------------- |
+| Acknowledgement    | 48 hours         |
+| Initial assessment | 5 business days  |
+| Fix or mitigation  | 14 business days |
 
 ## Disclosure Policy
 

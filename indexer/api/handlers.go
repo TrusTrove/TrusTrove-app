@@ -257,7 +257,6 @@ func ReadContract(
 	return val, nil
 }
 
-
 func ParseInvoiceIDFromResult(resultXDR string) (string, error) {
 	var val xdr.ScVal
 	err := xdr.SafeUnmarshalBase64(resultXDR, &val)
@@ -641,12 +640,51 @@ func (h *APIHandler) HandleCreateInvoice(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	type GetTransactionResult struct {
+		Hash   string `json:"hash"`
+		Status string `json:"status"`
+		Error  string `json:"error"`
+	}
+	const maxPollAttempts = 30
+	pollDelay := 1 * time.Second
+	var txResult GetTransactionResult
+	pollAttempts := 0
+
+	for {
+		err = CallSorobanRPC(h.cfg.SorobanRPCURL, "getTransaction", map[string]string{"hash": submitResp.Hash}, &txResult)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to poll transaction: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+
+		if txResult.Status == "SUCCESS" {
+			break
+		}
+
+		if txResult.Status == "FAILED" {
+			errMsg := "transaction failed on-chain"
+			if txResult.Error != "" {
+				errMsg = fmt.Sprintf("transaction failed on-chain: %s", txResult.Error)
+			}
+			http.Error(w, errMsg, http.StatusInternalServerError)
+			return
+		}
+
+		pollAttempts++
+		if pollAttempts >= maxPollAttempts {
+			http.Error(w, fmt.Sprintf("transaction confirmation timed out after %d attempts: %s", maxPollAttempts, submitResp.Hash), http.StatusGatewayTimeout)
+			return
+		}
+
+		time.Sleep(pollDelay)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusAccepted)
+	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]string{
 		"invoice_id":       invoiceID,
 		"transaction_hash": submitResp.Hash,
-		"status":           submitResp.Status,
+		"status":           txResult.Status,
 	})
 }
 
@@ -723,11 +761,11 @@ func (h *APIHandler) HandleGetInvoices(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := map[string]interface{}{
-		"data":        invoices,
-		"total":       total,
-		"page":        page,
-		"limit":       limit,
-		"totalPages":  totalPages,
+		"data":       invoices,
+		"total":      total,
+		"page":       page,
+		"limit":      limit,
+		"totalPages": totalPages,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
