@@ -12,7 +12,7 @@ const getApiUrl = () => {
   return process.env.NEXT_PUBLIC_INDEXER_API_URL || "http://localhost:8080";
 };
 
-async function apiFetch<T>(
+export async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
@@ -42,7 +42,7 @@ async function apiFetch<T>(
   return res.json() as Promise<T>;
 }
 
-function parseRawInvoice(raw: any): Invoice {
+export function parseRawInvoice(raw: any): Invoice {
   const invoice: Invoice = {
     id: raw.id,
     issuer: raw.issuer,
@@ -83,7 +83,7 @@ function parseRawInvoice(raw: any): Invoice {
   });
 }
 
-function parseRawPoolStats(raw: any): PoolStats {
+export function parseRawPoolStats(raw: any): PoolStats {
   return {
     totalDeposits: BigInt(raw.total_deposits || 0),
     totalFunded: BigInt(raw.total_funded || 0),
