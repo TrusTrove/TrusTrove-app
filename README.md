@@ -93,6 +93,7 @@ Yield distributes to LP shares
 
 - Root [`.env.example`](./.env.example) is the single source of truth for frontend, SDK, and Go indexer variables. It lists each variable's layer, type, required status, default value, description, and source.
 - For Render deployments, set `ALLOWED_ORIGINS` to `https://trustrove.vercel.app,http://localhost:3000` so the indexer accepts requests only from the production Vercel domain and local development origins.
+- High-level system architecture overview and data flow diagram: [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
 - Indexer OpenAPI documentation lives at [`docs/openapi/indexer.yaml`](./docs/openapi/indexer.yaml), including health, SEP-10 auth, invoices, events, stats, and pool endpoints.
 - Web app setup instructions live at [`apps/web/README.md`](./apps/web/README.md).
 

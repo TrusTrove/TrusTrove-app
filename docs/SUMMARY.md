@@ -5,6 +5,7 @@
 - [What is TrusTrove?](introduction/what-is-trusttrove.md)
 - [The Problem](introduction/the-problem.md)
 - [How It Works](introduction/how-it-works.md)
+- [System Architecture](ARCHITECTURE.md)
 
 ## Protocol
 
