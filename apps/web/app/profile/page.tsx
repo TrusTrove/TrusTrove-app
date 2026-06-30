@@ -381,95 +381,61 @@ export default function ProfilePage() {
                   </button>
                 </div>
               </div>
+            </div>
 
-              {/* Company Name */}
+            {/* Tax ID & Country */}
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
                 <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                  Company Name
+                  Tax ID / Registration No.
                 </label>
                 <div className="relative">
-                  <Building className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
+                  <FileText className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Acme Corp"
+                    placeholder="e.g. EU123456789"
                     className="w-full bg-[#080c10] border border-border rounded pl-10 pr-3 py-2 text-white placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                    value={companyName}
-                    onChange={(e) => setCompanyName(e.target.value)}
+                    value={taxId}
+                    onChange={(e) => setTaxId(e.target.value)}
                   />
                 </div>
               </div>
 
-              {/* Tax ID & Country */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                    Tax ID / Registration No.
-                  </label>
-                  <div className="relative">
-                    <FileText className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. EU123456789"
-                      className="w-full bg-[#080c10] border border-border rounded pl-10 pr-3 py-2 text-white placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                      value={taxId}
-                      onChange={(e) => setTaxId(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                    Country of Incorporation
-                  </label>
-                  <div className="relative">
-                    <Globe className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Germany"
-                      className="w-full bg-[#080c10] border border-border rounded pl-10 pr-3 py-2 text-white placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                      value={country}
-                      onChange={(e) => setCountry(e.target.value)}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Website URL */}
               <div className="space-y-1">
                 <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                  Corporate Website URL (Optional)
+                  Country of Incorporation
                 </label>
                 <div className="relative">
                   <Globe className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
                   <input
-                    type="url"
-                    placeholder="e.g. https://acme.corp"
+                    type="text"
+                    required
+                    placeholder="e.g. Germany"
                     className="w-full bg-[#080c10] border border-border rounded pl-10 pr-3 py-2 text-white placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                    value={website}
-                    onChange={(e) => setWebsite(e.target.value)}
+                    value={country}
+                    onChange={(e) => setCountry(e.target.value)}
                   />
                 </div>
               </div>
+            </div>
 
-              {/* Email */}
-              <div className="space-y-1">
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                  Contact Email (Optional)
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
-                  <input
-                    type="email"
-                    placeholder="e.g. admin@acme.corp"
-                    className="w-full bg-[#080c10] border border-border rounded pl-10 pr-3 py-2 text-white placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                </div>
+            {/* Website URL */}
+            <div className="space-y-1">
+              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                Corporate Website URL (Optional)
+              </label>
+              <div className="relative">
+                <Globe className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
+                <input
+                  type="url"
+                  placeholder="e.g. https://acme.corp"
+                  className="w-full bg-[#080c10] border border-border rounded pl-10 pr-3 py-2 text-white placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  value={website}
+                  onChange={(e) => setWebsite(e.target.value)}
+                />
               </div>
+            </div>
 
               {/* Warnings and errors */}
               {(localError || registerError) && (
@@ -491,6 +457,7 @@ export default function ProfilePage() {
                   your wallet address and locks your business credentials.
                 </span>
               </div>
+            </div>
 
               {/* Buttons */}
               <div className="flex gap-2 pt-2">
@@ -510,10 +477,36 @@ export default function ProfilePage() {
                   {isRegistering ? "Signing..." : "Register Profile"}
                 </button>
               </div>
-            </form>
-          </div>
+            )}
+
+            <div className="bg-[#080c10] border border-amber-500/20 p-3 rounded text-[10px] text-amber-500 leading-normal flex items-start gap-1.5">
+              <Lock className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <span>
+                Signing this registration requires Freighter authorization. You will submit a Soroban write transaction, which whitelists your wallet address and locks your business credentials.
+              </span>
+            </div>
+
+            {/* Buttons */}
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowRegModal(false)}
+                className="flex-1 border border-border bg-transparent hover:bg-slate-900 text-slate-400 font-bold uppercase py-2.5 rounded"
+                disabled={isRegistering}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="flex-1 bg-primary hover:bg-primary-hover text-black font-bold uppercase py-2.5 rounded shadow-[0_0_15px_rgba(0,212,170,0.15)] flex items-center justify-center gap-1.5"
+                disabled={isRegistering}
+              >
+                {isRegistering ? 'Signing...' : 'Register Profile'}
+              </button>
+            </div>
+          </form>
         </div>
-      )}
+      </Modal>
 
       {/* Transaction Pending Dialog Modal */}
       <TransactionPending
