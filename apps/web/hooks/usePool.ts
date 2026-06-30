@@ -4,6 +4,7 @@ import { PoolClient } from "@trusttrove/sdk";
 import { useWalletStore } from "@/store/wallet";
 import { useTokenAllowance } from "./useTokenAllowance";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
+import { getUserFriendlyMessage } from "@/lib/errors";
 
 const poolContractID = process.env.NEXT_PUBLIC_POOL_CONTRACT_ID || "";
 
@@ -71,10 +72,7 @@ export function usePool() {
       showSuccessToast("Deposit Complete", txHash);
     },
     onError: (error) => {
-      showErrorToast(
-        "Deposit Failed",
-        error instanceof Error ? error : undefined,
-      );
+      showErrorToast("Deposit Failed", new Error(getUserFriendlyMessage(error)));
     },
   });
 
@@ -96,10 +94,7 @@ export function usePool() {
       showSuccessToast("Withdrawal Complete", txHash);
     },
     onError: (error) => {
-      showErrorToast(
-        "Withdrawal Failed",
-        error instanceof Error ? error : undefined,
-      );
+      showErrorToast("Withdrawal Failed", new Error(getUserFriendlyMessage(error)));
     },
   });
 
