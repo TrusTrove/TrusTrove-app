@@ -1,10 +1,11 @@
 name: CI Build & Verify
 
 on:
+  workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   verify-frontend-and-sdk:
@@ -12,60 +13,75 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: 20
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-    - name: Install pnpm
-      uses: pnpm/action-setup@v4
-      with:
-        version: 10
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
 
-    - name: Install Dependencies
-      run: pnpm install --frozen-lockfile
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
 
-    - name: Build Packages (SDK & Web App)
-      run: pnpm build
+      - name: Build Packages (SDK & Web App)
+        run: pnpm build
 
-    - name: Run Unit Tests
-      run: pnpm test
+      - name: Run Unit Tests
+        run: pnpm test
 
-    - name: Lint Web Application
-      run: pnpm --filter web lint
+      - name: Lint Web Application
+        run: pnpm --filter web lint
+
+      - name: Check Formatting
+        run: npx prettier --check .
+
+    - name: Check Formatting
+      run: npx prettier --check .
 
   verify-go-indexer:
     name: Verify Go Indexer & API
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-    - name: Setup Go
-      uses: actions/setup-go@v5
-      with:
-        go-version-file: 'indexer/go.mod'
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
 
-    - name: Get Dependencies
-      run: |
-        cd indexer
-        go mod download
+      - name: Get Dependencies
+        run: |
+          cd indexer
+          go mod download
 
-    - name: Compile Go Services
-      run: |
-        cd indexer
-        go build -v ./...
+      - name: Compile Go Services
+        run: |
+          cd indexer
+          go build -v ./...
 
-    - name: Test Go Services
-      run: |
-        cd indexer
-        go test -v ./...
+      - name: Test Go Services
+        run: |
+          cd indexer
+          go test -v ./...
 
-    - name: Lint Go Services
-      run: |
-        cd indexer
-        go vet ./...
+      - name: Lint Go Services
+        run: |
+          cd indexer
+          go vet ./...
+
+      - name: Check Go Formatting
+        run: |
+          cd indexer
+          if [ -n "$(gofmt -l .)" ]; then
+            echo "The following files are not formatted:"
+            gofmt -l .
+            exit 1
+          fi

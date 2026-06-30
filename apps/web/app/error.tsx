@@ -19,7 +19,8 @@ export default function RootError({
         Something went wrong.
       </h2>
       <p className="max-w-md text-sm text-zinc-400">
-        {error.message || "An unexpected error occurred while loading this page."}
+        {error.message ||
+          "An unexpected error occurred while loading this page."}
       </p>
       <button
         onClick={reset}

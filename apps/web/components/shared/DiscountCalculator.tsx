@@ -1,45 +1,58 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import { Sparkles, TrendingUp } from 'lucide-react';
+import React, { useState, useEffect, useRef } from "react";
+import { Sparkles, TrendingUp } from "lucide-react";
 
-// Custom CountUp hook to animate numbers smoothly in an operations terminal style
-function AnimatedValue({ value, suffix = '', prefix = '' }: { value: number; suffix?: string; prefix?: string }) {
+function AnimatedValue({
+  value,
+  suffix = "",
+  prefix = "",
+}: {
+  value: number;
+  suffix?: string;
+  prefix?: string;
+}) {
   const [displayValue, setDisplayValue] = useState(value);
+  const startRef = useRef(value);
+  const frameRef = useRef<number | null>(null);
+
+  startRef.current = displayValue;
 
   useEffect(() => {
-    const start = displayValue;
+    const start = startRef.current;
     const end = value;
     if (start === end) return;
 
-    const duration = 400; // ms
+    const duration = 400;
     const startTime = performance.now();
 
     const updateNumber = (now: number) => {
       const elapsed = now - startTime;
       const progress = Math.min(elapsed / duration, 1);
-      
-      // Ease out quad
       const easeProgress = progress * (2 - progress);
       const current = start + (end - start) * easeProgress;
-      
+
       setDisplayValue(current);
 
       if (progress < 1) {
-        requestAnimationFrame(updateNumber);
-      } else {
-        setDisplayValue(end);
+        frameRef.current = requestAnimationFrame(updateNumber);
       }
     };
 
-    requestAnimationFrame(updateNumber);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    frameRef.current = requestAnimationFrame(updateNumber);
+
+    return () => {
+      if (frameRef.current !== null) {
+        cancelAnimationFrame(frameRef.current);
+        frameRef.current = null;
+      }
+    };
   }, [value]);
 
   return (
     <span className="font-mono">
       {prefix}
-      {displayValue.toLocaleString('en-US', {
+      {displayValue.toLocaleString("en-US", {
         minimumFractionDigits: 0,
         maximumFractionDigits: 0,
       })}
@@ -49,7 +62,7 @@ function AnimatedValue({ value, suffix = '', prefix = '' }: { value: number; suf
 }
 
 export function DiscountCalculator() {
-  const [activeTab, setActiveTab] = useState<'sme' | 'lp'>('sme');
+  const [activeTab, setActiveTab] = useState<"sme" | "lp">("sme");
 
   // SME Tab State
   const [faceValue, setFaceValue] = useState<number>(50000);
@@ -65,9 +78,10 @@ export function DiscountCalculator() {
   // Calculations
   const discountPaid = faceValue * (discountRate / 100);
   const fundedAmount = faceValue - discountPaid;
-  
+
   // LP Projected Yield: APY ≈ utilization_rate × avg_discount × (365 / avg_days_to_maturity)
-  const lpProjectedApy = (lpUtilization / 100) * (lpAvgDiscount / 100) * (365 / lpAvgMaturity) * 100;
+  const lpProjectedApy =
+    (lpUtilization / 100) * (lpAvgDiscount / 100) * (365 / lpAvgMaturity) * 100;
   const lpAnnualEarnings = lpDeposit * (lpProjectedApy / 100);
 
   return (
@@ -75,17 +89,21 @@ export function DiscountCalculator() {
       {/* Tabs */}
       <div className="flex border-b border-border bg-[#080c10]/60">
         <button
-          onClick={() => setActiveTab('sme')}
+          onClick={() => setActiveTab("sme")}
           className={`flex-1 py-3 px-4 font-mono text-xs font-bold uppercase tracking-wider text-center border-r border-border transition-colors ${
-            activeTab === 'sme' ? 'text-primary bg-slate-900/50' : 'text-slate-500 hover:text-slate-300'
+            activeTab === "sme"
+              ? "text-primary bg-slate-900/50"
+              : "text-slate-500 hover:text-slate-300"
           }`}
         >
           SME Financing Calculator
         </button>
         <button
-          onClick={() => setActiveTab('lp')}
+          onClick={() => setActiveTab("lp")}
           className={`flex-1 py-3 px-4 font-mono text-xs font-bold uppercase tracking-wider text-center transition-colors ${
-            activeTab === 'lp' ? 'text-primary bg-slate-900/50' : 'text-slate-500 hover:text-slate-300'
+            activeTab === "lp"
+              ? "text-primary bg-slate-900/50"
+              : "text-slate-500 hover:text-slate-300"
           }`}
         >
           LP Yield Estimator
@@ -93,7 +111,7 @@ export function DiscountCalculator() {
       </div>
 
       <div className="p-6 space-y-6">
-        {activeTab === 'sme' ? (
+        {activeTab === "sme" ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Inputs Column */}
             <div className="space-y-6">
@@ -106,9 +124,12 @@ export function DiscountCalculator() {
               <div className="space-y-2">
                 <div className="flex justify-between text-xs font-mono">
                   <span className="text-slate-400">Invoice Face Value</span>
-                  <span className="text-primary font-bold">{faceValue.toLocaleString()} USDC</span>
+                  <span className="text-primary font-bold">
+                    {faceValue.toLocaleString()} USDC
+                  </span>
                 </div>
                 <input
+                  id="discount-sme-face-value"
                   type="range"
                   min="1000"
                   max="500000"
@@ -116,6 +137,10 @@ export function DiscountCalculator() {
                   value={faceValue}
                   onChange={(e) => setFaceValue(parseInt(e.target.value))}
                   className="w-full accent-primary bg-slate-900 h-1.5 rounded"
+                  aria-label="Invoice Face Value"
+                  aria-valuenow={faceValue}
+                  aria-valuemin={1000}
+                  aria-valuemax={500000}
                 />
                 <div className="flex justify-between text-[10px] text-slate-600 font-mono">
                   <span>$1K USDC</span>
@@ -125,7 +150,9 @@ export function DiscountCalculator() {
 
               {/* Dropdown: Payment Terms */}
               <div className="space-y-2">
-                <label className="block text-xs font-mono text-slate-400">Payment Due Terms</label>
+                <label className="block text-xs font-mono text-slate-400">
+                  Payment Due Terms
+                </label>
                 <select
                   value={paymentTerms}
                   onChange={(e) => setPaymentTerms(parseInt(e.target.value))}
@@ -140,10 +167,16 @@ export function DiscountCalculator() {
               {/* Slider 2: Discount Rate */}
               <div className="space-y-2">
                 <div className="flex justify-between text-xs font-mono">
-                  <span className="text-slate-400">Financing Discount Rate</span>
-                  <span className="text-primary font-bold">{discountRate.toFixed(1)}% ({Math.round(discountRate * 100)} bps)</span>
+                  <span className="text-slate-400">
+                    Financing Discount Rate
+                  </span>
+                  <span className="text-primary font-bold">
+                    {discountRate.toFixed(1)}% ({Math.round(discountRate * 100)}{" "}
+                    bps)
+                  </span>
                 </div>
                 <input
+                  id="discount-sme-discount-rate"
                   type="range"
                   min="0.5"
                   max="5.0"
@@ -151,6 +184,10 @@ export function DiscountCalculator() {
                   value={discountRate}
                   onChange={(e) => setDiscountRate(parseFloat(e.target.value))}
                   className="w-full accent-primary bg-slate-900 h-1.5 rounded"
+                  aria-label="Financing Discount Rate"
+                  aria-valuenow={discountRate}
+                  aria-valuemin={0.5}
+                  aria-valuemax={5.0}
                 />
                 <div className="flex justify-between text-[10px] text-slate-600 font-mono">
                   <span>0.5% (50 bps)</span>
@@ -169,11 +206,17 @@ export function DiscountCalculator() {
                   </div>
                   <div className="space-y-4">
                     <div>
-                      <span className="text-[10px] text-slate-500 font-mono block">You wait:</span>
-                      <span className="text-lg font-bold font-mono text-amber-500">{paymentTerms} Days</span>
+                      <span className="text-[10px] text-slate-500 font-mono block">
+                        You wait:
+                      </span>
+                      <span className="text-lg font-bold font-mono text-amber-500">
+                        {paymentTerms} Days
+                      </span>
                     </div>
                     <div>
-                      <span className="text-[10px] text-slate-500 font-mono block">You receive:</span>
+                      <span className="text-[10px] text-slate-500 font-mono block">
+                        You receive:
+                      </span>
                       <span className="text-md font-bold text-slate-300 font-mono">
                         {faceValue.toLocaleString()} USDC
                       </span>
@@ -187,11 +230,15 @@ export function DiscountCalculator() {
                 <div className="border-t border-border/30 pt-3 mt-4 text-[10px] font-mono space-y-1.5 text-slate-500">
                   <div className="flex justify-between">
                     <span>Opportunity cost:</span>
-                    <span className="text-slate-400 text-right">Lost production orders</span>
+                    <span className="text-slate-400 text-right">
+                      Lost production orders
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span>Bank alternative:</span>
-                    <span className="text-slate-400 text-right">8–15% APR, 3-week wait</span>
+                    <span className="text-slate-400 text-right">
+                      8–15% APR, 3-week wait
+                    </span>
                   </div>
                 </div>
               </div>
@@ -204,16 +251,28 @@ export function DiscountCalculator() {
                   </div>
                   <div className="space-y-4">
                     <div>
-                      <span className="text-[10px] text-slate-500 font-mono block">You wait:</span>
-                      <span className="text-lg font-bold font-mono text-primary">0 Days (Instant)</span>
+                      <span className="text-[10px] text-slate-500 font-mono block">
+                        You wait:
+                      </span>
+                      <span className="text-lg font-bold font-mono text-primary">
+                        0 Days (Instant)
+                      </span>
                     </div>
                     <div>
-                      <span className="text-[10px] text-slate-500 font-mono block">You receive today:</span>
+                      <span className="text-[10px] text-slate-500 font-mono block">
+                        You receive today:
+                      </span>
                       <span className="text-md font-bold text-emerald-400 font-mono">
                         <AnimatedValue value={fundedAmount} suffix=" USDC" />
                       </span>
                       <span className="text-[9px] text-slate-500 block leading-tight mt-1">
-                        Face Value minus <AnimatedValue value={discountPaid} prefix="-" suffix=" USDC" /> discount fee.
+                        Face Value minus{" "}
+                        <AnimatedValue
+                          value={discountPaid}
+                          prefix="-"
+                          suffix=" USDC"
+                        />{" "}
+                        discount fee.
                       </span>
                     </div>
                   </div>
@@ -222,15 +281,21 @@ export function DiscountCalculator() {
                 <div className="border-t border-border/30 pt-3 mt-4 text-[10px] font-mono space-y-1.5 text-slate-500">
                   <div className="flex justify-between">
                     <span>Discount paid:</span>
-                    <span className="text-slate-300 font-bold"><AnimatedValue value={discountPaid} suffix=" USDC" /></span>
+                    <span className="text-slate-300 font-bold">
+                      <AnimatedValue value={discountPaid} suffix=" USDC" />
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span>Yield distributed:</span>
-                    <span className="text-primary font-bold"><AnimatedValue value={discountPaid} suffix=" USDC" /></span>
+                    <span className="text-primary font-bold">
+                      <AnimatedValue value={discountPaid} suffix=" USDC" />
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span>Buyer obligation:</span>
-                    <span className="text-slate-300">{faceValue.toLocaleString()} USDC</span>
+                    <span className="text-slate-300">
+                      {faceValue.toLocaleString()} USDC
+                    </span>
                   </div>
                 </div>
               </div>
@@ -250,9 +315,12 @@ export function DiscountCalculator() {
               <div className="space-y-2">
                 <div className="flex justify-between text-xs font-mono">
                   <span className="text-slate-400">Total USDC Deposit</span>
-                  <span className="text-primary font-bold">{lpDeposit.toLocaleString()} USDC</span>
+                  <span className="text-primary font-bold">
+                    {lpDeposit.toLocaleString()} USDC
+                  </span>
                 </div>
                 <input
+                  id="discount-lp-deposit"
                   type="range"
                   min="500"
                   max="100000"
@@ -260,6 +328,10 @@ export function DiscountCalculator() {
                   value={lpDeposit}
                   onChange={(e) => setLpDeposit(parseInt(e.target.value))}
                   className="w-full accent-primary bg-slate-900 h-1.5 rounded"
+                  aria-label="Total USDC Deposit"
+                  aria-valuenow={lpDeposit}
+                  aria-valuemin={500}
+                  aria-valuemax={100000}
                 />
                 <div className="flex justify-between text-[10px] text-slate-600 font-mono">
                   <span>$500 USDC</span>
@@ -270,10 +342,15 @@ export function DiscountCalculator() {
               {/* LP Utilization */}
               <div className="space-y-2">
                 <div className="flex justify-between text-xs font-mono">
-                  <span className="text-slate-400">Target Pool Utilization</span>
-                  <span className="text-primary font-bold">{lpUtilization}%</span>
+                  <span className="text-slate-400">
+                    Target Pool Utilization
+                  </span>
+                  <span className="text-primary font-bold">
+                    {lpUtilization}%
+                  </span>
                 </div>
                 <input
+                  id="discount-lp-utilization"
                   type="range"
                   min="10"
                   max="100"
@@ -281,6 +358,10 @@ export function DiscountCalculator() {
                   value={lpUtilization}
                   onChange={(e) => setLpUtilization(parseInt(e.target.value))}
                   className="w-full accent-primary bg-slate-900 h-1.5 rounded"
+                  aria-label="Target Pool Utilization"
+                  aria-valuenow={lpUtilization}
+                  aria-valuemin={10}
+                  aria-valuemax={100}
                 />
                 <div className="flex justify-between text-[10px] text-slate-600 font-mono">
                   <span>10% (Low)</span>
@@ -291,10 +372,16 @@ export function DiscountCalculator() {
               {/* LP Avg Discount */}
               <div className="space-y-2">
                 <div className="flex justify-between text-xs font-mono">
-                  <span className="text-slate-400">Avg Invoice Discount Bps</span>
-                  <span className="text-primary font-bold">{lpAvgDiscount.toFixed(1)}% ({Math.round(lpAvgDiscount * 100)} bps)</span>
+                  <span className="text-slate-400">
+                    Avg Invoice Discount Bps
+                  </span>
+                  <span className="text-primary font-bold">
+                    {lpAvgDiscount.toFixed(1)}% (
+                    {Math.round(lpAvgDiscount * 100)} bps)
+                  </span>
                 </div>
                 <input
+                  id="discount-lp-avg-discount"
                   type="range"
                   min="0.5"
                   max="5.0"
@@ -302,6 +389,10 @@ export function DiscountCalculator() {
                   value={lpAvgDiscount}
                   onChange={(e) => setLpAvgDiscount(parseFloat(e.target.value))}
                   className="w-full accent-primary bg-slate-900 h-1.5 rounded"
+                  aria-label="Avg Invoice Discount Bps"
+                  aria-valuenow={lpAvgDiscount}
+                  aria-valuemin={0.5}
+                  aria-valuemax={5.0}
                 />
                 <div className="flex justify-between text-[10px] text-slate-600 font-mono">
                   <span>0.5%</span>
@@ -313,9 +404,12 @@ export function DiscountCalculator() {
               <div className="space-y-2">
                 <div className="flex justify-between text-xs font-mono">
                   <span className="text-slate-400">Avg Days to Maturity</span>
-                  <span className="text-primary font-bold">{lpAvgMaturity} Days</span>
+                  <span className="text-primary font-bold">
+                    {lpAvgMaturity} Days
+                  </span>
                 </div>
                 <input
+                  id="discount-lp-avg-maturity"
                   type="range"
                   min="15"
                   max="90"
@@ -323,6 +417,10 @@ export function DiscountCalculator() {
                   value={lpAvgMaturity}
                   onChange={(e) => setLpAvgMaturity(parseInt(e.target.value))}
                   className="w-full accent-primary bg-slate-900 h-1.5 rounded"
+                  aria-label="Avg Days to Maturity"
+                  aria-valuenow={lpAvgMaturity}
+                  aria-valuemin={15}
+                  aria-valuemax={90}
                 />
                 <div className="flex justify-between text-[10px] text-slate-600 font-mono">
                   <span>15 Days</span>
@@ -339,30 +437,41 @@ export function DiscountCalculator() {
                 </div>
                 <div className="space-y-5">
                   <div>
-                    <span className="text-[10px] text-slate-500 font-mono block">Estimated APR:</span>
+                    <span className="text-[10px] text-slate-500 font-mono block">
+                      Estimated APR:
+                    </span>
                     <span className="text-3xl font-extrabold text-emerald-400 font-mono">
                       {lpProjectedApy.toFixed(2)}%
                     </span>
                     <span className="text-[9px] text-slate-600 block mt-1 leading-normal font-mono">
-                      Formula: Utilization ({lpUtilization}%) × Avg Discount ({lpAvgDiscount}%) × (365 / Avg Maturity ({lpAvgMaturity}d))
+                      Formula: Utilization ({lpUtilization}%) × Avg Discount (
+                      {lpAvgDiscount}%) × (365 / Avg Maturity ({lpAvgMaturity}
+                      d))
                     </span>
                   </div>
 
                   <div>
-                    <span className="text-[10px] text-slate-500 font-mono block">Projected Annual Yield:</span>
+                    <span className="text-[10px] text-slate-500 font-mono block">
+                      Projected Annual Yield:
+                    </span>
                     <span className="text-lg font-bold text-slate-200 font-mono">
                       <AnimatedValue value={lpAnnualEarnings} suffix=" USDC" />
                     </span>
                     <span className="text-[9px] text-slate-500 block mt-1 font-mono">
-                      Earnings generated annually based on {lpDeposit.toLocaleString()} USDC principal.
+                      Earnings generated annually based on{" "}
+                      {lpDeposit.toLocaleString()} USDC principal.
                     </span>
                   </div>
                 </div>
               </div>
 
               <div className="bg-slate-950 p-3 border border-border/40 rounded text-[10px] font-mono text-slate-500 mt-6 leading-relaxed">
-                <span className="text-primary font-bold block mb-1">PROTCOL YIELD MECHANIC</span>
-                USDC is never idle. Invoices listed by SMEs are funded automatically by the pool contract using liquid deposits, allocating discount fees to LPs proportionally.
+                <span className="text-primary font-bold block mb-1">
+                  PROTCOL YIELD MECHANIC
+                </span>
+                USDC is never idle. Invoices listed by SMEs are funded
+                automatically by the pool contract using liquid deposits,
+                allocating discount fees to LPs proportionally.
               </div>
             </div>
           </div>
@@ -371,7 +480,8 @@ export function DiscountCalculator() {
         {/* Disclaimer row */}
         <div className="border-t border-border pt-4 text-center">
           <span className="text-[10px] text-slate-500 font-mono block">
-            TrusTrove charges what the market sets. Discount rates are agreed between the SME and the protocol. No hidden fees.
+            TrusTrove charges what the market sets. Discount rates are agreed
+            between the SME and the protocol. No hidden fees.
           </span>
         </div>
       </div>

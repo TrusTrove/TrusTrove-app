@@ -1,8 +1,8 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { RegistryClient, Profile } from '@trusttrove/sdk';
-import { useWalletStore } from '@/store/wallet';
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { RegistryClient, Profile } from "@trusttrove/sdk";
+import { useWalletStore } from "@/store/wallet";
 
-const registryContractID = process.env.NEXT_PUBLIC_REGISTRY_CONTRACT_ID || '';
+const registryContractID = process.env.NEXT_PUBLIC_REGISTRY_CONTRACT_ID || "";
 
 /**
  * Custom hook for interacting with the TrusTrove registry contract.
@@ -26,7 +26,7 @@ export function useProfile() {
   const { address } = useWalletStore();
 
   const profileQuery = useQuery({
-    queryKey: ['profile', address],
+    queryKey: ["profile", address],
     queryFn: async (): Promise<Profile | null> => {
       if (!address) return null;
       const client = new RegistryClient(registryContractID);
@@ -43,7 +43,7 @@ export function useProfile() {
   });
 
   const isVerifiedQuery = useQuery({
-    queryKey: ['isVerified', address],
+    queryKey: ["isVerified", address],
     queryFn: async (): Promise<boolean> => {
       if (!address) return false;
       const client = new RegistryClient(registryContractID);
@@ -62,20 +62,20 @@ export function useProfile() {
       role,
       metadata,
     }: {
-      role: 'issuer' | 'buyer';
+      role: "issuer" | "buyer";
       metadata: Record<string, string>;
     }) => {
-      if (!address) throw new Error('Wallet not connected');
+      if (!address) throw new Error("Wallet not connected");
       const client = new RegistryClient(registryContractID);
-      if (role === 'issuer') {
+      if (role === "issuer") {
         return client.registerIssuer(address, metadata, address);
       } else {
         return client.registerBuyer(address, metadata, address);
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['profile', address] });
-      queryClient.invalidateQueries({ queryKey: ['isVerified', address] });
+      queryClient.invalidateQueries({ queryKey: ["profile", address] });
+      queryClient.invalidateQueries({ queryKey: ["isVerified", address] });
     },
   });
 
@@ -93,10 +93,7 @@ export function useProfile() {
     registerError: registerMutation.error,
 
     refetchProfile: async () => {
-      await Promise.all([
-        profileQuery.refetch(),
-        isVerifiedQuery.refetch(),
-      ]);
+      await Promise.all([profileQuery.refetch(), isVerifiedQuery.refetch()]);
     },
   };
 }

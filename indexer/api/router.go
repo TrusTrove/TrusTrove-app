@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -61,23 +62,29 @@ func AuthMiddleware(jwtSecret string) func(http.Handler) http.Handler {
 func CORSMiddleware(allowedOrigins []string) func(http.Handler) http.Handler {
 	originSet := make(map[string]struct{}, len(allowedOrigins))
 	for _, o := range allowedOrigins {
-		originSet[o] = struct{}{}
+		origin := strings.TrimSpace(o)
+		if origin != "" {
+			originSet[origin] = struct{}{}
+		}
 	}
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			origin := r.Header.Get("Origin")
-
-			if _, ok := originSet[origin]; ok {
-				w.Header().Set("Access-Control-Allow-Origin", origin)
-			} else if origin == "" {
-				w.Header().Set("Access-Control-Allow-Origin", "")
+			origin := strings.TrimSpace(r.Header.Get("Origin"))
+			if origin != "" {
+				if _, ok := originSet[origin]; ok {
+					w.Header().Set("Access-Control-Allow-Origin", origin)
+					w.Header().Set("Vary", "Origin")
+				} else {
+					w.WriteHeader(http.StatusForbidden)
+					return
+				}
 			}
 
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
-			if r.Method == "OPTIONS" {
+			if r.Method == http.MethodOptions {
 				w.WriteHeader(http.StatusNoContent)
 				return
 			}
@@ -100,11 +107,11 @@ func SecurityHeadersMiddleware() func(http.Handler) http.Handler {
 }
 
 type rateLimiter struct {
-	mu       sync.Mutex
-	tokens   float64
-	last     time.Time
-	rps      float64
-	burst    int
+	mu     sync.Mutex
+	tokens float64
+	last   time.Time
+	rps    float64
+	burst  int
 }
 
 func newRateLimiter(rps int, burst int) *rateLimiter {

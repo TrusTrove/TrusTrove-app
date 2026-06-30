@@ -263,9 +263,9 @@ func TestHandleGetInvoices_FiltersPassedThrough(t *testing.T) {
 
 func TestHandleGetInvoices_TotalPagesCalculation(t *testing.T) {
 	cases := []struct {
-		total      int
-		limit      int
-		wantPages  int
+		total     int
+		limit     int
+		wantPages int
 	}{
 		{total: 0, limit: 20, wantPages: 1},
 		{total: 1, limit: 20, wantPages: 1},

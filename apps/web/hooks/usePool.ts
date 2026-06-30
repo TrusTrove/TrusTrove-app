@@ -1,10 +1,11 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getPoolStats, getLPPosition } from '@/lib/api';
-import { PoolClient } from '@trusttrove/sdk';
-import { useWalletStore } from '@/store/wallet';
-import { showSuccessToast, showErrorToast } from '@/lib/toast';
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getPoolStats, getLPPosition } from "@/lib/api";
+import { PoolClient } from "@trusttrove/sdk";
+import { useWalletStore } from "@/store/wallet";
+import { useTokenAllowance } from "./useTokenAllowance";
+import { showSuccessToast, showErrorToast } from "@/lib/toast";
 
-const poolContractID = process.env.NEXT_PUBLIC_POOL_CONTRACT_ID || '';
+const poolContractID = process.env.NEXT_PUBLIC_POOL_CONTRACT_ID || "";
 
 /**
  * Custom hook for interacting with the TrusTrove liquidity pool contract.
@@ -36,14 +37,15 @@ const poolContractID = process.env.NEXT_PUBLIC_POOL_CONTRACT_ID || '';
 export function usePool() {
   const queryClient = useQueryClient();
   const { address } = useWalletStore();
+  const { ensureAllowance } = useTokenAllowance();
 
   const statsQuery = useQuery({
-    queryKey: ['poolStats'],
+    queryKey: ["poolStats"],
     queryFn: () => getPoolStats(),
   });
 
   const positionQuery = useQuery({
-    queryKey: ['lpPosition', address],
+    queryKey: ["lpPosition", address],
     queryFn: () => getLPPosition(address!),
     enabled: !!address,
   });
@@ -57,17 +59,22 @@ export function usePool() {
    */
   const depositMutation = useMutation({
     mutationFn: async ({ amount }: { amount: bigint }) => {
-      if (!address) throw new Error('Wallet not connected');
+      if (!address) throw new Error("Wallet not connected");
+      // Ensure the pool contract has sufficient USDC allowance before depositing
+      await ensureAllowance(poolContractID, amount);
       const poolClient = new PoolClient(poolContractID);
       return poolClient.deposit(address, amount, address);
     },
     onSuccess: (txHash: string) => {
-      queryClient.invalidateQueries({ queryKey: ['poolStats'] });
-      queryClient.invalidateQueries({ queryKey: ['lpPosition', address] });
-      showSuccessToast('Deposit Complete', txHash);
+      queryClient.invalidateQueries({ queryKey: ["poolStats"] });
+      queryClient.invalidateQueries({ queryKey: ["lpPosition", address] });
+      showSuccessToast("Deposit Complete", txHash);
     },
     onError: (error) => {
-      showErrorToast('Deposit Failed', error instanceof Error ? error : undefined);
+      showErrorToast(
+        "Deposit Failed",
+        error instanceof Error ? error : undefined,
+      );
     },
   });
 
@@ -79,17 +86,20 @@ export function usePool() {
    */
   const withdrawMutation = useMutation({
     mutationFn: async ({ shares }: { shares: bigint }) => {
-      if (!address) throw new Error('Wallet not connected');
+      if (!address) throw new Error("Wallet not connected");
       const poolClient = new PoolClient(poolContractID);
       return poolClient.withdraw(address, shares, address);
     },
     onSuccess: (txHash: string) => {
-      queryClient.invalidateQueries({ queryKey: ['poolStats'] });
-      queryClient.invalidateQueries({ queryKey: ['lpPosition', address] });
-      showSuccessToast('Withdrawal Complete', txHash);
+      queryClient.invalidateQueries({ queryKey: ["poolStats"] });
+      queryClient.invalidateQueries({ queryKey: ["lpPosition", address] });
+      showSuccessToast("Withdrawal Complete", txHash);
     },
     onError: (error) => {
-      showErrorToast('Withdrawal Failed', error instanceof Error ? error : undefined);
+      showErrorToast(
+        "Withdrawal Failed",
+        error instanceof Error ? error : undefined,
+      );
     },
   });
 

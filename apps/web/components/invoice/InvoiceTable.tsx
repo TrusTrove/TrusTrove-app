@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import React, { ReactNode } from 'react';
-import { Invoice } from '@/types';
-import { InvoiceStatus } from './InvoiceStatus';
-import { formatAmount } from '@/lib/assets';
+import React, { ReactNode } from "react";
+import { Invoice } from "@/types";
+import { InvoiceStatus } from "./InvoiceStatus";
+import { formatAmount } from "@/lib/assets";
 
 interface InvoiceTableProps {
   invoices: Invoice[];
@@ -12,10 +12,14 @@ interface InvoiceTableProps {
   emptyState?: ReactNode;
 }
 
-export function InvoiceTable({ invoices, onSelectInvoice, activeId, emptyState }: InvoiceTableProps) {
-
+export function InvoiceTable({
+  invoices,
+  onSelectInvoice,
+  activeId,
+  emptyState,
+}: InvoiceTableProps) {
   const truncateAddr = (addr: string) => {
-    if (!addr) return '';
+    if (!addr) return "";
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
   };
 
@@ -44,7 +48,10 @@ export function InvoiceTable({ invoices, onSelectInvoice, activeId, emptyState }
           <tbody className="divide-y divide-border/30 text-xs font-mono text-slate-300">
             {invoices.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-5 py-8 text-center text-slate-600 font-bold uppercase tracking-wider">
+                <td
+                  colSpan={6}
+                  className="px-5 py-8 text-center text-slate-600 font-bold uppercase tracking-wider"
+                >
                   No invoices found.
                 </td>
               </tr>
@@ -56,11 +63,11 @@ export function InvoiceTable({ invoices, onSelectInvoice, activeId, emptyState }
                     key={invoice.id}
                     onClick={() => onSelectInvoice?.(invoice)}
                     className={`transition-colors ${
-                      onSelectInvoice ? 'cursor-pointer' : ''
+                      onSelectInvoice ? "cursor-pointer" : ""
                     } ${
-                      isActive 
-                        ? 'bg-primary/5 text-primary' 
-                        : 'hover:bg-slate-900/50'
+                      isActive
+                        ? "bg-primary/5 text-primary"
+                        : "hover:bg-slate-900/50"
                     }`}
                   >
                     <td className="px-5 py-3.5 text-primary font-bold">
@@ -75,7 +82,7 @@ export function InvoiceTable({ invoices, onSelectInvoice, activeId, emptyState }
                     <td className="px-5 py-3.5 text-slate-300">
                       {invoice.discountBps > 0
                         ? `${(invoice.discountBps / 100).toFixed(2)}%`
-                        : '—'}
+                        : "—"}
                     </td>
                     <td className="px-5 py-3.5 text-slate-400">
                       {new Date(invoice.dueDate * 1000).toLocaleDateString()}

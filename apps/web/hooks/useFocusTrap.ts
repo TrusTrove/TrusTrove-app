@@ -1,8 +1,11 @@
-'use client';
+"use client";
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef } from "react";
 
-export function useFocusTrap<T extends HTMLElement>(enabled: boolean, onEscape?: () => void) {
+export function useFocusTrap<T extends HTMLElement>(
+  enabled: boolean,
+  onEscape?: () => void,
+) {
   const ref = useRef<T>(null);
   const onEscapeRef = useRef(onEscape);
   onEscapeRef.current = onEscape;
@@ -33,13 +36,13 @@ export function useFocusTrap<T extends HTMLElement>(enabled: boolean, onEscape?:
     if (!enabled) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         e.stopPropagation();
         onEscapeRef.current?.();
         return;
       }
 
-      if (e.key !== 'Tab') return;
+      if (e.key !== "Tab") return;
 
       const container = ref.current;
       if (!container) return;
@@ -62,8 +65,8 @@ export function useFocusTrap<T extends HTMLElement>(enabled: boolean, onEscape?:
       }
     };
 
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
   }, [enabled]);
 
   return ref;
@@ -71,18 +74,18 @@ export function useFocusTrap<T extends HTMLElement>(enabled: boolean, onEscape?:
 
 function getFocusableElements(container: HTMLElement): HTMLElement[] {
   const selectors = [
-    'a[href]',
-    'button:not([disabled])',
-    'textarea:not([disabled])',
-    'input:not([disabled])',
-    'select:not([disabled])',
+    "a[href]",
+    "button:not([disabled])",
+    "textarea:not([disabled])",
+    "input:not([disabled])",
+    "select:not([disabled])",
     '[tabindex]:not([tabindex="-1"])',
   ];
 
   return Array.from(
-    container.querySelectorAll<HTMLElement>(selectors.join(','))
+    container.querySelectorAll<HTMLElement>(selectors.join(",")),
   ).filter((el) => {
     const style = window.getComputedStyle(el);
-    return style.display !== 'none' && style.visibility !== 'hidden';
+    return style.display !== "none" && style.visibility !== "hidden";
   });
 }

@@ -1,17 +1,17 @@
 export type InvoiceStatus =
-  | 'Created'
-  | 'Listed'
-  | 'Funded'
-  | 'Active'
-  | 'Confirmed'
-  | 'Repaid'
-  | 'Defaulted';
+  | "Created"
+  | "Listed"
+  | "Funded"
+  | "Active"
+  | "Confirmed"
+  | "Repaid"
+  | "Defaulted";
 
-export type AssetType = 'USDC' | 'XLM';
+export type AssetType = "USDC" | "XLM";
 
 export interface Profile {
   address: string;
-  role: 'issuer' | 'buyer';
+  role: "issuer" | "buyer";
   verified: boolean;
   registeredAt: number; // Unix timestamp (seconds)
 }
@@ -31,6 +31,7 @@ export interface Invoice {
   shippedAt: number | null;
   issuerConfirmed: boolean;
   buyerConfirmed: boolean;
+  buyerConfirmedAt?: number | null;
   repaidAt: number | null;
 }
 

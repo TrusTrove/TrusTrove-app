@@ -69,7 +69,10 @@ func LoadConfig() (*Config, error) {
 		apiPort = "8080"
 	}
 
-	originsStr := os.Getenv("CORS_ALLOWED_ORIGINS")
+	originsStr := strings.TrimSpace(os.Getenv("ALLOWED_ORIGINS"))
+	if originsStr == "" {
+		originsStr = strings.TrimSpace(os.Getenv("CORS_ALLOWED_ORIGINS"))
+	}
 	var corsOrigins []string
 	if originsStr != "" {
 		for _, origin := range strings.Split(originsStr, ",") {
