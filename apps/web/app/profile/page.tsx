@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { PageLayout } from "@/components/shared/PageLayout";
 import { useWalletStore } from "@/store/wallet";
 import { useProfile } from "@/hooks/useProfile";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { WalletConnect } from "@/components/shared/WalletConnect";
 import { TransactionPending } from "@/components/shared/TransactionPending";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,9 @@ export default function ProfilePage() {
     isRegistering,
     registerError,
   } = useProfile();
+
+  // Modal Refs
+  const modalRef = useFocusTrap<HTMLDivElement>(showRegModal, () => setShowRegModal(false));
 
   // Registration Form States
   const [showRegModal, setShowRegModal] = useState(false);
@@ -327,7 +331,10 @@ export default function ProfilePage() {
 
       {/* Registration Modal Dialog */}
       {showRegModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#080c10]/95 backdrop-blur-sm p-4">
+        <div
+          ref={modalRef}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#080c10]/95 backdrop-blur-sm p-4"
+        >
           <div className="w-full max-w-lg bg-card border border-border rounded-lg p-6 relative shadow-[0_0_50px_rgba(0,212,170,0.05)]">
             <button
               onClick={() => setShowRegModal(false)}
