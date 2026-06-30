@@ -1,5 +1,6 @@
 # Table of Contents
 
+
 ## Introduction
 
 - [What is TrusTrove?](introduction/what-is-trusttrove.md)
