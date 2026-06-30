@@ -8,39 +8,62 @@ import {
   PoolSnapshot,
 } from "@/types";
 
+class ApiClient {
+  private baseUrl: string;
+  private token?: string;
+
+  constructor(baseUrl: string) {
+    this.baseUrl = baseUrl;
+  }
+
+  setToken(token: string): void {
+    this.token = token;
+  }
+
+  async fetch<T>(
+    path: string,
+    options: RequestInit = {},
+  ): Promise<T> {
+    const headers = new Headers(options.headers || {});
+
+    if (this.token) {
+      headers.set("Authorization", `Bearer ${this.token}`);
+    }
+    if (
+      !headers.has("Content-Type") &&
+      (options.method === "POST" || options.method === "PUT")
+    ) {
+      headers.set("Content-Type", "application/json");
+    }
+
+    const res = await fetch(`${this.baseUrl}${path}`, {
+      ...options,
+      headers,
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || `HTTP error! status: ${res.status}`);
+    }
+
+    return res.json() as Promise<T>;
+  }
+}
+
 const getApiUrl = () => {
   return process.env.NEXT_PUBLIC_INDEXER_API_URL || "http://localhost:8080";
 };
 
-async function apiFetch<T>(
-  path: string,
-  options: RequestInit = {},
-): Promise<T> {
+const apiClient = new ApiClient(getApiUrl());
+
+function initApiClientWithToken(): void {
   const token = useWalletStore.getState().token;
-  const headers = new Headers(options.headers || {});
-
   if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
+    apiClient.setToken(token);
   }
-  if (
-    !headers.has("Content-Type") &&
-    (options.method === "POST" || options.method === "PUT")
-  ) {
-    headers.set("Content-Type", "application/json");
-  }
-
-  const res = await fetch(`${getApiUrl()}${path}`, {
-    ...options,
-    headers,
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || `HTTP error! status: ${res.status}`);
-  }
-
-  return res.json() as Promise<T>;
 }
+
+export { ApiClient, apiClient, initApiClientWithToken };
 
 function parseRawInvoice(raw: any): Invoice {
   const invoice: Invoice = {
@@ -106,7 +129,7 @@ function parseRawLPPosition(raw: any): LPPosition {
 export async function fetchChallenge(
   address: string,
 ): Promise<{ transaction: string; network_passphrase: string }> {
-  return apiFetch<{ transaction: string; network_passphrase: string }>(
+  return apiClient.fetch<{ transaction: string; network_passphrase: string }>(
     `/auth?address=${address}`,
   );
 }
@@ -114,7 +137,7 @@ export async function fetchChallenge(
 export async function verifyChallenge(
   transaction: string,
 ): Promise<{ token: string }> {
-  return apiFetch<{ token: string }>("/auth", {
+  return apiClient.fetch<{ token: string }>("/auth", {
     method: "POST",
     body: JSON.stringify({ transaction }),
   });
@@ -126,7 +149,7 @@ export async function createInvoice(
   dueDate: number,
   asset: AssetType = "USDC",
 ): Promise<{ invoice_id: string; transaction_hash: string; status: string }> {
-  return apiFetch<{
+  return apiClient.fetch<{
     invoice_id: string;
     transaction_hash: string;
     status: string;
@@ -142,7 +165,7 @@ export async function createInvoice(
 }
 
 export async function getInvoiceByID(id: string): Promise<Invoice> {
-  const raw = await apiFetch<any>(`/invoices/${id}`);
+  const raw = await apiClient.fetch<any>(`/invoices/${id}`);
   return parseRawInvoice(raw);
 }
 
@@ -167,7 +190,7 @@ export async function getInvoices(filters?: {
   if (filters?.limit != null) params.append("limit", String(filters.limit));
   const query = params.size > 0 ? `?${params.toString()}` : "";
 
-  const raw = await apiFetch<{
+  const raw = await apiClient.fetch<{
     data: any[];
     total: number;
     page: number;
@@ -185,18 +208,18 @@ export async function getInvoices(filters?: {
 }
 
 export async function getPoolStats(): Promise<PoolStats> {
-  const raw = await apiFetch<any>("/pool/stats");
+  const raw = await apiClient.fetch<any>("/pool/stats");
   return parseRawPoolStats(raw);
 }
 
 export async function getLPPosition(address: string): Promise<LPPosition> {
-  const raw = await apiFetch<any>(`/pool/position/${address}`);
+  const raw = await apiClient.fetch<any>(`/pool/position/${address}`);
   return parseRawLPPosition(raw);
 }
 
 export async function getRecentEvents(limit?: number): Promise<EventLog[]> {
   const query = limit ? `?limit=${limit}` : "";
-  const rawList = await apiFetch<any[]>(`/events${query}`);
+  const rawList = await apiClient.fetch<any[]>(`/events${query}`);
   return rawList.map(parseRawEventLog);
 }
 
@@ -213,5 +236,5 @@ function parseRawEventLog(raw: any): EventLog {
 }
 
 export async function getPoolSnapshots(): Promise<PoolSnapshot[]> {
-  return apiFetch<PoolSnapshot[]>("/pool/snapshots");
+  return apiClient.fetch<PoolSnapshot[]>("/pool/snapshots");
 }
