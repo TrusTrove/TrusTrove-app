@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getInvoices,
@@ -64,6 +65,9 @@ export function useInvoices(filters?: {
   const { address } = useWalletStore();
   const { ensureAllowance } = useTokenAllowance();
 
+  const invoiceClient = useMemo(() => new InvoiceClient(invoiceContractID), []);
+  const poolClient = useMemo(() => new PoolClient(poolContractID), []);
+
   const invoicesQuery = useQuery<PaginatedInvoices>({
     queryKey: ["invoices", filters],
     queryFn: () => getInvoices(filters),
@@ -104,7 +108,6 @@ export function useInvoices(filters?: {
       discountBps: number;
     }) => {
       if (!address) throw new Error("Wallet not connected");
-      const invoiceClient = new InvoiceClient(invoiceContractID);
       return invoiceClient.listForFinancing(invoiceId, discountBps, address);
     },
     onSuccess: () => {
@@ -122,7 +125,6 @@ export function useInvoices(filters?: {
   const fundInvoiceMutation = useMutation({
     mutationFn: async ({ invoiceId }: { invoiceId: string }) => {
       if (!address) throw new Error("Wallet not connected");
-      const poolClient = new PoolClient(poolContractID);
       return poolClient.fundInvoice(invoiceId, address);
     },
     onSuccess: () => {
@@ -142,7 +144,6 @@ export function useInvoices(filters?: {
   const shipInvoiceMutation = useMutation({
     mutationFn: async ({ invoiceId }: { invoiceId: string }) => {
       if (!address) throw new Error("Wallet not connected");
-      const invoiceClient = new InvoiceClient(invoiceContractID);
       return invoiceClient.markShipped(invoiceId, address);
     },
     onSuccess: () => {
@@ -160,7 +161,6 @@ export function useInvoices(filters?: {
   const confirmDeliveryMutation = useMutation({
     mutationFn: async ({ invoiceId }: { invoiceId: string }) => {
       if (!address) throw new Error("Wallet not connected");
-      const invoiceClient = new InvoiceClient(invoiceContractID);
       const invoice = await getInvoiceByID(invoiceId);
       return invoiceClient.confirmDelivery(invoiceId, invoice.buyer, address);
     },
@@ -179,7 +179,6 @@ export function useInvoices(filters?: {
   const repayInvoiceMutation = useMutation({
     mutationFn: async ({ invoiceId }: { invoiceId: string }) => {
       if (!address) throw new Error("Wallet not connected");
-      const invoiceClient = new InvoiceClient(invoiceContractID);
       // Read the invoice on-chain to determine the repayment amount (face value)
       const invoice = await invoiceClient.get(invoiceId, address);
       // Ensure the invoice contract has sufficient USDC allowance before repaying
@@ -203,7 +202,6 @@ export function useInvoices(filters?: {
   const defaultInvoiceMutation = useMutation({
     mutationFn: async ({ invoiceId }: { invoiceId: string }) => {
       if (!address) throw new Error("Wallet not connected");
-      const invoiceClient = new InvoiceClient(invoiceContractID);
       return invoiceClient.triggerDefault(invoiceId, address);
     },
     onSuccess: () => {
