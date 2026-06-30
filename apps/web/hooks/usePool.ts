@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getPoolStats, getLPPosition } from "@/lib/api";
 import { PoolClient } from "@trusttrove/sdk";
@@ -39,6 +40,8 @@ export function usePool() {
   const { address } = useWalletStore();
   const { ensureAllowance } = useTokenAllowance();
 
+  const poolClient = useMemo(() => new PoolClient(poolContractID), []);
+
   const statsQuery = useQuery({
     queryKey: ["poolStats"],
     queryFn: () => getPoolStats(),
@@ -62,7 +65,6 @@ export function usePool() {
       if (!address) throw new Error("Wallet not connected");
       // Ensure the pool contract has sufficient USDC allowance before depositing
       await ensureAllowance(poolContractID, amount);
-      const poolClient = new PoolClient(poolContractID);
       return poolClient.deposit(address, amount, address);
     },
     onSuccess: (txHash: string) => {
@@ -87,7 +89,6 @@ export function usePool() {
   const withdrawMutation = useMutation({
     mutationFn: async ({ shares }: { shares: bigint }) => {
       if (!address) throw new Error("Wallet not connected");
-      const poolClient = new PoolClient(poolContractID);
       return poolClient.withdraw(address, shares, address);
     },
     onSuccess: (txHash: string) => {
