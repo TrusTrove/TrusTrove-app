@@ -3,7 +3,6 @@ package api
 import (
 	"bytes"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -35,20 +34,14 @@ type APIHandler struct {
 }
 
 func NewAPIHandler(cfg *config.Config) (*APIHandler, error) {
-	kp, err := GetServerKeypair(cfg.JWTSecret)
+	kp, err := keypair.ParseFull(cfg.ServerSeed)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid server seed: %w", err)
 	}
 	return &APIHandler{
 		cfg:      cfg,
 		serverKP: kp,
 	}, nil
-}
-
-// GetServerKeypair derives a keypair deterministically from the JWT secret
-func GetServerKeypair(jwtSecret string) (*keypair.Full, error) {
-	hash := sha256.Sum256([]byte(jwtSecret))
-	return keypair.FromRawSeed(hash)
 }
 
 type JsonRpcRequest struct {
