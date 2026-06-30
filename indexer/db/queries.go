@@ -11,6 +11,21 @@ import (
 )
 
 type DbInvoice struct {
+	ID              string `json:"id"`
+	Issuer          string `json:"issuer"`
+	Buyer           string `json:"buyer"`
+	FaceValue       string `json:"face_value"` // BigInt represented as string for JSON/SQL numeric safety
+	Asset           string `json:"asset"`
+	DiscountBps     int    `json:"discount_bps"`
+	FundedAmount    string `json:"funded_amount"`
+	DueDate         int64  `json:"due_date"`
+	Status          string `json:"status"`
+	CreatedAt       int64  `json:"created_at"`
+	FundedAt        *int64 `json:"funded_at"`
+	ShippedAt       *int64 `json:"shipped_at"`
+	IssuerConfirmed bool   `json:"issuer_confirmed"`
+	BuyerConfirmed  bool   `json:"buyer_confirmed"`
+	RepaidAt        *int64 `json:"repaid_at"`
 	ID               string `json:"id"`
 	Issuer           string `json:"issuer"`
 	Buyer            string `json:"buyer"`
@@ -81,6 +96,29 @@ func GetProtocolStats(ctx context.Context) (*ProtocolStats, error) {
 func InsertInvoice(ctx context.Context, inv *DbInvoice) error {
 	query := `
 		INSERT INTO invoices (
+			id, issuer, buyer, face_value, asset, discount_bps, funded_amount, due_date, status, created_at,
+			funded_at, shipped_at, issuer_confirmed, buyer_confirmed, repaid_at
+		) VALUES (
+			@id, @issuer, @buyer, @face_value, @asset, @discount_bps, @funded_amount, @due_date, @status, @created_at,
+			@funded_at, @shipped_at, @issuer_confirmed, @buyer_confirmed, @repaid_at
+		)
+	`
+	args := pgx.NamedArgs{
+		"id":               inv.ID,
+		"issuer":           inv.Issuer,
+		"buyer":            inv.Buyer,
+		"face_value":       inv.FaceValue,
+		"asset":            inv.Asset,
+		"discount_bps":     inv.DiscountBps,
+		"funded_amount":    inv.FundedAmount,
+		"due_date":         inv.DueDate,
+		"status":           inv.Status,
+		"created_at":       inv.CreatedAt,
+		"funded_at":        inv.FundedAt,
+		"shipped_at":       inv.ShippedAt,
+		"issuer_confirmed": inv.IssuerConfirmed,
+		"buyer_confirmed":  inv.BuyerConfirmed,
+		"repaid_at":        inv.RepaidAt,
 			id, issuer, buyer, face_value, discount_bps, funded_amount, due_date, status, created_at,
 			funded_at, shipped_at, issuer_confirmed, buyer_confirmed, buyer_confirmed_at, repaid_at
 		) VALUES (
@@ -115,6 +153,8 @@ func InsertInvoice(ctx context.Context, inv *DbInvoice) error {
 func GetInvoiceByID(ctx context.Context, id string) (*DbInvoice, error) {
 	query := `
 		SELECT 
+			id, issuer, buyer, face_value, asset, discount_bps, funded_amount, due_date, status, created_at,
+			funded_at, shipped_at, issuer_confirmed, buyer_confirmed, repaid_at
 			id, issuer, buyer, face_value, discount_bps, funded_amount, due_date, status, created_at,
 			funded_at, shipped_at, issuer_confirmed, buyer_confirmed, buyer_confirmed_at, repaid_at
 		FROM invoices
@@ -123,6 +163,8 @@ func GetInvoiceByID(ctx context.Context, id string) (*DbInvoice, error) {
 	row := Pool.QueryRow(ctx, query, id)
 	var inv DbInvoice
 	err := row.Scan(
+		&inv.ID, &inv.Issuer, &inv.Buyer, &inv.FaceValue, &inv.Asset, &inv.DiscountBps, &inv.FundedAmount, &inv.DueDate, &inv.Status, &inv.CreatedAt,
+		&inv.FundedAt, &inv.ShippedAt, &inv.IssuerConfirmed, &inv.BuyerConfirmed, &inv.RepaidAt,
 		&inv.ID, &inv.Issuer, &inv.Buyer, &inv.FaceValue, &inv.DiscountBps, &inv.FundedAmount, &inv.DueDate, &inv.Status, &inv.CreatedAt,
 		&inv.FundedAt, &inv.ShippedAt, &inv.IssuerConfirmed, &inv.BuyerConfirmed, &inv.BuyerConfirmedAt, &inv.RepaidAt,
 	)
@@ -149,6 +191,8 @@ func GetInvoicesPage(ctx context.Context, status, issuer string, limit, offset i
 
 	query := `
 		SELECT 
+			id, issuer, buyer, face_value, asset, discount_bps, funded_amount, due_date, status, created_at,
+			funded_at, shipped_at, issuer_confirmed, buyer_confirmed, repaid_at
 			id, issuer, buyer, face_value, discount_bps, funded_amount, due_date, status, created_at,
 			funded_at, shipped_at, issuer_confirmed, buyer_confirmed, buyer_confirmed_at, repaid_at
 		FROM invoices
@@ -167,6 +211,8 @@ func GetInvoicesPage(ctx context.Context, status, issuer string, limit, offset i
 	for rows.Next() {
 		var inv DbInvoice
 		err := rows.Scan(
+			&inv.ID, &inv.Issuer, &inv.Buyer, &inv.FaceValue, &inv.Asset, &inv.DiscountBps, &inv.FundedAmount, &inv.DueDate, &inv.Status, &inv.CreatedAt,
+			&inv.FundedAt, &inv.ShippedAt, &inv.IssuerConfirmed, &inv.BuyerConfirmed, &inv.RepaidAt,
 			&inv.ID, &inv.Issuer, &inv.Buyer, &inv.FaceValue, &inv.DiscountBps, &inv.FundedAmount, &inv.DueDate, &inv.Status, &inv.CreatedAt,
 			&inv.FundedAt, &inv.ShippedAt, &inv.IssuerConfirmed, &inv.BuyerConfirmed, &inv.BuyerConfirmedAt, &inv.RepaidAt,
 		)

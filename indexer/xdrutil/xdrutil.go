@@ -71,6 +71,15 @@ func ParseU64(val xdr.ScVal) int64 {
 	return int64(*val.U64)
 }
 
+// ParseString extracts the value from a String ScVal.
+// Returns an empty string if the value is not a String type or is nil.
+func ParseString(val xdr.ScVal) string {
+	if val.Type != xdr.ScValTypeScvString || val.Str == nil {
+		return ""
+	}
+	return string(*val.Str)
+}
+
 // GetMapVal finds and returns the ScVal for the given symbol key in a map ScVal.
 // Returns (zero ScVal, false) if the map does not contain the key.
 func GetMapVal(val xdr.ScVal, key string) (xdr.ScVal, bool) {

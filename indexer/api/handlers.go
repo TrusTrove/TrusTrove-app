@@ -163,6 +163,14 @@ func MakeU64ScVal(val uint64) xdr.ScVal {
 	}
 }
 
+func MakeStringScVal(val string) xdr.ScVal {
+	symbol := xdr.ScSymbol(val)
+	return xdr.ScVal{
+		Type:   xdr.ScValTypeScvString,
+		Str:    &symbol,
+	}
+}
+
 func BuildInvokeContractOp(contractID string, method string, args []xdr.ScVal) (*txnbuild.InvokeHostFunction, error) {
 	contractAddress, err := ParseAddressToScAddress(contractID)
 	if err != nil {
@@ -455,6 +463,7 @@ func (h *APIHandler) HandleCreateInvoice(w http.ResponseWriter, r *http.Request)
 		Buyer     string `json:"buyer"`
 		FaceValue string `json:"face_value"`
 		DueDate   int64  `json:"due_date"`
+		Asset     string `json:"asset"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -466,6 +475,11 @@ func (h *APIHandler) HandleCreateInvoice(w http.ResponseWriter, r *http.Request)
 	if body.Buyer == "" || body.FaceValue == "" || body.DueDate <= 0 {
 		http.Error(w, "missing required invoice parameters", http.StatusBadRequest)
 		return
+	}
+
+	// Default asset to USDC if not provided
+	if body.Asset == "" {
+		body.Asset = "USDC"
 	}
 
 	if _, err := keypair.Parse(body.Buyer); err != nil {
@@ -504,8 +518,9 @@ func (h *APIHandler) HandleCreateInvoice(w http.ResponseWriter, r *http.Request)
 	}
 	faceValueVal := MakeU128ScVal(faceValueBig)
 	dueDateVal := MakeU64ScVal(uint64(body.DueDate))
+	assetVal := MakeStringScVal(body.Asset)
 
-	op, err := BuildInvokeContractOp(h.cfg.InvoiceContractID, "create", []xdr.ScVal{issuerVal, buyerVal, faceValueVal, dueDateVal})
+	op, err := BuildInvokeContractOp(h.cfg.InvoiceContractID, "create", []xdr.ScVal{issuerVal, buyerVal, faceValueVal, dueDateVal, assetVal})
 	if err != nil {
 		http.Error(w, "failed to build contract operation", http.StatusInternalServerError)
 		return

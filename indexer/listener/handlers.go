@@ -90,6 +90,7 @@ func (l *EventListener) handleInvoiceCreated(ctx context.Context, event SorobanE
 	buyer := ""
 	faceValue := "0"
 	dueDate := int64(0)
+	asset := "USDC"
 
 	if idVal, ok := xdrutil.GetMapVal(val, "id"); ok {
 		id = xdrutil.ParseBytes(idVal)
@@ -106,6 +107,9 @@ func (l *EventListener) handleInvoiceCreated(ctx context.Context, event SorobanE
 	if dueVal, ok := xdrutil.GetMapVal(val, "due_date"); ok {
 		dueDate = xdrutil.ParseU64(dueVal)
 	}
+	if assetVal, ok := xdrutil.GetMapVal(val, "asset"); ok {
+		asset = xdrutil.ParseString(assetVal)
+	}
 
 	if id == "" || issuer == "" || buyer == "" {
 		return fmt.Errorf("event value missing required invoice fields: id=%s, issuer=%s, buyer=%s", id, issuer, buyer)
@@ -116,6 +120,7 @@ func (l *EventListener) handleInvoiceCreated(ctx context.Context, event SorobanE
 		Issuer:          issuer,
 		Buyer:           buyer,
 		FaceValue:       faceValue,
+		Asset:           asset,
 		DiscountBps:     0,
 		FundedAmount:    "0",
 		DueDate:         dueDate,

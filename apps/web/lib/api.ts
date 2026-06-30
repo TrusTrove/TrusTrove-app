@@ -48,6 +48,7 @@ function parseRawInvoice(raw: any): Invoice {
     issuer: raw.issuer,
     buyer: raw.buyer,
     faceValue: BigInt(raw.face_value || 0),
+    asset: raw.asset as AssetType,
     asset: (raw.asset || "USDC") as AssetType,
     discountBps: Number(raw.discount_bps || 0),
     fundedAmount: BigInt(raw.funded_amount || 0),
