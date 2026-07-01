@@ -25,6 +25,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       {children}
       <ConfirmationDialog />
       <Toaster
+        containerAriaLabel="Notifications"
         position="bottom-right"
         toastOptions={{
           style: {
