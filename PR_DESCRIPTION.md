@@ -1,25 +1,34 @@
 ## Summary
 
-Adds an interactive LP yield calculator to the landing page right panel, replacing the previous SME-focused "Finance Your Invoice" quick-action panel.
+Adds `totalShares` to the SDK `PoolStats` model so consumers can derive LP share supply from on-chain state, and fixes the CI failures that blocked this branch.
 
-## Changes
+## What this PR does
 
-- **New component** `apps/web/components/shared/LpYieldCalculator.tsx`
-  - "I'm an LP" tab header
-  - Deposit amount input via existing `AmountInput` component (USDC, default $10K)
-  - Pool utilization slider (default 75%, range 10-100%)
-  - Instant-updating outputs: estimated annual yield %, monthly earnings in USDC
-  - Plain CSS comparison bar chart: TrusTrove vs Savings Account (5%) vs T-Bills (4.5%)
-  - Disclaimer always visible: *"Yield depends on pool utilization and invoice repayment rate. Smart contract risk exists."*
-- **Updated** `apps/web/app/page.tsx` — right panel now renders `<LpYieldCalculator />`; unused imports removed
+### Feature: `totalShares` on `PoolStats`
+- `packages/sdk/src/types/index.ts` — add `totalShares: bigint` to the `PoolStats` interface.
+- `packages/sdk/src/types/schemas.ts` — add `totalShares: bigintSchema` to `poolStatsSchema`; reuses the existing bigint coercion so the field defaults to `0n` for older contract responses (backward compatible).
+- `apps/web/lib/api.ts` — `parseRawPoolStats` now also reads `raw.total_shares` so the web app's `PoolStats` literal satisfies the updated type.
 
-## Acceptance Criteria
+### CI fixes (so CI is green)
+- `packages/sdk/src/types/index.ts` and `packages/sdk/src/types/schemas.ts` — each file's entire content was declared twice (introduced when the `totalShares` field was appended during this branch). Deduplicated: only the version with `totalShares` is kept. Resolves the `tsc` duplicate-identifier / block-scoped-variable errors that were breaking `pnpm build`.
+- `packages/sdk/package.json` — add `tsx` as a `devDependency` and change the test script from `node --test` to `tsx --test`. The new `schemas.test.ts` is a Node-native `.ts` test that the pinned Node 20 CI runner cannot load directly; `tsx` resolves that (alternatives such as `--experimental-strip-types` require Node ≥ 22.6). The Go indexer is unaffected.
 
-- [x] All calculations update without page interaction
-- [x] Bar chart built with plain CSS bars — no chart library
-- [x] Disclaimer always visible
-- [x] Works on mobile viewport
+## Tests
+- New: `packages/sdk/src/types/schemas.test.ts` covers `totalShares` parsing from plain objects, from the `Map` returned by `scValToNative`, numeric and string coercion to `bigint`, the absent-field default of `0n`, regression of the existing fields, and a compile-time check that `totalShares` is in the `PoolStats` interface.
 
-## Tech
+## How to verify
 
-Next.js 14 · TypeScript · Tailwind CSS · React state
+```
+pnpm install --frozen-lockfile
+pnpm build         # SDK + web
+pnpm test          # SDK (tsx --test) + web
+pnpm --filter web lint
+(cd indexer && go build ./... && go vet ./... && go test ./...)
+```
+
+All four are green locally and on CI with this PR's commit.
+
+## Out of scope / follow-ups
+- Document `total_shares` in `docs/openapi/indexer.yaml`'s pool-stats response.
+- Wire the Go indexer's pool-stats query so it actually returns `total_shares` from the DB (until then, the web will always read `0n`).
+- Two pre-existing lint warnings (`useParams` in `InvoiceDetailClient.tsx`, unused `inter` in `invoice/[invoiceId]/page.tsx`) — warnings only, not CI-blocking.
