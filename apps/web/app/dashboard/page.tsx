@@ -2,8 +2,8 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { PageLayout } from "@/components/shared/PageLayout";
-import { InvoiceForm } from "@/components/invoice/InvoiceForm";
 import { InvoiceTable } from "@/components/invoice/InvoiceTable";
 import { InvoiceCard } from "@/components/invoice/InvoiceCard";
 import { useInvoices } from "@/hooks/useInvoices";
@@ -27,6 +27,15 @@ import { Invoice } from "@/types";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatAmount } from "@/lib/assets";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
+
+const InvoiceForm = dynamic(() => import("@/components/invoice/InvoiceForm"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-64 w-full flex items-center justify-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary" />
+    </div>
+  ),
+});
 
 export default function SMEDashboard() {
   const { address, connected, role } = useWalletStore();

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { PageLayout } from "@/components/shared/PageLayout";
 import { usePool } from "@/hooks/usePool";
 import { useWalletStore } from "@/store/wallet";
@@ -12,7 +13,6 @@ import {
   LPPositionCardSkeleton,
 } from "@/components/shared/SkeletonLoader";
 import { Button } from "@/components/ui/button";
-import { TransactionPending } from "@/components/shared/TransactionPending";
 import { AmountInput } from "@/components/shared/AmountInput";
 import {
   Coins,
@@ -30,6 +30,15 @@ import { Address, nativeToScVal } from "@stellar/stellar-sdk";
 import { SimulationPreview } from "@/components/shared/SimulationPreview";
 import { useQuery } from "@tanstack/react-query";
 import { getPoolSnapshots } from "@/lib/api";
+
+const TransactionPending = dynamic(() => import("@/components/shared/TransactionPending"), {
+  ssr: false,
+  loading: () => (
+    <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/50">
+      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary" />
+    </div>
+  ),
+});
 
 const poolContractID = process.env.NEXT_PUBLIC_POOL_CONTRACT_ID || "";
 
