@@ -3,7 +3,7 @@
 </p>
 
 <h1 align="center">TrusTrove</h1>
-
+[
 <p align="center">
   Decentralized trade finance on Stellar — SMEs get paid today, LPs earn yield, no banks involved.
 </p>
