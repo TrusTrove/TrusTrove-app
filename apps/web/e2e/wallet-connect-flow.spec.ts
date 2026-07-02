@@ -17,7 +17,7 @@ test.describe("Wallet Connect Flow", () => {
       await expect(connectBtn).toBeVisible();
       await connectBtn.click();
 
-      await expect(page.getByText("GBMOCK...XXXXX")).toBeVisible();
+      await expect(page.getByText("GBMOCK...XXXX")).toBeVisible();
       await expect(page.getByText(/testnet/i)).toBeVisible();
     });
 
@@ -70,7 +70,7 @@ test.describe("Wallet Connect Flow", () => {
       await page.goto("/");
 
       await page.getByRole("button", { name: /Connect Wallet/i }).click();
-      await expect(page.getByText("GBMOCK...XXXXX")).toBeVisible();
+      await expect(page.getByText("GBMOCK...XXXX")).toBeVisible();
     });
   });
 
@@ -79,7 +79,7 @@ test.describe("Wallet Connect Flow", () => {
       await page.goto("/");
 
       await page.getByRole("button", { name: /Connect Wallet/i }).click();
-      await expect(page.getByText("GBMOCK...XXXXX")).toBeVisible();
+      await expect(page.getByText("GBMOCK...XXXX")).toBeVisible();
 
       const disconnectBtn = page.getByRole("button", {
         name: /Disconnect wallet/i,
@@ -98,7 +98,7 @@ test.describe("Wallet Connect Flow", () => {
       await page.goto("/");
 
       await page.getByRole("button", { name: /Connect Wallet/i }).click();
-      await expect(page.getByText("GBMOCK...XXXXX")).toBeVisible();
+      await expect(page.getByText("GBMOCK...XXXX")).toBeVisible();
 
       await page.getByRole("button", { name: /Disconnect wallet/i }).click();
       await expect(
@@ -118,7 +118,7 @@ test.describe("Wallet Connect Flow", () => {
       await page.goto("/");
 
       await page.getByRole("button", { name: /Connect Wallet/i }).click();
-      await expect(page.getByText("GBMOCK...XXXXX")).toBeVisible();
+      await expect(page.getByText("GBMOCK...XXXX")).toBeVisible();
 
       await page.getByRole("button", { name: /Disconnect wallet/i }).click();
       await expect(
@@ -126,18 +126,18 @@ test.describe("Wallet Connect Flow", () => {
       ).toBeVisible();
 
       await page.getByRole("button", { name: /Connect Wallet/i }).click();
-      await expect(page.getByText("GBMOCK...XXXXX")).toBeVisible();
+      await expect(page.getByText("GBMOCK...XXXX")).toBeVisible();
     });
 
     test("survives page reload while connected", async ({ page }) => {
       await page.goto("/");
 
       await page.getByRole("button", { name: /Connect Wallet/i }).click();
-      await expect(page.getByText("GBMOCK...XXXXX")).toBeVisible();
+      await expect(page.getByText("GBMOCK...XXXX")).toBeVisible();
 
       await page.reload();
 
-      await expect(page.getByText("GBMOCK...XXXXX")).toBeVisible();
+      await expect(page.getByText("GBMOCK...XXXX")).toBeVisible();
     });
   });
 

@@ -15,7 +15,7 @@ test.describe("Invoice Lifecycle - Happy Path", () => {
 
     // Expect to be connected
     await expect(
-      page.getByText("GBMOCKWALLETADDRESSXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"),
+      page.getByText("GBMOCK...XXXX"),
     ).toBeVisible();
 
     // 2. Invoice Creation
