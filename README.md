@@ -190,7 +190,6 @@ If you have questions, reach us on Telegram: **[t.me/trusttrove](https://t.me/tr
 
 MIT
 
-
 ---
 
 ## Contributors

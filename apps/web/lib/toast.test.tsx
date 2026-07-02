@@ -31,7 +31,9 @@ describe("toast accessibility", () => {
     const text = screen.getByText("Deposit Complete").closest("div");
     expect(text).toHaveAttribute("aria-atomic", "true");
     expect(document.querySelector(".sr-only")).toHaveTextContent("Success:");
-    expect(screen.getByRole("link", { name: /view on stellar expert/i })).toHaveAttribute(
+    expect(
+      screen.getByRole("link", { name: /view on stellar expert/i }),
+    ).toHaveAttribute(
       "href",
       "https://stellar.expert/explorer/testnet/tx/abc123",
     );

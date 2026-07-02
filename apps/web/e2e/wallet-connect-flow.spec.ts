@@ -17,12 +17,8 @@ test.describe("Wallet Connect Flow", () => {
       await expect(connectBtn).toBeVisible();
       await connectBtn.click();
 
-      await expect(
-        page.getByText("GBMOCK...XXXXX"),
-      ).toBeVisible();
-      await expect(
-        page.getByText(/testnet/i),
-      ).toBeVisible();
+      await expect(page.getByText("GBMOCK...XXXXX")).toBeVisible();
+      await expect(page.getByText(/testnet/i)).toBeVisible();
     });
 
     test("shows copy address button when connected", async ({ page }) => {
@@ -30,12 +26,16 @@ test.describe("Wallet Connect Flow", () => {
 
       await page.getByRole("button", { name: /Connect Wallet/i }).click();
 
-      const copyBtn = page.getByRole("button", { name: /Copy wallet address/i });
+      const copyBtn = page.getByRole("button", {
+        name: /Copy wallet address/i,
+      });
       await expect(copyBtn).toBeVisible();
       await copyBtn.click();
 
       await expect(
-        page.getByRole("button", { name: /Copy wallet address/i }).locator("svg"),
+        page
+          .getByRole("button", { name: /Copy wallet address/i })
+          .locator("svg"),
       ).toBeVisible();
     });
   });
@@ -75,15 +75,15 @@ test.describe("Wallet Connect Flow", () => {
   });
 
   test.describe("Disconnect and State Reset", () => {
-    test("disconnects wallet and resets to initial state", async ({
-      page,
-    }) => {
+    test("disconnects wallet and resets to initial state", async ({ page }) => {
       await page.goto("/");
 
       await page.getByRole("button", { name: /Connect Wallet/i }).click();
       await expect(page.getByText("GBMOCK...XXXXX")).toBeVisible();
 
-      const disconnectBtn = page.getByRole("button", { name: /Disconnect wallet/i });
+      const disconnectBtn = page.getByRole("button", {
+        name: /Disconnect wallet/i,
+      });
       await expect(disconnectBtn).toBeVisible();
       await disconnectBtn.click();
 
@@ -158,7 +158,8 @@ test.describe("Wallet Connect Flow", () => {
       await page.addInitScript(() => {
         window.freighter = {
           ...window.freighter,
-          requestAccess: () => Promise.reject(new Error("User rejected access")),
+          requestAccess: () =>
+            Promise.reject(new Error("User rejected access")),
           isConnected: () => Promise.resolve(true),
           isAllowed: () => Promise.resolve(true),
         };

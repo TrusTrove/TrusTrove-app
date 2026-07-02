@@ -30,7 +30,9 @@ vi.mock("@/lib/toast", () => ({
 }));
 
 vi.mock("./useTokenAllowance", () => ({
-  useTokenAllowance: () => ({ ensureAllowance: vi.fn().mockResolvedValue(undefined) }),
+  useTokenAllowance: () => ({
+    ensureAllowance: vi.fn().mockResolvedValue(undefined),
+  }),
 }));
 
 describe("useInvoices", () => {
