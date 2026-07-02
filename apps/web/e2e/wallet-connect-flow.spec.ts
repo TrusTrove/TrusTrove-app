@@ -156,13 +156,7 @@ test.describe("Wallet Connect Flow", () => {
 
     test("shows error when wallet connection is rejected", async ({ page }) => {
       await page.addInitScript(() => {
-        window.freighter = {
-          ...window.freighter,
-          requestAccess: () =>
-            Promise.reject(new Error("User rejected access")),
-          isConnected: () => Promise.resolve(true),
-          isAllowed: () => Promise.resolve(true),
-        };
+        (window as any).__FREIGHTER_REJECT_ACCESS__ = true;
       });
 
       await page.goto("/");
