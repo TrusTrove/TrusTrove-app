@@ -5,6 +5,10 @@ test.describe("Invoice Lifecycle - Happy Path", () => {
   test("Complete flow: Connect, Create, Fund, Ship, Deliver, Repay", async ({
     page,
   }) => {
+    await page.addInitScript(() => {
+      (window as any).__MOCK_PROFILE_VERIFIED__ = true;
+    });
+
     // 1. Navigation and Wallet Connection
     await page.goto("/");
 

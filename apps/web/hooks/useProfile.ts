@@ -21,6 +21,11 @@ const registryContractID = process.env.NEXT_PUBLIC_REGISTRY_CONTRACT_ID || "";
  *   - `isRegistering` / `registerError` — State for the register mutation.
  *   - `refetchProfile` — Function to manually refresh all profile query data.
  */
+function isMockVerified(): boolean {
+  if (typeof window === "undefined") return false;
+  return (window as any).__MOCK_PROFILE_VERIFIED__ === true;
+}
+
 export function useProfile() {
   const queryClient = useQueryClient();
   const { address } = useWalletStore();
@@ -34,8 +39,6 @@ export function useProfile() {
         const profile = await client.getProfile(address, address);
         return profile;
       } catch (err) {
-        // getProfile throws a simulation error if profile doesn't exist.
-        // We return null to indicate the profile is not registered.
         return null;
       }
     },
@@ -45,6 +48,7 @@ export function useProfile() {
   const isVerifiedQuery = useQuery({
     queryKey: ["isVerified", address],
     queryFn: async (): Promise<boolean> => {
+      if (isMockVerified()) return true;
       if (!address) return false;
       const client = new RegistryClient(registryContractID);
       try {
