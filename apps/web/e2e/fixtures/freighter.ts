@@ -4,32 +4,30 @@ const MOCK_PUBLIC_KEY = "GBMOCKWALLETADDRESSXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
 
 export const test = base.extend({
   page: async ({ page }, use) => {
-    await page.addInitScript(() => {
-      (window as any).freighter = true;
+    await page.addInitScript(`
+      window.freighter = true;
 
-      const originalPostMessage = window.postMessage.bind(window);
+      var originalPostMessage = window.postMessage.bind(window);
 
-      const pending: Record<string, { resolve: (data: any) => void; reject: (err: any) => void }> = {};
-
-      window.addEventListener("message", (event) => {
+      window.addEventListener("message", function (event) {
         if (event.source !== window) return;
         if (!event.data) return;
         if (event.data.source !== "FREIGHTER_EXTERNAL_MSG_RESPONSE") return;
-        const msgId = event.data.messagedId;
-        if (msgId != null && pending[msgId]) {
-          pending[msgId].resolve(event.data);
-          delete pending[msgId];
+        var msgId = event.data.messagedId;
+        if (msgId != null && window.__freighterPending__ && window.__freighterPending__[msgId]) {
+          window.__freighterPending__[msgId].resolve(event.data);
+          delete window.__freighterPending__[msgId];
         }
       });
 
-      window.postMessage = function (data: any, targetOrigin: string, transfer?: any) {
+      window.postMessage = function (data, targetOrigin, transfer) {
         if (data && data.source === "FREIGHTER_EXTERNAL_MSG_REQUEST") {
-          const messageId = data.messageId;
+          var messageId = data.messageId;
           if (messageId != null) {
-            const rejectAccess = (window as any).__FREIGHTER_REJECT_ACCESS__ === true;
+            var rejectAccess = window.__FREIGHTER_REJECT_ACCESS__ === true;
 
-            setTimeout(() => {
-              const response: Record<string, any> = {
+            setTimeout(function () {
+              var response = {
                 source: "FREIGHTER_EXTERNAL_MSG_RESPONSE",
                 messagedId: messageId,
               };
@@ -80,8 +78,8 @@ export const test = base.extend({
         }
 
         return originalPostMessage(data, targetOrigin, transfer);
-      } as typeof window.postMessage;
-    });
+      };
+    `);
 
     await use(page);
   },
