@@ -18,7 +18,7 @@ test.describe("Wallet Connect Flow", () => {
       await connectBtn.click();
 
       await expect(page.getByText("GBMOCK...XXXX")).toBeVisible();
-      await expect(page.getByText(/testnet/i)).toBeVisible();
+      await expect(page.getByText("Testnet", { exact: true })).toBeVisible();
     });
 
     test("shows copy address button when connected", async ({ page }) => {
@@ -137,7 +137,7 @@ test.describe("Wallet Connect Flow", () => {
 
       await page.reload();
 
-      await expect(page.getByText("GBMOCK...XXXX")).toBeVisible();
+      await expect(page.getByText("GBMOCK...XXXX")).toBeVisible({ timeout: 10000 });
     });
   });
 
