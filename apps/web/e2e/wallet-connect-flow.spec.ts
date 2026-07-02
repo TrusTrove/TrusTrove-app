@@ -137,7 +137,9 @@ test.describe("Wallet Connect Flow", () => {
 
       await page.reload();
 
-      await expect(page.getByText("GBMOCK...XXXX")).toBeVisible({ timeout: 10000 });
+      await expect(page.getByText("GBMOCK...XXXX")).toBeVisible({
+        timeout: 10000,
+      });
     });
   });
 
