@@ -29,6 +29,12 @@ vi.mock("@/lib/toast", () => ({
   showErrorToast: vi.fn(),
 }));
 
+vi.mock("./useTokenAllowance", () => ({
+  useTokenAllowance: () => ({
+    ensureAllowance: vi.fn().mockResolvedValue(undefined),
+  }),
+}));
+
 describe("useInvoices", () => {
   let mockInvalidateQueries: ReturnType<typeof vi.fn>;
 
@@ -221,6 +227,7 @@ describe("useInvoices", () => {
     const mockRepay = vi.fn().mockResolvedValue("ok");
     vi.mocked(InvoiceClient).mockImplementation(function () {
       return {
+        get: vi.fn().mockResolvedValue({ faceValue: 100n }),
         repay: mockRepay,
       };
     } as any);

@@ -41,8 +41,44 @@ jobs:
       - name: Check Formatting
         run: npx prettier --check .
 
-    - name: Check Formatting
-      run: npx prettier --check .
+  e2e-tests:
+    name: E2E Tests (Playwright)
+    runs-on: ubuntu-latest
+    needs: verify-frontend-and-sdk
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Packages (SDK & Web App)
+        run: pnpm build
+
+      - name: Install Playwright Browsers
+        run: pnpm --filter web exec playwright install chromium
+
+      - name: Run E2E Tests
+        run: pnpm test:e2e
+
+      - name: Upload Playwright Report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 7
 
   verify-go-indexer:
     name: Verify Go Indexer & API

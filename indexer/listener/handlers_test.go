@@ -330,7 +330,7 @@ func TestHandleDeliveryConfirmed(t *testing.T) {
 		Value:          encodeSymbol("confirm_delivery"),
 	}
 
-	if err := l.handleDeliveryConfirmed(ctx, event); err != nil {
+	if err := l.handleDeliveryConfirmed(ctx, event, time.Now().Unix()); err != nil {
 		t.Fatalf("handleDeliveryConfirmed: %v", err)
 	}
 

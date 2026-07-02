@@ -87,6 +87,8 @@ describe("InvoiceForm", () => {
     expect(await screen.findByText(/Invoice Face Value/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByText(/EDIT/i));
-    expect(await screen.findByText(/Buyer Wallet Address/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Buyer Wallet Address/i),
+    ).toBeInTheDocument();
   });
 });

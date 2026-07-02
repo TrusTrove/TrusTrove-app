@@ -21,6 +21,12 @@ vi.mock("@/lib/toast", () => ({
   showErrorToast: vi.fn(),
 }));
 
+vi.mock("./useTokenAllowance", () => ({
+  useTokenAllowance: () => ({
+    ensureAllowance: vi.fn().mockResolvedValue(undefined),
+  }),
+}));
+
 describe("usePool", () => {
   let mockInvalidateQueries: ReturnType<typeof vi.fn>;
 
