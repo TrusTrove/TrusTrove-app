@@ -144,7 +144,7 @@ test.describe("Wallet Connect Flow", () => {
   test.describe("Error States", () => {
     test("shows error when Freighter is not installed", async ({ page }) => {
       await page.addInitScript(() => {
-        delete (window as any).freighter;
+        (window as any).__MOCK_FREIGHTER_DISABLED__ = true;
       });
 
       await page.goto("/");
@@ -156,7 +156,7 @@ test.describe("Wallet Connect Flow", () => {
 
     test("shows error when wallet connection is rejected", async ({ page }) => {
       await page.addInitScript(() => {
-        (window as any).__FREIGHTER_REJECT_ACCESS__ = true;
+        (window as any).__MOCK_FREIGHTER_ERROR__ = "User rejected access";
       });
 
       await page.goto("/");
