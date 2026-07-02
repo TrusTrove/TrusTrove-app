@@ -14,9 +14,7 @@ test.describe("Invoice Lifecycle - Happy Path", () => {
     }
 
     // Expect to be connected
-    await expect(
-      page.getByText("GBMOCK...XXXX"),
-    ).toBeVisible();
+    await expect(page.getByText("GBMOCK...XXXX")).toBeVisible();
 
     // 2. Invoice Creation
     await page.goto("/dashboard/issuer"); // Assuming route for issuer
