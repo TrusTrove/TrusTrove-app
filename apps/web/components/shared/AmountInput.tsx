@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import React from 'react';
-import type { AssetType } from '@/types';
-import { ASSET_INFO } from '@/lib/assets';
+import React from "react";
+import type { AssetType } from "@/types";
+import { ASSET_INFO } from "@/lib/assets";
 
 interface AmountInputProps {
   value: string;
@@ -22,7 +22,7 @@ export function AmountInput({
   onChange,
   asset,
   label,
-  placeholder = '0.00',
+  placeholder = "0.00",
   disabled = false,
   required = false,
   showPreview = false,
@@ -30,7 +30,7 @@ export function AmountInput({
   previewLabel,
 }: AmountInputProps) {
   const assetInfo = ASSET_INFO[asset];
-  const parsedValue = parseFloat(value.replace(/,/g, '')) || 0;
+  const parsedValue = parseFloat(value.replace(/,/g, "")) || 0;
 
   return (
     <div className="space-y-1">
@@ -49,7 +49,9 @@ export function AmountInput({
           required={required}
         />
         <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
-          <span className="text-[10px] font-bold text-slate-500 font-mono">{assetInfo.label}</span>
+          <span className="text-[10px] font-bold text-slate-500 font-mono">
+            {assetInfo.label}
+          </span>
         </div>
       </div>
       {showPreview && previewValue !== undefined && (

@@ -28,6 +28,7 @@ We follow a strict, linear git history workflow to ensure codebase traceability.
 ### Commit Messages
 
 Follow Conventional Commits format:
+
 - `feat(web): add invoice listing cards`
 - `fix(indexer): resolve database connection timeout`
 - `docs: update setup documentation`
@@ -40,6 +41,7 @@ Follow Conventional Commits format:
 ### 1. Build and Compile Verification
 
 Verify compilation across all monorepo packages before submitting code:
+
 ```bash
 # Compile SDK and Next.js frontend
 pnpm install
@@ -53,6 +55,7 @@ go build -v .
 ### 2. Linting & Code Quality
 
 Run linters on edited workspace directories:
+
 ```bash
 # Web application lint
 pnpm --filter web lint

@@ -25,6 +25,8 @@ type Config struct {
 	IndexerPollIntervalMs int
 	JWTSecret             string
 	JWTExpiryHours        int
+	CORSAllowedOrigins    []string
+	RateLimitRPS          int
 }
 
 func LoadConfig() (*Config, error) {
@@ -67,6 +69,30 @@ func LoadConfig() (*Config, error) {
 		apiPort = "8080"
 	}
 
+	originsStr := strings.TrimSpace(os.Getenv("ALLOWED_ORIGINS"))
+	if originsStr == "" {
+		originsStr = strings.TrimSpace(os.Getenv("CORS_ALLOWED_ORIGINS"))
+	}
+	var corsOrigins []string
+	if originsStr != "" {
+		for _, origin := range strings.Split(originsStr, ",") {
+			origin = strings.TrimSpace(origin)
+			if origin != "" {
+				corsOrigins = append(corsOrigins, origin)
+			}
+		}
+	}
+	if len(corsOrigins) == 0 {
+		corsOrigins = []string{"http://localhost:3000"}
+	}
+
+	rateLimitRPS := 10
+	if rateLimitStr := os.Getenv("RATE_LIMIT_RPS"); rateLimitStr != "" {
+		if val, err := strconv.Atoi(rateLimitStr); err == nil && val > 0 {
+			rateLimitRPS = val
+		}
+	}
+
 	cfg := &Config{
 		StellarNetwork:        getRequired("STELLAR_NETWORK"),
 		HorizonURL:            getRequired("HORIZON_URL"),
@@ -83,6 +109,8 @@ func LoadConfig() (*Config, error) {
 		IndexerPollIntervalMs: pollIntervalMs,
 		JWTSecret:             getRequired("JWT_SECRET"),
 		JWTExpiryHours:        jwtExpiryHours,
+		CORSAllowedOrigins:    corsOrigins,
+		RateLimitRPS:          rateLimitRPS,
 	}
 
 	if len(missing) > 0 {

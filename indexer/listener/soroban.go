@@ -93,22 +93,31 @@ func (l *EventListener) getLatestLedgerSequence(ctx context.Context) (int32, err
 // Start starts the event listening loop
 func (l *EventListener) Start(ctx context.Context) error {
 	// 1. Determine start ledger sequence
-	startLedger, err := db.GetLatestProcessedLedger(ctx)
+	// Prefer checkpoint for accurate resume across empty-ledger ranges
+	currentLedger, err := db.GetCheckpoint(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get latest processed ledger: %w", err)
+		return fmt.Errorf("failed to get checkpoint: %w", err)
 	}
 
-	var currentLedger int32
-	if startLedger > 0 {
-		currentLedger = startLedger + 1
-		slog.Info("Resuming event indexing", "startLedger", currentLedger)
+	if currentLedger > 0 {
+		slog.Info("Resuming event indexing from checkpoint", "startLedger", currentLedger)
 	} else {
-		latest, err := l.getLatestLedgerSequence(ctx)
+		// Fallback: use MAX(ledger) from events_log for backward compatibility
+		startLedger, err := db.GetLatestProcessedLedger(ctx)
 		if err != nil {
-			return fmt.Errorf("failed to get latest ledger sequence: %w", err)
+			return fmt.Errorf("failed to get latest processed ledger: %w", err)
 		}
-		currentLedger = latest
-		slog.Info("Starting event indexing from latest chain ledger", "startLedger", currentLedger)
+		if startLedger > 0 {
+			currentLedger = startLedger + 1
+			slog.Info("Resuming event indexing from events_log", "startLedger", currentLedger)
+		} else {
+			latest, err := l.getLatestLedgerSequence(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to get latest ledger sequence: %w", err)
+			}
+			currentLedger = latest
+			slog.Info("Starting event indexing from latest chain ledger", "startLedger", currentLedger)
+		}
 	}
 
 	pollInterval := time.Duration(l.cfg.IndexerPollIntervalMs) * time.Millisecond
@@ -132,6 +141,11 @@ func (l *EventListener) Start(ctx context.Context) error {
 				continue
 			}
 			currentLedger = nextLedger
+
+			// Persist checkpoint so restart resumes from this exact ledger
+			if err := db.UpsertCheckpoint(ctx, currentLedger); err != nil {
+				slog.Error("Failed to save checkpoint", "ledger", currentLedger, "error", err)
+			}
 		}
 	}
 }

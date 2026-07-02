@@ -28,7 +28,13 @@ See the root [`README.md`](../../README.md) for the full project overview and de
 
 ## Environment setup
 
-The repository root `.env.example` is the single source of truth for frontend, SDK, and indexer variables. Copy it before starting local development:
+The web app has a frontend-only env template at [`.env.example`](.env.example). Copy it to [`.env.local`](.env.local) for a web-only setup:
+
+```bash
+cp .env.example .env.local
+```
+
+If you are running the full local stack, including the Go indexer/API, use the repository root env template instead so both the web app and indexer can share the same variables:
 
 ```bash
 cp ../../.env.example ../../.env.local
@@ -36,18 +42,18 @@ cp ../../.env.example ../../.env.local
 
 Important frontend variables include:
 
-| Variable | Required | Purpose |
-| --- | --- | --- |
-| `NEXT_PUBLIC_STELLAR_NETWORK` | Yes | Active Stellar network name, usually `testnet` locally. |
-| `NEXT_PUBLIC_HORIZON_URL` | Yes | Horizon endpoint used for balances and account reads. |
-| `NEXT_PUBLIC_SOROBAN_RPC_URL` | Yes | Soroban RPC endpoint used by the SDK. |
-| `NEXT_PUBLIC_NETWORK_PASSPHRASE` | Yes | Stellar network passphrase. |
-| `NEXT_PUBLIC_REGISTRY_CONTRACT_ID` | Yes | Registry contract ID. |
-| `NEXT_PUBLIC_INVOICE_CONTRACT_ID` | Yes | Invoice contract ID. |
-| `NEXT_PUBLIC_POOL_CONTRACT_ID` | Yes | Pool contract ID. |
-| `NEXT_PUBLIC_ESCROW_CONTRACT_ID` | Yes | Escrow contract ID. |
-| `NEXT_PUBLIC_USDC_ISSUER` | Yes | USDC issuer used for balance detection. |
-| `NEXT_PUBLIC_API_BASE_URL` | Optional | Indexer/API base URL. Defaults should point to local indexer during development. |
+| Variable                           | Required | Purpose                                                                          |
+| ---------------------------------- | -------- | -------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_STELLAR_NETWORK`      | Yes      | Active Stellar network name, usually `testnet` locally.                          |
+| `NEXT_PUBLIC_HORIZON_URL`          | Yes      | Horizon endpoint used for balances and account reads.                            |
+| `NEXT_PUBLIC_SOROBAN_RPC_URL`      | Yes      | Soroban RPC endpoint used by the SDK.                                            |
+| `NEXT_PUBLIC_NETWORK_PASSPHRASE`   | Yes      | Stellar network passphrase.                                                      |
+| `NEXT_PUBLIC_REGISTRY_CONTRACT_ID` | Yes      | Registry contract ID.                                                            |
+| `NEXT_PUBLIC_INVOICE_CONTRACT_ID`  | Yes      | Invoice contract ID.                                                             |
+| `NEXT_PUBLIC_POOL_CONTRACT_ID`     | Yes      | Pool contract ID.                                                                |
+| `NEXT_PUBLIC_ESCROW_CONTRACT_ID`   | Yes      | Escrow contract ID.                                                              |
+| `NEXT_PUBLIC_USDC_ISSUER`          | Yes      | USDC issuer used for balance detection.                                          |
+| `NEXT_PUBLIC_API_BASE_URL`         | Optional | Indexer/API base URL. Defaults should point to local indexer during development. |
 
 ## Install dependencies
 
@@ -90,24 +96,24 @@ Connect Freighter on Testnet and fund the wallet with Testnet XLM/USDC before te
 
 From the repository root:
 
-| Command | Description |
-| --- | --- |
-| `pnpm dev` | Start the web app through the root script. |
-| `pnpm --filter web dev` | Start only the Next.js app. |
-| `pnpm build` | Build SDK and web app. |
-| `pnpm lint` | Run web linting. |
-| `pnpm test` | Run workspace tests. |
-| `pnpm typecheck` | Run TypeScript type checks across workspaces. |
+| Command                 | Description                                   |
+| ----------------------- | --------------------------------------------- |
+| `pnpm dev`              | Start the web app through the root script.    |
+| `pnpm --filter web dev` | Start only the Next.js app.                   |
+| `pnpm build`            | Build SDK and web app.                        |
+| `pnpm lint`             | Run web linting.                              |
+| `pnpm test`             | Run workspace tests.                          |
+| `pnpm typecheck`        | Run TypeScript type checks across workspaces. |
 
 From `apps/web`:
 
-| Command | Description |
-| --- | --- |
-| `pnpm dev` | Start Next.js dev server. |
-| `pnpm build` | Create production build. |
+| Command      | Description                          |
+| ------------ | ------------------------------------ |
+| `pnpm dev`   | Start Next.js dev server.            |
+| `pnpm build` | Create production build.             |
 | `pnpm start` | Start production server after build. |
-| `pnpm lint` | Run Next lint. |
-| `pnpm test` | Run Node test runner. |
+| `pnpm lint`  | Run Next lint.                       |
+| `pnpm test`  | Run Node test runner.                |
 
 ## Wallet setup
 
