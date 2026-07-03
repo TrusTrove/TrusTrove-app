@@ -35,6 +35,7 @@ describe("useBalances", () => {
     const { result } = renderHook(() => useBalances());
     expect(result.current.balances).toEqual({ usdc: null, xlm: null });
     expect(result.current.loading).toBe(false);
+    expect(result.current.error).toBeNull();
   });
 
   it("fetches balances on connect", async () => {
@@ -65,6 +66,33 @@ describe("useBalances", () => {
     expect(mockLoadAccount).toHaveBeenCalledWith("G123");
     expect(result.current.balances).toEqual({ xlm: "100.00", usdc: "50.00" });
     expect(result.current.loading).toBe(false);
+    expect(result.current.error).toBeNull();
+  });
+
+  it("handles empty balances (no USDC or XLM)", async () => {
+    mockLoadAccount.mockResolvedValue({
+      balances: [
+        {
+          asset_type: "credit_alphanum4",
+          asset_code: "EURT",
+          asset_issuer: "G...",
+          balance: "10.00",
+        },
+      ],
+    });
+
+    act(() => {
+      useWalletStore.getState().connect("G123", "testnet");
+    });
+
+    const { result } = renderHook(() => useBalances());
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(result.current.balances).toEqual({ usdc: null, xlm: null });
+    expect(result.current.error).toBeNull();
   });
 
   it("handles 404 error (unfunded account)", async () => {
@@ -124,5 +152,33 @@ describe("useBalances", () => {
     });
 
     expect(mockLoadAccount).toHaveBeenCalledTimes(2);
+  });
+
+  it("refetch returns updated balances", async () => {
+    mockLoadAccount.mockResolvedValue({
+      balances: [{ asset_type: "native", balance: "10.00" }],
+    });
+
+    act(() => {
+      useWalletStore.getState().connect("G123", "testnet");
+    });
+
+    const { result } = renderHook(() => useBalances());
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(result.current.balances).toEqual({ usdc: null, xlm: "10.00" });
+
+    mockLoadAccount.mockResolvedValue({
+      balances: [{ asset_type: "native", balance: "25.00" }],
+    });
+
+    await act(async () => {
+      await result.current.refetch();
+    });
+
+    expect(result.current.balances).toEqual({ usdc: null, xlm: "25.00" });
   });
 });

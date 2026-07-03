@@ -1,12 +1,15 @@
 package config
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
 
 	"github.com/joho/godotenv"
+	"github.com/stellar/go-stellar-sdk/keypair"
 )
 
 type Config struct {
@@ -27,6 +30,7 @@ type Config struct {
 	JWTExpiryHours        int
 	CORSAllowedOrigins    []string
 	RateLimitRPS          int
+	ServerSeed            string
 }
 
 func LoadConfig() (*Config, error) {
@@ -43,6 +47,32 @@ func LoadConfig() (*Config, error) {
 			missing = append(missing, name)
 		}
 		return value
+	}
+
+	appEnv := strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
+	if appEnv == "" {
+		appEnv = "development"
+	}
+
+	jwtSecret := strings.TrimSpace(os.Getenv("JWT_SECRET"))
+	if jwtSecret == "" {
+		if appEnv == "production" {
+			missing = append(missing, "JWT_SECRET")
+		} else {
+			b := make([]byte, 32)
+			rand.Read(b)
+			jwtSecret = hex.EncodeToString(b)
+		}
+	}
+
+	serverSeed := strings.TrimSpace(os.Getenv("SERVER_SEED"))
+	if serverSeed == "" {
+		if appEnv == "production" {
+			missing = append(missing, "SERVER_SEED")
+		} else {
+			kp, _ := keypair.Random()
+			serverSeed = kp.Seed()
+		}
 	}
 
 	pollIntervalMsStr := os.Getenv("INDEXER_POLL_INTERVAL_MS")
@@ -107,10 +137,11 @@ func LoadConfig() (*Config, error) {
 		DatabaseURL:           getRequired("DATABASE_URL"),
 		APIPort:               apiPort,
 		IndexerPollIntervalMs: pollIntervalMs,
-		JWTSecret:             getRequired("JWT_SECRET"),
+		JWTSecret:             jwtSecret,
 		JWTExpiryHours:        jwtExpiryHours,
 		CORSAllowedOrigins:    corsOrigins,
 		RateLimitRPS:          rateLimitRPS,
+		ServerSeed:            serverSeed,
 	}
 
 	if len(missing) > 0 {
