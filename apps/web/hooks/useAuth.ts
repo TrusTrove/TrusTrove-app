@@ -2,6 +2,9 @@ import { useState } from "react";
 import { useWalletStore } from "@/store/wallet";
 import { signTransaction } from "@stellar/freighter-api";
 import { fetchChallenge, verifyChallenge } from "@/lib/api";
+import { createErrorHandler } from "@/lib/errors";
+
+const { captureError } = createErrorHandler("useAuth");
 
 /**
  * Custom hook for authenticating the connected Stellar wallet via SEP-10.
@@ -47,10 +50,8 @@ export function useAuth() {
     setError(null);
 
     try {
-      // 1. Fetch challenge XDR; network_passphrase is returned by the server
       const { transaction, network_passphrase } = await fetchChallenge(address);
 
-      // 2. Sign with Freighter wallet using dynamic network parameters
       const rawNetwork = process.env.NEXT_PUBLIC_STELLAR_NETWORK || "TESTNET";
       const stellarNetwork =
         rawNetwork.toUpperCase() === "PUBLIC" ? "PUBLIC" : "TESTNET";
@@ -60,13 +61,11 @@ export function useAuth() {
         accountToSign: address,
       });
 
-      // 3. Submit signed challenge to verify and receive JWT
       const { token: jwt } = await verifyChallenge(signedXdr);
       setToken(jwt);
     } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : "Authentication failed";
-      setError(message);
+      const appError = captureError(err);
+      setError(appError.message);
       setToken(null);
     } finally {
       setLoading(false);

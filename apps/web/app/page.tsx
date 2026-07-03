@@ -6,6 +6,7 @@ import { Navbar } from "@/components/shared/Navbar";
 import { InvoiceFeed } from "@/components/shared/InvoiceFeed";
 import { LpYieldCalculator } from "@/components/shared/LpYieldCalculator";
 import { DiscountCalculator } from "@/components/shared/DiscountCalculator";
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { SkeletonShimmer } from "@/components/shared/SkeletonLoader";
 import { usePool } from "@/hooks/usePool";
 import {
@@ -70,7 +71,9 @@ export default function Home() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 pt-4 items-start">
           {/* LEFT: Live Invoice Financing Feed */}
           <div className="lg:col-span-3 space-y-3">
-            <InvoiceFeed />
+            <ErrorBoundary context="InvoiceFeed">
+              <InvoiceFeed />
+            </ErrorBoundary>
             <div className="bg-[#0d131a] border border-border rounded-lg p-4 font-mono text-[10px] text-slate-500 leading-normal">
               <span className="text-primary font-bold block mb-1">
                 STELLAR INTEGRATION
@@ -139,7 +142,9 @@ export default function Home() {
 
           {/* RIGHT: LP Yield Calculator */}
           <div className="lg:col-span-4">
-            <LpYieldCalculator />
+            <ErrorBoundary context="LpYieldCalculator">
+              <LpYieldCalculator />
+            </ErrorBoundary>
           </div>
         </div>
 
@@ -299,7 +304,9 @@ export default function Home() {
               INTERACTIVE ECONOMIC COMPILER
             </p>
           </div>
-          <DiscountCalculator />
+          <ErrorBoundary context="DiscountCalculator">
+            <DiscountCalculator />
+          </ErrorBoundary>
         </div>
       </main>
 

@@ -2,6 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Horizon } from "@stellar/stellar-sdk";
 import { useWalletStore } from "@/store/wallet";
 import { ASSET_INFO } from "@/lib/assets";
+import { createErrorHandler } from "@/lib/errors";
+
+const { captureError } = createErrorHandler("useBalances");
 
 export interface Balances {
   usdc: string | null;
@@ -43,12 +46,19 @@ async function fetchBalancesFromHorizon(
       }
     }
 
-    return { usdc, xlm };
-  } catch (err: unknown) {
-    if (err instanceof Error && "response" in err) {
-      const resp = (err as { response?: { status: number } }).response;
-      if (resp?.status === 404) {
-        return { usdc: null, xlm: "0" };
+      setBalances({ usdc, xlm });
+    } catch (err: unknown) {
+      if (err instanceof Error && "response" in err) {
+        const resp = (err as { response?: { status: number } }).response;
+        if (resp?.status === 404) {
+          setBalances({ usdc: null, xlm: "0" });
+        } else {
+          captureError(err);
+          setError("Failed to fetch balances");
+        }
+      } else {
+        captureError(err);
+        setError("Failed to fetch balances");
       }
     }
     throw err;

@@ -8,6 +8,7 @@ import { useWalletStore } from "@/store/wallet";
 import { useProfile } from "@/hooks/useProfile";
 import { useAppError } from "@/hooks/useAppError";
 import { WalletConnect } from "@/components/shared/WalletConnect";
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import {
   PoolStatsPanelSkeleton,
   LPPositionCardSkeleton,
@@ -309,6 +310,7 @@ export default function LPDashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* LEFT PANEL: Pool Overview */}
           <div className="lg:col-span-7 space-y-6">
+            <ErrorBoundary context="PoolStatsPanel">
             {isStatsLoading ? (
               <PoolStatsPanelSkeleton />
             ) : (
@@ -387,8 +389,10 @@ export default function LPDashboard() {
                 </div>
               </div>
             )}
+            </ErrorBoundary>
 
             {/* Historical Yield Line Chart (SVG based) */}
+            <ErrorBoundary context="YieldChart">
             <div className="bg-card border border-border rounded-lg p-5 space-y-4">
               <h3 className="text-xs font-bold font-mono text-white uppercase tracking-wider flex items-center gap-1.5">
                 <Activity className="w-3.5 h-3.5 text-primary" />
@@ -486,10 +490,12 @@ export default function LPDashboard() {
                 )}
               </div>
             </div>
+            </ErrorBoundary>
           </div>
 
           {/* RIGHT PANEL: My Position */}
           <div className="lg:col-span-5 space-y-6">
+            <ErrorBoundary context="LPPositionPanel">
             {isPositionLoading ? (
               <LPPositionCardSkeleton />
             ) : (
@@ -534,8 +540,10 @@ export default function LPDashboard() {
                 </div>
               </div>
             )}
+            </ErrorBoundary>
 
             {/* Deposit & Withdraw forms */}
+            <ErrorBoundary context="DepositWithdrawForms">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-6">
               {/* Deposit Form */}
               <div className="bg-[#0d131a] border border-border rounded-lg p-5 space-y-4">
@@ -646,6 +654,7 @@ export default function LPDashboard() {
                 </form>
               </div>
             </div>
+            </ErrorBoundary>
 
             {/* Inline error banner (validation errors only; mutation errors are surfaced via toast) */}
             {localError && (

@@ -3,9 +3,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getPoolStats, getLPPosition } from "@/lib/api";
 import { PoolClient } from "@trusttrove/sdk";
 import { useWalletStore } from "@/store/wallet";
-import { useTokenAllowance } from "./useTokenAllowance";
-import { showSuccessToast, showErrorToast } from "@/lib/toast";
-import { getUserFriendlyMessage } from "@/lib/errors";
+import { showSuccessToast } from "@/lib/toast";
+import { createErrorHandler } from "@/lib/errors";
+
+const { handleMutationError } = createErrorHandler("usePool");
 
 const poolContractID = process.env.NEXT_PUBLIC_POOL_CONTRACT_ID || "";
 
@@ -76,7 +77,7 @@ export function usePool() {
       showSuccessToast("Deposit Complete", txHash);
     },
     onError: (error) => {
-      showErrorToast("Deposit Failed", new Error(getUserFriendlyMessage(error)));
+      handleMutationError(error, "Deposit Failed");
     },
   });
 
@@ -97,7 +98,7 @@ export function usePool() {
       showSuccessToast("Withdrawal Complete", txHash);
     },
     onError: (error) => {
-      showErrorToast("Withdrawal Failed", new Error(getUserFriendlyMessage(error)));
+      handleMutationError(error, "Withdrawal Failed");
     },
   });
 
