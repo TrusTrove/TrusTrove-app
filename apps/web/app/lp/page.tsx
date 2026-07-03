@@ -6,6 +6,7 @@ import { PageLayout } from "@/components/shared/PageLayout";
 import { usePool } from "@/hooks/usePool";
 import { useWalletStore } from "@/store/wallet";
 import { useProfile } from "@/hooks/useProfile";
+import { useAppError } from "@/hooks/useAppError";
 import { WalletConnect } from "@/components/shared/WalletConnect";
 import {
   PoolStatsPanelSkeleton,
@@ -43,16 +44,18 @@ export default function LPDashboard() {
     isPositionLoading,
     deposit,
     isDepositing,
-    depositError,
     withdraw,
     isWithdrawing,
-    withdrawError,
   } = usePool();
 
   const [depositAmount, setDepositAmount] = useState("");
   const [depositAsset, setDepositAsset] = useState<AssetType>("USDC");
   const [withdrawShares, setWithdrawShares] = useState("");
-  const [localError, setLocalError] = useState<string | null>(null);
+  const {
+    error: localError,
+    setError: setLocalError,
+    clearError: clearLocalError,
+  } = useAppError();
 
   // Pending Modal states
   const [showPending, setShowPending] = useState(false);
@@ -166,7 +169,7 @@ export default function LPDashboard() {
 
   const handleDeposit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLocalError(null);
+    clearLocalError();
     const amountNum = Number(depositAmount);
     if (isNaN(amountNum) || amountNum <= 0) {
       setLocalError("Please enter a valid deposit amount");
@@ -195,15 +198,15 @@ export default function LPDashboard() {
         setPendingHash(res);
       }
       setDepositAmount("");
-    } catch (err: any) {
-      setLocalError(err.message || "Deposit failed");
+    } catch {
+      // Mutation errors are surfaced via toast by usePool
       setShowPending(false);
     }
   };
 
   const handleWithdraw = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLocalError(null);
+    clearLocalError();
     const sharesNum = Number(withdrawShares);
     if (isNaN(sharesNum) || sharesNum <= 0) {
       setLocalError("Please enter a valid shares amount to withdraw");
@@ -219,8 +222,8 @@ export default function LPDashboard() {
       const txHash = await withdraw({ shares: sharesStroops });
       setPendingHash(txHash);
       setWithdrawShares("");
-    } catch (err: any) {
-      setLocalError(err.message || "Withdrawal failed");
+    } catch {
+      // Mutation errors are surfaced via toast by usePool
       setShowPending(false);
     }
   };
@@ -462,7 +465,7 @@ export default function LPDashboard() {
                       <path d={chartLines.areaD} fill="url(#chartGlow)" />
 
                       {/* Line path */}
-                      <motion.path
+                      <path
                         d={chartLines.lineD}
                         fill="transparent"
                         stroke="#00d4aa"
@@ -644,15 +647,11 @@ export default function LPDashboard() {
               </div>
             </div>
 
-            {/* Error alerts */}
-            {(localError || depositError || withdrawError) && (
+            {/* Inline error banner (validation errors only; mutation errors are surfaced via toast) */}
+            {localError && (
               <div className="p-3 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-start gap-2 font-mono">
                 <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>
-                  {localError ||
-                    depositError?.message ||
-                    withdrawError?.message}
-                </span>
+                <span>{localError}</span>
               </div>
             )}
           </div>

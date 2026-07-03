@@ -127,7 +127,7 @@ export function TransactionPending({
           </Button>
         )}
       </div>
-    </div>
+    </Modal>
   );
 }
 

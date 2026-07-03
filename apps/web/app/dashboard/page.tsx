@@ -427,8 +427,21 @@ export default function SMEDashboard() {
                   Select an obligation from the table to load actions in the
                   operator console.
                 </div>
-              )}
-            </AnimatePresence>
+                <InvoiceCard invoice={selectedInvoice} role={role} isSelected />
+                
+                {/* Additional invoice details */}
+                <Link
+                  href={`/invoice/${selectedInvoice.id}`}
+                  className="w-full bg-[#0d131a] border border-border hover:border-primary/50 text-slate-300 hover:text-white font-bold text-xs uppercase tracking-wider py-2 rounded text-center block font-mono"
+                >
+                  View audit ledger
+                </Link>
+              </div>
+            ) : (
+              <div className="bg-card/45 border border-dashed border-border rounded-lg p-6 text-center text-slate-500 font-mono text-[10px] py-20 uppercase tracking-wider">
+                Select an obligation from the table to load actions in the operator console.
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -468,7 +481,7 @@ export default function SMEDashboard() {
             </div>
           </div>
         </div>
-      )}
+      </Modal>
     </PageLayout>
   );
 }
