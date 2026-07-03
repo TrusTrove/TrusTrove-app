@@ -42,6 +42,8 @@ export function usePool() {
   const statsQuery = useQuery({
     queryKey: ["poolStats"],
     queryFn: () => getPoolStats(),
+    refetchInterval: 30000,
+    staleTime: 30000,
   });
 
   const positionQuery = useQuery({
