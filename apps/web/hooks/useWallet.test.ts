@@ -30,6 +30,7 @@ describe("useWallet", () => {
     expect(result.current.connected).toBe(false);
     expect(result.current.address).toBeNull();
     expect(result.current.loading).toBe(false);
+    expect(result.current.error).toBeNull();
   });
 
   it("connectWallet succeeds", async () => {
@@ -45,9 +46,33 @@ describe("useWallet", () => {
     expect(result.current.connected).toBe(true);
     expect(result.current.address).toBe("G12345");
     expect(result.current.network).toBe("testnet");
+    expect(result.current.loading).toBe(false);
+    expect(result.current.error).toBeNull();
   });
 
-  it("connectWallet handles Freighter not installed error", async () => {
+  it("connectWallet shows loading during connection", async () => {
+    let resolveConnect: (v: string) => void;
+    vi.mocked(connectFreighter).mockImplementation(
+      () => new Promise<string>((resolve) => { resolveConnect = resolve; }),
+    );
+
+    const { result } = renderHook(() => useWallet());
+
+    let promise: Promise<void>;
+    act(() => {
+      promise = result.current.connectWallet();
+    });
+    expect(result.current.loading).toBe(true);
+
+    await act(async () => {
+      resolveConnect!("G12345");
+      await promise!;
+    });
+    expect(result.current.loading).toBe(false);
+    expect(result.current.connected).toBe(true);
+  });
+
+  it("connectWallet fails with Error", async () => {
     vi.mocked(connectFreighter).mockRejectedValue(
       new Error("Freighter wallet is not installed"),
     );
@@ -63,9 +88,43 @@ describe("useWallet", () => {
     expect(result.current.address).toBeNull();
   });
 
-  it("connectWallet handles user rejection error", async () => {
+  it("connectWallet fails with non-Error rejection", async () => {
+    vi.mocked(connectFreighter).mockRejectedValue("User rejected request");
+
+    const { result } = renderHook(() => useWallet());
+
+    await act(async () => {
+      await result.current.connectWallet();
+    });
+
+    expect(result.current.error).toBe("Failed to connect wallet");
+    expect(result.current.connected).toBe(false);
+  });
+
+  it("clears previous error on retry", async () => {
+    vi.mocked(connectFreighter).mockRejectedValueOnce(
+      new Error("First failure"),
+    );
+
+    const { result } = renderHook(() => useWallet());
+
+    await act(async () => {
+      await result.current.connectWallet();
+    });
+    expect(result.current.error).toBe("First failure");
+
+    vi.mocked(connectFreighter).mockResolvedValueOnce("G12345");
+
+    await act(async () => {
+      await result.current.connectWallet();
+    });
+    expect(result.current.error).toBeNull();
+    expect(result.current.connected).toBe(true);
+  });
+
+  it("handles Freighter unavailable", async () => {
     vi.mocked(connectFreighter).mockRejectedValue(
-      new Error("User rejected access"),
+      new Error("Freighter wallet is not installed"),
     );
 
     const { result } = renderHook(() => useWallet());
@@ -74,12 +133,12 @@ describe("useWallet", () => {
       await result.current.connectWallet();
     });
 
-    expect(result.current.error).toBe("User rejected access");
+    expect(result.current.error).toBe("Freighter wallet is not installed");
     expect(result.current.connected).toBe(false);
     expect(result.current.address).toBeNull();
   });
 
-  it("disconnectWallet works", async () => {
+  it("disconnectWallet works", () => {
     act(() => {
       useWalletStore.getState().connect("G123", "testnet");
     });
@@ -93,5 +152,20 @@ describe("useWallet", () => {
 
     expect(result.current.connected).toBe(false);
     expect(result.current.address).toBeNull();
+    expect(result.current.error).toBeNull();
+  });
+
+  it("exposes balances from useBalances", () => {
+    vi.mocked(useBalances).mockReturnValue({
+      balances: { usdc: "100", xlm: "50" },
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+
+    const { result } = renderHook(() => useWallet());
+    expect(result.current.balances).toEqual({ usdc: "100", xlm: "50" });
+    expect(result.current.balancesLoading).toBe(false);
+    expect(result.current.balancesError).toBeNull();
   });
 });

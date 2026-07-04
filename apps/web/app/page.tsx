@@ -6,6 +6,7 @@ import { Navbar } from "@/components/shared/Navbar";
 import { InvoiceFeed } from "@/components/shared/InvoiceFeed";
 import { LpYieldCalculator } from "@/components/shared/LpYieldCalculator";
 import { DiscountCalculator } from "@/components/shared/DiscountCalculator";
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { SkeletonShimmer } from "@/components/shared/SkeletonLoader";
 import { usePool } from "@/hooks/usePool";
 import {
@@ -70,7 +71,9 @@ export default function Home() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 pt-4 items-start">
           {/* LEFT: Live Invoice Financing Feed */}
           <div className="lg:col-span-3 space-y-3">
-            <InvoiceFeed />
+            <ErrorBoundary context="InvoiceFeed">
+              <InvoiceFeed />
+            </ErrorBoundary>
             <div className="bg-[#0d131a] border border-border rounded-lg p-4 font-mono text-[10px] text-slate-500 leading-normal">
               <span className="text-primary font-bold block mb-1">
                 STELLAR INTEGRATION
@@ -103,12 +106,15 @@ export default function Home() {
 
             {/* Core Stats Row */}
             <div className="grid grid-cols-3 gap-4 border-t border-b border-border/40 py-6">
+              {/* Pool Value */}
               <div className="text-center lg:text-left">
                 {renderStat(formatCompactUsdc(stats?.totalDeposits))}
                 <span className="text-[10px] font-mono text-slate-500 uppercase font-bold tracking-wider block mt-1">
                   USDC POOL VALUE
                 </span>
               </div>
+              
+              {/* Invoices Funded */}
               <div className="text-center lg:text-left">
                 {renderStat(
                   stats
@@ -119,6 +125,8 @@ export default function Home() {
                   INVOICES FUNDED
                 </span>
               </div>
+              
+              {/* Yield Distributed */}
               <div className="text-center lg:text-left">
                 {renderStat(formatCompactUsdc(stats?.totalYieldDistributed))}
                 <span className="text-[10px] font-mono text-slate-500 uppercase font-bold tracking-wider block mt-1">
@@ -128,13 +136,15 @@ export default function Home() {
             </div>
 
             <div className="text-xs font-mono text-slate-400 border-l-2 border-primary pl-3">
-              &quot;From invoice to USDC in minutes. Not weeks.&quot;
+              "From invoice to USDC in minutes. Not weeks."
             </div>
           </div>
 
           {/* RIGHT: LP Yield Calculator */}
           <div className="lg:col-span-4">
-            <LpYieldCalculator />
+            <ErrorBoundary context="LpYieldCalculator">
+              <LpYieldCalculator />
+            </ErrorBoundary>
           </div>
         </div>
 
@@ -270,7 +280,15 @@ export default function Home() {
               </p>
               <div className="bg-[#080c10] border border-border/40 p-2.5 rounded text-[10px] font-mono flex justify-between text-slate-500">
                 <span>UTILIZATION RATE:</span>
-                <span className="text-white font-bold">78.5% capacity</span>
+                {isStatsLoading ? (
+                  <span className="text-white font-bold animate-pulse">--.-%</span>
+                ) : statsError ? (
+                  <span className="text-white font-bold">--.-%</span>
+                ) : (
+                  <span className="text-white font-bold">
+                    {(stats?.utilizationRateBps || 0) / 100}% capacity
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -286,7 +304,9 @@ export default function Home() {
               INTERACTIVE ECONOMIC COMPILER
             </p>
           </div>
-          <DiscountCalculator />
+          <ErrorBoundary context="DiscountCalculator">
+            <DiscountCalculator />
+          </ErrorBoundary>
         </div>
       </main>
 
