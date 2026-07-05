@@ -74,7 +74,7 @@ describe("useWallet", () => {
 
   it("connectWallet fails with Error", async () => {
     vi.mocked(connectFreighter).mockRejectedValue(
-      new Error("Freighter not installed"),
+      new Error("Freighter wallet is not installed"),
     );
 
     const { result } = renderHook(() => useWallet());
@@ -83,7 +83,7 @@ describe("useWallet", () => {
       await result.current.connectWallet();
     });
 
-    expect(result.current.error).toBe("Freighter not installed");
+    expect(result.current.error).toBe("Freighter wallet is not installed");
     expect(result.current.connected).toBe(false);
     expect(result.current.address).toBeNull();
   });
