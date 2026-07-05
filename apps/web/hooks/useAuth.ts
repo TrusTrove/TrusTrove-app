@@ -63,10 +63,12 @@ export function useAuth() {
 
       const { token: jwt } = await verifyChallenge(signedXdr);
       setToken(jwt);
+      initApiClientWithToken();
     } catch (err: unknown) {
       const appError = captureError(err);
       setError(appError.message);
       setToken(null);
+      initApiClientWithToken();
     } finally {
       setLoading(false);
     }
@@ -77,6 +79,7 @@ export function useAuth() {
    */
   const logout = () => {
     setToken(null);
+    initApiClientWithToken();
     disconnect();
   };
 
