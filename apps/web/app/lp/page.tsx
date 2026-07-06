@@ -2,17 +2,19 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { PageLayout } from "@/components/shared/PageLayout";
 import { usePool } from "@/hooks/usePool";
 import { useWalletStore } from "@/store/wallet";
 import { useProfile } from "@/hooks/useProfile";
+import { useAppError } from "@/hooks/useAppError";
 import { WalletConnect } from "@/components/shared/WalletConnect";
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import {
   PoolStatsPanelSkeleton,
   LPPositionCardSkeleton,
 } from "@/components/shared/SkeletonLoader";
 import { Button } from "@/components/ui/button";
-import { TransactionPending } from "@/components/shared/TransactionPending";
 import { AmountInput } from "@/components/shared/AmountInput";
 import {
   Coins,
@@ -31,6 +33,15 @@ import { SimulationPreview } from "@/components/shared/SimulationPreview";
 import { useQuery } from "@tanstack/react-query";
 import { getPoolSnapshots } from "@/lib/api";
 
+const TransactionPending = dynamic(() => import("@/components/shared/TransactionPending"), {
+  ssr: false,
+  loading: () => (
+    <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/50">
+      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary" />
+    </div>
+  ),
+});
+
 const poolContractID = process.env.NEXT_PUBLIC_POOL_CONTRACT_ID || "";
 
 export default function LPDashboard() {
@@ -43,16 +54,18 @@ export default function LPDashboard() {
     isPositionLoading,
     deposit,
     isDepositing,
-    depositError,
     withdraw,
     isWithdrawing,
-    withdrawError,
   } = usePool();
 
   const [depositAmount, setDepositAmount] = useState("");
   const [depositAsset, setDepositAsset] = useState<AssetType>("USDC");
   const [withdrawShares, setWithdrawShares] = useState("");
-  const [localError, setLocalError] = useState<string | null>(null);
+  const {
+    error: localError,
+    setError: setLocalError,
+    clearError: clearLocalError,
+  } = useAppError();
 
   // Pending Modal states
   const [showPending, setShowPending] = useState(false);
@@ -166,7 +179,7 @@ export default function LPDashboard() {
 
   const handleDeposit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLocalError(null);
+    clearLocalError();
     const amountNum = Number(depositAmount);
     if (isNaN(amountNum) || amountNum <= 0) {
       setLocalError("Please enter a valid deposit amount");
@@ -195,15 +208,15 @@ export default function LPDashboard() {
         setPendingHash(res);
       }
       setDepositAmount("");
-    } catch (err: any) {
-      setLocalError(err.message || "Deposit failed");
+    } catch {
+      // Mutation errors are surfaced via toast by usePool
       setShowPending(false);
     }
   };
 
   const handleWithdraw = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLocalError(null);
+    clearLocalError();
     const sharesNum = Number(withdrawShares);
     if (isNaN(sharesNum) || sharesNum <= 0) {
       setLocalError("Please enter a valid shares amount to withdraw");
@@ -219,8 +232,8 @@ export default function LPDashboard() {
       const txHash = await withdraw({ shares: sharesStroops });
       setPendingHash(txHash);
       setWithdrawShares("");
-    } catch (err: any) {
-      setLocalError(err.message || "Withdrawal failed");
+    } catch {
+      // Mutation errors are surfaced via toast by usePool
       setShowPending(false);
     }
   };
@@ -306,6 +319,7 @@ export default function LPDashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* LEFT PANEL: Pool Overview */}
           <div className="lg:col-span-7 space-y-6">
+            <ErrorBoundary context="PoolStatsPanel">
             {isStatsLoading ? (
               <PoolStatsPanelSkeleton />
             ) : (
@@ -384,8 +398,10 @@ export default function LPDashboard() {
                 </div>
               </div>
             )}
+            </ErrorBoundary>
 
             {/* Historical Yield Line Chart (SVG based) */}
+            <ErrorBoundary context="YieldChart">
             <div className="bg-card border border-border rounded-lg p-5 space-y-4">
               <h3 className="text-xs font-bold font-mono text-white uppercase tracking-wider flex items-center gap-1.5">
                 <Activity className="w-3.5 h-3.5 text-primary" />
@@ -462,7 +478,7 @@ export default function LPDashboard() {
                       <path d={chartLines.areaD} fill="url(#chartGlow)" />
 
                       {/* Line path */}
-                      <motion.path
+                      <path
                         d={chartLines.lineD}
                         fill="transparent"
                         stroke="#00d4aa"
@@ -483,10 +499,12 @@ export default function LPDashboard() {
                 )}
               </div>
             </div>
+            </ErrorBoundary>
           </div>
 
           {/* RIGHT PANEL: My Position */}
           <div className="lg:col-span-5 space-y-6">
+            <ErrorBoundary context="LPPositionPanel">
             {isPositionLoading ? (
               <LPPositionCardSkeleton />
             ) : (
@@ -531,8 +549,10 @@ export default function LPDashboard() {
                 </div>
               </div>
             )}
+            </ErrorBoundary>
 
             {/* Deposit & Withdraw forms */}
+            <ErrorBoundary context="DepositWithdrawForms">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-6">
               {/* Deposit Form */}
               <div className="bg-[#0d131a] border border-border rounded-lg p-5 space-y-4">
@@ -643,16 +663,13 @@ export default function LPDashboard() {
                 </form>
               </div>
             </div>
+            </ErrorBoundary>
 
-            {/* Error alerts */}
-            {(localError || depositError || withdrawError) && (
+            {/* Inline error banner (validation errors only; mutation errors are surfaced via toast) */}
+            {localError && (
               <div className="p-3 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-start gap-2 font-mono">
                 <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>
-                  {localError ||
-                    depositError?.message ||
-                    withdrawError?.message}
-                </span>
+                <span>{localError}</span>
               </div>
             )}
           </div>

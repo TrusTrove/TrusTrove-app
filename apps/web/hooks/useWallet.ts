@@ -2,6 +2,9 @@ import { useState } from "react";
 import { useWalletStore } from "@/store/wallet";
 import { connectFreighter } from "@/lib/freighter";
 import { useBalances } from "./useBalances";
+import { createErrorHandler } from "@/lib/errors";
+
+const { captureError } = createErrorHandler("useWallet");
 
 /**
  * Custom hook for managing Stellar wallet connection via Freighter.
@@ -47,12 +50,10 @@ export function useWallet() {
     setError(null);
     try {
       const addr = await connectFreighter();
-      // Defaults to testnet passphrase or string as configured
       connect(addr, "testnet");
     } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : "Failed to connect wallet";
-      setError(message);
+      const appError = captureError(err);
+      setError(appError.message);
       disconnect();
     } finally {
       setLoading(false);

@@ -34,3 +34,5 @@ bugs. Do not deposit more than you can afford to lose.
 
 **No guaranteed returns.** Yield depends on invoice volume, discount rates, and
 repayment behavior. Past performance does not predict future returns.
+
+
