@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -24,6 +25,11 @@ import (
 	"github.com/stellar/go-stellar-sdk/txnbuild"
 	"github.com/stellar/go-stellar-sdk/xdr"
 )
+
+func GetServerKeypair(jwtSecret string) (*keypair.Full, error) {
+	seed := sha256.Sum256([]byte(jwtSecret))
+	return keypair.FromRawSeed(seed)
+}
 
 type APIHandler struct {
 	cfg         *config.Config

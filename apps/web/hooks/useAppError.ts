@@ -1,5 +1,10 @@
 import { useState, useCallback } from "react";
-import { getUserFriendlyMessage } from "@/lib/errors";
+
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  return "An error occurred";
+}
 
 export function useAppError() {
   const [error, setError] = useState<string | null>(null);
@@ -8,7 +13,7 @@ export function useAppError() {
 
   const handleError = useCallback(
     (err: unknown, fallback?: string) => {
-      setError(getUserFriendlyMessage(err) || fallback || "An error occurred");
+      setError(getErrorMessage(err) || fallback || "An error occurred");
     },
     [],
   );

@@ -113,7 +113,7 @@ describe("wallet store", () => {
     expect(useWalletStore.getState().role).toBe("lp");
   });
 
-  it("partialize persists only address, network, and role", () => {
+  it("partialize persists address, connected, network, and role", () => {
     useWalletStore.getState().connect("GA123", "testnet");
     useWalletStore.getState().setToken("jwt");
     useWalletStore.getState().setRole("buyer");
@@ -123,18 +123,18 @@ describe("wallet store", () => {
 
     const persisted = JSON.parse(raw!);
     expect(persisted.state.address).toBe("GA123");
+    expect(persisted.state.connected).toBe(true);
     expect(persisted.state.network).toBe("testnet");
     expect(persisted.state.role).toBe("buyer");
-    expect(persisted.state).not.toHaveProperty("connected");
     expect(persisted.state).not.toHaveProperty("token");
   });
 
-  it("partialize excludes token and connected from localStorage", () => {
+  it("partialize persists connected state", () => {
     useWalletStore.getState().setToken("secret");
     const raw = localStorage.getItem("wallet-storage");
     const persisted = JSON.parse(raw!);
     expect(persisted.state.token).toBeUndefined();
-    expect(persisted.state.connected).toBeUndefined();
+    expect(persisted.state.connected).toBe(false);
   });
 
   it("persist middleware stores state under correct key", () => {
