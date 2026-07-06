@@ -1,9 +1,13 @@
+import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getPoolStats, getLPPosition } from "@/lib/api";
 import { PoolClient } from "@trusttrove/sdk";
 import { useWalletStore } from "@/store/wallet";
+import { showSuccessToast } from "@/lib/toast";
+import { createErrorHandler } from "@/lib/errors";
 import { useTokenAllowance } from "./useTokenAllowance";
-import { showSuccessToast, showErrorToast } from "@/lib/toast";
+
+const { handleMutationError } = createErrorHandler("usePool");
 
 const poolContractID = process.env.NEXT_PUBLIC_POOL_CONTRACT_ID || "";
 
@@ -39,9 +43,13 @@ export function usePool() {
   const { address } = useWalletStore();
   const { ensureAllowance } = useTokenAllowance();
 
+  const poolClient = useMemo(() => new PoolClient(poolContractID), []);
+
   const statsQuery = useQuery({
     queryKey: ["poolStats"],
     queryFn: () => getPoolStats(),
+    refetchInterval: 30000,
+    staleTime: 30000,
   });
 
   const positionQuery = useQuery({
@@ -62,7 +70,6 @@ export function usePool() {
       if (!address) throw new Error("Wallet not connected");
       // Ensure the pool contract has sufficient USDC allowance before depositing
       await ensureAllowance(poolContractID, amount);
-      const poolClient = new PoolClient(poolContractID);
       return poolClient.deposit(address, amount, address);
     },
     onSuccess: (txHash: string) => {
@@ -71,10 +78,7 @@ export function usePool() {
       showSuccessToast("Deposit Complete", txHash);
     },
     onError: (error) => {
-      showErrorToast(
-        "Deposit Failed",
-        error instanceof Error ? error : undefined,
-      );
+      handleMutationError(error, "Deposit Failed");
     },
   });
 
@@ -87,7 +91,6 @@ export function usePool() {
   const withdrawMutation = useMutation({
     mutationFn: async ({ shares }: { shares: bigint }) => {
       if (!address) throw new Error("Wallet not connected");
-      const poolClient = new PoolClient(poolContractID);
       return poolClient.withdraw(address, shares, address);
     },
     onSuccess: (txHash: string) => {
@@ -96,10 +99,7 @@ export function usePool() {
       showSuccessToast("Withdrawal Complete", txHash);
     },
     onError: (error) => {
-      showErrorToast(
-        "Withdrawal Failed",
-        error instanceof Error ? error : undefined,
-      );
+      handleMutationError(error, "Withdrawal Failed");
     },
   });
 

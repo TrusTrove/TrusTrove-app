@@ -1,6 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { RegistryClient, Profile } from "@trusttrove/sdk";
 import { useWalletStore } from "@/store/wallet";
+import { createErrorHandler } from "@/lib/errors";
+
+const { captureError } = createErrorHandler("useProfile");
 
 const registryContractID = process.env.NEXT_PUBLIC_REGISTRY_CONTRACT_ID || "";
 
@@ -39,6 +42,9 @@ export function useProfile() {
         const profile = await client.getProfile(address, address);
         return profile;
       } catch (err) {
+        // getProfile throws a simulation error if profile doesn't exist.
+        // We return null to indicate the profile is not registered.
+        captureError(err);
         return null;
       }
     },
@@ -55,6 +61,7 @@ export function useProfile() {
         const verified = await client.isVerified(address, address);
         return verified;
       } catch (err) {
+        captureError(err);
         return false;
       }
     },
@@ -80,6 +87,9 @@ export function useProfile() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["profile", address] });
       queryClient.invalidateQueries({ queryKey: ["isVerified", address] });
+    },
+    onError: (error) => {
+      captureError(error);
     },
   });
 

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { PageLayout } from "@/components/shared/PageLayout";
 import { InvoiceTable } from "@/components/invoice/InvoiceTable";
 import { InvoiceCard } from "@/components/invoice/InvoiceCard";
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { useInvoices } from "@/hooks/useInvoices";
 import { usePool } from "@/hooks/usePool";
 import { useWalletStore } from "@/store/wallet";
@@ -209,6 +210,7 @@ export default function Marketplace() {
             </div>
 
             {/* Invoices Table */}
+            <ErrorBoundary context="InvoiceList">
             <InvoiceTable
               invoices={filteredAndSortedInvoices}
               onSelectInvoice={(invoice) => setSelectedInvoice(invoice)}
@@ -246,6 +248,7 @@ export default function Marketplace() {
                 />
               ))}
             </div>
+            </ErrorBoundary>
           </div>
 
           {/* Console Management Center (Right) */}
@@ -254,6 +257,7 @@ export default function Marketplace() {
               Management Center
             </h2>
 
+            <ErrorBoundary context="ManagementCenter">
             {selectedInvoice ? (
               <div className="space-y-4">
                 <div className="flex justify-between items-center text-[10px] font-mono">
@@ -327,6 +331,7 @@ export default function Marketplace() {
                 </p>
               </div>
             )}
+            </ErrorBoundary>
           </div>
         </div>
       </div>

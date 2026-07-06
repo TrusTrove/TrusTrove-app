@@ -129,16 +129,18 @@ async function withRetry<T>(
 
 export class BaseContractClient {
   protected contractId: string;
+  private contractInstance: Contract;
 
   constructor(contractId: string) {
     if (!contractId) {
       throw new Error("Contract ID is required");
     }
     this.contractId = contractId;
+    this.contractInstance = new Contract(contractId);
   }
 
   protected get contract(): Contract {
-    return new Contract(this.contractId);
+    return this.contractInstance;
   }
 
   protected async readContract<T>(

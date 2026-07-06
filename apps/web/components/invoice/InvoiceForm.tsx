@@ -333,6 +333,10 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
               step="10"
               value={discountBps}
               onChange={(e) => setDiscountBps(parseInt(e.target.value))}
+              aria-label="Financing Discount Rate"
+              aria-valuemin={50}
+              aria-valuemax={500}
+              aria-valuenow={discountBps}
               className="w-full accent-primary bg-slate-900 h-2 rounded cursor-pointer touch-pan-y"
             />
             <div className="flex justify-between text-[9px] text-slate-600 font-mono">
