@@ -5,6 +5,7 @@ import { PoolClient } from "@trusttrove/sdk";
 import { useWalletStore } from "@/store/wallet";
 import { showSuccessToast } from "@/lib/toast";
 import { createErrorHandler } from "@/lib/errors";
+import { useTokenAllowance } from "./useTokenAllowance";
 
 const { handleMutationError } = createErrorHandler("usePool");
 

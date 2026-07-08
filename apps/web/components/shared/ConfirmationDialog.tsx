@@ -13,10 +13,9 @@ function truncateAddr(addr: string) {
 
 export function ConfirmationDialog() {
   const { pendingAction, cancel } = useConfirmDialogStore();
+  const overlayRef = useFocusTrap<HTMLDivElement>(!!pendingAction, cancel);
 
   if (!pendingAction) return null;
-
-  const overlayRef = useFocusTrap<HTMLDivElement>(!!pendingAction, cancel);
 
   const handleConfirm = () => {
     const action = pendingAction;

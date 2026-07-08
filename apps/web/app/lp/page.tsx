@@ -31,9 +31,10 @@ import { PoolClient } from "@trusttrove/sdk";
 import { Address, nativeToScVal } from "@stellar/stellar-sdk";
 import { SimulationPreview } from "@/components/shared/SimulationPreview";
 import { useQuery } from "@tanstack/react-query";
+import { useRecentEvents } from "@/hooks/useEvents";
 import { getPoolSnapshots } from "@/lib/api";
 
-const TransactionPending = dynamic(() => import("@/components/shared/TransactionPending"), {
+const TransactionPending = dynamic(() => import("@/components/shared/TransactionPending").then(mod => mod.TransactionPending), {
   ssr: false,
   loading: () => (
     <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/50">
@@ -478,7 +479,7 @@ export default function LPDashboard() {
                       <path d={chartLines.areaD} fill="url(#chartGlow)" />
 
                       {/* Line path */}
-                      <path
+                      <motion.path
                         d={chartLines.lineD}
                         fill="transparent"
                         stroke="#00d4aa"

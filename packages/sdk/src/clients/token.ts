@@ -1,6 +1,12 @@
-import { Address, Asset, nativeToScVal, scValToNative, xdr } from '@stellar/stellar-sdk';
-import { BaseContractClient } from '../base.js';
-import { getConfig } from '../config.js';
+import {
+  Address,
+  Asset,
+  nativeToScVal,
+  scValToNative,
+  xdr,
+} from "@stellar/stellar-sdk";
+import { BaseContractClient } from "../base.js";
+import { getConfig } from "../config.js";
 
 /**
  * Client for interacting with a Stellar Asset Contract (SAC).
@@ -44,21 +50,16 @@ export class TokenClient extends BaseContractClient {
   async allowance(
     from: string,
     spender: string,
-    signerPublicKey: string
+    signerPublicKey: string,
   ): Promise<bigint> {
     const args: xdr.ScVal[] = [
       new Address(from).toScVal(),
       new Address(spender).toScVal(),
     ];
-    return this.readContract(
-      'allowance',
-      args,
-      signerPublicKey,
-      (val) => {
-        const native = scValToNative(val);
-        return typeof native === 'bigint' ? native : BigInt(String(native || 0));
-      }
-    );
+    return this.readContract("allowance", args, signerPublicKey, (val) => {
+      const native = scValToNative(val);
+      return typeof native === "bigint" ? native : BigInt(String(native || 0));
+    });
   }
 
   /**
@@ -79,14 +80,14 @@ export class TokenClient extends BaseContractClient {
     spender: string,
     amount: bigint,
     expirationLedger: number,
-    signerPublicKey: string
+    signerPublicKey: string,
   ): Promise<string> {
     const args: xdr.ScVal[] = [
       new Address(from).toScVal(),
       new Address(spender).toScVal(),
-      nativeToScVal(amount, { type: 'i128' }),
-      nativeToScVal(expirationLedger, { type: 'u32' }),
+      nativeToScVal(amount, { type: "i128" }),
+      nativeToScVal(expirationLedger, { type: "u32" }),
     ];
-    return this.writeContract('approve', args, signerPublicKey);
+    return this.writeContract("approve", args, signerPublicKey);
   }
 }

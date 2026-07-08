@@ -2,11 +2,10 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import dynamic from "next/dynamic";
 import { PageLayout } from "@/components/shared/PageLayout";
+import { InvoiceForm } from "@/components/invoice/InvoiceForm";
 import { InvoiceTable } from "@/components/invoice/InvoiceTable";
 import { InvoiceCard } from "@/components/invoice/InvoiceCard";
-import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { useInvoices } from "@/hooks/useInvoices";
 import { useRecentEvents } from "@/hooks/useEvents";
 import { useWalletStore } from "@/store/wallet";
@@ -28,15 +27,6 @@ import { Invoice } from "@/types";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatAmount } from "@/lib/assets";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
-
-const InvoiceForm = dynamic(() => import("@/components/invoice/InvoiceForm"), {
-  ssr: false,
-  loading: () => (
-    <div className="h-64 w-full flex items-center justify-center">
-      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary" />
-    </div>
-  ),
-});
 
 export default function SMEDashboard() {
   const { address, connected, role } = useWalletStore();
@@ -331,12 +321,11 @@ export default function SMEDashboard() {
             {isLoading ? (
               <InvoiceTableSkeleton />
             ) : (
-              <ErrorBoundary context="InvoiceTable">
-                <InvoiceTable
-                  invoices={invoices}
-                  onSelectInvoice={(invoice) => setSelectedInvoice(invoice)}
-                  activeId={selectedInvoice?.id}
-                  emptyState={
+              <InvoiceTable
+                invoices={invoices}
+                onSelectInvoice={(invoice) => setSelectedInvoice(invoice)}
+                activeId={selectedInvoice?.id}
+                emptyState={
                   <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
                     <p className="text-slate-500 text-xs font-mono mb-6 leading-relaxed max-w-xs">
                       Create your first invoice to get started
@@ -351,14 +340,12 @@ export default function SMEDashboard() {
                   </div>
                 }
               />
-              </ErrorBoundary>
             )}
 
             {/* Recent activity timeline */}
             {eventsLoading ? (
               <ActivityTimelineSkeleton />
             ) : (
-              <ErrorBoundary context="ActivityLog">
               <div className="bg-card border border-border rounded-lg p-5 space-y-4">
                 <h3 className="text-xs font-bold font-mono text-white uppercase tracking-wider border-b border-border/40 pb-2">
                   On-Chain Activity Logs
@@ -392,7 +379,6 @@ export default function SMEDashboard() {
                   })}
                 </div>
               </div>
-              </ErrorBoundary>
             )}
           </div>
 
@@ -402,7 +388,6 @@ export default function SMEDashboard() {
               Management console
             </h2>
 
-            <ErrorBoundary context="ManagementConsole">
             <AnimatePresence mode="wait">
               {selectedInvoice ? (
                 <motion.div
@@ -444,7 +429,6 @@ export default function SMEDashboard() {
                 </div>
               )}
             </AnimatePresence>
-            </ErrorBoundary>
           </div>
         </div>
       </div>
@@ -484,7 +468,7 @@ export default function SMEDashboard() {
             </div>
           </div>
         </div>
-      </Modal>
+      )}
     </PageLayout>
   );
 }
