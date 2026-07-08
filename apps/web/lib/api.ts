@@ -126,7 +126,7 @@ export function parseRawPoolStats(raw: any): PoolStats {
   };
 }
 
-function parseRawLPPosition(raw: any): LPPosition {
+export function parseRawLPPosition(raw: any): LPPosition {
   return {
     shares: BigInt(raw.shares || 0),
     usdcValue: BigInt(raw.usdc_value || 0),

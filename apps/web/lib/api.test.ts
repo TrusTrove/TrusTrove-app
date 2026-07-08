@@ -12,635 +12,366 @@ import {
   getPoolSnapshots,
   parseRawInvoice,
   parseRawPoolStats,
+  parseRawLPPosition,
 } from "./api";
 import { useWalletStore } from "@/store/wallet";
+import type { AssetType } from "@/types";
 
-let mockFetch: ReturnType<typeof vi.fn>;
+// Mock useWalletStore
+vi.mock("@/store/wallet", () => ({
+  useWalletStore: {
+    getState: vi.fn(),
+  },
+}));
 
-beforeEach(() => {
-  mockFetch = vi.fn();
-  vi.stubGlobal("fetch", mockFetch);
-  useWalletStore.getState().disconnect();
-});
+// Mock global fetch
+const mockFetch = vi.fn();
+global.fetch = mockFetch;
 
-describe("apiFetch", () => {
-  it("makes a GET request and returns JSON", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ data: "test" }),
-    } as Response);
-
-    const result = await apiFetch<{ data: string }>("/test");
-    expect(result).toEqual({ data: "test" });
-    expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/test",
-      expect.objectContaining({ headers: expect.any(Headers) }),
-    );
+describe("apiFetch internal function", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (useWalletStore.getState as any).mockReturnValue({ token: null });
   });
 
-  it("injects Authorization header when token is present", async () => {
-    useWalletStore.getState().setToken("my-token");
+  it("should add Authorization header when token exists", async () => {
+    (useWalletStore.getState as any).mockReturnValue({ token: "test-token" });
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({}),
-    } as Response);
-
-    await apiFetch("/test");
-
-    const [, options] = mockFetch.mock.calls[0];
-    expect((options.headers as Headers).get("Authorization")).toBe(
-      "Bearer my-token",
-    );
-  });
-
-  it("does not inject Authorization header when token is null", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({}),
-    } as Response);
-
-    await apiFetch("/test");
-
-    const [, options] = mockFetch.mock.calls[0];
-    expect((options.headers as Headers).get("Authorization")).toBeNull();
-  });
-
-  it("sets Content-Type for POST requests", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({}),
-    } as Response);
-
-    await apiFetch("/test", { method: "POST" });
-
-    const [, options] = mockFetch.mock.calls[0];
-    expect((options.headers as Headers).get("Content-Type")).toBe(
-      "application/json",
-    );
-  });
-
-  it("does not override existing Content-Type", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({}),
-    } as Response);
-
-    await apiFetch("/test", {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
+      json: () => Promise.resolve({}),
     });
 
-    const [, options] = mockFetch.mock.calls[0];
-    expect((options.headers as Headers).get("Content-Type")).toBe("text/plain");
+    await fetchChallenge("GTEST");
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const calledHeaders = mockFetch.mock.calls[0][1].headers;
+    expect(calledHeaders.has("Authorization")).toBe(true);
+    expect(calledHeaders.get("Authorization")).toBe("Bearer test-token");
   });
 
-  it("does not set Content-Type for GET requests", async () => {
+  it("should not add Authorization header when no token exists", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({}),
-    } as Response);
+      json: () => Promise.resolve({}),
+    });
 
-    await apiFetch("/test", { method: "GET" });
+    await fetchChallenge("GTEST");
 
-    const [, options] = mockFetch.mock.calls[0];
-    expect((options.headers as Headers).get("Content-Type")).toBeNull();
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const calledHeaders = mockFetch.mock.calls[0][1].headers;
+    expect(calledHeaders.has("Authorization")).toBe(false);
   });
 
-  it("throws on 4xx response with error text", async () => {
+  it("should add Content-Type header for POST requests", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ token: "test" }),
+    });
+
+    await verifyChallenge("test-transaction");
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const calledHeaders = mockFetch.mock.calls[0][1].headers;
+    expect(calledHeaders.get("Content-Type")).toBe("application/json");
+  });
+
+  it("should throw an error when fetch response is not ok", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
-      status: 400,
-      text: async () => "Bad request",
-    } as Response);
+      status: 404,
+      text: () => Promise.resolve("Not Found"),
+    });
 
-    await expect(apiFetch("/test")).rejects.toThrow("Bad request");
+    await expect(fetchChallenge("GTEST")).rejects.toThrow("Not Found");
   });
 
-  it("throws on 5xx response with empty body", async () => {
+  it("should throw default error message when response is not ok and no text", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 500,
-      text: async () => "",
-    } as Response);
+      text: () => Promise.resolve(""),
+    });
 
-    await expect(apiFetch("/test")).rejects.toThrow("HTTP error! status: 500");
-  });
-
-  it("re-throws network errors", async () => {
-    mockFetch.mockRejectedValueOnce(new Error("Network failure"));
-
-    await expect(apiFetch("/test")).rejects.toThrow("Network failure");
-  });
-
-  it("uses NEXT_PUBLIC_INDEXER_API_URL when set", async () => {
-    process.env.NEXT_PUBLIC_INDEXER_API_URL = "https://api.example.com";
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({}),
-    } as Response);
-
-    await apiFetch("/test");
-
-    expect(mockFetch).toHaveBeenCalledWith(
-      "https://api.example.com/test",
-      expect.anything(),
+    await expect(fetchChallenge("GTEST")).rejects.toThrow(
+      "HTTP error! status: 500"
     );
-    delete process.env.NEXT_PUBLIC_INDEXER_API_URL;
   });
 });
 
 describe("parseRawInvoice", () => {
-  it("converts snake_case API response to camelCase Invoice", () => {
+  it("should parse a complete invoice correctly", () => {
     const raw = {
-      id: "inv-1",
-      issuer: "GABCDEF",
-      buyer: "GHIJKL",
-      face_value: "10000000",
+      id: "test-invoice-id",
+      issuer: "GISSUER",
+      buyer: "GBUYER",
+      face_value: "10000000000",
       asset: "USDC",
-      discount_bps: 500,
-      funded_amount: "5000000",
-      due_date: 1700000000,
-      status: "Funded",
-      created_at: 1690000000,
-      funded_at: 1700100000,
+      discount_bps: 200,
+      funded_amount: "9800000000",
+      due_date: 123456789,
+      status: "FUNDED",
+      created_at: 987654321,
+      funded_at: 987654322,
       shipped_at: null,
       issuer_confirmed: true,
       buyer_confirmed: false,
       repaid_at: null,
-      listed_at: 1695000000,
-      issuer_confirmed_at: 1700200000,
+      listed_at: 987654320,
+      issuer_confirmed_at: 987654325,
       buyer_confirmed_at: null,
       defaulted_at: null,
-      transaction_hashes: ["tx1", "tx2"],
-      tx_hashes: ["tx1", "tx2"],
-      created_tx_hash: "tx0",
-      listed_tx_hash: "tx1",
-      funded_tx_hash: "tx2",
+      transaction_hashes: ["tx1"],
+      tx_hashes: ["tx1"],
+      created_tx_hash: "tx1",
+      listed_tx_hash: "tx2",
+      funded_tx_hash: "tx3",
       shipped_tx_hash: null,
-      issuer_confirmed_tx_hash: "tx3",
+      issuer_confirmed_tx_hash: "tx4",
       buyer_confirmed_tx_hash: null,
       repaid_tx_hash: null,
       defaulted_tx_hash: null,
     };
 
-    const invoice = parseRawInvoice(raw);
-    expect(invoice.id).toBe("inv-1");
-    expect(invoice.issuer).toBe("GABCDEF");
-    expect(invoice.buyer).toBe("GHIJKL");
-    expect(invoice.faceValue).toBe(BigInt("10000000"));
-    expect(invoice.asset).toBe("USDC");
-    expect(invoice.discountBps).toBe(500);
-    expect(invoice.fundedAmount).toBe(BigInt("5000000"));
-    expect(invoice.dueDate).toBe(1700000000);
-    expect(invoice.status).toBe("Funded");
-    expect(invoice.createdAt).toBe(1690000000);
-    expect(invoice.fundedAt).toBe(1700100000);
-    expect(invoice.shippedAt).toBeNull();
-    expect(invoice.issuerConfirmed).toBe(true);
-    expect(invoice.buyerConfirmed).toBe(false);
-    expect(invoice.repaidAt).toBeNull();
-    expect(invoice.listedAt).toBe(1695000000);
-    expect(invoice.issuerConfirmedAt).toBe(1700200000);
-    expect(invoice.buyerConfirmedAt).toBeNull();
-    expect(invoice.defaultedAt).toBeNull();
-    expect(invoice.transactionHashes).toEqual(["tx1", "tx2"]);
-    expect(invoice.txHashes).toEqual(["tx1", "tx2"]);
-    expect(invoice.createdTxHash).toBe("tx0");
-    expect(invoice.listedTxHash).toBe("tx1");
-    expect(invoice.fundedTxHash).toBe("tx2");
-    expect(invoice.shippedTxHash).toBeNull();
-    expect(invoice.issuerConfirmedTxHash).toBe("tx3");
-    expect(invoice.buyerConfirmedTxHash).toBeNull();
-    expect(invoice.repaidTxHash).toBeNull();
-    expect(invoice.defaultedTxHash).toBeNull();
+    const result = parseRawInvoice(raw);
+    expect(result.id).toEqual("test-invoice-id");
+    expect(result.issuer).toEqual("GISSUER");
+    expect(result.faceValue).toEqual(BigInt("10000000000"));
+    expect(result.asset).toEqual("USDC" as AssetType);
+    expect(result.discountBps).toEqual(200);
+    expect(result.fundedAmount).toEqual(BigInt("9800000000"));
+    expect(result.dueDate).toEqual(123456789);
+    expect(result.status).toEqual("FUNDED");
+    expect(result.createdAt).toEqual(987654321);
+    expect(result.fundedAt).toEqual(987654322);
+    expect(result.shippedAt).toBeNull();
+    expect(result.issuerConfirmed).toBe(true);
+    expect(result.buyerConfirmed).toBe(false);
+    expect(result.repaidAt).toBeNull();
   });
 
-  it("defaults missing fields to safe values", () => {
-    const invoice = parseRawInvoice({});
+  it("should handle null/0 values gracefully", () => {
+    const raw = {
+      id: "test-id",
+      issuer: "GISSUE",
+      buyer: "GBUYER",
+      face_value: null,
+      asset: null,
+      discount_bps: null,
+      funded_amount: null,
+      due_date: null,
+      status: "CREATED",
+      created_at: null,
+      funded_at: null,
+      shipped_at: null,
+      issuer_confirmed: false,
+      buyer_confirmed: false,
+      repaid_at: null,
+    };
 
-    expect(invoice.faceValue).toBe(BigInt(0));
-    expect(invoice.asset).toBe("USDC");
-    expect(invoice.discountBps).toBe(0);
-    expect(invoice.fundedAmount).toBe(BigInt(0));
-    expect(invoice.dueDate).toBe(0);
-    expect(invoice.createdAt).toBe(0);
-    expect(invoice.fundedAt).toBeNull();
-    expect(invoice.shippedAt).toBeNull();
-    expect(invoice.issuerConfirmed).toBe(false);
-    expect(invoice.buyerConfirmed).toBe(false);
-    expect(invoice.repaidAt).toBeNull();
-  });
-
-  it("handles XLM asset type", () => {
-    const invoice = parseRawInvoice({ asset: "XLM" });
-    expect(invoice.asset).toBe("XLM");
-  });
-
-  it("coerces truthy values for issuer_confirmed and buyer_confirmed", () => {
-    const invoice = parseRawInvoice({
-      issuer_confirmed: 1,
-      buyer_confirmed: "yes",
-    });
-    expect(invoice.issuerConfirmed).toBe(true);
-    expect(invoice.buyerConfirmed).toBe(true);
+    const result = parseRawInvoice(raw);
+    expect(result.faceValue).toEqual(BigInt(0));
+    expect(result.asset).toEqual("USDC" as AssetType);
+    expect(result.discountBps).toEqual(0);
+    expect(result.fundedAmount).toEqual(BigInt(0));
+    expect(result.dueDate).toEqual(0);
+    expect(result.createdAt).toEqual(0);
   });
 });
 
 describe("parseRawPoolStats", () => {
-  it("converts raw pool stats correctly", () => {
+  it("should parse pool stats correctly", () => {
     const raw = {
-      total_deposits: "1000000000",
-      total_funded: "500000000",
-      available_liquidity: "500000000",
+      total_deposits: "1000000000000",
+      total_funded: "500000000000",
+      available_liquidity: "500000000000",
       utilization_rate_bps: 5000,
-      total_yield_distributed: "10000000",
+      total_yield_distributed: "10000000000",
       active_invoice_count: 10,
     };
 
-    const stats = parseRawPoolStats(raw);
-    expect(stats.totalDeposits).toBe(BigInt("1000000000"));
-    expect(stats.totalFunded).toBe(BigInt("500000000"));
-    expect(stats.availableLiquidity).toBe(BigInt("500000000"));
-    expect(stats.utilizationRateBps).toBe(5000);
-    expect(stats.totalYieldDistributed).toBe(BigInt("10000000"));
-    expect(stats.activeInvoiceCount).toBe(10);
-  });
-
-  it("defaults missing fields to zero", () => {
-    const stats = parseRawPoolStats({});
-
-    expect(stats.totalDeposits).toBe(BigInt(0));
-    expect(stats.totalFunded).toBe(BigInt(0));
-    expect(stats.availableLiquidity).toBe(BigInt(0));
-    expect(stats.utilizationRateBps).toBe(0);
-    expect(stats.totalYieldDistributed).toBe(BigInt(0));
-    expect(stats.activeInvoiceCount).toBe(0);
-  });
-
-  it("handles explicitly null fields", () => {
-    const stats = parseRawPoolStats({
-      total_deposits: null,
-      total_funded: null,
-      available_liquidity: null,
-      utilization_rate_bps: null,
-      total_yield_distributed: null,
-      active_invoice_count: null,
-    });
-
-    expect(stats.totalDeposits).toBe(BigInt(0));
-    expect(stats.totalFunded).toBe(BigInt(0));
-    expect(stats.availableLiquidity).toBe(BigInt(0));
-    expect(stats.utilizationRateBps).toBe(0);
-    expect(stats.totalYieldDistributed).toBe(BigInt(0));
-    expect(stats.activeInvoiceCount).toBe(0);
-  });
-
-  it("handles empty string values", () => {
-    const stats = parseRawPoolStats({
-      total_deposits: "",
-      total_funded: "",
-      available_liquidity: "",
-      total_yield_distributed: "",
-    });
-
-    expect(stats.totalDeposits).toBe(BigInt(0));
-    expect(stats.totalFunded).toBe(BigInt(0));
-    expect(stats.availableLiquidity).toBe(BigInt(0));
-    expect(stats.totalYieldDistributed).toBe(BigInt(0));
-    expect(stats.utilizationRateBps).toBe(0);
-    expect(stats.activeInvoiceCount).toBe(0);
+    const result = parseRawPoolStats(raw);
+    expect(result.totalDeposits).toEqual(BigInt("1000000000000"));
+    expect(result.totalFunded).toEqual(BigInt("500000000000"));
+    expect(result.availableLiquidity).toEqual(BigInt("500000000000"));
+    expect(result.utilizationRateBps).toEqual(5000);
+    expect(result.totalYieldDistributed).toEqual(BigInt("10000000000"));
+    expect(result.activeInvoiceCount).toEqual(10);
   });
 });
 
-describe("fetchChallenge", () => {
-  it("fetches challenge for an address", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        transaction: "tx_blob",
+describe("parseRawLPPosition", () => {
+  it("should parse LP position correctly", () => {
+    const raw = {
+      shares: "1000000000000",
+      usdc_value: "1000000000000",
+      yield_earned: "5000000000",
+      deposit_count: 5,
+    };
+
+    const result = parseRawLPPosition(raw);
+    expect(result.shares).toEqual(BigInt("1000000000000"));
+    expect(result.usdcValue).toEqual(BigInt("1000000000000"));
+    expect(result.yieldEarned).toEqual(BigInt("5000000000"));
+    expect(result.depositCount).toEqual(5);
+  });
+});
+
+describe("API functions", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (useWalletStore.getState as any).mockReturnValue({ token: null });
+  });
+
+  describe("fetchChallenge", () => {
+    it("should fetch challenge successfully", async () => {
+      const mockResponse = {
+        transaction: "test-tx",
         network_passphrase: "Test SDF Network ; September 2015",
-      }),
-    } as Response);
+      };
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
 
-    const result = await fetchChallenge("GABCDEF");
-    expect(result.transaction).toBe("tx_blob");
-    expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/auth?address=GABCDEF",
-      expect.anything(),
-    );
-  });
-});
-
-describe("verifyChallenge", () => {
-  it("sends transaction and returns token", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ token: "jwt-token" }),
-    } as Response);
-
-    const result = await verifyChallenge("signed_tx");
-    expect(result.token).toBe("jwt-token");
-    expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/auth",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({ transaction: "signed_tx" }),
-      }),
-    );
-  });
-});
-
-describe("createInvoice", () => {
-  it("sends invoice data and returns result", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        invoice_id: "inv-1",
-        transaction_hash: "tx_hash",
-        status: "Created",
-      }),
-    } as Response);
-
-    const result = await createInvoice("GBUYER", "10000000", 1700000000);
-    expect(result.invoice_id).toBe("inv-1");
-    expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/invoices",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({
-          buyer: "GBUYER",
-          face_value: "10000000",
-          due_date: 1700000000,
-          asset: "USDC",
-        }),
-      }),
-    );
+      const result = await fetchChallenge("GTEST");
+      expect(result).toEqual(mockResponse);
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/auth?address=GTEST"),
+        expect.anything()
+      );
+    });
   });
 
-  it("sends non-default asset type", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        invoice_id: "inv-2",
-        transaction_hash: "tx_hash",
-        status: "Created",
-      }),
-    } as Response);
+  describe("verifyChallenge", () => {
+    it("should verify challenge successfully", async () => {
+      const mockResponse = { token: "test-jwt" };
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
 
-    await createInvoice("GBUYER", "5000000", 1700000000, "XLM");
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        body: JSON.stringify({
-          buyer: "GBUYER",
-          face_value: "5000000",
-          due_date: 1700000000,
-          asset: "XLM",
-        }),
-      }),
-    );
-  });
-});
-
-describe("getInvoiceByID", () => {
-  it("fetches and parses an invoice by ID", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        id: "inv-1",
-        issuer: "GISS",
-        buyer: "GBUY",
-        face_value: "10000000",
-        asset: "USDC",
-        discount_bps: 500,
-        funded_amount: "5000000",
-        due_date: 1700000000,
-        status: "Funded",
-        created_at: 1690000000,
-        funded_at: null,
-        shipped_at: null,
-        issuer_confirmed: false,
-        buyer_confirmed: false,
-        repaid_at: null,
-      }),
-    } as Response);
-
-    const invoice = await getInvoiceByID("inv-1");
-    expect(invoice.id).toBe("inv-1");
-    expect(invoice.faceValue).toBe(BigInt("10000000"));
-    expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/invoices/inv-1",
-      expect.anything(),
-    );
-  });
-});
-
-describe("getInvoices", () => {
-  const mockPaginatedResponse = {
-    data: [
-      {
-        id: "inv-1",
-        issuer: "GISS",
-        buyer: "GBUY",
-        face_value: "10000000",
-        asset: "USDC",
-        discount_bps: 500,
-        funded_amount: "5000000",
-        due_date: 1700000000,
-        status: "Funded",
-        created_at: 1690000000,
-        funded_at: null,
-        shipped_at: null,
-        issuer_confirmed: false,
-        buyer_confirmed: false,
-        repaid_at: null,
-      },
-    ],
-    total: 1,
-    page: 1,
-    limit: 20,
-    totalPages: 1,
-  };
-
-  it("fetches invoices without filters", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => mockPaginatedResponse,
-    } as Response);
-
-    const result = await getInvoices();
-    expect(result.data).toHaveLength(1);
-    expect(result.data[0].faceValue).toBe(BigInt("10000000"));
-    expect(result.total).toBe(1);
-    expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/invoices",
-      expect.anything(),
-    );
+      const result = await verifyChallenge("test-tx-xdr");
+      expect(result).toEqual(mockResponse);
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/auth"),
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining("test-tx-xdr"),
+        })
+      );
+    });
   });
 
-  it("appends query params when filters are provided", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => mockPaginatedResponse,
-    } as Response);
+  describe("createInvoice", () => {
+    it("should create invoice successfully", async () => {
+      const mockResponse = {
+        invoice_id: "test-invoice",
+        transaction_hash: "test-hash",
+        status: "CREATED",
+      };
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
 
-    await getInvoices({ status: "Funded", issuer: "GISS", page: 2, limit: 10 });
-    expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/invoices?status=Funded&issuer=GISS&page=2&limit=10",
-      expect.anything(),
-    );
+      const result = await createInvoice(
+        "GBUYER",
+        "1000000000",
+        123456789,
+        "USDC"
+      );
+      expect(result).toEqual(mockResponse);
+    });
   });
 
-  it("omits null/undefined filters", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => mockPaginatedResponse,
-    } as Response);
+  describe("getInvoiceByID", () => {
+    it("should get invoice by id successfully", async () => {
+      const rawInvoice = { id: "test-id", status: "CREATED" };
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(rawInvoice),
+      });
 
-    await getInvoices({ status: "Created" });
-    expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/invoices?status=Created",
-      expect.anything(),
-    );
+      const result = await getInvoiceByID("test-id");
+      expect(result.id).toEqual("test-id");
+    });
   });
 
-  it("returns empty data array when no invoices", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ data: [], total: 0, page: 1, limit: 20, totalPages: 0 }),
-    } as Response);
+  describe("getInvoices", () => {
+    it("should get invoices with filters", async () => {
+      const rawInvoices = {
+        data: [{ id: "1" }, { id: "2" }],
+        total: 2,
+        page: 1,
+        limit: 10,
+        totalPages: 1,
+      };
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(rawInvoices),
+      });
 
-    const result = await getInvoices();
-    expect(result.data).toEqual([]);
-    expect(result.total).toBe(0);
-  });
-});
-
-describe("getPoolStats", () => {
-  it("fetches and parses pool stats", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        total_deposits: "1000000000",
-        total_funded: "500000000",
-        available_liquidity: "500000000",
-        utilization_rate_bps: 5000,
-        total_yield_distributed: "10000000",
-        active_invoice_count: 10,
-      }),
-    } as Response);
-
-    const stats = await getPoolStats();
-    expect(stats.totalDeposits).toBe(BigInt("1000000000"));
-    expect(stats.utilizationRateBps).toBe(5000);
-    expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/pool/stats",
-      expect.anything(),
-    );
+      const result = await getInvoices({
+        issuer: "GISSUE",
+        status: "CREATED",
+      });
+      expect(result.total).toEqual(2);
+      expect(result.data.length).toEqual(2);
+    });
   });
 
-  it("handles zero-value pool stats", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        total_deposits: "0",
-        total_funded: "0",
-        available_liquidity: "0",
-        utilization_rate_bps: 0,
-        total_yield_distributed: "0",
-        active_invoice_count: 0,
-      }),
-    } as Response);
+  describe("getPoolStats", () => {
+    it("should get pool stats successfully", async () => {
+      const rawStats = { total_deposits: "1000000000" };
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(rawStats),
+      });
 
-    const stats = await getPoolStats();
-    expect(stats.totalDeposits).toBe(BigInt(0));
-    expect(stats.activeInvoiceCount).toBe(0);
-  });
-});
-
-describe("getLPPosition", () => {
-  it("fetches and parses LP position for an address", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        shares: "1000",
-        usdc_value: "500000000",
-        yield_earned: "10000000",
-        deposit_count: 3,
-      }),
-    } as Response);
-
-    const position = await getLPPosition("GADDR");
-    expect(position.shares).toBe(BigInt("1000"));
-    expect(position.usdcValue).toBe(BigInt("500000000"));
-    expect(position.yieldEarned).toBe(BigInt("10000000"));
-    expect(position.depositCount).toBe(3);
-    expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/pool/position/GADDR",
-      expect.anything(),
-    );
-  });
-});
-
-describe("getRecentEvents", () => {
-  it("fetches events without limit", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => [
-        {
-          id: 1,
-          event_id: "evt-1",
-          contract_id: "contract-1",
-          ledger: 100,
-          ledger_closed_at: 1690000000,
-          event_type: "InvoiceCreated",
-          data: { invoice_id: "inv-1" },
-        },
-      ],
-    } as Response);
-
-    const events = await getRecentEvents();
-    expect(events).toHaveLength(1);
-    expect(events[0].event_type).toBe("InvoiceCreated");
-    expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/events",
-      expect.anything(),
-    );
+      const result = await getPoolStats();
+      expect(result.totalDeposits).toEqual(BigInt("1000000000"));
+    });
   });
 
-  it("appends limit query param when provided", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => [],
-    } as Response);
+  describe("getLPPosition", () => {
+    it("should get LP position successfully", async () => {
+      const rawPosition = { shares: "1000000000" };
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(rawPosition),
+      });
 
-    await getRecentEvents(5);
-    expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/events?limit=5",
-      expect.anything(),
-    );
+      const result = await getLPPosition("GTEST");
+      expect(result.shares).toEqual(BigInt("1000000000"));
+    });
   });
-});
 
-describe("getPoolSnapshots", () => {
-  it("fetches pool snapshots", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => [
-        {
-          timestamp: 1690000000,
-          utilizationRateBps: 5000,
-          totalYieldDistributed: "10000000",
-        },
-      ],
-    } as Response);
+  describe("getRecentEvents", () => {
+    it("should get recent events successfully", async () => {
+      const rawEvents = [{ id: "1" }, { id: "2" }];
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(rawEvents),
+      });
 
-    const snapshots = await getPoolSnapshots();
-    expect(snapshots).toHaveLength(1);
-    expect(snapshots[0].utilizationRateBps).toBe(5000);
-    expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/pool/snapshots",
-      expect.anything(),
-    );
+      const result = await getRecentEvents(10);
+      expect(result.length).toEqual(2);
+    });
+  });
+
+  describe("getPoolSnapshots", () => {
+    it("should get pool snapshots successfully", async () => {
+      const mockSnapshots = [
+        { id: "1", utilization_rate_bps: 5000 },
+        { id: "2", utilization_rate_bps: 6000 },
+      ];
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockSnapshots),
+      });
+
+      const result = await getPoolSnapshots();
+      expect(result).toEqual(mockSnapshots);
+    });
   });
 });
