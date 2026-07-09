@@ -12,7 +12,6 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            refetchInterval: 5000, // Sync with indexer polling interval
             staleTime: 4000,
           },
         },
@@ -25,6 +24,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       {children}
       <ConfirmationDialog />
       <Toaster
+        containerAriaLabel="Notifications"
         position="bottom-right"
         toastOptions={{
           style: {

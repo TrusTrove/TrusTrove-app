@@ -77,6 +77,7 @@ export function InvoiceStatus({ status }: InvoiceStatusProps) {
       className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold font-mono tracking-wider uppercase border ${config.bg} ${config.border} ${config.text}`}
       role="status"
       aria-label={`Invoice status: ${status}`}
+      title={status}
     >
       <Icon
         className={`w-3.5 h-3.5 ${isPulsing ? "animate-pulse" : ""}`}
