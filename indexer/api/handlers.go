@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
@@ -10,6 +11,7 @@ import (
 	"math/big"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,22 +28,52 @@ import (
 )
 
 type APIHandler struct {
-	cfg         *config.Config
-	serverKP    *keypair.Full
-	statsMu     sync.RWMutex
-	statsData   *db.ProtocolStats
-	statsCached time.Time
+	cfg             *config.Config
+	serverKP        *keypair.Full
+	statsMu         sync.RWMutex
+	statsData       *db.ProtocolStats
+	statsCached     time.Time
+	listenerHealth  *ListenerHealth
+	dbHealthChecker func(context.Context) error
 }
 
 func NewAPIHandler(cfg *config.Config) (*APIHandler, error) {
-	kp, err := keypair.ParseFull(cfg.ServerSeed)
+	kp, err := GetServerKeypair(cfg.ServerSeed)
 	if err != nil {
 		return nil, fmt.Errorf("invalid server seed: %w", err)
 	}
 	return &APIHandler{
-		cfg:      cfg,
-		serverKP: kp,
+		cfg:             cfg,
+		serverKP:        kp,
+		listenerHealth:  NewListenerHealth(),
+		dbHealthChecker: defaultDBHealthChecker,
 	}, nil
+}
+
+func GetServerKeypair(seed string) (*keypair.Full, error) {
+	if strings.TrimSpace(seed) == "" {
+		return nil, fmt.Errorf("empty server seed")
+	}
+	return keypair.ParseFull(seed)
+}
+
+func (h *APIHandler) ListenerHealth() *ListenerHealth {
+	if h.listenerHealth == nil {
+		h.listenerHealth = NewListenerHealth()
+	}
+	return h.listenerHealth
+}
+
+func (h *APIHandler) CheckHealth(ctx context.Context) error {
+	if h.dbHealthChecker != nil {
+		if err := h.dbHealthChecker(ctx); err != nil {
+			return fmt.Errorf("database health check failed: %w", err)
+		}
+	}
+	if h.ListenerHealth() != nil && !h.ListenerHealth().IsHealthy() {
+		return fmt.Errorf("listener is not healthy")
+	}
+	return nil
 }
 
 type JsonRpcRequest struct {

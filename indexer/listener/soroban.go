@@ -72,12 +72,13 @@ type GetEventsParams struct {
 
 // EventListener listens to Soroban events and routes them to database and state synchronizers
 type EventListener struct {
-	cfg *config.Config
+	cfg    *config.Config
+	health *api.ListenerHealth
 }
 
 // NewEventListener constructs a new EventListener
-func NewEventListener(cfg *config.Config) *EventListener {
-	return &EventListener{cfg: cfg}
+func NewEventListener(cfg *config.Config, health *api.ListenerHealth) *EventListener {
+	return &EventListener{cfg: cfg, health: health}
 }
 
 // getLatestLedgerSequence fetches the latest ledger sequence number from the Soroban RPC
@@ -92,6 +93,10 @@ func (l *EventListener) getLatestLedgerSequence(ctx context.Context) (int32, err
 
 // Start starts the event listening loop
 func (l *EventListener) Start(ctx context.Context) error {
+	if l.health != nil {
+		l.health.MarkStarted()
+	}
+
 	// 1. Determine start ledger sequence
 	// Prefer checkpoint for accurate resume across empty-ledger ranges
 	currentLedger, err := db.GetCheckpoint(ctx)
@@ -132,13 +137,21 @@ func (l *EventListener) Start(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			slog.Info("Event listener stopping...")
+			if l.health != nil {
+				l.health.MarkStopped()
+			}
 			return nil
 		case <-ticker.C:
 			nextLedger, err := l.pollEvents(ctx, currentLedger)
 			if err != nil {
 				slog.Error("Error polling events", "error", err)
-				// Retry from the same ledger on the next tick
-				continue
+				if l.health != nil {
+					l.health.MarkStopped()
+				}
+				return fmt.Errorf("listener poll failed: %w", err)
+			}
+			if l.health != nil {
+				l.health.MarkHeartbeat()
 			}
 			currentLedger = nextLedger
 

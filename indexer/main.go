@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -56,11 +57,13 @@ func main() {
 	}
 
 	// 4. Start Event Listener in Background
-	eventListener := listener.NewEventListener(cfg)
+	eventListener := listener.NewEventListener(cfg, handler.ListenerHealth())
+	listenerErrCh := make(chan error, 1)
 	go func() {
 		slog.Info("Starting Soroban Event Listener background task...")
 		if err := eventListener.Start(ctx); err != nil {
-			slog.Error("Event listener exited with error", "error", err)
+			handler.ListenerHealth().MarkStopped()
+			listenerErrCh <- err
 		}
 	}()
 
@@ -73,34 +76,44 @@ func main() {
 		}
 	}()
 
-	// 6. Wait for Termination Signal
+	// 6. Wait for Termination Signal or Listener Failure
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 
-	<-stop
-	slog.Info("Shutting down gracefully...")
+	var shutdownOnce sync.Once
+	shutdown := func(reason string) {
+		shutdownOnce.Do(func() {
+			slog.Info("Shutting down gracefully", "reason", reason)
 
-	// Cancel context to stop listener
-	cancel()
+			// Cancel context to stop listener
+			cancel()
 
-	// Shutdown HTTP Server
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer shutdownCancel()
+			// Shutdown HTTP Server
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer shutdownCancel()
 
-	if err := server.Shutdown(shutdownCtx); err != nil {
-		slog.Error("HTTP API server graceful shutdown failed", "error", err)
-	} else {
-		slog.Info("HTTP API server successfully shut down")
+			if err := server.Shutdown(shutdownCtx); err != nil {
+				slog.Error("HTTP API server graceful shutdown failed", "error", err)
+			} else {
+				slog.Info("HTTP API server successfully shut down")
+			}
+
+			// Close DB connection pool
+			if db.Pool != nil {
+				slog.Info("Closing database pool...")
+				db.Pool.Close()
+				slog.Info("Database pool closed successfully")
+			}
+		})
 	}
 
-	// Close DB connection pool
-	if db.Pool != nil {
-		slog.Info("Closing database pool...")
-		db.Pool.Close()
-		slog.Info("Database pool closed successfully")
+	select {
+	case err := <-listenerErrCh:
+		slog.Error("Event listener exited with error", "error", err)
+		shutdown("listener failure")
+	case <-stop:
+		shutdown("termination signal")
 	}
 
 	slog.Info("TrusTrove Indexer and API server stopped.")
 }
-
-

@@ -300,7 +300,10 @@ func (l *EventListener) handleEvent(ctx context.Context, event SorobanEvent) err
 	}
 	eventName := string(*topicVal.Sym)
 
-	serverKP, err := api.GetServerKeypair(l.cfg.JWTSecret)
+	serverKP, err := api.GetServerKeypair(l.cfg.ServerSeed)
+	if err != nil && l.cfg.JWTSecret != "" {
+		serverKP, err = api.GetServerKeypair(l.cfg.JWTSecret)
+	}
 	if err != nil {
 		return fmt.Errorf("get server keypair: %w", err)
 	}

@@ -11,6 +11,7 @@ import (
 	"trusttrove/indexer/config"
 	"trusttrove/indexer/db"
 
+	"github.com/stellar/go-stellar-sdk/keypair"
 	"github.com/stellar/go-stellar-sdk/strkey"
 	"github.com/stellar/go-stellar-sdk/xdr"
 )
@@ -37,11 +38,16 @@ func TestMain(m *testing.M) {
 
 // newTestListener builds a minimal EventListener for handler tests.
 func newTestListener() *EventListener {
+	serverKP, err := keypair.Random()
+	if err != nil {
+		panic(err)
+	}
 	return &EventListener{
 		cfg: &config.Config{
 			SorobanRPCURL:     "http://localhost:8001",
 			PoolContractID:    "CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS",
 			JWTSecret:         "test-listener-secret",
+			ServerSeed:        serverKP.Seed(),
 			NetworkPassphrase: "Test SDF Network ; September 2015",
 		},
 	}
@@ -330,7 +336,7 @@ func TestHandleDeliveryConfirmed(t *testing.T) {
 		Value:          encodeSymbol("confirm_delivery"),
 	}
 
-	if err := l.handleDeliveryConfirmed(ctx, event); err != nil {
+	if err := l.handleDeliveryConfirmed(ctx, event, time.Now().Unix()); err != nil {
 		t.Fatalf("handleDeliveryConfirmed: %v", err)
 	}
 

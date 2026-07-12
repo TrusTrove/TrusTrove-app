@@ -1,8 +1,10 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -45,5 +47,45 @@ func TestCORSMiddleware_RejectsUnlistedOrigin(t *testing.T) {
 
 	if got := rr.Header().Get("Access-Control-Allow-Origin"); got != "" {
 		t.Fatalf("expected no CORS header for rejected origin, got %q", got)
+	}
+}
+
+func TestHealthEndpoint_Returns200WhenListenerAndDBAreHealthy(t *testing.T) {
+	h := newTestHandler(t)
+	h.dbHealthChecker = func(context.Context) error { return nil }
+	h.listenerHealth = NewListenerHealth()
+	h.listenerHealth.MarkStarted()
+
+	router := NewRouter(h)
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	rr := httptest.NewRecorder()
+
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d; body: %s", http.StatusOK, rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), `"status": "ok"`) {
+		t.Fatalf("expected healthy payload, got %s", rr.Body.String())
+	}
+}
+
+func TestHealthEndpoint_Returns503WhenListenerStops(t *testing.T) {
+	h := newTestHandler(t)
+	h.dbHealthChecker = func(context.Context) error { return nil }
+	h.listenerHealth = NewListenerHealth()
+	h.listenerHealth.MarkStopped()
+
+	router := NewRouter(h)
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	rr := httptest.NewRecorder()
+
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected status %d, got %d; body: %s", http.StatusServiceUnavailable, rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), `"status": "degraded"`) {
+		t.Fatalf("expected degraded payload, got %s", rr.Body.String())
 	}
 }
