@@ -380,7 +380,6 @@ func GetLatestProcessedLedger(ctx context.Context) (int32, error) {
 	return ledger, nil
 }
 
-
 func GetCheckpoint(ctx context.Context) (int32, error) {
 	query := `SELECT value FROM indexer_checkpoint WHERE key = 'latest_processed_ledger'`
 	var ledger int32
