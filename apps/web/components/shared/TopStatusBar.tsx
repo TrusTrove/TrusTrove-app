@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { ArrowUpRight, Pause, Play } from "lucide-react";
+import { useRecentEvents } from "@/hooks/useEvents";
 
 interface TickerItem {
   id: string;
