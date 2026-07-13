@@ -26,15 +26,13 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import type { AssetType } from "@/types";
-<<<<<<< refactor/extract-lp-chart-geometry
-"use client";
-=======
 import { ASSET_OPTIONS, formatAmount } from "@/lib/assets";
 import { PoolClient } from "@trusttrove/sdk";
 import { Address, nativeToScVal } from "@stellar/stellar-sdk";
 import { SimulationPreview } from "@/components/shared/SimulationPreview";
 import { useQuery } from "@tanstack/react-query";
 import { getPoolSnapshots } from "@/lib/api";
+import { usePoolChartData } from "@/hooks/usePoolChartData";
 
 const TransactionPending = dynamic(() => import("@/components/shared/TransactionPending"), {
   ssr: false,
@@ -101,116 +99,82 @@ export default function LPDashboard() {
           new Address(address).toScVal(),
           nativeToScVal(amountStroops, { type: "u128" }),
         ];
->>>>>>> main
 
-import React from 'react';
-import { usePoolChartData } from '../../hooks/usePoolChartData';
+        const simResult = await poolClient.simulateTransaction(
+          "deposit",
+          args,
+          address,
+        );
+        if (!active) return;
+        setSimDetails(simResult);
+      } catch (err: any) {
+        if (!active) return;
+        setSimError(err.message || "Simulation failed");
+      } finally {
+        if (active) setIsSimulating(false);
+      }
+    };
 
-// Dummy or prop-drilled historical liquidity data array
-const samplePoolData = [
-  { label: 'Jan', value: 1200 },
-  { label: 'Feb', value: 2100 },
-  { label: 'Mar', value: 1800 },
-  { label: 'Apr', value: 3400 },
-  { label: 'May', value: 4100 },
-];
+    const timer = setTimeout(runSim, 400);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [depositAmount, address]);
 
-export default function LPDashboard() {
-  const { linePath, areaPath, points } = usePoolChartData({
-    data: samplePoolData,
-    width: 600,
-    height: 250,
-    padding: 30,
+  const { data: snapshots, isLoading: isSnapshotsLoading } = useQuery({
+    queryKey: ["poolSnapshots"],
+    queryFn: getPoolSnapshots,
   });
 
-<<<<<<< refactor/extract-lp-chart-geometry
-  return (
-    <div className="p-6 max-w-4xl mx-auto bg-slate-900 rounded-xl text-white">
-      <h1 className="text-2xl font-bold mb-4">Liquidity Pool Dashboard</h1>
-      
-      {/* Chart Canvas Rendering Block */}
-      <div className="relative bg-slate-950 p-4 rounded-lg overflow-hidden">
-        <svg viewBox="0 0 600 250" className="w-full h-auto overflow-visible">
-          {/* Shaded Area Region */}
-          {areaPath && (
-            <path d={areaPath} fill="url(#chartGradient)" className="opacity-20 text-emerald-500 fill-current" />
-          )}
-          
-          {/* Main Visual Vector Metric Trendline */}
-          {linePath && (
-            <path d={linePath} fill="none" stroke="currentColor" strokeWidth="3" className="text-emerald-400" />
-          )}
+  // Sort snapshots by timestamp once for both chart geometry and axis labels
+  const sortedSnapshots = useMemo(() => {
+    if (!snapshots || snapshots.length < 2) return [];
+    return [...snapshots].sort((a, b) => a.timestamp - b.timestamp);
+  }, [snapshots]);
 
-          {/* Individual Hover/Interactive Data Node Circles */}
-          {points.map((pt, idx) => (
-            <circle
-              key={idx}
-              cx={pt.x}
-              cy={pt.y}
-              r="4"
-              className="fill-slate-950 stroke-emerald-400 stroke-2 hover:r-6 transition-all cursor-pointer"
-            />
-          ))}
+  // Feed sorted snapshots into the extracted geometry hook (PR #228)
+  const chartData = useMemo(
+    () =>
+      sortedSnapshots.map((s) => ({
+        label: String(s.timestamp),
+        value: s.utilizationRateBps,
+      })),
+    [sortedSnapshots],
+  );
 
-          {/* Linear Gradient Configurations definition */}
-          <defs>
-            <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="currentColor" />
-              <stop offset="100%" stopColor="transparent" />
-            </linearGradient>
-          </defs>
-        </svg>
-=======
+  const { linePath, areaPath } = usePoolChartData({
+    data: chartData,
+    width: 500,
+    height: 150,
+    padding: 10,
+  });
+
   const chartLines = useMemo(() => {
-    if (!snapshots || snapshots.length < 2) return null;
+    if (sortedSnapshots.length < 2 || !linePath || !areaPath) return null;
 
-    const sorted = [...snapshots].sort((a, b) => a.timestamp - b.timestamp);
-    const values = sorted.map((s) => s.utilizationRateBps);
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    const range = max - min || 1;
-
-    const pad = 10;
-    const chartW = 500;
-    const chartH = 150;
-    const chartTop = pad;
-    const chartBottom = chartH - pad;
-    const chartHeight = chartBottom - chartTop;
-
-    const points = sorted.map((s, i) => {
-      const x = (i / (sorted.length - 1)) * chartW;
-      const y =
-        chartBottom - ((s.utilizationRateBps - min) / range) * chartHeight;
-      return { x, y };
-    });
-
-    const lineD = points
-      .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`)
-      .join(" ");
-    const areaD = `${lineD} L ${points[points.length - 1].x} ${chartBottom} L ${points[0].x} ${chartBottom} Z`;
-
-    const rawLabels = sorted.map((s) => s.timestamp);
+    const rawLabels = sortedSnapshots.map((s) => s.timestamp);
     const displayIndices =
-      sorted.length <= 5
+      sortedSnapshots.length <= 5
         ? rawLabels.map((_, i) => i)
         : [
             0,
-            Math.floor((sorted.length - 1) / 4),
-            Math.floor((sorted.length - 1) / 2),
-            Math.floor((3 * (sorted.length - 1)) / 4),
-            sorted.length - 1,
+            Math.floor((sortedSnapshots.length - 1) / 4),
+            Math.floor((sortedSnapshots.length - 1) / 2),
+            Math.floor((3 * (sortedSnapshots.length - 1)) / 4),
+            sortedSnapshots.length - 1,
           ];
 
     const labels = displayIndices.map((i) => {
-      const snap = sorted[i];
+      const snap = sortedSnapshots[i];
       const date = new Date(snap.timestamp * 1000);
       const month = date.toLocaleString("default", { month: "short" });
       const day = date.getDate();
       return `${month} ${day}`;
     });
 
-    return { lineD, areaD, labels, points };
-  }, [snapshots]);
+    return { lineD: linePath, areaD: areaPath, labels };
+  }, [sortedSnapshots, linePath, areaPath]);
 
   const handleDeposit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -709,9 +673,15 @@ export default function LPDashboard() {
             )}
           </div>
         </div>
->>>>>>> main
       </div>
-    </div>
+
+      {/* Transaction Pending Modal */}
+      <TransactionPending
+        isOpen={showPending}
+        txHash={pendingHash}
+        statusText={pendingText}
+        onClose={pendingHash ? () => setShowPending(false) : undefined}
+      />
+    </PageLayout>
   );
 }
-        const simResult = await poolClient.simulateTransaction(
