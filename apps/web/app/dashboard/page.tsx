@@ -484,7 +484,7 @@ export default function SMEDashboard() {
             </div>
           </div>
         </div>
-      </Modal>
+      )}
     </PageLayout>
   );
 }
