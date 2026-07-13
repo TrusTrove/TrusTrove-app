@@ -136,7 +136,7 @@ export default function Home() {
             </div>
 
             <div className="text-xs font-mono text-slate-400 border-l-2 border-primary pl-3">
-              "From invoice to USDC in minutes. Not weeks."
+              &ldquo;From invoice to USDC in minutes. Not weeks.&rdquo;
             </div>
           </div>
 
