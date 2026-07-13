@@ -34,7 +34,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getPoolSnapshots } from "@/lib/api";
 import { usePoolChartData } from "@/hooks/usePoolChartData";
 
-const TransactionPending = dynamic(() => import("@/components/shared/TransactionPending"), {
+const TransactionPending = dynamic(() => import("@/components/shared/TransactionPending").then((m) => m.TransactionPending), {
   ssr: false,
   loading: () => (
     <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/50">
