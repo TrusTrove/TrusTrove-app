@@ -28,9 +28,9 @@ const (
 
 // clientBucket tracks invoice creation attempts for a single authenticated client.
 type clientBucket struct {
-	mu        sync.Mutex
-	attempts  []time.Time // timestamps of each invoice creation attempt
-	lastSeen  time.Time   // used for cleanup of stale buckets
+	mu       sync.Mutex
+	attempts []time.Time // timestamps of each invoice creation attempt
+	lastSeen time.Time   // used for cleanup of stale buckets
 }
 
 // InvoiceRateLimiter holds per-client state for the sliding-window rate limiter.
