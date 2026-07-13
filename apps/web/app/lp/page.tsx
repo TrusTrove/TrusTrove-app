@@ -477,7 +477,7 @@ export default function LPDashboard() {
                       <path d={chartLines.areaD} fill="url(#chartGlow)" />
 
                       {/* Line path */}
-                      <path
+                      <motion.path
                         d={chartLines.lineD}
                         fill="transparent"
                         stroke="#00d4aa"
