@@ -46,21 +46,15 @@ async function fetchBalancesFromHorizon(
       }
     }
 
-      setBalances({ usdc, xlm });
-    } catch (err: unknown) {
-      if (err instanceof Error && "response" in err) {
-        const resp = (err as { response?: { status: number } }).response;
-        if (resp?.status === 404) {
-          setBalances({ usdc: null, xlm: "0" });
-        } else {
-          captureError(err);
-          setError("Failed to fetch balances");
-        }
-      } else {
-        captureError(err);
-        setError("Failed to fetch balances");
+    return { usdc, xlm };
+  } catch (err: unknown) {
+    if (err instanceof Error && "response" in err) {
+      const resp = (err as { response?: { status: number } }).response;
+      if (resp?.status === 404) {
+        return { usdc: null, xlm: "0" };
       }
     }
+    captureError(err);
     throw err;
   }
 }
