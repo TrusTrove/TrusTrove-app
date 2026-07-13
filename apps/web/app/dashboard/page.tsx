@@ -29,7 +29,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { formatAmount } from "@/lib/assets";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 
-const InvoiceForm = dynamic(() => import("@/components/invoice/InvoiceForm"), {
+const InvoiceForm = dynamic(() => import("@/components/invoice/InvoiceForm").then((m) => m.InvoiceForm), {
   ssr: false,
   loading: () => (
     <div className="h-64 w-full flex items-center justify-center">
