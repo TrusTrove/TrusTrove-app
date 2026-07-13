@@ -57,7 +57,8 @@ const tickerItems: TickerItem[] = [
 ];
 
 export function TopStatusBar() {
-  const { events: rawEvents, isLoading, isError } = useRecentEvents(20);
+  const { events: rawEvents, isLoading, error } = useRecentEvents(20);
+  const isError = error !== null;
   const [tickerItems, setTickerItems] = useState<TickerItem[]>([]);
 
   // Format event for display in the ticker
