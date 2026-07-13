@@ -38,11 +38,12 @@ export default function ProfilePage() {
     registerError,
   } = useProfile();
 
+  // Registration Form States
+  const [showRegModal, setShowRegModal] = useState(false);
+
   // Modal Refs
   const modalRef = useFocusTrap<HTMLDivElement>(showRegModal, () => setShowRegModal(false));
 
-  // Registration Form States
-  const [showRegModal, setShowRegModal] = useState(false);
   const [regRole, setRegRole] = useState<"issuer" | "buyer">("issuer");
   const [companyName, setCompanyName] = useState("");
   const [taxId, setTaxId] = useState("");
