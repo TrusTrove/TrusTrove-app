@@ -52,6 +52,33 @@ function extractMessage(err: unknown): string {
   return "An unexpected error occurred";
 }
 
+const KNOWN_ERRORS: Record<string, string> = {
+  "Wallet not connected":
+    "Please connect your wallet to perform this action",
+};
+
+export function getErrorMessage(
+  error: unknown,
+  fallback = "An unexpected error occurred",
+): string {
+  if (typeof error === "string") return error;
+  if (error instanceof Error) return error.message;
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof (error as { message: unknown }).message === "string"
+  ) {
+    return (error as { message: string }).message;
+  }
+  return fallback;
+}
+
+export function getUserFriendlyMessage(error: unknown): string {
+  const message = getErrorMessage(error);
+  return KNOWN_ERRORS[message] || message;
+}
+
 export function createErrorHandler(context: string) {
   function captureError(error: unknown) {
     const type = classifyError(error);
