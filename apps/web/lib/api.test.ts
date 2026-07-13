@@ -187,6 +187,7 @@ describe("parseRawPoolStats", () => {
       utilization_rate_bps: 5000,
       total_yield_distributed: "10000000000",
       active_invoice_count: 10,
+      total_shares: "250000000000",
     };
 
     const result = parseRawPoolStats(raw);
@@ -196,6 +197,7 @@ describe("parseRawPoolStats", () => {
     expect(result.utilizationRateBps).toEqual(5000);
     expect(result.totalYieldDistributed).toEqual(BigInt("10000000000"));
     expect(result.activeInvoiceCount).toEqual(10);
+    expect(result.totalShares).toEqual(BigInt("250000000000"));
   });
 });
 
