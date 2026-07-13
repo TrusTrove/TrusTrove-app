@@ -335,7 +335,6 @@ export default function ProfilePage() {
       {/* Registration Modal Dialog */}
       {showRegModal && (
         <ErrorBoundary context="RegistrationModal">
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#080c10]/95 backdrop-blur-sm p-4">
           <div className="w-full max-w-lg bg-card border border-border rounded-lg p-6 relative shadow-[0_0_50px_rgba(0,212,170,0.05)]">
             <button
               onClick={() => setShowRegModal(false)}
@@ -389,7 +388,6 @@ export default function ProfilePage() {
                   </button>
                 </div>
               </div>
-            </div>
 
             {/* Tax ID & Country */}
             <div className="grid grid-cols-2 gap-4">
@@ -465,7 +463,6 @@ export default function ProfilePage() {
                   your wallet address and locks your business credentials.
                 </span>
               </div>
-            </div>
 
               {/* Buttons */}
               <div className="flex gap-2 pt-2">
@@ -485,7 +482,6 @@ export default function ProfilePage() {
                   {isRegistering ? "Signing..." : "Register Profile"}
                 </button>
               </div>
-            )}
 
             <div className="bg-[#080c10] border border-amber-500/20 p-3 rounded text-[10px] text-amber-500 leading-normal flex items-start gap-1.5">
               <Lock className="w-3.5 h-3.5 shrink-0 mt-0.5" />
