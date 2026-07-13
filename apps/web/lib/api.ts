@@ -8,23 +8,13 @@ import {
   EventLog,
   PoolSnapshot,
 } from "@/types";
-import {
-  parseRawInvoice,
-  parseRawPoolStats,
-  parseRawLPPosition,
-  parseRawEventLog,
-} from "./transformers";
-
 class ApiClient {
   private baseUrl: string;
   private token?: string;
 
-export async function apiFetch<T>(
-  path: string,
-  options: RequestInit = {},
-): Promise<T> {
-  const token = useWalletStore.getState().token;
-  const headers = new Headers(options.headers || {});
+  constructor(baseUrl: string) {
+    this.baseUrl = baseUrl;
+  }
 
   setToken(token: string): void {
     this.token = token;
@@ -71,6 +61,38 @@ function initApiClientWithToken(): void {
   if (token) {
     apiClient.setToken(token);
   }
+}
+
+export { ApiClient, apiClient, initApiClientWithToken };
+
+export async function apiFetch<T>(
+  path: string,
+  options: RequestInit = {},
+): Promise<T> {
+  const token = useWalletStore.getState().token;
+  const headers = new Headers(options.headers || {});
+
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+  if (
+    !headers.has("Content-Type") &&
+    (options.method === "POST" || options.method === "PUT")
+  ) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  const res = await fetch(`${getApiUrl()}${path}`, {
+    ...options,
+    headers,
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `HTTP error! status: ${res.status}`);
+  }
+
+  return res.json() as Promise<T>;
 }
 
 export function parseRawInvoice(raw: any): Invoice {
@@ -132,6 +154,18 @@ export function parseRawLPPosition(raw: any): LPPosition {
     usdcValue: BigInt(raw.usdc_value || 0),
     yieldEarned: BigInt(raw.yield_earned || 0),
     depositCount: Number(raw.deposit_count || 0),
+  };
+}
+
+export function parseRawEventLog(raw: any): EventLog {
+  return {
+    id: raw.id,
+    event_id: raw.event_id,
+    contract_id: raw.contract_id,
+    ledger: raw.ledger,
+    ledger_closed_at: raw.ledger_closed_at,
+    event_type: raw.event_type,
+    data: raw.data || {},
   };
 }
 
