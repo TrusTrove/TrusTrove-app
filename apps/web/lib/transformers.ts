@@ -56,6 +56,7 @@ function parseRawPoolStats(raw: any): PoolStats {
     utilizationRateBps: Number(raw.utilization_rate_bps || 0),
     totalYieldDistributed: BigInt(raw.total_yield_distributed || 0),
     activeInvoiceCount: Number(raw.active_invoice_count || 0),
+    totalShares: BigInt(raw.total_shares || 0),
   };
 }
 
