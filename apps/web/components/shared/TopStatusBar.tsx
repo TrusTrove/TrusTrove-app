@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { ArrowUpRight, Pause, Play } from "lucide-react";
 import { useRecentEvents } from "@/hooks/useEvents";
+import type { EventLog } from "@/types";
 
 interface TickerItem {
   id: string;
