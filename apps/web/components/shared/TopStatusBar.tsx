@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ArrowUpRight, Pause, Play } from "lucide-react";
 import { useRecentEvents } from "@/hooks/useEvents";
+import type { EventLog } from "@/types";
 
 interface TickerItem {
   id: string;
@@ -60,6 +61,7 @@ export function TopStatusBar() {
   const { events: rawEvents, isLoading, error } = useRecentEvents(20);
   const isError = error !== null;
   const [tickerItems, setTickerItems] = useState<TickerItem[]>([]);
+  const [isPaused, setIsPaused] = useState(false);
 
   // Format event for display in the ticker
   const formatEventForTicker = (event: EventLog): TickerItem => {
