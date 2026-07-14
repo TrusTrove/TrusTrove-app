@@ -1,7 +1,11 @@
 import { useState } from "react";
 import { useWalletStore } from "@/store/wallet";
 import { signTransaction } from "@stellar/freighter-api";
-import { fetchChallenge, verifyChallenge } from "@/lib/api";
+import {
+  fetchChallenge,
+  verifyChallenge,
+  initApiClientWithToken,
+} from "@/lib/api";
 import { createErrorHandler } from "@/lib/errors";
 
 const { captureError } = createErrorHandler("useAuth");
