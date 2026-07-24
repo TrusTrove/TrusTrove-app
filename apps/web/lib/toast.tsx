@@ -50,7 +50,9 @@ export function showErrorToast(action: string, error?: Error) {
   toast.error(
     <ToastAnnouncement variant="error" action={action}>
       {error?.message ? (
-        <span className="text-xs font-mono text-red-400/80">{error.message}</span>
+        <span className="text-xs font-mono text-red-400/80">
+          {error.message}
+        </span>
       ) : null}
     </ToastAnnouncement>,
     {

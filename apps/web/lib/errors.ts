@@ -53,8 +53,7 @@ function extractMessage(err: unknown): string {
 }
 
 const KNOWN_ERRORS: Record<string, string> = {
-  "Wallet not connected":
-    "Please connect your wallet to perform this action",
+  "Wallet not connected": "Please connect your wallet to perform this action",
 };
 
 export function getErrorMessage(

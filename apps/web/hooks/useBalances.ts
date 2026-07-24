@@ -16,7 +16,7 @@ const HORIZON_URL =
 
 async function fetchBalancesFromHorizon(
   address: string,
-  connected: boolean
+  connected: boolean,
 ): Promise<Balances> {
   if (!address || !connected) {
     return { usdc: null, xlm: null };

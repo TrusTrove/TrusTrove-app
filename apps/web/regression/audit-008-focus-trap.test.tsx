@@ -5,9 +5,7 @@ import { TransactionPending } from "@/components/shared/TransactionPending";
 
 describe("Regression: Focus trap and ARIA attributes on modals (PR #126)", () => {
   it("renders with role='dialog' and aria-modal='true'", () => {
-    render(
-      <TransactionPending isOpen={true} txHash={null} />,
-    );
+    render(<TransactionPending isOpen={true} txHash={null} />);
 
     const dialog = screen.getByRole("dialog");
     expect(dialog).toHaveAttribute("aria-modal", "true");

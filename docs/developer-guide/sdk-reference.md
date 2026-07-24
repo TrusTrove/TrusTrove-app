@@ -31,7 +31,9 @@ import {
   EscrowClient,
 } from "@trusttrove/sdk";
 
-const registry = new RegistryClient(process.env.NEXT_PUBLIC_REGISTRY_CONTRACT_ID!);
+const registry = new RegistryClient(
+  process.env.NEXT_PUBLIC_REGISTRY_CONTRACT_ID!,
+);
 const invoice = new InvoiceClient(process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID!);
 const pool = new PoolClient(process.env.NEXT_PUBLIC_POOL_CONTRACT_ID!);
 const escrow = new EscrowClient(process.env.NEXT_PUBLIC_ESCROW_CONTRACT_ID!);
@@ -103,15 +105,15 @@ The returned `Invoice` object has the following shape:
 
 ```typescript
 interface Invoice {
-  id: string;              // hex string of BytesN<32>
+  id: string; // hex string of BytesN<32>
   issuer: string;
   buyer: string;
-  faceValue: bigint;       // in stroops
+  faceValue: bigint; // in stroops
   asset: "USDC" | "XLM";
   discountBps: number;
   fundedAmount: bigint;
-  dueDate: number;         // Unix timestamp (seconds)
-  status: InvoiceStatus;   // "Created" | "Listed" | "Funded" | "Active" | "Confirmed" | "Repaid" | "Defaulted"
+  dueDate: number; // Unix timestamp (seconds)
+  status: InvoiceStatus; // "Created" | "Listed" | "Funded" | "Active" | "Confirmed" | "Repaid" | "Defaulted"
   createdAt: number;
   fundedAt: number | null;
   shippedAt: number | null;
@@ -140,7 +142,11 @@ const stats = await pool.getStats(signerPublicKey);
 const rateBps = await pool.getUtilizationRate(signerPublicKey);
 
 // Deposit USDC (returns tx hash)
-const txHash = await pool.deposit(lpPublicKey, BigInt(1_000_000_000_000), signerPublicKey);
+const txHash = await pool.deposit(
+  lpPublicKey,
+  BigInt(1_000_000_000_000),
+  signerPublicKey,
+);
 
 // Withdraw by share amount
 await pool.withdraw(lpPublicKey, shareAmount, signerPublicKey);
@@ -199,20 +205,20 @@ const simulation = await pool.simulateTransaction(
   signerPublicKey,
 );
 
-console.log(simulation.functionName);     // "deposit"
+console.log(simulation.functionName); // "deposit"
 console.log(simulation.estimatedFeeXlm); // e.g. "0.0001234"
-console.log(simulation.expectedResult);  // parsed return value (if any)
-console.log(simulation.footprintSize);   // number of ledger entries touched
+console.log(simulation.expectedResult); // parsed return value (if any)
+console.log(simulation.footprintSize); // number of ledger entries touched
 ```
 
 The return type is:
 
 ```typescript
 {
-  estimatedFeeXlm: string;   // total fee (base + resource) in XLM
-  functionName: string;      // the method name you passed in
-  expectedResult: any;       // scValToNative() of the retval, or undefined
-  footprintSize: number;     // read-only + read-write ledger entry count
+  estimatedFeeXlm: string; // total fee (base + resource) in XLM
+  functionName: string; // the method name you passed in
+  expectedResult: any; // scValToNative() of the retval, or undefined
+  footprintSize: number; // read-only + read-write ledger entry count
 }
 ```
 
@@ -227,8 +233,8 @@ All amounts in the SDK are `bigint` in stroops (1 USDC = 10,000,000 stroops). Us
 ```typescript
 import { toUsdc, fromUsdc } from "@trusttrove/sdk";
 
-toUsdc(BigInt(10_000_000));  // → "1.00"
-fromUsdc("1000.50");          // → BigInt(10005000000)
+toUsdc(BigInt(10_000_000)); // → "1.00"
+fromUsdc("1000.50"); // → BigInt(10005000000)
 ```
 
 > Never pass `number` to amount arguments — JavaScript numbers cannot represent `u128` values accurately. Always use `BigInt`.

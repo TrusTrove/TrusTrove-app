@@ -6,12 +6,9 @@ export function useAppError() {
 
   const clearError = useCallback(() => setError(null), []);
 
-  const handleError = useCallback(
-    (err: unknown, fallback?: string) => {
-      setError(getUserFriendlyMessage(err) || fallback || "An error occurred");
-    },
-    [],
-  );
+  const handleError = useCallback((err: unknown, fallback?: string) => {
+    setError(getUserFriendlyMessage(err) || fallback || "An error occurred");
+  }, []);
 
   return { error, setError, clearError, handleError };
 }

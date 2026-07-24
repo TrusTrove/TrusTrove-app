@@ -91,7 +91,9 @@ describe("InvoiceCard", () => {
   it("renders confirm delivery button for active status and buyer role", () => {
     renderWithQueryClient(
       <InvoiceCard
-        invoice={{ ...mockInvoice, status: "Active", buyerConfirmed: false } as any}
+        invoice={
+          { ...mockInvoice, status: "Active", buyerConfirmed: false } as any
+        }
         role="buyer"
       />,
     );
@@ -110,7 +112,10 @@ describe("InvoiceCard", () => {
 
   it("opens list terms form when configure financing terms is clicked", () => {
     renderWithQueryClient(
-      <InvoiceCard invoice={{ ...mockInvoice, status: "Created" } as any} role="issuer" />,
+      <InvoiceCard
+        invoice={{ ...mockInvoice, status: "Created" } as any}
+        role="issuer"
+      />,
     );
     fireEvent.click(screen.getByText(/Configure financing terms/i));
     expect(screen.getByText(/Discount Basis Points/i)).toBeInTheDocument();

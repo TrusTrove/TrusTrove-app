@@ -56,7 +56,9 @@ describe("Regression: SimulationPreview fallback state (PR #176)", () => {
       />,
     );
 
-    expect(screen.getAllByText(/simulation failed/i).length).toBeGreaterThanOrEqual(1);
+    expect(
+      screen.getAllByText(/simulation failed/i).length,
+    ).toBeGreaterThanOrEqual(1);
     expect(
       screen.getByText(/transaction simulation failed/i),
     ).toBeInTheDocument();

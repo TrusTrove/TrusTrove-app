@@ -119,7 +119,18 @@ describe("useTxHistory", () => {
   it("advances to next page when cursor available", () => {
     const refetch = vi.fn();
     vi.mocked(useQuery).mockReturnValue({
-      data: { items: [{ id: "tx1", type: "Test", timestamp: 1, hash: "tx1", status: "success" }], nextCursor: "cursor-2" },
+      data: {
+        items: [
+          {
+            id: "tx1",
+            type: "Test",
+            timestamp: 1,
+            hash: "tx1",
+            status: "success",
+          },
+        ],
+        nextCursor: "cursor-2",
+      },
       isLoading: false,
       error: null,
       refetch,
@@ -156,7 +167,18 @@ describe("useTxHistory", () => {
   it("goes back to previous page", () => {
     const refetch = vi.fn();
     vi.mocked(useQuery).mockReturnValue({
-      data: { items: [{ id: "tx2", type: "Test", timestamp: 2, hash: "tx2", status: "success" }], nextCursor: "cursor-3" },
+      data: {
+        items: [
+          {
+            id: "tx2",
+            type: "Test",
+            timestamp: 2,
+            hash: "tx2",
+            status: "success",
+          },
+        ],
+        nextCursor: "cursor-3",
+      },
       isLoading: false,
       error: null,
       refetch,

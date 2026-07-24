@@ -25,17 +25,17 @@ function manuallyParse(raw: any): Invoice {
     status: raw.status,
     createdAt: Number(raw.created_at ?? raw.createdAt ?? 0),
     fundedAt:
-      raw.funded_at ?? raw.fundedAt
+      (raw.funded_at ?? raw.fundedAt)
         ? Number(raw.funded_at ?? raw.fundedAt)
         : null,
     shippedAt:
-      raw.shipped_at ?? raw.shippedAt
+      (raw.shipped_at ?? raw.shippedAt)
         ? Number(raw.shipped_at ?? raw.shippedAt)
         : null,
     issuerConfirmed: !!(raw.issuer_confirmed ?? raw.issuerConfirmed),
     buyerConfirmed: !!(raw.buyer_confirmed ?? raw.buyerConfirmed),
     repaidAt:
-      raw.repaid_at ?? raw.repaidAt
+      (raw.repaid_at ?? raw.repaidAt)
         ? Number(raw.repaid_at ?? raw.repaidAt)
         : null,
   };

@@ -36,20 +36,23 @@ vi.mock("./useTokenAllowance", () => ({
 }));
 
 function mockMutation() {
-  vi.mocked(useMutation).mockImplementation((options: any) => ({
-    mutateAsync: async (args: any) => {
-      try {
-        const res = await options.mutationFn(args);
-        options.onSuccess?.(res);
-        return res;
-      } catch (e) {
-        options.onError?.(e);
-        throw e;
-      }
-    },
-    isPending: false,
-    error: null,
-  } as any));
+  vi.mocked(useMutation).mockImplementation(
+    (options: any) =>
+      ({
+        mutateAsync: async (args: any) => {
+          try {
+            const res = await options.mutationFn(args);
+            options.onSuccess?.(res);
+            return res;
+          } catch (e) {
+            options.onError?.(e);
+            throw e;
+          }
+        },
+        isPending: false,
+        error: null,
+      }) as any,
+  );
 }
 
 describe("useInvoices", () => {
@@ -251,7 +254,9 @@ describe("useInvoices", () => {
     });
 
     vi.mocked(InvoiceClient).mockImplementation(function () {
-      return { markShipped: vi.fn().mockRejectedValue(new Error("Ship failed")) };
+      return {
+        markShipped: vi.fn().mockRejectedValue(new Error("Ship failed")),
+      };
     } as any);
 
     const { result } = renderHook(() => useInvoices());
@@ -291,7 +296,9 @@ describe("useInvoices", () => {
 
     vi.mocked(getInvoiceByID).mockResolvedValue({ buyer: "G_BUYER" } as any);
     vi.mocked(InvoiceClient).mockImplementation(function () {
-      return { confirmDelivery: vi.fn().mockRejectedValue(new Error("Confirm failed")) };
+      return {
+        confirmDelivery: vi.fn().mockRejectedValue(new Error("Confirm failed")),
+      };
     } as any);
 
     const { result } = renderHook(() => useInvoices());
@@ -413,7 +420,9 @@ describe("useInvoices", () => {
     });
 
     vi.mocked(InvoiceClient).mockImplementation(function () {
-      return { triggerDefault: vi.fn().mockRejectedValue(new Error("Default failed")) };
+      return {
+        triggerDefault: vi.fn().mockRejectedValue(new Error("Default failed")),
+      };
     } as any);
 
     const { result } = renderHook(() => useInvoices());

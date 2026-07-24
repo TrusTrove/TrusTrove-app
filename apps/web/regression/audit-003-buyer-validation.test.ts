@@ -3,8 +3,7 @@ import { StrKey } from "@stellar/stellar-sdk";
 
 describe("Regression: Buyer address StrKey checksum validation (issue #130)", () => {
   it("accepts a valid Stellar Ed25519 public key", () => {
-    const validKey =
-      "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
+    const validKey = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
     const result = StrKey.isValidEd25519PublicKey(validKey);
     expect(result).toBe(true);
   });
@@ -35,8 +34,7 @@ describe("Regression: Buyer address StrKey checksum validation (issue #130)", ()
   });
 
   it("rejects whitespace-padded valid key (validation handles trim separately)", () => {
-    const validKey =
-      "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
+    const validKey = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
     expect(StrKey.isValidEd25519PublicKey(`  ${validKey}  `)).toBe(false);
   });
 });
