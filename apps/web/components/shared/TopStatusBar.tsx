@@ -66,7 +66,7 @@ export function TopStatusBar() {
   // Format event for display in the ticker
   const formatEventForTicker = (event: EventLog): TickerItem => {
     // Extract amount from event data (assuming it's in USDC)
-    let amount = '0 USDC';
+    let amount = "0 USDC";
     if (event.data && event.data.funded_amount) {
       const amountInUSDC = Number(event.data.funded_amount) / 1000000; // Convert from stroops to USDC
       amount = `${Math.round(amountInUSDC).toLocaleString()} USDC`;
@@ -76,7 +76,7 @@ export function TopStatusBar() {
     }
 
     // Extract discount from event data (in basis points)
-    let discount = '0.0%';
+    let discount = "0.0%";
     if (event.data && event.data.discount_bps) {
       const discountPercent = Number(event.data.discount_bps) / 100;
       discount = `${discountPercent.toFixed(1)}%`;
@@ -85,22 +85,33 @@ export function TopStatusBar() {
     // Calculate time ago
     const now = Math.floor(Date.now() / 1000);
     const diff = now - event.ledger_closed_at;
-    let time = '';
-    if (diff < 60) time = 'just now';
+    let time = "";
+    if (diff < 60) time = "just now";
     else if (diff < 3600) time = `${Math.floor(diff / 60)}m ago`;
     else if (diff < 86400) time = `${Math.floor(diff / 3600)}h ago`;
     else time = `${Math.floor(diff / 86400)}d ago`;
 
     // Determine country/flag based on issuer or buyer (simplified hash-based)
     const flagMap: Record<string, string> = {
-      '0': '🇳🇬', '1': '🇰🇪', '2': '🇬🇭', '3': '🇸🇳', '4': '🇺🇬', 
-      '5': '🇨🇮', '6': '🇹🇬', '7': '🇧🇯', '8': '🇸🇱', '9': '🇱🇷'
+      "0": "🇳🇬",
+      "1": "🇰🇪",
+      "2": "🇬🇭",
+      "3": "🇸🇳",
+      "4": "🇺🇬",
+      "5": "🇨🇮",
+      "6": "🇹🇬",
+      "7": "🇧🇯",
+      "8": "🇸🇱",
+      "9": "🇱🇷",
     };
-    const hash = Array.from(event.id.toString()).reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const flag = flagMap[hash % 10] || '🌍';
+    const hash = Array.from(event.id.toString()).reduce(
+      (acc, char) => acc + char.charCodeAt(0),
+      0,
+    );
+    const flag = flagMap[hash % 10] || "🌍";
 
     // Generate SME name based on event data
-    let sme = 'Unknown SME';
+    let sme = "Unknown SME";
     if (event.data.buyer) {
       sme = `${event.data.buyer.slice(0, 8)}...`;
     } else if (event.data.issuer) {
@@ -130,11 +141,46 @@ export function TopStatusBar() {
     if (!rawEvents || rawEvents.length === 0) {
       // Show placeholder items when no real data is available
       const placeholderItems: TickerItem[] = [
-        { id: '1', sme: 'Awaiting...', amount: '0 USDC', discount: '0.0%', time: 'live', country: '🌍' },
-        { id: '2', sme: 'Awaiting...', amount: '0 USDC', discount: '0.0%', time: 'live', country: '🌍' },
-        { id: '3', sme: 'Awaiting...', amount: '0 USDC', discount: '0.0%', time: 'live', country: '🌍' },
-        { id: '4', sme: 'Awaiting...', amount: '0 USDC', discount: '0.0%', time: 'live', country: '🌍' },
-        { id: '5', sme: 'Awaiting...', amount: '0 USDC', discount: '0.0%', time: 'live', country: '🌍' },
+        {
+          id: "1",
+          sme: "Awaiting...",
+          amount: "0 USDC",
+          discount: "0.0%",
+          time: "live",
+          country: "🌍",
+        },
+        {
+          id: "2",
+          sme: "Awaiting...",
+          amount: "0 USDC",
+          discount: "0.0%",
+          time: "live",
+          country: "🌍",
+        },
+        {
+          id: "3",
+          sme: "Awaiting...",
+          amount: "0 USDC",
+          discount: "0.0%",
+          time: "live",
+          country: "🌍",
+        },
+        {
+          id: "4",
+          sme: "Awaiting...",
+          amount: "0 USDC",
+          discount: "0.0%",
+          time: "live",
+          country: "🌍",
+        },
+        {
+          id: "5",
+          sme: "Awaiting...",
+          amount: "0 USDC",
+          discount: "0.0%",
+          time: "live",
+          country: "🌍",
+        },
       ];
       setTickerItems(placeholderItems);
     }
@@ -154,7 +200,7 @@ export function TopStatusBar() {
       </div>
 
       {/* Scrolling Ticker */}
-      <div 
+      <div
         className="flex-1 flex items-center gap-2 overflow-hidden"
         role="status"
         aria-live="polite"
@@ -165,10 +211,16 @@ export function TopStatusBar() {
           className="text-slate-500 hover:text-white focus:text-white shrink-0 z-10 transition-colors"
           aria-label={isPaused ? "Play ticker" : "Pause ticker"}
         >
-          {isPaused ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
+          {isPaused ? (
+            <Play className="w-3 h-3" />
+          ) : (
+            <Pause className="w-3 h-3" />
+          )}
         </button>
         <div className="flex-1 overflow-hidden relative h-4 flex items-center group">
-          <div className={`flex gap-12 whitespace-nowrap animate-[marquee_25s_linear_infinite] group-hover:[animation-play-state:paused] group-focus-within:[animation-play-state:paused] motion-reduce:animate-none ${isPaused ? '[animation-play-state:paused]' : ''}`}>
+          <div
+            className={`flex gap-12 whitespace-nowrap animate-[marquee_25s_linear_infinite] group-hover:[animation-play-state:paused] group-focus-within:[animation-play-state:paused] motion-reduce:animate-none ${isPaused ? "[animation-play-state:paused]" : ""}`}
+          >
             {tickerItems.map((item, idx) => (
               <div
                 key={`${item.id}-${idx}`}

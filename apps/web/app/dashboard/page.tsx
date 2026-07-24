@@ -29,14 +29,17 @@ import { motion, AnimatePresence } from "framer-motion";
 import { formatAmount } from "@/lib/assets";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 
-const InvoiceForm = dynamic(() => import("@/components/invoice/InvoiceForm").then((m) => m.InvoiceForm), {
-  ssr: false,
-  loading: () => (
-    <div className="h-64 w-full flex items-center justify-center">
-      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary" />
-    </div>
-  ),
-});
+const InvoiceForm = dynamic(
+  () => import("@/components/invoice/InvoiceForm").then((m) => m.InvoiceForm),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-64 w-full flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary" />
+      </div>
+    ),
+  },
+);
 
 export default function SMEDashboard() {
   const { address, connected, role } = useWalletStore();
@@ -337,20 +340,20 @@ export default function SMEDashboard() {
                   onSelectInvoice={(invoice) => setSelectedInvoice(invoice)}
                   activeId={selectedInvoice?.id}
                   emptyState={
-                  <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-                    <p className="text-slate-500 text-xs font-mono mb-6 leading-relaxed max-w-xs">
-                      Create your first invoice to get started
-                    </p>
-                    <button
-                      onClick={() => setShowCreateModal(true)}
-                      className="bg-primary hover:bg-primary-hover text-black font-bold uppercase tracking-wider text-xs rounded px-4 py-2.5 flex items-center gap-1.5 shadow-[0_0_15px_rgba(0,212,170,0.1)] transition-all"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Create Invoice
-                    </button>
-                  </div>
-                }
-              />
+                    <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+                      <p className="text-slate-500 text-xs font-mono mb-6 leading-relaxed max-w-xs">
+                        Create your first invoice to get started
+                      </p>
+                      <button
+                        onClick={() => setShowCreateModal(true)}
+                        className="bg-primary hover:bg-primary-hover text-black font-bold uppercase tracking-wider text-xs rounded px-4 py-2.5 flex items-center gap-1.5 shadow-[0_0_15px_rgba(0,212,170,0.1)] transition-all"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Create Invoice
+                      </button>
+                    </div>
+                  }
+                />
               </ErrorBoundary>
             )}
 
@@ -359,39 +362,39 @@ export default function SMEDashboard() {
               <ActivityTimelineSkeleton />
             ) : (
               <ErrorBoundary context="ActivityLog">
-              <div className="bg-card border border-border rounded-lg p-5 space-y-4">
-                <h3 className="text-xs font-bold font-mono text-white uppercase tracking-wider border-b border-border/40 pb-2">
-                  On-Chain Activity Logs
-                </h3>
-                <div className="space-y-3 font-mono text-xs">
-                  {events.length === 0 && (
-                    <p className="text-slate-500 text-[10px] py-4 text-center">
-                      No events recorded yet.
-                    </p>
-                  )}
-                  {events.map((event) => {
-                    const display = formatEventDisplay(event);
-                    return (
-                      <div
-                        key={event.id}
-                        className="flex justify-between items-start gap-4 p-2 border-b border-border/20 last:border-0"
-                      >
-                        <div className="space-y-1">
-                          <span className="text-primary font-bold">
-                            {display.type}
+                <div className="bg-card border border-border rounded-lg p-5 space-y-4">
+                  <h3 className="text-xs font-bold font-mono text-white uppercase tracking-wider border-b border-border/40 pb-2">
+                    On-Chain Activity Logs
+                  </h3>
+                  <div className="space-y-3 font-mono text-xs">
+                    {events.length === 0 && (
+                      <p className="text-slate-500 text-[10px] py-4 text-center">
+                        No events recorded yet.
+                      </p>
+                    )}
+                    {events.map((event) => {
+                      const display = formatEventDisplay(event);
+                      return (
+                        <div
+                          key={event.id}
+                          className="flex justify-between items-start gap-4 p-2 border-b border-border/20 last:border-0"
+                        >
+                          <div className="space-y-1">
+                            <span className="text-primary font-bold">
+                              {display.type}
+                            </span>
+                            <p className="text-[10px] text-slate-400">
+                              {display.details}
+                            </p>
+                          </div>
+                          <span className="text-[9px] text-slate-500 text-right">
+                            {display.time}
                           </span>
-                          <p className="text-[10px] text-slate-400">
-                            {display.details}
-                          </p>
                         </div>
-                        <span className="text-[9px] text-slate-500 text-right">
-                          {display.time}
-                        </span>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
               </ErrorBoundary>
             )}
           </div>
@@ -403,47 +406,47 @@ export default function SMEDashboard() {
             </h2>
 
             <ErrorBoundary context="ManagementConsole">
-            <AnimatePresence mode="wait">
-              {selectedInvoice ? (
-                <motion.div
-                  key={selectedInvoice.id}
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  className="space-y-4"
-                >
-                  <div className="flex justify-between items-center">
-                    <span className="text-[10px] font-bold font-mono text-slate-500 uppercase">
-                      Selected invoice details
-                    </span>
-                    <button
-                      onClick={() => setSelectedInvoice(null)}
-                      className="text-[10px] font-mono text-primary hover:underline uppercase font-bold"
-                    >
-                      Clear console
-                    </button>
-                  </div>
-                  <InvoiceCard
-                    invoice={selectedInvoice}
-                    role={role}
-                    isSelected
-                  />
-
-                  {/* Additional invoice details */}
-                  <Link
-                    href={`/invoice/${selectedInvoice.id}`}
-                    className="w-full bg-[#0d131a] border border-border hover:border-primary/50 text-slate-300 hover:text-white font-bold text-xs uppercase tracking-wider py-2 rounded text-center block font-mono"
+              <AnimatePresence mode="wait">
+                {selectedInvoice ? (
+                  <motion.div
+                    key={selectedInvoice.id}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="space-y-4"
                   >
-                    View audit ledger
-                  </Link>
-                </motion.div>
-              ) : (
-                <div className="bg-card/45 border border-dashed border-border rounded-lg p-6 text-center text-slate-500 font-mono text-[10px] py-20 uppercase tracking-wider">
-                  Select an obligation from the table to load actions in the
-                  operator console.
-                </div>
-              )}
-            </AnimatePresence>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-bold font-mono text-slate-500 uppercase">
+                        Selected invoice details
+                      </span>
+                      <button
+                        onClick={() => setSelectedInvoice(null)}
+                        className="text-[10px] font-mono text-primary hover:underline uppercase font-bold"
+                      >
+                        Clear console
+                      </button>
+                    </div>
+                    <InvoiceCard
+                      invoice={selectedInvoice}
+                      role={role}
+                      isSelected
+                    />
+
+                    {/* Additional invoice details */}
+                    <Link
+                      href={`/invoice/${selectedInvoice.id}`}
+                      className="w-full bg-[#0d131a] border border-border hover:border-primary/50 text-slate-300 hover:text-white font-bold text-xs uppercase tracking-wider py-2 rounded text-center block font-mono"
+                    >
+                      View audit ledger
+                    </Link>
+                  </motion.div>
+                ) : (
+                  <div className="bg-card/45 border border-dashed border-border rounded-lg p-6 text-center text-slate-500 font-mono text-[10px] py-20 uppercase tracking-wider">
+                    Select an obligation from the table to load actions in the
+                    operator console.
+                  </div>
+                )}
+              </AnimatePresence>
             </ErrorBoundary>
           </div>
         </div>

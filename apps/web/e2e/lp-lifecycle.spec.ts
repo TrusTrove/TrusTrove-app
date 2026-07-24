@@ -14,9 +14,7 @@ test.describe("LP Lifecycle - Pool Deposit & Redeem", () => {
 
     // Wait for wallet connection to be reflected in the UI
     await expect(
-      page.getByText(
-        "GBMOCKWALLETADDRESSXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-      ),
+      page.getByText("GBMOCKWALLETADDRESSXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"),
     ).toBeVisible({ timeout: 15000 });
   });
 
@@ -48,9 +46,7 @@ test.describe("LP Lifecycle - Pool Deposit & Redeem", () => {
   test("should show the Yield Performance Ledger chart section", async ({
     page,
   }) => {
-    await expect(
-      page.getByText(/Yield Performance Ledger/i),
-    ).toBeVisible();
+    await expect(page.getByText(/Yield Performance Ledger/i)).toBeVisible();
   });
 
   test("should show profile verification warning when wallet is unverified", async ({
@@ -107,30 +103,22 @@ test.describe("LP Lifecycle - Pool Deposit & Redeem", () => {
     await amountInput.fill("10000");
 
     // Verify preview is visible
-    await expect(
-      page.getByText(/Depositing 10,000/),
-    ).toBeVisible();
+    await expect(page.getByText(/Depositing 10,000/)).toBeVisible();
 
     // Clear the input
     await amountInput.fill("");
 
     // Preview should disappear
-    await expect(
-      page.getByText(/Depositing/),
-    ).not.toBeVisible();
+    await expect(page.getByText(/Depositing/)).not.toBeVisible();
   });
 
-  test("should not submit deposit with empty amount", async ({
-    page,
-  }) => {
+  test("should not submit deposit with empty amount", async ({ page }) => {
     const depositBtn = page.getByRole("button", { name: /DEPOSIT USDC/i });
     // Since the button is disabled (unverified), clicking should not submit
     await expect(depositBtn).toBeDisabled();
   });
 
-  test("should not submit redeem with empty shares", async ({
-    page,
-  }) => {
+  test("should not submit redeem with empty shares", async ({ page }) => {
     const redeemBtn = page.getByRole("button", { name: /REDEEM SHARES/i });
     // Since the button is disabled (unverified), clicking should not submit
     await expect(redeemBtn).toBeDisabled();
@@ -144,7 +132,13 @@ test.describe("LP Lifecycle - Pool Deposit & Redeem", () => {
     await page.evaluate(() => {
       const queryClient = (window as any).__reactQueryClient;
       if (queryClient) {
-        queryClient.setQueryData(["isVerified", "GBMOCKWALLETADDRESSXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"], true);
+        queryClient.setQueryData(
+          [
+            "isVerified",
+            "GBMOCKWALLETADDRESSXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+          ],
+          true,
+        );
       }
     });
 
@@ -192,9 +186,7 @@ test.describe("LP Lifecycle - Secondary Flows", () => {
 
     // Wait for connection
     await expect(
-      page.getByText(
-        "GBMOCKWALLETADDRESSXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-      ),
+      page.getByText("GBMOCKWALLETADDRESSXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"),
     ).toBeVisible({ timeout: 15000 });
 
     // Disconnect wallet (the Navbar or WalletConnect should have a disconnect button)

@@ -113,7 +113,7 @@ export default function Home() {
                   USDC POOL VALUE
                 </span>
               </div>
-              
+
               {/* Invoices Funded */}
               <div className="text-center lg:text-left">
                 {renderStat(
@@ -125,7 +125,7 @@ export default function Home() {
                   INVOICES FUNDED
                 </span>
               </div>
-              
+
               {/* Yield Distributed */}
               <div className="text-center lg:text-left">
                 {renderStat(formatCompactUsdc(stats?.totalYieldDistributed))}
@@ -281,7 +281,9 @@ export default function Home() {
               <div className="bg-[#080c10] border border-border/40 p-2.5 rounded text-[10px] font-mono flex justify-between text-slate-500">
                 <span>UTILIZATION RATE:</span>
                 {isStatsLoading ? (
-                  <span className="text-white font-bold animate-pulse">--.-%</span>
+                  <span className="text-white font-bold animate-pulse">
+                    --.-%
+                  </span>
                 ) : statsError ? (
                   <span className="text-white font-bold">--.-%</span>
                 ) : (

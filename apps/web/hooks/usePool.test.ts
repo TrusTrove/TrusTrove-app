@@ -28,20 +28,23 @@ vi.mock("./useTokenAllowance", () => ({
 }));
 
 function mockMutation() {
-  vi.mocked(useMutation).mockImplementation((options: any) => ({
-    mutateAsync: async (args: any) => {
-      try {
-        const res = await options.mutationFn(args);
-        options.onSuccess?.(res);
-        return res;
-      } catch (e) {
-        options.onError?.(e);
-        throw e;
-      }
-    },
-    isPending: false,
-    error: null,
-  } as any));
+  vi.mocked(useMutation).mockImplementation(
+    (options: any) =>
+      ({
+        mutateAsync: async (args: any) => {
+          try {
+            const res = await options.mutationFn(args);
+            options.onSuccess?.(res);
+            return res;
+          } catch (e) {
+            options.onError?.(e);
+            throw e;
+          }
+        },
+        isPending: false,
+        error: null,
+      }) as any,
+  );
 }
 
 describe("usePool", () => {
@@ -257,7 +260,9 @@ describe("usePool", () => {
     });
 
     vi.mocked(PoolClient).mockImplementation(function () {
-      return { withdraw: vi.fn().mockRejectedValue(new Error("Insufficient shares")) };
+      return {
+        withdraw: vi.fn().mockRejectedValue(new Error("Insufficient shares")),
+      };
     } as any);
 
     const { result } = renderHook(() => usePool());

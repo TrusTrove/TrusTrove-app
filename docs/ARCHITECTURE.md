@@ -7,6 +7,7 @@ This document provides a high-level overview of the TrusTrove system architectur
 ## 1. System Overview
 
 TrusTrove is a decentralized trade finance platform built on the Stellar network. The system consists of three main tiers:
+
 1. **Frontend**: Next.js single-page application that provides user interfaces for SMEs and Liquidity Providers.
 2. **Go Indexer / Backend**: Go API service and background event listener backed by a PostgreSQL database.
 3. **Smart Contracts**: Four Soroban smart contracts deployed on the Stellar Testnet.
@@ -35,6 +36,7 @@ TrusTrove is a decentralized trade finance platform built on the Stellar network
 ## 2. Component Descriptions
 
 ### Frontend
+
 - **Location**: [`apps/web`](file:///c:/Users/ICT%20LASIEC/TrusTrove-app/apps/web)
 - **Role**: High-fidelity web application for interacting with the platform.
 - **Current Responsibilities**:
@@ -44,6 +46,7 @@ TrusTrove is a decentralized trade finance platform built on the Stellar network
   - Queries the Indexer API to fetch historical lists of invoices, liquidity pool metrics, and individual LP positions.
 
 ### Go Indexer
+
 - **Location**: [`indexer`](file:///c:/Users/ICT%20LASIEC/TrusTrove-app/indexer)
 - **Role**: A Go web server serving two main purposes: API Routing and Blockchain Event Listening.
 - **Current Responsibilities**:
@@ -53,6 +56,7 @@ TrusTrove is a decentralized trade finance platform built on the Stellar network
   - **Database (PostgreSQL)**: Acts as a fast database cache for the blockchain events, facilitating paginated queries and aggregation calculations.
 
 ### Smart Contracts (Soroban)
+
 - **Location**: Deployed on Stellar Testnet (Source repository: `TrusTrove-contract`)
 - **Role**: Decentralized protocol logic and fund management on-chain.
 - **Current Responsibilities**:
@@ -126,18 +130,18 @@ sequenceDiagram
     Note over SME, FE: 2. Invoice Creation Request
     SME->>FE: Enter invoice details & submit
     FE->>IX_API: POST /invoices (JWT + Buyer, Face Value, Due Date)
-    
+
     Note over IX_API, RPC: 3. Transaction Simulation & Submission
     IX_API->>RPC: simulateTransaction (create invoice invocation)
     RPC-->>IX_API: Simulation results, resource details & invoice_id
     IX_API->>RPC: sendTransaction (Signed using Indexer Server Keypair)
     RPC-->>IX_API: Transaction Hash
-    
+
     loop Poll transaction status
         IX_API->>RPC: getTransaction(hash)
         RPC-->>IX_API: Status (SUCCESS / PENDING / FAILED)
     end
-    
+
     IX_API-->>FE: Response (invoice_id, transaction_hash, SUCCESS)
 
     Note over SC: 4. Contract Execution & Event Emission
@@ -150,7 +154,7 @@ sequenceDiagram
         RPC-->>IX_LIS: InvoiceCreated Event (XDR)
     end
     IX_LIS->>DB: Insert Invoice (status: "Created")
-    
+
     Note over FE, DB: 6. Frontend Querying Cache
     FE->>IX_API: GET /invoices or GET /invoices/{id}
     IX_API->>DB: Query invoice

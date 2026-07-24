@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback } from "react";
 
 interface ModalProps {
   isOpen: boolean;
@@ -12,17 +12,30 @@ interface ModalProps {
   containerClassName?: string;
 }
 
-const FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-export function Modal({ isOpen, onClose, title, titleId, children, className, containerClassName = '' }: ModalProps) {
+export function Modal({
+  isOpen,
+  onClose,
+  title,
+  titleId,
+  children,
+  className,
+  containerClassName = "",
+}: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
-  const generatedTitleId = useRef(`modal-title-${Math.random().toString(36).slice(2, 9)}`).current;
+  const generatedTitleId = useRef(
+    `modal-title-${Math.random().toString(36).slice(2, 9)}`,
+  ).current;
   const id = titleId || generatedTitleId;
 
   const getFocusableElements = useCallback(() => {
     if (!modalRef.current) return [];
-    return Array.from(modalRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+    return Array.from(
+      modalRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+    );
   }, []);
 
   const focusFirstElement = useCallback(() => {
@@ -51,47 +64,53 @@ export function Modal({ isOpen, onClose, title, titleId, children, className, co
   useEffect(() => {
     if (isOpen) return;
 
-    if (previousFocusRef.current && typeof previousFocusRef.current.focus === 'function') {
+    if (
+      previousFocusRef.current &&
+      typeof previousFocusRef.current.focus === "function"
+    ) {
       previousFocusRef.current.focus();
     }
   }, [isOpen]);
 
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      onClose();
-      return;
-    }
-
-    if (e.key === 'Tab') {
-      const focusable = getFocusableElements();
-      if (focusable.length === 0) {
-        e.preventDefault();
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
         return;
       }
 
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-
-      if (e.shiftKey) {
-        if (document.activeElement === first) {
+      if (e.key === "Tab") {
+        const focusable = getFocusableElements();
+        if (focusable.length === 0) {
           e.preventDefault();
-          last.focus();
+          return;
         }
-      } else {
-        if (document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        if (e.shiftKey) {
+          if (document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+          }
         }
       }
-    }
-  }, [onClose, getFocusableElements]);
+    },
+    [onClose, getFocusableElements],
+  );
 
   useEffect(() => {
     if (!isOpen) return;
 
-    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown);
     return () => {
-      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener("keydown", handleKeyDown);
     };
   }, [isOpen, handleKeyDown]);
 

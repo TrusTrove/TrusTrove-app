@@ -95,9 +95,7 @@ describe("Regression: Polling lifecycle and config validation (PR #176)", () => 
       const res = { invoice_id: "inv123" };
       expect(() => {
         if (!res.transaction_hash) {
-          throw new Error(
-            "Invoice creation did not return a transaction hash",
-          );
+          throw new Error("Invoice creation did not return a transaction hash");
         }
       }).toThrow("transaction hash");
     });
@@ -109,9 +107,7 @@ describe("Regression: Polling lifecycle and config validation (PR #176)", () => 
           throw new Error("Invoice creation did not return a valid invoice ID");
         }
         if (!res.transaction_hash) {
-          throw new Error(
-            "Invoice creation did not return a transaction hash",
-          );
+          throw new Error("Invoice creation did not return a transaction hash");
         }
       }).not.toThrow();
     });

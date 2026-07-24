@@ -53,7 +53,10 @@ describe("useWallet", () => {
   it("connectWallet shows loading during connection", async () => {
     let resolveConnect: (v: string) => void;
     vi.mocked(connectFreighter).mockImplementation(
-      () => new Promise<string>((resolve) => { resolveConnect = resolve; }),
+      () =>
+        new Promise<string>((resolve) => {
+          resolveConnect = resolve;
+        }),
     );
 
     const { result } = renderHook(() => useWallet());
@@ -97,7 +100,7 @@ describe("useWallet", () => {
       await result.current.connectWallet();
     });
 
-    expect(result.current.error).toBe("Failed to connect wallet");
+    expect(result.current.error).toBe("User rejected request");
     expect(result.current.connected).toBe(false);
   });
 

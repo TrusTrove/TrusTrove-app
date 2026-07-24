@@ -20,10 +20,7 @@ class ApiClient {
     this.token = token;
   }
 
-  async fetch<T>(
-    path: string,
-    options: RequestInit = {},
-  ): Promise<T> {
+  async fetch<T>(path: string, options: RequestInit = {}): Promise<T> {
     const headers = new Headers(options.headers || {});
 
     if (this.token) {

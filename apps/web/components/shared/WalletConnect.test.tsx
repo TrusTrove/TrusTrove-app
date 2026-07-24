@@ -93,14 +93,11 @@ describe("WalletConnect", () => {
 
     render(<WalletConnect />);
 
-    expect(
-      await screen.findByText(/Install Freighter/i),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/Install Freighter/i)).toBeInTheDocument();
   });
 
   it("copies the wallet address when connected", async () => {
-    const address =
-      "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB";
+    const address = "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB";
     vi.mocked(useWallet).mockReturnValue({
       connected: true,
       loading: false,

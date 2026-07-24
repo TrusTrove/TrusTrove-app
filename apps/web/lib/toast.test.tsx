@@ -2,8 +2,10 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { showErrorToast, showSuccessToast } from "@/lib/toast";
 
-const successMock = vi.fn();
-const errorMock = vi.fn();
+const { successMock, errorMock } = vi.hoisted(() => ({
+  successMock: vi.fn(),
+  errorMock: vi.fn(),
+}));
 
 vi.mock("sonner", () => ({
   toast: {
@@ -24,12 +26,14 @@ describe("toast accessibility", () => {
     expect(successMock).toHaveBeenCalledTimes(1);
 
     const [content, options] = successMock.mock.calls[0];
-    render(<>{content}</>);
+    const { container } = render(<>{content}</>);
 
     const text = screen.getByText("Deposit Complete").closest("div");
     expect(text).toHaveAttribute("aria-atomic", "true");
-    expect(screen.getByText("Success: ", { selector: ".sr-only" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /view on stellar expert/i })).toHaveAttribute(
+    expect(container.querySelector(".sr-only")).toHaveTextContent("Success:");
+    expect(
+      screen.getByRole("link", { name: /view on stellar expert/i }),
+    ).toHaveAttribute(
       "href",
       "https://stellar.expert/explorer/testnet/tx/abc123",
     );
@@ -42,11 +46,11 @@ describe("toast accessibility", () => {
     expect(errorMock).toHaveBeenCalledTimes(1);
 
     const [content, options] = errorMock.mock.calls[0];
-    render(<>{content}</>);
+    const { container } = render(<>{content}</>);
 
     const text = screen.getByText("Withdrawal Failed").closest("div");
     expect(text).toHaveAttribute("aria-atomic", "true");
-    expect(screen.getByText("Error: ", { selector: ".sr-only" })).toBeInTheDocument();
+    expect(container.querySelector(".sr-only")).toHaveTextContent("Error:");
     expect(screen.getByText("Insufficient balance")).toBeInTheDocument();
     expect(options).toMatchObject({ duration: 6000 });
   });
