@@ -13,6 +13,8 @@ import {
   parseRawInvoice,
   parseRawPoolStats,
   parseRawLPPosition,
+  initApiClientWithToken,
+  apiClient,
 } from "./api";
 import { useWalletStore } from "@/store/wallet";
 import type { AssetType } from "@/types";
@@ -32,10 +34,12 @@ describe("apiFetch internal function", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (useWalletStore.getState as any).mockReturnValue({ token: null });
+    (apiClient as any).token = undefined;
   });
 
   it("should add Authorization header when token exists", async () => {
     (useWalletStore.getState as any).mockReturnValue({ token: "test-token" });
+    initApiClientWithToken();
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve({}),
@@ -93,7 +97,7 @@ describe("apiFetch internal function", () => {
     });
 
     await expect(fetchChallenge("GTEST")).rejects.toThrow(
-      "HTTP error! status: 500"
+      "HTTP error! status: 500",
     );
   });
 });
@@ -237,7 +241,7 @@ describe("API functions", () => {
       expect(result).toEqual(mockResponse);
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining("/auth?address=GTEST"),
-        expect.anything()
+        expect.anything(),
       );
     });
   });
@@ -257,7 +261,7 @@ describe("API functions", () => {
         expect.objectContaining({
           method: "POST",
           body: expect.stringContaining("test-tx-xdr"),
-        })
+        }),
       );
     });
   });
@@ -278,7 +282,7 @@ describe("API functions", () => {
         "GBUYER",
         "1000000000",
         123456789,
-        "USDC"
+        "USDC",
       );
       expect(result).toEqual(mockResponse);
     });

@@ -12,6 +12,7 @@ vi.mock("@stellar/freighter-api", () => ({
 vi.mock("@/lib/api", () => ({
   fetchChallenge: vi.fn(),
   verifyChallenge: vi.fn(),
+  initApiClientWithToken: vi.fn(),
 }));
 
 describe("useAuth", () => {
@@ -32,7 +33,10 @@ describe("useAuth", () => {
   it("sets loading state during login", async () => {
     let resolveChallenge: (v: any) => void;
     vi.mocked(fetchChallenge).mockImplementation(
-      () => new Promise((resolve) => { resolveChallenge = resolve; }),
+      () =>
+        new Promise((resolve) => {
+          resolveChallenge = resolve;
+        }),
     );
 
     act(() => {
@@ -177,7 +181,7 @@ describe("useAuth", () => {
       await result.current.login();
     });
 
-    expect(result.current.error).toBe("Authentication failed");
+    expect(result.current.error).toBe("Something went wrong");
   });
 
   it("logout clears token and disconnects", () => {
