@@ -1,12 +1,6 @@
 "use client";
 
-import React, {
-  ReactNode,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { formatAmount } from "@/lib/assets";
@@ -364,7 +358,9 @@ export function InvoiceTable({
                             : "—"}
                         </div>
                         <div className="text-slate-400">
-                          {new Date(invoice.dueDate * 1000).toLocaleDateString()}
+                          {new Date(
+                            invoice.dueDate * 1000,
+                          ).toLocaleDateString()}
                         </div>
                         <div className="flex justify-start">
                           <InvoiceStatus status={invoice.status} />
@@ -377,9 +373,7 @@ export function InvoiceTable({
             </div>
           </div>
 
-          {pagination && (
-            <InvoicePagination {...pagination} />
-          )}
+          {pagination && <InvoicePagination {...pagination} />}
         </>
       )}
     </div>

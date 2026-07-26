@@ -16,13 +16,7 @@ import {
   InvoiceTableSkeleton,
   ActivityTimelineSkeleton,
 } from "@/components/shared/SkeletonLoader";
-import {
-  Layers,
-  Plus,
-  CheckCircle2,
-  Circle,
-  Lock,
-} from "lucide-react";
+import { Layers, Plus, CheckCircle2, Circle, Lock } from "lucide-react";
 import { Invoice } from "@/types";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatAmount } from "@/lib/assets";
