@@ -171,7 +171,20 @@ export function useInvoices(filters?: {
       if (!address) throw new Error("Wallet not connected");
       const invoiceClient = new InvoiceClient(invoiceContractID);
       const invoice = await invoiceClient.get(invoiceId, address);
-      await ensureAllowance(invoiceContractID, invoice.faceValue);
+      try {
+        await ensureAllowance(invoiceContractID, invoice.faceValue);
+      } catch (allowanceErr: any) {
+        const message = allowanceErr?.message || "";
+        if (
+          message.toLowerCase().includes("user rejected") ||
+          message.toLowerCase().includes("rejected") ||
+          message.toLowerCase().includes("user denied") ||
+          message.toLowerCase().includes("canceled")
+        ) {
+          throw new Error("Allowance rejected");
+        }
+        throw allowanceErr;
+      }
       return invoiceClient.repay(invoiceId, address);
     },
     onSuccess: () => {
