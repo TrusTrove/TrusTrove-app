@@ -484,7 +484,7 @@ export default function LPDashboard() {
                             fontFamily: "ui-monospace, monospace",
                           }}
                           labelStyle={{ color: "#94a3b8" }}
-                          formatter={(value: number) => [`${value.toFixed(1)}%`, "Utilization"]}
+                          formatter={(value) => [`${Number(value).toFixed(1)}%`, "Utilization"]}
                         />
                         <Area
                           type="monotone"
