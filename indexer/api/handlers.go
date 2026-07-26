@@ -93,7 +93,7 @@ type JsonRpcResponse struct {
 	} `json:"error"`
 }
 
-func CallSorobanRPC(rpcURL string, method string, params interface{}, result interface{}) error {
+func CallSorobanRPC(ctx context.Context, rpcURL string, method string, params interface{}, result interface{}) error {
 	reqBody := JsonRpcRequest{
 		Jsonrpc: "2.0",
 		Id:      1,
@@ -106,7 +106,13 @@ func CallSorobanRPC(rpcURL string, method string, params interface{}, result int
 		return err
 	}
 
-	resp, err := http.Post(rpcURL, "application/json", bytes.NewBuffer(bodyBytes))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, rpcURL, bytes.NewBuffer(bodyBytes))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -223,6 +229,7 @@ type GetAccountResponse struct {
 }
 
 func ReadContract(
+	ctx context.Context,
 	rpcURL string,
 	contractID string,
 	method string,
@@ -256,7 +263,7 @@ func ReadContract(
 	}
 
 	var simResp SimulateResponse
-	err = CallSorobanRPC(rpcURL, "simulateTransaction", map[string]string{"transaction": txBase64}, &simResp)
+	err = CallSorobanRPC(ctx, rpcURL, "simulateTransaction", map[string]string{"transaction": txBase64}, &simResp)
 	if err != nil {
 		return xdr.ScVal{}, err
 	}
@@ -505,7 +512,7 @@ func (h *APIHandler) HandleCreateInvoice(w http.ResponseWriter, r *http.Request)
 	}
 
 	var accResp GetAccountResponse
-	err := CallSorobanRPC(h.cfg.SorobanRPCURL, "getAccount", map[string]string{"address": h.serverKP.Address()}, &accResp)
+	err := CallSorobanRPC(r.Context(), h.cfg.SorobanRPCURL, "getAccount", map[string]string{"address": h.serverKP.Address()}, &accResp)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to fetch server account: %s", err.Error()), http.StatusInternalServerError)
 		return
@@ -560,7 +567,7 @@ func (h *APIHandler) HandleCreateInvoice(w http.ResponseWriter, r *http.Request)
 	}
 
 	var simResp SimulateResponse
-	err = CallSorobanRPC(h.cfg.SorobanRPCURL, "simulateTransaction", map[string]string{"transaction": txBase64}, &simResp)
+	err = CallSorobanRPC(r.Context(), h.cfg.SorobanRPCURL, "simulateTransaction", map[string]string{"transaction": txBase64}, &simResp)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("simulation failed: %s", err.Error()), http.StatusInternalServerError)
 		return
@@ -639,7 +646,7 @@ func (h *APIHandler) HandleCreateInvoice(w http.ResponseWriter, r *http.Request)
 		Status string `json:"status"`
 		Error  string `json:"error"`
 	}
-	err = CallSorobanRPC(h.cfg.SorobanRPCURL, "sendTransaction", map[string]string{"transaction": signedBase64}, &submitResp)
+	err = CallSorobanRPC(r.Context(), h.cfg.SorobanRPCURL, "sendTransaction", map[string]string{"transaction": signedBase64}, &submitResp)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to send transaction: %s", err.Error()), http.StatusInternalServerError)
 		return
@@ -661,7 +668,7 @@ func (h *APIHandler) HandleCreateInvoice(w http.ResponseWriter, r *http.Request)
 	pollAttempts := 0
 
 	for {
-		err = CallSorobanRPC(h.cfg.SorobanRPCURL, "getTransaction", map[string]string{"hash": submitResp.Hash}, &txResult)
+		err = CallSorobanRPC(r.Context(), h.cfg.SorobanRPCURL, "getTransaction", map[string]string{"hash": submitResp.Hash}, &txResult)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("failed to poll transaction: %s", err.Error()), http.StatusInternalServerError)
 			return
@@ -890,7 +897,7 @@ func (h *APIHandler) HandleGetLPPosition(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	scValResult, err := ReadContract(h.cfg.SorobanRPCURL, h.cfg.PoolContractID, "get_lp_position", []xdr.ScVal{addrVal}, h.serverKP)
+	scValResult, err := ReadContract(r.Context(), h.cfg.SorobanRPCURL, h.cfg.PoolContractID, "get_lp_position", []xdr.ScVal{addrVal}, h.serverKP)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to read LP position from pool: %s", err.Error()), http.StatusInternalServerError)
 		return

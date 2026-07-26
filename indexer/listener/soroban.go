@@ -84,7 +84,7 @@ func NewEventListener(cfg *config.Config, health *api.ListenerHealth) *EventList
 // getLatestLedgerSequence fetches the latest ledger sequence number from the Soroban RPC
 func (l *EventListener) getLatestLedgerSequence(ctx context.Context) (int32, error) {
 	var res GetLatestLedgerResult
-	err := api.CallSorobanRPC(l.cfg.SorobanRPCURL, "getLatestLedger", nil, &res)
+	err := api.CallSorobanRPC(ctx, l.cfg.SorobanRPCURL, "getLatestLedger", nil, &res)
 	if err != nil {
 		return 0, fmt.Errorf("call getLatestLedger: %w", err)
 	}
@@ -209,7 +209,7 @@ func (l *EventListener) pollEvents(ctx context.Context, startLedger int32) (int3
 		}
 
 		var res GetEventsResult
-		err := api.CallSorobanRPC(l.cfg.SorobanRPCURL, "getEvents", params, &res)
+		err := api.CallSorobanRPC(ctx, l.cfg.SorobanRPCURL, "getEvents", params, &res)
 		if err != nil {
 			return startLedger, fmt.Errorf("call getEvents (startLedger=%d, cursor=%s): %w", startLedger, cursor, err)
 		}
