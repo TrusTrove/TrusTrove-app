@@ -48,7 +48,9 @@ export function TransactionPending({
     setLocalStatus("Waiting for confirmation...");
     const timer = setTimeout(() => {
       setTimedOut(true);
-      setLocalStatus("Confirmation timed out. You can close and check status manually.");
+      setLocalStatus(
+        "Confirmation timed out. You can close and check status manually.",
+      );
     }, 60_000);
     return () => clearTimeout(timer);
   }, [isOpen, txHash]);

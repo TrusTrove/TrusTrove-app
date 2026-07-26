@@ -38,7 +38,9 @@ describe("InvoiceForm Component Boundary Tests", () => {
     fireEvent.change(buyerInput, { target: { value: "invalid-address" } });
 
     // Fill a valid future due date so the only failure is buyer validation
-    const dateInput = document.querySelector('input[type="date"]') as HTMLInputElement;
+    const dateInput = document.querySelector(
+      'input[type="date"]',
+    ) as HTMLInputElement;
     expect(dateInput).toBeTruthy();
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);

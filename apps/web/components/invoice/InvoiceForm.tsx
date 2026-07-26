@@ -306,9 +306,11 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
               </label>
               <input
                 type="date"
-                min={new Date(Date.now() + 24 * 60 * 60 * 1000)
-                  .toISOString()
-                  .split("T")[0]}
+                min={
+                  new Date(Date.now() + 24 * 60 * 60 * 1000)
+                    .toISOString()
+                    .split("T")[0]
+                }
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
                 className="w-full bg-[#080c10] border border-border rounded px-3 py-2.5 text-white text-xs font-mono focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all min-h-[44px]"
@@ -405,22 +407,23 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
                     {payoutAmount.toLocaleString()} {asset}
                   </span>
                 </div>
-                {dueDate && (() => {
-                  const today = new Date();
-                  today.setHours(0, 0, 0, 0);
-                  const diff =
-                    (new Date(dueDate).getTime() - today.getTime()) /
-                    (1000 * 60 * 60 * 24);
-                  const days = Math.max(1, Math.ceil(diff));
-                  return (
-                    <div className="flex justify-between text-slate-400 text-[10px]">
-                      <span>Buyer Repayment (due in {days}d):</span>
-                      <span>
-                        {parsedValue.toLocaleString()} {asset}
-                      </span>
-                    </div>
-                  );
-                })()}
+                {dueDate &&
+                  (() => {
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const diff =
+                      (new Date(dueDate).getTime() - today.getTime()) /
+                      (1000 * 60 * 60 * 24);
+                    const days = Math.max(1, Math.ceil(diff));
+                    return (
+                      <div className="flex justify-between text-slate-400 text-[10px]">
+                        <span>Buyer Repayment (due in {days}d):</span>
+                        <span>
+                          {parsedValue.toLocaleString()} {asset}
+                        </span>
+                      </div>
+                    );
+                  })()}
               </>
             ) : (
               <div className="text-[10px] text-slate-400 pt-2 border-t border-border/20">
