@@ -10,6 +10,12 @@ vi.mock("@trusttrove/sdk", () => ({
   PoolClient: vi.fn(function () {}),
 }));
 
+vi.mock("@stellar/stellar-sdk", () => ({
+  StrKey: { isValidEd25519PublicKey: vi.fn(() => false) },
+  xdr: { ScVal: { scvBytes: vi.fn() } },
+  nativeToScVal: vi.fn(),
+}));
+
 // Global mock for fetch to spy on endpoint requests
 const fetchMock = vi.fn();
 global.fetch = fetchMock;
@@ -57,6 +63,8 @@ describe("InvoiceForm Component Boundary Tests", () => {
     );
 
     // Should show validation error
-    expect(screen.getByText(/valid stellar public key/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/valid stellar public key/i)).toBeInTheDocument();
+    });
   });
 });
