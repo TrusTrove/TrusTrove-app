@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useInvoices } from "@/hooks/useInvoices";
 import { Button } from "@/components/ui/button";
 import { ShieldAlert, PlusCircle } from "lucide-react";
@@ -106,11 +106,20 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
     };
   }, [step, address, simulationDiscountBps]);
 
-  const parsedValue = parseFloat(faceValue.replace(/,/g, "")) || 0;
+  const parsedValue = useMemo(
+    () => parseFloat(faceValue.replace(/,/g, "")) || 0,
+    [faceValue],
+  );
 
   // Calculations
-  const discountPaid = parsedValue * (discountBps / 10000);
-  const payoutAmount = parsedValue - discountPaid;
+  const discountPaid = useMemo(
+    () => parsedValue * (discountBps / 10000),
+    [parsedValue, discountBps],
+  );
+  const payoutAmount = useMemo(
+    () => parsedValue - discountPaid,
+    [parsedValue, discountPaid],
+  );
 
   const handleNextStep = (e: React.FormEvent) => {
     e.preventDefault();
