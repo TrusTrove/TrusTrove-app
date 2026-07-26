@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useWalletStore } from "@/store/wallet";
-import { connectFreighter } from "@/lib/freighter";
+import { connectFreighter, FreighterError } from "@/lib/freighter";
 import { useBalances } from "./useBalances";
 import { createErrorHandler } from "@/lib/errors";
 
@@ -31,6 +31,7 @@ export function useWallet() {
   const { address, connected, network, connect, disconnect } = useWalletStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const {
     balances,
     loading: balancesLoading,
@@ -48,12 +49,16 @@ export function useWallet() {
   const connectWallet = async () => {
     setLoading(true);
     setError(null);
+    setErrorCode(null);
     try {
       const addr = await connectFreighter();
       connect(addr, "testnet");
     } catch (err: unknown) {
       const appError = captureError(err);
       setError(appError.message);
+      if (err instanceof FreighterError) {
+        setErrorCode(err.code);
+      }
       disconnect();
     } finally {
       setLoading(false);
@@ -75,6 +80,7 @@ export function useWallet() {
     disconnectWallet,
     loading,
     error,
+    errorCode,
     balances,
     balancesLoading,
     balancesError,

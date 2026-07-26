@@ -2,11 +2,19 @@ import { renderHook, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useWallet } from "./useWallet";
 import { useWalletStore } from "@/store/wallet";
-import { connectFreighter } from "@/lib/freighter";
+import { connectFreighter, FreighterError } from "@/lib/freighter";
 import { useBalances } from "./useBalances";
 
 vi.mock("@/lib/freighter", () => ({
   connectFreighter: vi.fn(),
+  FreighterError: class FreighterError extends Error {
+    readonly code: string;
+    constructor(code: string, message: string) {
+      super(message);
+      this.name = "FreighterError";
+      this.code = code;
+    }
+  },
 }));
 
 vi.mock("./useBalances", () => ({
@@ -139,6 +147,85 @@ describe("useWallet", () => {
     expect(result.current.error).toBe("Freighter wallet is not installed");
     expect(result.current.connected).toBe(false);
     expect(result.current.address).toBeNull();
+  });
+
+  it("sets errorCode to user_rejected when user rejects", async () => {
+    const mockFreighterError = new FreighterError(
+      "user_rejected",
+      "The user rejected this request.",
+    );
+    vi.mocked(connectFreighter).mockRejectedValue(mockFreighterError);
+
+    const { result } = renderHook(() => useWallet());
+
+    await act(async () => {
+      await result.current.connectWallet();
+    });
+
+    expect(result.current.error).toBe("The user rejected this request.");
+    expect(result.current.errorCode).toBe("user_rejected");
+    expect(result.current.connected).toBe(false);
+    expect(result.current.address).toBeNull();
+  });
+
+  it("sets errorCode to not_installed when Freighter is not installed", async () => {
+    const mockFreighterError = new FreighterError(
+      "not_installed",
+      "Freighter wallet is not installed",
+    );
+    vi.mocked(connectFreighter).mockRejectedValue(mockFreighterError);
+
+    const { result } = renderHook(() => useWallet());
+
+    await act(async () => {
+      await result.current.connectWallet();
+    });
+
+    expect(result.current.error).toBe("Freighter wallet is not installed");
+    expect(result.current.errorCode).toBe("not_installed");
+    expect(result.current.connected).toBe(false);
+    expect(result.current.address).toBeNull();
+  });
+
+  it("sets errorCode to unknown for unmapped Freighter errors", async () => {
+    const mockFreighterError = new FreighterError(
+      "unknown",
+      "Unexpected failure",
+    );
+    vi.mocked(connectFreighter).mockRejectedValue(mockFreighterError);
+
+    const { result } = renderHook(() => useWallet());
+
+    await act(async () => {
+      await result.current.connectWallet();
+    });
+
+    expect(result.current.error).toBe("Unexpected failure");
+    expect(result.current.errorCode).toBe("unknown");
+    expect(result.current.connected).toBe(false);
+  });
+
+  it("clears errorCode on successful connection", async () => {
+    const mockFreighterError = new FreighterError(
+      "user_rejected",
+      "The user rejected this request.",
+    );
+    vi.mocked(connectFreighter)
+      .mockRejectedValueOnce(mockFreighterError)
+      .mockResolvedValueOnce("G12345");
+
+    const { result } = renderHook(() => useWallet());
+
+    await act(async () => {
+      await result.current.connectWallet();
+    });
+    expect(result.current.errorCode).toBe("user_rejected");
+
+    await act(async () => {
+      await result.current.connectWallet();
+    });
+    expect(result.current.errorCode).toBeNull();
+    expect(result.current.connected).toBe(true);
   });
 
   it("disconnectWallet works", () => {
