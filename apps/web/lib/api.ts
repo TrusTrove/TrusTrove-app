@@ -86,6 +86,11 @@ export async function apiFetch<T>(
 
   if (!res.ok) {
     const text = await res.text();
+    if (res.status === 503 || res.status === 504) {
+      throw new Error(
+        text || "Service Temporarily Unavailable. Please try again later.",
+      );
+    }
     throw new Error(text || `HTTP error! status: ${res.status}`);
   }
 
