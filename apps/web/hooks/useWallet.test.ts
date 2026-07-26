@@ -3,7 +3,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useWallet } from "./useWallet";
 import { useWalletStore } from "@/store/wallet";
 import { connectFreighter, FreighterError } from "@/lib/freighter";
+import { getNetworkDetails } from "@stellar/freighter-api";
 import { useBalances } from "./useBalances";
+
+vi.mock("@stellar/freighter-api", () => ({
+  getNetworkDetails: vi.fn(),
+}));
 
 vi.mock("@/lib/freighter", () => ({
   connectFreighter: vi.fn(),
@@ -25,6 +30,10 @@ describe("useWallet", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useWalletStore.getState().disconnect();
+    vi.mocked(getNetworkDetails).mockResolvedValue({
+      network: "TESTNET",
+      networkUrl: "https://horizon-testnet.stellar.org",
+    });
     vi.mocked(useBalances).mockReturnValue({
       balances: [],
       loading: false,
@@ -41,7 +50,7 @@ describe("useWallet", () => {
     expect(result.current.error).toBeNull();
   });
 
-  it("connectWallet succeeds", async () => {
+  it("connectWallet succeeds on testnet", async () => {
     vi.mocked(connectFreighter).mockResolvedValue("G12345");
 
     const { result } = renderHook(() => useWallet());
@@ -51,11 +60,33 @@ describe("useWallet", () => {
     });
 
     expect(connectFreighter).toHaveBeenCalled();
+    expect(getNetworkDetails).toHaveBeenCalled();
     expect(result.current.connected).toBe(true);
     expect(result.current.address).toBe("G12345");
     expect(result.current.network).toBe("testnet");
     expect(result.current.loading).toBe(false);
     expect(result.current.error).toBeNull();
+  });
+
+  it("rejects a wallet connected to the wrong network", async () => {
+    vi.mocked(connectFreighter).mockResolvedValue("G12345");
+    vi.mocked(getNetworkDetails).mockResolvedValue({
+      network: "PUBLIC",
+      networkUrl: "https://horizon.stellar.org",
+    });
+
+    const { result } = renderHook(() => useWallet());
+
+    await act(async () => {
+      await result.current.connectWallet();
+    });
+
+    expect(result.current.connected).toBe(false);
+    expect(result.current.address).toBeNull();
+    expect(result.current.error).toBe(
+      "Freighter is connected to PUBLIC. Switch Freighter to Testnet before connecting.",
+    );
+    expect(result.current.errorCode).toBe("wrong_network");
   });
 
   it("connectWallet shows loading during connection", async () => {
