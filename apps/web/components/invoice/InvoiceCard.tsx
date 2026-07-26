@@ -24,7 +24,7 @@ import { useConfirmDialogStore } from "@/store/confirmDialog";
 interface InvoiceCardProps {
   invoice: Invoice;
   role?: "issuer" | "buyer" | "lp";
-  onSelect?: () => void;
+  onSelect?: (invoice: Invoice) => void;
   isSelected?: boolean;
 }
 
