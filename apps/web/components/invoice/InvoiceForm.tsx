@@ -190,10 +190,9 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
         setIsListing(true);
         // Pre-simulate list_for_financing on the newly created invoice ID before Freighter opens
         try {
-          const [{ InvoiceClient }, { xdr, nativeToScVal }] = await Promise.all([
-            getTrustroveSdk(),
-            getStellarSdk(),
-          ]);
+          const [{ InvoiceClient }, { xdr, nativeToScVal }] = await Promise.all(
+            [getTrustroveSdk(), getStellarSdk()],
+          );
           const invoiceClient = new InvoiceClient(invoiceContractID);
           const args = [
             xdr.ScVal.scvBytes(Buffer.from(invoiceId, "hex")),

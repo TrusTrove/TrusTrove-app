@@ -455,22 +455,51 @@ export default function LPDashboard() {
 
                   {!isSnapshotsLoading && chartData.length >= 2 && (
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                      <AreaChart
+                        data={chartData}
+                        margin={{ top: 5, right: 5, left: -20, bottom: 0 }}
+                      >
                         <defs>
-                          <linearGradient id="chartGlow" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#00d4aa" stopOpacity="0.15" />
-                            <stop offset="100%" stopColor="#00d4aa" stopOpacity="0" />
+                          <linearGradient
+                            id="chartGlow"
+                            x1="0"
+                            y1="0"
+                            x2="0"
+                            y2="1"
+                          >
+                            <stop
+                              offset="0%"
+                              stopColor="#00d4aa"
+                              stopOpacity="0.15"
+                            />
+                            <stop
+                              offset="100%"
+                              stopColor="#00d4aa"
+                              stopOpacity="0"
+                            />
                           </linearGradient>
                         </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#1a2330" strokeWidth="0.5" />
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          stroke="#1a2330"
+                          strokeWidth="0.5"
+                        />
                         <XAxis
                           dataKey="date"
-                          tick={{ fontSize: 9, fill: "#64748b", fontFamily: "ui-monospace, monospace" }}
+                          tick={{
+                            fontSize: 9,
+                            fill: "#64748b",
+                            fontFamily: "ui-monospace, monospace",
+                          }}
                           tickLine={false}
                           axisLine={false}
                         />
                         <YAxis
-                          tick={{ fontSize: 9, fill: "#64748b", fontFamily: "ui-monospace, monospace" }}
+                          tick={{
+                            fontSize: 9,
+                            fill: "#64748b",
+                            fontFamily: "ui-monospace, monospace",
+                          }}
                           tickFormatter={(v) => `${v}%`}
                           tickLine={false}
                           axisLine={false}
@@ -484,7 +513,10 @@ export default function LPDashboard() {
                             fontFamily: "ui-monospace, monospace",
                           }}
                           labelStyle={{ color: "#94a3b8" }}
-                          formatter={(value) => [`${Number(value).toFixed(1)}%`, "Utilization"]}
+                          formatter={(value) => [
+                            `${Number(value).toFixed(1)}%`,
+                            "Utilization",
+                          ]}
                         />
                         <Area
                           type="monotone"
