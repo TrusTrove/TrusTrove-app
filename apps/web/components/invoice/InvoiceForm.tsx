@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useInvoices } from "@/hooks/useInvoices";
 import { Button } from "@/components/ui/button";
 import { ShieldAlert, PlusCircle } from "lucide-react";
@@ -8,11 +8,12 @@ import type { AssetType } from "@/types";
 import { ASSET_OPTIONS } from "@/lib/assets";
 import { AmountInput } from "@/components/shared/AmountInput";
 import { useWalletStore } from "@/store/wallet";
-import { InvoiceClient } from "@trusttrove/sdk";
-import { xdr, nativeToScVal, StrKey } from "@stellar/stellar-sdk";
 import { SimulationPreview } from "@/components/shared/SimulationPreview";
 
 const invoiceContractID = process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID || "";
+
+const getStellarSdk = () => import("@stellar/stellar-sdk");
+const getTrustroveSdk = () => import("@trusttrove/sdk");
 
 /** Zero-byte placeholder invoice ID for fee estimation simulation only */
 const SIMULATION_PLACEHOLDER_INVOICE_ID =
@@ -61,6 +62,10 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
       setIsFallback(false);
 
       try {
+        const [{ InvoiceClient }, { xdr, nativeToScVal }] = await Promise.all([
+          getTrustroveSdk(),
+          getStellarSdk(),
+        ]);
         const invoiceClient = new InvoiceClient(invoiceContractID);
         const args = [
           xdr.ScVal.scvBytes(
@@ -121,11 +126,12 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
     [parsedValue, discountPaid],
   );
 
-  const handleNextStep = (e: React.FormEvent) => {
+  const handleNextStep = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
     const trimmedBuyer = buyer.trim();
+    const { StrKey } = await getStellarSdk();
     if (!trimmedBuyer || !StrKey.isValidEd25519PublicKey(trimmedBuyer)) {
       setError(
         "Buyer must be a valid Stellar public key (G... account address)",
@@ -184,6 +190,9 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
         setIsListing(true);
         // Pre-simulate list_for_financing on the newly created invoice ID before Freighter opens
         try {
+          const [{ InvoiceClient }, { xdr, nativeToScVal }] = await Promise.all(
+            [getTrustroveSdk(), getStellarSdk()],
+          );
           const invoiceClient = new InvoiceClient(invoiceContractID);
           const args = [
             xdr.ScVal.scvBytes(Buffer.from(invoiceId, "hex")),

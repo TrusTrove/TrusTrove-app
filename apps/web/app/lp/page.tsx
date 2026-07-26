@@ -32,7 +32,15 @@ import { Address, nativeToScVal } from "@stellar/stellar-sdk";
 import { SimulationPreview } from "@/components/shared/SimulationPreview";
 import { useQuery } from "@tanstack/react-query";
 import { getPoolSnapshots } from "@/lib/api";
-import { usePoolChartData } from "@/hooks/usePoolChartData";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 
 const TransactionPending = dynamic(
   () =>
@@ -181,54 +189,24 @@ export default function LPDashboard() {
     queryFn: getPoolSnapshots,
   });
 
-  // Sort snapshots by timestamp once for both chart geometry and axis labels
+  // Sort snapshots by timestamp for chart rendering
   const sortedSnapshots = useMemo(() => {
     if (!snapshots || snapshots.length < 2) return [];
     return [...snapshots].sort((a, b) => a.timestamp - b.timestamp);
   }, [snapshots]);
 
-  // Feed sorted snapshots into the extracted geometry hook (PR #228)
-  const chartData = useMemo(
-    () =>
-      sortedSnapshots.map((s) => ({
-        label: String(s.timestamp),
-        value: s.utilizationRateBps,
-      })),
-    [sortedSnapshots],
-  );
-
-  const { linePath, areaPath } = usePoolChartData({
-    data: chartData,
-    width: 500,
-    height: 150,
-    padding: 10,
-  });
-
-  const chartLines = useMemo(() => {
-    if (sortedSnapshots.length < 2 || !linePath || !areaPath) return null;
-
-    const rawLabels = sortedSnapshots.map((s) => s.timestamp);
-    const displayIndices =
-      sortedSnapshots.length <= 5
-        ? rawLabels.map((_, i) => i)
-        : [
-            0,
-            Math.floor((sortedSnapshots.length - 1) / 4),
-            Math.floor((sortedSnapshots.length - 1) / 2),
-            Math.floor((3 * (sortedSnapshots.length - 1)) / 4),
-            sortedSnapshots.length - 1,
-          ];
-
-    const labels = displayIndices.map((i) => {
-      const snap = sortedSnapshots[i];
-      const date = new Date(snap.timestamp * 1000);
+  // Format snapshots for recharts with readable date labels and utilization percentage
+  const chartData = useMemo(() => {
+    return sortedSnapshots.map((s) => {
+      const date = new Date(s.timestamp * 1000);
       const month = date.toLocaleString("default", { month: "short" });
       const day = date.getDate();
-      return `${month} ${day}`;
+      return {
+        date: `${month} ${day}`,
+        utilizationRate: Number((s.utilizationRateBps / 100).toFixed(1)),
+      };
     });
-
-    return { lineD: linePath, areaD: areaPath, labels };
-  }, [sortedSnapshots, linePath, areaPath]);
+  }, [sortedSnapshots]);
 
   const handleDeposit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -454,7 +432,7 @@ export default function LPDashboard() {
               )}
             </ErrorBoundary>
 
-            {/* Historical Yield Line Chart (SVG based) */}
+            {/* Historical Yield Line Chart (recharts) */}
             <ErrorBoundary context="YieldChart">
               <div className="bg-card border border-border rounded-lg p-5 space-y-4">
                 <h3 className="text-xs font-bold font-mono text-white uppercase tracking-wider flex items-center gap-1.5">
@@ -462,23 +440,25 @@ export default function LPDashboard() {
                   Yield Performance Ledger
                 </h3>
 
-                <div className="h-44 w-full relative">
+                <div className="h-44 w-full">
                   {isSnapshotsLoading && (
                     <div className="flex items-center justify-center h-full text-[10px] font-mono text-slate-500 uppercase tracking-wider">
                       Loading snapshots...
                     </div>
                   )}
 
-                  {!isSnapshotsLoading &&
-                    (!chartLines || !snapshots || snapshots.length < 2) && (
-                      <div className="flex items-center justify-center h-full text-[10px] font-mono text-slate-500 uppercase tracking-wider">
-                        Insufficient historical data
-                      </div>
-                    )}
+                  {!isSnapshotsLoading && chartData.length < 2 && (
+                    <div className="flex items-center justify-center h-full text-[10px] font-mono text-slate-500 uppercase tracking-wider">
+                      Insufficient historical data
+                    </div>
+                  )}
 
-                  {chartLines && (
-                    <>
-                      <svg className="w-full h-full" viewBox="0 0 500 150">
+                  {!isSnapshotsLoading && chartData.length >= 2 && (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart
+                        data={chartData}
+                        margin={{ top: 5, right: 5, left: -20, bottom: 0 }}
+                      >
                         <defs>
                           <linearGradient
                             id="chartGlow"
@@ -499,57 +479,55 @@ export default function LPDashboard() {
                             />
                           </linearGradient>
                         </defs>
-                        {/* Grid Lines */}
-                        <line
-                          x1="0"
-                          y1="30"
-                          x2="500"
-                          y2="30"
+                        <CartesianGrid
+                          strokeDasharray="3 3"
                           stroke="#1a2330"
                           strokeWidth="0.5"
-                          strokeDasharray="3 3"
                         />
-                        <line
-                          x1="0"
-                          y1="75"
-                          x2="500"
-                          y2="75"
-                          stroke="#1a2330"
-                          strokeWidth="0.5"
-                          strokeDasharray="3 3"
+                        <XAxis
+                          dataKey="date"
+                          tick={{
+                            fontSize: 9,
+                            fill: "#64748b",
+                            fontFamily: "ui-monospace, monospace",
+                          }}
+                          tickLine={false}
+                          axisLine={false}
                         />
-                        <line
-                          x1="0"
-                          y1="120"
-                          x2="500"
-                          y2="120"
-                          stroke="#1a2330"
-                          strokeWidth="0.5"
-                          strokeDasharray="3 3"
+                        <YAxis
+                          tick={{
+                            fontSize: 9,
+                            fill: "#64748b",
+                            fontFamily: "ui-monospace, monospace",
+                          }}
+                          tickFormatter={(v) => `${v}%`}
+                          tickLine={false}
+                          axisLine={false}
                         />
-
-                        {/* Area fill */}
-                        <path d={chartLines.areaD} fill="url(#chartGlow)" />
-
-                        {/* Line path */}
-                        <motion.path
-                          d={chartLines.lineD}
-                          fill="transparent"
+                        <Tooltip
+                          contentStyle={{
+                            background: "#0d131a",
+                            border: "1px solid #1a2330",
+                            borderRadius: "8px",
+                            fontSize: "12px",
+                            fontFamily: "ui-monospace, monospace",
+                          }}
+                          labelStyle={{ color: "#94a3b8" }}
+                          formatter={(value) => [
+                            `${Number(value).toFixed(1)}%`,
+                            "Utilization",
+                          ]}
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="utilizationRate"
                           stroke="#00d4aa"
-                          strokeWidth="2"
-                          initial={{ pathLength: 0 }}
-                          animate={{ pathLength: 1 }}
-                          transition={{ duration: 1.5, ease: "easeInOut" }}
+                          strokeWidth={2}
+                          fill="url(#chartGlow)"
+                          animationDuration={1500}
                         />
-                      </svg>
-
-                      {/* X Axis Labels */}
-                      <div className="flex justify-between mt-1 text-[9px] font-mono text-slate-500 uppercase tracking-widest px-2">
-                        {chartLines.labels.map((label, i) => (
-                          <span key={i}>{label}</span>
-                        ))}
-                      </div>
-                    </>
+                      </AreaChart>
+                    </ResponsiveContainer>
                   )}
                 </div>
               </div>
