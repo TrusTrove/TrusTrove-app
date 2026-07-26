@@ -93,6 +93,10 @@ type JsonRpcResponse struct {
 	} `json:"error"`
 }
 
+var sorobanRPCClient = &http.Client{
+	Timeout: 30 * time.Second,
+}
+
 func CallSorobanRPC(ctx context.Context, rpcURL string, method string, params interface{}, result interface{}) error {
 	reqBody := JsonRpcRequest{
 		Jsonrpc: "2.0",
@@ -112,7 +116,7 @@ func CallSorobanRPC(ctx context.Context, rpcURL string, method string, params in
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := sorobanRPCClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -493,7 +497,11 @@ func (h *APIHandler) HandleCreateInvoice(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	issuer := r.Context().Value("user_address").(string)
+	issuer, ok := GetUserAddress(r.Context())
+	if !ok || issuer == "" {
+		http.Error(w, "Unauthorized: user address missing from context", http.StatusUnauthorized)
+		return
+	}
 
 	if body.Buyer == "" || body.FaceValue == "" || body.DueDate <= 0 {
 		http.Error(w, "missing required invoice parameters", http.StatusBadRequest)
@@ -693,7 +701,12 @@ func (h *APIHandler) HandleCreateInvoice(w http.ResponseWriter, r *http.Request)
 			return
 		}
 
-		time.Sleep(pollDelay)
+		select {
+		case <-r.Context().Done():
+			http.Error(w, "request cancelled: "+r.Context().Err().Error(), http.StatusGatewayTimeout)
+			return
+		case <-time.After(pollDelay):
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")

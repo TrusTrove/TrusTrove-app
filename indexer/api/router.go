@@ -22,9 +22,14 @@ func AuthMiddleware(jwtSecret string) func(http.Handler) http.Handler {
 				return
 			}
 
-			var tokenStr string
-			n, err := fmt.Sscanf(authHeader, "Bearer %s", &tokenStr)
-			if err != nil || n != 1 {
+			parts := strings.SplitN(authHeader, " ", 2)
+			if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+				http.Error(w, "Unauthorized: invalid header format", http.StatusUnauthorized)
+				return
+			}
+
+			tokenStr := strings.TrimSpace(parts[1])
+			if tokenStr == "" || strings.ContainsAny(tokenStr, " \t\r\n") {
 				http.Error(w, "Unauthorized: invalid header format", http.StatusUnauthorized)
 				return
 			}
@@ -53,7 +58,7 @@ func AuthMiddleware(jwtSecret string) func(http.Handler) http.Handler {
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), "user_address", sub)
+			ctx := WithUserAddress(r.Context(), sub)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

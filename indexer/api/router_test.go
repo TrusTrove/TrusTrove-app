@@ -6,6 +6,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 func TestCORSMiddleware_AllowsConfiguredOrigin(t *testing.T) {
@@ -87,5 +90,114 @@ func TestHealthEndpoint_Returns503WhenListenerStops(t *testing.T) {
 	}
 	if !strings.Contains(rr.Body.String(), `"status": "degraded"`) {
 		t.Fatalf("expected degraded payload, got %s", rr.Body.String())
+	}
+}
+
+func createTestJWT(secret, sub string) string {
+	claims := jwt.MapClaims{
+		"sub": sub,
+		"exp": time.Now().Add(time.Hour).Unix(),
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenStr, _ := token.SignedString([]byte(secret))
+	return tokenStr
+}
+
+func TestAuthMiddleware_StrictHeaderParsing(t *testing.T) {
+	secret := "test-secret"
+	validToken := createTestJWT(secret, "G1234567890")
+
+	tests := []struct {
+		name       string
+		authHeader string
+		wantCode   int
+		wantSub    string
+	}{
+		{
+			name:       "missing authorization header",
+			authHeader: "",
+			wantCode:   http.StatusUnauthorized,
+		},
+		{
+			name:       "wrong scheme",
+			authHeader: "Basic " + validToken,
+			wantCode:   http.StatusUnauthorized,
+		},
+		{
+			name:       "no space after bearer",
+			authHeader: "Bearer",
+			wantCode:   http.StatusUnauthorized,
+		},
+		{
+			name:       "bearer with empty token",
+			authHeader: "Bearer ",
+			wantCode:   http.StatusUnauthorized,
+		},
+		{
+			name:       "bearer with whitespace only token",
+			authHeader: "Bearer \t ",
+			wantCode:   http.StatusUnauthorized,
+		},
+		{
+			name:       "bearer with inner whitespace in token",
+			authHeader: "Bearer " + validToken + " extra",
+			wantCode:   http.StatusUnauthorized,
+		},
+		{
+			name:       "lowercase bearer scheme",
+			authHeader: "bearer " + validToken,
+			wantCode:   http.StatusOK,
+			wantSub:    "G1234567890",
+		},
+		{
+			name:       "uppercase bearer scheme",
+			authHeader: "BEARER " + validToken,
+			wantCode:   http.StatusOK,
+			wantSub:    "G1234567890",
+		},
+		{
+			name:       "valid standard bearer token",
+			authHeader: "Bearer " + validToken,
+			wantCode:   http.StatusOK,
+			wantSub:    "G1234567890",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var capturedSub string
+			var handlerCalled bool
+
+			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				handlerCalled = true
+				sub, ok := GetUserAddress(r.Context())
+				if ok {
+					capturedSub = sub
+				}
+				w.WriteHeader(http.StatusOK)
+			})
+
+			mw := AuthMiddleware(secret)(next)
+			req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+			if tt.authHeader != "" {
+				req.Header.Set("Authorization", tt.authHeader)
+			}
+			rr := httptest.NewRecorder()
+
+			mw.ServeHTTP(rr, req)
+
+			if rr.Code != tt.wantCode {
+				t.Fatalf("authHeader %q: got status %d, want %d", tt.authHeader, rr.Code, tt.wantCode)
+			}
+
+			if tt.wantCode == http.StatusOK {
+				if !handlerCalled {
+					t.Fatalf("expected next handler to be called for header %q", tt.authHeader)
+				}
+				if capturedSub != tt.wantSub {
+					t.Fatalf("expected captured sub %q, got %q", tt.wantSub, capturedSub)
+				}
+			}
+		})
 	}
 }
