@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { motion } from "framer-motion";
 import { Loader2, ExternalLink, ShieldCheck } from "lucide-react";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
