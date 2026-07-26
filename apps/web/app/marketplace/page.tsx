@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { PageLayout } from "@/components/shared/PageLayout";
 import { InvoiceTable } from "@/components/invoice/InvoiceTable";
@@ -34,6 +34,7 @@ export default function Marketplace() {
   });
 
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const handleSelectInvoice = useCallback((invoice: Invoice) => setSelectedInvoice(invoice), []);
 
   useEffect(() => {
     setInvoicePage(1);
@@ -233,7 +234,7 @@ export default function Marketplace() {
             <ErrorBoundary context="InvoiceList">
               <InvoiceTable
                 invoices={filteredAndSortedInvoices}
-                onSelectInvoice={(invoice) => setSelectedInvoice(invoice)}
+                onSelectInvoice={handleSelectInvoice}
                 activeId={selectedInvoice?.id}
                 emptyStateTitle="No invoices match your filters"
                 emptyStateDescription="Try broadening the amount range or resetting the filters to reveal more listed invoices."
@@ -265,7 +266,7 @@ export default function Marketplace() {
                     key={invoice.id}
                     invoice={invoice}
                     role={role}
-                    onSelect={() => setSelectedInvoice(invoice)}
+                    onSelect={handleSelectInvoice}
                     isSelected={selectedInvoice?.id === invoice.id}
                   />
                 ))}
