@@ -34,7 +34,10 @@ export default function Marketplace() {
   });
 
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
-  const handleSelectInvoice = useCallback((invoice: Invoice) => setSelectedInvoice(invoice), []);
+  const handleSelectInvoice = useCallback(
+    (invoice: Invoice) => setSelectedInvoice(invoice),
+    [],
+  );
 
   useEffect(() => {
     setInvoicePage(1);
