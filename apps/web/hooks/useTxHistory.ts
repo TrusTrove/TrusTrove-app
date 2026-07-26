@@ -49,8 +49,7 @@ export function extractOpAmount(
 
   if (type === "payment" || typeI === 1) {
     const amount: string = op.amount;
-    const token: string =
-      op.asset_type === "native" ? "XLM" : op.asset_code;
+    const token: string = op.asset_type === "native" ? "XLM" : op.asset_code;
     if (!amount || !token) return undefined;
     return { amount, token };
   }
