@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { PageLayout } from "@/components/shared/PageLayout";
 import { InvoiceTable } from "@/components/invoice/InvoiceTable";
@@ -19,17 +19,26 @@ export default function Marketplace() {
   const { isVerified } = useProfile();
   const { stats, isStatsLoading } = usePool();
   const [statusFilter, setStatusFilter] = useState<string>("Listed");
+  const [invoicePage, setInvoicePage] = useState(1);
+  const [invoiceLimit, setInvoiceLimit] = useState(20);
 
   // Filter States
   const [minAmount, setMinAmount] = useState("");
   const [maxAmount, setMaxAmount] = useState("");
   const [maxDiscount, setMaxDiscount] = useState("500"); // 500 bps max
 
-  const { invoices, isLoading } = useInvoices({
+  const { invoices, isLoading, total, totalPages } = useInvoices({
     status: statusFilter === "ALL" ? undefined : statusFilter,
+    page: invoicePage,
+    limit: invoiceLimit,
   });
 
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+
+  useEffect(() => {
+    setInvoicePage(1);
+    setSelectedInvoice(null);
+  }, [statusFilter, minAmount, maxAmount, maxDiscount]);
 
   // Filter and Sort Invoices
   const filteredAndSortedInvoices = useMemo(() => {
@@ -60,6 +69,17 @@ export default function Marketplace() {
       return 0;
     });
   }, [invoices, minAmount, maxAmount, maxDiscount]);
+
+  const handlePageChange = (page: number) => {
+    setInvoicePage(page);
+    setSelectedInvoice(null);
+  };
+
+  const handleLimitChange = (limit: number) => {
+    setInvoiceLimit(limit);
+    setInvoicePage(1);
+    setSelectedInvoice(null);
+  };
 
   // Calculate funded amount preview (face value - discount fee)
   const calculateFundingValue = (faceValue: bigint, discountBps: number) => {
@@ -215,25 +235,27 @@ export default function Marketplace() {
                 invoices={filteredAndSortedInvoices}
                 onSelectInvoice={(invoice) => setSelectedInvoice(invoice)}
                 activeId={selectedInvoice?.id}
-                emptyState={
-                  <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-                    <p className="text-slate-500 text-xs font-mono mb-6 leading-relaxed max-w-xs">
-                      No invoices match your filters
-                    </p>
-                    <button
-                      onClick={() => {
-                        setStatusFilter("Listed");
-                        setMinAmount("");
-                        setMaxAmount("");
-                        setMaxDiscount("500");
-                        setSelectedInvoice(null);
-                      }}
-                      className="border border-border hover:border-primary/50 text-slate-300 hover:text-white font-bold text-xs uppercase tracking-wider rounded px-4 py-2.5 transition-all"
-                    >
-                      Reset Filters
-                    </button>
-                  </div>
-                }
+                emptyStateTitle="No invoices match your filters"
+                emptyStateDescription="Try broadening the amount range or resetting the filters to reveal more listed invoices."
+                emptyStateAction={{
+                  label: "Reset Filters",
+                  onClick: () => {
+                    setStatusFilter("Listed");
+                    setMinAmount("");
+                    setMaxAmount("");
+                    setMaxDiscount("500");
+                    setSelectedInvoice(null);
+                    setInvoicePage(1);
+                  },
+                }}
+                pagination={{
+                  page: invoicePage,
+                  limit: invoiceLimit,
+                  total,
+                  totalPages,
+                  onPageChange: handlePageChange,
+                  onLimitChange: handleLimitChange,
+                }}
               />
 
               {/* Mobile Cards view (hidden on desktop, but let's implement layout) */}
