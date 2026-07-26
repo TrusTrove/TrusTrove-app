@@ -68,6 +68,7 @@ export default function LPDashboard() {
   const [depositAmount, setDepositAmount] = useState("");
   const [depositAsset, setDepositAsset] = useState<AssetType>("USDC");
   const [withdrawShares, setWithdrawShares] = useState("");
+  const [withdrawAsset] = useState<AssetType>("USDC");
   const {
     error: localError,
     setError: setLocalError,
@@ -83,6 +84,9 @@ export default function LPDashboard() {
   const [simDetails, setSimDetails] = useState<any>(null);
   const [simError, setSimError] = useState<string | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
+  const [withdrawSimDetails, setWithdrawSimDetails] = useState<any>(null);
+  const [withdrawSimError, setWithdrawSimError] = useState<string | null>(null);
+  const [isWithdrawSimulating, setIsWithdrawSimulating] = useState(false);
 
   useEffect(() => {
     const amountNum = Number(depositAmount);
@@ -127,6 +131,50 @@ export default function LPDashboard() {
       clearTimeout(timer);
     };
   }, [depositAmount, address]);
+
+  useEffect(() => {
+    const sharesNum = Number(withdrawShares);
+    if (!address || isNaN(sharesNum) || sharesNum <= 0) {
+      setWithdrawSimDetails(null);
+      setWithdrawSimError(null);
+      return;
+    }
+
+    let active = true;
+    const runSim = async () => {
+      setIsWithdrawSimulating(true);
+      setWithdrawSimError(null);
+      setWithdrawSimDetails(null);
+
+      try {
+        const poolClient = new PoolClient(poolContractID);
+        const sharesStroops = BigInt(Math.floor(sharesNum * 10_000_000));
+        const args = [
+          new Address(address).toScVal(),
+          nativeToScVal(sharesStroops, { type: "u128" }),
+        ];
+
+        const simResult = await poolClient.simulateTransaction(
+          "withdraw",
+          args,
+          address,
+        );
+        if (!active) return;
+        setWithdrawSimDetails(simResult);
+      } catch (err: any) {
+        if (!active) return;
+        setWithdrawSimError(err.message || "Simulation failed");
+      } finally {
+        if (active) setIsWithdrawSimulating(false);
+      }
+    };
+
+    const timer = setTimeout(runSim, 400);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [withdrawShares, address]);
 
   const { data: snapshots, isLoading: isSnapshotsLoading } = useQuery({
     queryKey: ["poolSnapshots"],
@@ -281,6 +329,7 @@ export default function LPDashboard() {
 
   const parsedWith = parseFloat(withdrawShares) || 0;
   const withUsdcPreview = parsedWith * 1.0;
+  const withdrawAssetLabel = withdrawAsset.toLowerCase();
 
   return (
     <PageLayout>
@@ -615,6 +664,11 @@ export default function LPDashboard() {
                     <Button
                       type="submit"
                       disabled={isDepositing || !isVerified}
+                      title={
+                        !isVerified
+                          ? "Verification Required. Go to Profile Page to enable."
+                          : undefined
+                      }
                       className={`w-full font-bold uppercase text-xs tracking-wider rounded py-2 transition-all ${
                         isVerified
                           ? "bg-primary hover:bg-primary-hover text-black shadow-[0_0_15px_rgba(0,212,170,0.1)]"
@@ -639,26 +693,37 @@ export default function LPDashboard() {
                       <label className="block text-[10px] font-bold font-mono text-slate-500 uppercase mb-1">
                         Redeem Shares Count
                       </label>
-                      <input
-                        type="number"
-                        step="0.0001"
-                        placeholder="10,000"
-                        className="w-full bg-[#080c10] border border-border rounded px-3 py-1.5 text-white font-mono text-xs focus:outline-none focus:border-primary"
+                      <AmountInput
                         value={withdrawShares}
-                        onChange={(e) => setWithdrawShares(e.target.value)}
+                        onChange={setWithdrawShares}
+                        asset={withdrawAsset}
+                        placeholder="10,000"
                         disabled={isWithdrawing}
                         required
                       />
                       {parsedWith > 0 && (
-                        <span className="text-[10px] font-mono text-slate-400 block mt-1.5 leading-tight">
-                          Redeeming {parsedWith.toLocaleString()} Shares →
-                          receive ~{withUsdcPreview.toLocaleString()} USDC
-                        </span>
+                        <div className="space-y-3 mt-1.5">
+                          <span className="text-[10px] font-mono text-slate-400 block leading-tight">
+                            Redeeming {parsedWith.toLocaleString()} Shares →
+                            receive ~{withUsdcPreview.toLocaleString()}{" "}
+                            {withdrawAssetLabel}
+                          </span>
+                          <SimulationPreview
+                            details={withdrawSimDetails}
+                            error={withdrawSimError}
+                            isLoading={isWithdrawSimulating}
+                          />
+                        </div>
                       )}
                     </div>
                     <Button
                       type="submit"
                       disabled={isWithdrawing || !isVerified}
+                      title={
+                        !isVerified
+                          ? "Verification Required. Go to Profile Page to enable."
+                          : undefined
+                      }
                       className={`w-full font-bold uppercase text-xs tracking-wider rounded py-2 transition-all ${
                         isVerified
                           ? "bg-slate-900 border border-border hover:bg-slate-800 text-slate-300"
