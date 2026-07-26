@@ -25,12 +25,12 @@ export function TopStatusBar() {
     // Extract amount from event data (assuming it's in USDC)
     let amount = "0 USDC";
     if (event.data && event.data.funded_amount) {
-      const amountInUSDC =
-        Number(BigInt(event.data.funded_amount) / 10_000_000n); // Convert from stroops (7 decimals) to USDC
+      const amountInUSDC = Number(
+        BigInt(event.data.funded_amount) / 10_000_000n,
+      ); // Convert from stroops (7 decimals) to USDC
       amount = `${Math.round(amountInUSDC).toLocaleString()} USDC`;
     } else if (event.data && event.data.face_value) {
-      const amountInUSDC =
-        Number(BigInt(event.data.face_value) / 10_000_000n); // Convert from stroops (7 decimals) to USDC
+      const amountInUSDC = Number(BigInt(event.data.face_value) / 10_000_000n); // Convert from stroops (7 decimals) to USDC
       amount = `${Math.round(amountInUSDC).toLocaleString()} USDC`;
     }
 
