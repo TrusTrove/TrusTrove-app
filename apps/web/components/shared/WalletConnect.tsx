@@ -33,8 +33,9 @@ export function WalletConnect() {
   const { network } = useWalletStore();
   const [installed, setInstalled] = useState<boolean | null>(null);
   const [copied, setCopied] = useState(false);
-  const [switchAction, setSwitchAction] =
-    useState<NetworkSwitchAction | null>(null);
+  const [switchAction, setSwitchAction] = useState<NetworkSwitchAction | null>(
+    null,
+  );
 
   useEffect(() => {
     isFreighterInstalled().then(setInstalled);

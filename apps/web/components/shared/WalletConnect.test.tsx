@@ -179,7 +179,8 @@ describe("WalletConnect", () => {
   it("calls switchNetworkToTestnet when Switch to Testnet button is clicked", async () => {
     const mockSwitch = vi.fn().mockResolvedValue({
       needsManualSwitch: true,
-      message: "Your Freighter wallet is on futurenet. Please switch to Testnet in Freighter, then reconnect.",
+      message:
+        "Your Freighter wallet is on futurenet. Please switch to Testnet in Freighter, then reconnect.",
       switchUrl: "https://www.freighter.app/#settings/network",
     } as NetworkSwitchAction);
 

@@ -22,7 +22,10 @@ vi.mock("./useBalances", () => ({
   useBalances: vi.fn(),
 }));
 
-import { detectFreighterNetwork, getFreighterNetworkSwitchUrl } from "@/lib/freighter";
+import {
+  detectFreighterNetwork,
+  getFreighterNetworkSwitchUrl,
+} from "@/lib/freighter";
 
 describe("useWallet", () => {
   beforeEach(() => {
@@ -291,7 +294,9 @@ describe("useWallet", () => {
       expect(action.message).toBe(
         "Your Freighter wallet is on futurenet. Please switch to Testnet in Freighter, then reconnect.",
       );
-      expect(action.switchUrl).toBe("https://www.freighter.app/#settings/network");
+      expect(action.switchUrl).toBe(
+        "https://www.freighter.app/#settings/network",
+      );
     });
 
     it("returns needsManualSwitch=true when Freighter is on mainnet", async () => {
@@ -304,7 +309,9 @@ describe("useWallet", () => {
       });
 
       expect(action.needsManualSwitch).toBe(true);
-      expect(action.switchUrl).toBe("https://www.freighter.app/#settings/network");
+      expect(action.switchUrl).toBe(
+        "https://www.freighter.app/#settings/network",
+      );
     });
 
     it("returns needsManualSwitch=true when Freighter network is unknown", async () => {
