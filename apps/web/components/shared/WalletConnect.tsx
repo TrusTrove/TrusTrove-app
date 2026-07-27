@@ -29,6 +29,8 @@ export function WalletConnect() {
   const { network } = useWalletStore();
   const [installed, setInstalled] = useState<boolean | null>(null);
   const [copied, setCopied] = useState(false);
+  const [showNetworkInstructions, setShowNetworkInstructions] =
+    useState(false);
 
   useEffect(() => {
     isFreighterInstalled().then(setInstalled);
@@ -39,6 +41,10 @@ export function WalletConnect() {
     await navigator.clipboard.writeText(address);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleSwitchToTestnet = () => {
+    setShowNetworkInstructions(true);
   };
 
   const formatAddress = (addr: string) => {
@@ -80,7 +86,7 @@ export function WalletConnect() {
               variant="outline"
               size="sm"
               className="text-xs border-amber-500/30 text-amber-500 hover:bg-amber-500/10 rounded-md font-mono"
-              onClick={connectWallet}
+              onClick={handleSwitchToTestnet}
             >
               Switch to Testnet
             </Button>
@@ -135,6 +141,30 @@ export function WalletConnect() {
           </Button>
         )}
       </div>
+
+      {showNetworkInstructions && connected && network !== "testnet" && (
+        <div
+          className="flex items-start gap-1.5 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-md px-2.5 py-1.5"
+          role="status"
+          aria-live="polite"
+        >
+          <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+          <span>
+            Open Freighter, select <strong>Testnet</strong> in its network
+            selector, then return here.
+            {" "}
+            <a
+              href="https://www.freighter.app/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 underline hover:text-amber-300"
+            >
+              Open Freighter
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          </span>
+        </div>
+      )}
 
       {walletError && errorCode === "user_rejected" && (
         <div className="flex items-center gap-1.5 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-md px-2.5 py-1">
