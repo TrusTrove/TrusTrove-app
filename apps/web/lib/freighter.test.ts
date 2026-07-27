@@ -3,6 +3,9 @@ import {
   isFreighterInstalled,
   connectFreighter,
   getFreighterPublicKey,
+  detectFreighterNetwork,
+  getFreighterNetworkSwitchUrl,
+  mapFreighterNetwork,
   FreighterError,
 } from "./freighter";
 
@@ -10,17 +13,20 @@ vi.mock("@stellar/freighter-api", () => ({
   isConnected: vi.fn(),
   requestAccess: vi.fn(),
   getPublicKey: vi.fn(),
+  getNetwork: vi.fn(),
 }));
 
 import {
   isConnected,
   requestAccess,
   getPublicKey,
+  getNetwork,
 } from "@stellar/freighter-api";
 
 const mockIsConnected = vi.mocked(isConnected);
 const mockRequestAccess = vi.mocked(requestAccess);
 const mockGetPublicKey = vi.mocked(getPublicKey);
+const mockGetNetwork = vi.mocked(getNetwork);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -180,5 +186,53 @@ describe("getFreighterPublicKey", () => {
       expect(err).toBeInstanceOf(FreighterError);
       expect((err as FreighterError).code).toBe("unknown");
     }
+  });
+});
+
+describe("mapFreighterNetwork", () => {
+  it("maps 'testnet' to 'testnet'", () => {
+    expect(mapFreighterNetwork("testnet")).toBe("testnet");
+  });
+
+  it("maps 'public' to 'mainnet'", () => {
+    expect(mapFreighterNetwork("public")).toBe("mainnet");
+  });
+
+  it("maps 'futurenet' to 'futurenet'", () => {
+    expect(mapFreighterNetwork("futurenet")).toBe("futurenet");
+  });
+
+  it("maps unknown names to 'unknown'", () => {
+    expect(mapFreighterNetwork("customnet")).toBe("unknown");
+    expect(mapFreighterNetwork("")).toBe("unknown");
+  });
+});
+
+describe("detectFreighterNetwork", () => {
+  it("detects testnet from Freighter", async () => {
+    mockGetNetwork.mockResolvedValue("testnet");
+    expect(await detectFreighterNetwork()).toBe("testnet");
+  });
+
+  it("detects mainnet from Freighter", async () => {
+    mockGetNetwork.mockResolvedValue("public");
+    expect(await detectFreighterNetwork()).toBe("mainnet");
+  });
+
+  it("detects futurenet from Freighter", async () => {
+    mockGetNetwork.mockResolvedValue("futurenet");
+    expect(await detectFreighterNetwork()).toBe("futurenet");
+  });
+
+  it("returns 'unknown' on error", async () => {
+    mockGetNetwork.mockRejectedValue(new Error("Network unreachable"));
+    expect(await detectFreighterNetwork()).toBe("unknown");
+  });
+});
+
+describe("getFreighterNetworkSwitchUrl", () => {
+  it("returns the Freighter network settings URL", () => {
+    const url = getFreighterNetworkSwitchUrl();
+    expect(url).toBe("https://www.freighter.app/#settings/network");
   });
 });

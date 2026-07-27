@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useWallet } from "@/hooks/useWallet";
+import type { NetworkSwitchAction } from "@/hooks/useWallet";
 import { Button } from "@/components/ui/button";
 import { isFreighterInstalled } from "@/lib/freighter";
 import { useWalletStore } from "@/store/wallet";
@@ -13,6 +14,8 @@ import {
   Copy,
   Check,
   ExternalLink,
+  ArrowRight,
+  Info,
 } from "lucide-react";
 
 export function WalletConnect() {
@@ -21,6 +24,7 @@ export function WalletConnect() {
     connected,
     connectWallet,
     disconnectWallet,
+    switchNetworkToTestnet,
     loading,
     error: walletError,
     errorCode,
@@ -29,6 +33,8 @@ export function WalletConnect() {
   const { network } = useWalletStore();
   const [installed, setInstalled] = useState<boolean | null>(null);
   const [copied, setCopied] = useState(false);
+  const [switchAction, setSwitchAction] =
+    useState<NetworkSwitchAction | null>(null);
 
   useEffect(() => {
     isFreighterInstalled().then(setInstalled);
@@ -43,6 +49,11 @@ export function WalletConnect() {
 
   const formatAddress = (addr: string) => {
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+  };
+
+  const handleSwitchNetwork = async () => {
+    const action = await switchNetworkToTestnet();
+    setSwitchAction(action);
   };
 
   // If Freighter is not installed
@@ -76,14 +87,39 @@ export function WalletConnect() {
               Mainnet
             </span>
           ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-xs border-amber-500/30 text-amber-500 hover:bg-amber-500/10 rounded-md font-mono"
-              onClick={connectWallet}
-            >
-              Switch to Testnet
-            </Button>
+            <div className="flex flex-col gap-1.5">
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs border-amber-500/30 text-amber-500 hover:bg-amber-500/10 rounded-md font-mono"
+                onClick={handleSwitchNetwork}
+              >
+                Switch to Testnet
+                <ArrowRight className="w-3 h-3 ml-1" />
+              </Button>
+              {switchAction?.needsManualSwitch && (
+                <div className="flex items-start gap-1.5 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-md px-2.5 py-1.5 max-w-xs">
+                  <Info className="w-3 h-3 shrink-0 mt-0.5" />
+                  <span className="leading-relaxed">
+                    {switchAction.message}
+                  </span>
+                  <a
+                    href={switchAction.switchUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-amber-400 hover:text-amber-300 font-semibold whitespace-nowrap"
+                  >
+                    Open Freighter
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+              )}
+              {switchAction && !switchAction.needsManualSwitch && (
+                <div className="flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-md px-2.5 py-1">
+                  <span>{switchAction.message}</span>
+                </div>
+              )}
+            </div>
           )}
         </div>
       )}

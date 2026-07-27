@@ -2,7 +2,17 @@ import {
   isConnected,
   requestAccess,
   getPublicKey,
+  getNetwork,
 } from "@stellar/freighter-api";
+
+export type FreighterNetwork = "testnet" | "mainnet" | "futurenet" | "unknown";
+
+export function mapFreighterNetwork(name: string): FreighterNetwork {
+  if (name === "testnet") return "testnet";
+  if (name === "public") return "mainnet";
+  if (name === "futurenet") return "futurenet";
+  return "unknown";
+}
 
 export type FreighterErrorCode = "user_rejected" | "not_installed" | "unknown";
 
@@ -104,4 +114,19 @@ export async function getFreighterPublicKey(): Promise<string> {
     console.error("Failed to get public key from Freighter:", err);
     throw mapFreighterError(err);
   }
+}
+
+export async function detectFreighterNetwork(): Promise<FreighterNetwork> {
+  try {
+    const name = await getNetwork();
+    return mapFreighterNetwork(name);
+  } catch {
+    return "unknown";
+  }
+}
+
+const FREIGHTER_APP_URL = "https://www.freighter.app/";
+
+export function getFreighterNetworkSwitchUrl(): string {
+  return `${FREIGHTER_APP_URL}#settings/network`;
 }

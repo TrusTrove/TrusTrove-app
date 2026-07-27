@@ -4,6 +4,7 @@ import { useWallet } from "./useWallet";
 import { useWalletStore } from "@/store/wallet";
 import { connectFreighter, FreighterError } from "@/lib/freighter";
 import { useBalances } from "./useBalances";
+import type { NetworkSwitchAction } from "./useWallet";
 
 vi.mock("@/lib/freighter", () => ({
   connectFreighter: vi.fn(),
@@ -15,11 +16,15 @@ vi.mock("@/lib/freighter", () => ({
       this.code = code;
     }
   },
+  detectFreighterNetwork: vi.fn(),
+  getFreighterNetworkSwitchUrl: vi.fn(() => "https://www.freighter.app/#settings/network"),
 }));
 
 vi.mock("./useBalances", () => ({
   useBalances: vi.fn(),
 }));
+
+import { detectFreighterNetwork, getFreighterNetworkSwitchUrl } from "@/lib/freighter";
 
 describe("useWallet", () => {
   beforeEach(() => {
@@ -257,5 +262,64 @@ describe("useWallet", () => {
     expect(result.current.balances).toEqual({ usdc: "100", xlm: "50" });
     expect(result.current.balancesLoading).toBe(false);
     expect(result.current.balancesError).toBeNull();
+  });
+
+  describe("switchNetworkToTestnet", () => {
+    it("returns needsManualSwitch=false when Freighter is on testnet", async () => {
+      vi.mocked(detectFreighterNetwork).mockResolvedValue("testnet");
+
+      const { result } = renderHook(() => useWallet());
+
+      const action = await act(async () => {
+        return await result.current.switchNetworkToTestnet();
+      });
+
+      expect(action).toBeDefined();
+      expect(action.needsManualSwitch).toBe(false);
+      expect(action.message).toBe("Freighter is already on Testnet.");
+      expect(action.switchUrl).toBe("");
+    });
+
+    it("returns needsManualSwitch=true with a switch URL when Freighter is on futurenet", async () => {
+      vi.mocked(detectFreighterNetwork).mockResolvedValue("futurenet");
+
+      const { result } = renderHook(() => useWallet());
+
+      const action = await act(async () => {
+        return await result.current.switchNetworkToTestnet();
+      });
+
+      expect(action.needsManualSwitch).toBe(true);
+      expect(action.message).toBe(
+        "Your Freighter wallet is on futurenet. Please switch to Testnet in Freighter, then reconnect.",
+      );
+      expect(action.switchUrl).toBe("https://www.freighter.app/#settings/network");
+    });
+
+    it("returns needsManualSwitch=true when Freighter is on mainnet", async () => {
+      vi.mocked(detectFreighterNetwork).mockResolvedValue("mainnet");
+
+      const { result } = renderHook(() => useWallet());
+
+      const action = await act(async () => {
+        return await result.current.switchNetworkToTestnet();
+      });
+
+      expect(action.needsManualSwitch).toBe(true);
+      expect(action.switchUrl).toBe("https://www.freighter.app/#settings/network");
+    });
+
+    it("returns needsManualSwitch=true when Freighter network is unknown", async () => {
+      vi.mocked(detectFreighterNetwork).mockResolvedValue("unknown");
+
+      const { result } = renderHook(() => useWallet());
+
+      const action = await act(async () => {
+        return await result.current.switchNetworkToTestnet();
+      });
+
+      expect(action.needsManualSwitch).toBe(true);
+      expect(action.message).toContain("unknown");
+    });
   });
 });
