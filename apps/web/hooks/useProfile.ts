@@ -7,6 +7,60 @@ const { captureError } = createErrorHandler("useProfile");
 
 const registryContractID = process.env.NEXT_PUBLIC_REGISTRY_CONTRACT_ID || "";
 
+type ErrorWithDetails = {
+  status?: unknown;
+  statusCode?: unknown;
+  code?: unknown;
+  message?: unknown;
+  response?: unknown;
+  cause?: unknown;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function getErrorDetails(error: unknown): ErrorWithDetails | null {
+  return isRecord(error) ? error : null;
+}
+
+function hasNotFoundStatus(value: unknown): boolean {
+  if (typeof value === "number") return value === 404;
+  if (typeof value === "string") return value === "404";
+  return false;
+}
+
+function isProfileNotFoundError(error: unknown): boolean {
+  const details = getErrorDetails(error);
+  const response = details ? getErrorDetails(details.response) : null;
+  const cause = details ? getErrorDetails(details.cause) : null;
+
+  if (
+    hasNotFoundStatus(details?.status) ||
+    hasNotFoundStatus(details?.statusCode) ||
+    hasNotFoundStatus(response?.status) ||
+    hasNotFoundStatus(response?.statusCode) ||
+    hasNotFoundStatus(cause?.status) ||
+    hasNotFoundStatus(cause?.statusCode)
+  ) {
+    return true;
+  }
+
+  const values = [
+    details?.code,
+    details?.message,
+    response?.message,
+    cause?.message,
+  ];
+  return values.some(
+    (value) =>
+      typeof value === "string" &&
+      /(?:profile[\s_-]*(?:not[\s_-]*found|does[\s_-]*not[\s_-]*exist|not[\s_-]*registered)|no[\s_-]*profile[\s_-]*found)/i.test(
+        value,
+      ),
+  );
+}
+
 /**
  * Custom hook for interacting with the TrusTrove registry contract.
  *
@@ -37,10 +91,12 @@ export function useProfile() {
         const profile = await client.getProfile(address, address);
         return profile;
       } catch (err) {
-        // getProfile throws a simulation error if profile doesn't exist.
-        // We return null to indicate the profile is not registered.
+        // A missing profile is the only expected lookup failure. Preserve all
+        // other errors so the UI can distinguish an outage from registration.
+        if (isProfileNotFoundError(err)) return null;
+
         captureError(err);
-        return null;
+        throw err;
       }
     },
     enabled: !!address,
