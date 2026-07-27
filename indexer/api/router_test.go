@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -199,5 +200,151 @@ func TestAuthMiddleware_StrictHeaderParsing(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestPerClientRateLimiter_ClientIsolation(t *testing.T) {
+	rl := newPerClientRateLimiter(10, 20, 1000)
+	defer rl.Stop()
+
+	// Simulate client A exhausting its rate limit
+	clientA := "ip:192.168.1.100"
+	for i := 0; i < 25; i++ {
+		rl.allow(clientA)
+	}
+
+	// Client A should now be rate limited
+	if rl.allow(clientA) {
+		t.Error("client A should be rate limited after exhausting tokens")
+	}
+
+	// Client B should still be allowed (isolation)
+	clientB := "ip:192.168.1.101"
+	if !rl.allow(clientB) {
+		t.Error("client B should not be affected by client A's rate limit")
+	}
+}
+
+func TestPerClientRateLimiter_JWTvsIPKeys(t *testing.T) {
+	rl := newPerClientRateLimiter(10, 20, 1000)
+	defer rl.Stop()
+
+	// Create a request with JWT context
+	reqJWT := httptest.NewRequest(http.MethodPost, "/auth", nil)
+	ctx := WithUserAddress(reqJWT.Context(), "G1234567890")
+	reqJWT = reqJWT.WithContext(ctx)
+
+	// Create a request without JWT (IP-based)
+	reqIP := httptest.NewRequest(http.MethodPost, "/auth", nil)
+	reqIP.RemoteAddr = "192.168.1.100:12345"
+
+	keyJWT := getClientKey(reqJWT)
+	keyIP := getClientKey(reqIP)
+
+	if keyJWT != "jwt:G1234567890" {
+		t.Errorf("expected JWT key 'jwt:G1234567890', got %s", keyJWT)
+	}
+
+	if !strings.HasPrefix(keyIP, "ip:") {
+		t.Errorf("expected IP key to start with 'ip:', got %s", keyIP)
+	}
+
+	// Exhaust JWT client
+	for i := 0; i < 25; i++ {
+		rl.allow(keyJWT)
+	}
+
+	// JWT client should be rate limited
+	if rl.allow(keyJWT) {
+		t.Error("JWT client should be rate limited")
+	}
+
+	// IP client should still be allowed (different keys)
+	if !rl.allow(keyIP) {
+		t.Error("IP client should not be affected by JWT client's rate limit")
+	}
+}
+
+func TestPerClientRateLimiter_MaxSizeEviction(t *testing.T) {
+	maxSize := 10
+	rl := newPerClientRateLimiter(10, 20, maxSize)
+	defer rl.Stop()
+
+	// Add more clients than maxSize
+	for i := 0; i < maxSize+5; i++ {
+		clientKey := fmt.Sprintf("ip:192.168.1.%d", i)
+		rl.allow(clientKey)
+	}
+
+	rl.mu.RLock()
+	bucketCount := len(rl.buckets)
+	rl.mu.RUnlock()
+
+	// Bucket count should not exceed maxSize significantly
+	// (may be maxSize+1 due to race condition during eviction)
+	if bucketCount > maxSize+1 {
+		t.Errorf("bucket count %d exceeds maxSize %d", bucketCount, maxSize)
+	}
+}
+
+func TestPerClientRateLimiter_StaleEviction(t *testing.T) {
+	rl := newPerClientRateLimiter(10, 20, 1000)
+	defer rl.Stop()
+
+	// Add a client
+	clientKey := "ip:192.168.1.100"
+	rl.allow(clientKey)
+
+	rl.mu.RLock()
+	_, exists := rl.buckets[clientKey]
+	rl.mu.RUnlock()
+
+	if !exists {
+		t.Error("client bucket should exist after allow")
+	}
+
+	// Manually set lastSeen to old time
+	rl.mu.Lock()
+	if bucket, ok := rl.buckets[clientKey]; ok {
+		bucket.mu.Lock()
+		bucket.last = time.Now().Add(-15 * time.Minute)
+		bucket.mu.Unlock()
+	}
+	rl.mu.Unlock()
+
+	// Trigger cleanup
+	rl.evictStale()
+
+	rl.mu.RLock()
+	_, exists = rl.buckets[clientKey]
+	rl.mu.RUnlock()
+
+	if exists {
+		t.Error("stale client bucket should be evicted")
+	}
+}
+
+func TestPerClientRateLimiter_TokenRefill(t *testing.T) {
+	rl := newPerClientRateLimiter(100, 20, 1000)
+	defer rl.Stop()
+
+	clientKey := "ip:192.168.1.100"
+
+	// Exhaust burst
+	for i := 0; i < 25; i++ {
+		rl.allow(clientKey)
+	}
+
+	// Should be rate limited
+	if rl.allow(clientKey) {
+		t.Error("should be rate limited after exhausting burst")
+	}
+
+	// Wait for token refill
+	time.Sleep(20 * time.Millisecond)
+
+	// Should be allowed again after refill
+	if !rl.allow(clientKey) {
+		t.Error("should be allowed after token refill")
 	}
 }
