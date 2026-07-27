@@ -118,12 +118,12 @@ type clientBucket struct {
 }
 
 type perClientRateLimiter struct {
-	mu       sync.RWMutex
-	buckets  map[string]*clientBucket
-	rps      float64
-	burst    int
-	maxSize  int
-	done     chan struct{}
+	mu      sync.RWMutex
+	buckets map[string]*clientBucket
+	rps     float64
+	burst   int
+	maxSize int
+	done    chan struct{}
 }
 
 func newPerClientRateLimiter(rps int, burst int, maxSize int) *perClientRateLimiter {
