@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { motion } from "framer-motion";
 import { Loader2, ExternalLink, ShieldCheck } from "lucide-react";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
@@ -18,9 +18,12 @@ export function TransactionPending({
   statusText = "Waiting for confirmation...",
   onClose,
 }: TransactionPendingProps) {
+  const [localStatus, setLocalStatus] = useState<string | null>(null);
+  const [timedOut, setTimedOut] = useState(false);
+
   // Only allow dismissal (Escape / backdrop click) after the transaction has
   // completed, i.e. when txHash is available.
-  const canDismiss = Boolean(txHash && onClose);
+  const canDismiss = timedOut || Boolean(txHash && onClose);
 
   const overlayRef = useFocusTrap<HTMLDivElement>(
     isOpen,
@@ -28,7 +31,7 @@ export function TransactionPending({
   );
 
   // Register a global Escape-key listener that dismisses the dialog only
-  // after the transaction has completed (txHash is set).
+  // after the transaction has completed or timed out.
   React.useEffect(() => {
     if (!canDismiss) return;
     const handleEscape = (e: KeyboardEvent) => {
@@ -37,6 +40,20 @@ export function TransactionPending({
     window.addEventListener("keydown", handleEscape);
     return () => window.removeEventListener("keydown", handleEscape);
   }, [canDismiss, onClose]);
+
+  // Timeout logic: if modal stays open for 60s without a tx hash, mark as timed out.
+  React.useEffect(() => {
+    if (!isOpen || txHash) return;
+    setTimedOut(false);
+    setLocalStatus("Waiting for confirmation...");
+    const timer = setTimeout(() => {
+      setTimedOut(true);
+      setLocalStatus(
+        "Confirmation timed out. You can close and check status manually.",
+      );
+    }, 60_000);
+    return () => clearTimeout(timer);
+  }, [isOpen, txHash]);
 
   if (!isOpen) return null;
 
@@ -94,7 +111,7 @@ export function TransactionPending({
         </h3>
         <p className="text-slate-400 text-xs font-mono mb-6 flex items-center gap-1.5 justify-center">
           <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
-          {statusText}
+          {timedOut ? localStatus || statusText : statusText}
         </p>
 
         {txHash && (

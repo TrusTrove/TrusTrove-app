@@ -16,8 +16,8 @@ info:
 servers:
   - url: http://localhost:8080
     description: Local development
-  - url: https://api.trusttrove.example
-    description: Deployment placeholder
+  - url: https://trusttrove-app.onrender.com
+    description: Production
 
 tags:
   - name: Health

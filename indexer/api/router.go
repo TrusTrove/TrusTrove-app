@@ -22,9 +22,14 @@ func AuthMiddleware(jwtSecret string) func(http.Handler) http.Handler {
 				return
 			}
 
-			var tokenStr string
-			n, err := fmt.Sscanf(authHeader, "Bearer %s", &tokenStr)
-			if err != nil || n != 1 {
+			parts := strings.SplitN(authHeader, " ", 2)
+			if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+				http.Error(w, "Unauthorized: invalid header format", http.StatusUnauthorized)
+				return
+			}
+
+			tokenStr := strings.TrimSpace(parts[1])
+			if tokenStr == "" || strings.ContainsAny(tokenStr, " \t\r\n") {
 				http.Error(w, "Unauthorized: invalid header format", http.StatusUnauthorized)
 				return
 			}
@@ -53,7 +58,7 @@ func AuthMiddleware(jwtSecret string) func(http.Handler) http.Handler {
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), "user_address", sub)
+			ctx := WithUserAddress(r.Context(), sub)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -106,48 +111,124 @@ func SecurityHeadersMiddleware() func(http.Handler) http.Handler {
 	}
 }
 
-type rateLimiter struct {
+type clientBucket struct {
 	mu     sync.Mutex
 	tokens float64
 	last   time.Time
-	rps    float64
-	burst  int
 }
 
-func newRateLimiter(rps int, burst int) *rateLimiter {
-	return &rateLimiter{
-		tokens: float64(burst),
-		last:   time.Now(),
-		rps:    float64(rps),
-		burst:  burst,
+type perClientRateLimiter struct {
+	mu      sync.RWMutex
+	buckets map[string]*clientBucket
+	rps     float64
+	burst   int
+	maxSize int
+	done    chan struct{}
+}
+
+func newPerClientRateLimiter(rps int, burst int, maxSize int) *perClientRateLimiter {
+	rl := &perClientRateLimiter{
+		buckets: make(map[string]*clientBucket),
+		rps:     float64(rps),
+		burst:   burst,
+		maxSize: maxSize,
+		done:    make(chan struct{}),
 	}
+	go rl.cleanupLoop()
+	return rl
 }
 
-func (rl *rateLimiter) allow() bool {
+func (rl *perClientRateLimiter) Stop() {
+	close(rl.done)
+}
+
+func (rl *perClientRateLimiter) allow(clientKey string) bool {
 	rl.mu.Lock()
-	defer rl.mu.Unlock()
+	bucket, ok := rl.buckets[clientKey]
+	if !ok {
+		bucket = &clientBucket{
+			tokens: float64(rl.burst),
+			last:   time.Now(),
+		}
+		rl.buckets[clientKey] = bucket
+		if len(rl.buckets) > rl.maxSize {
+			rl.evictOldest()
+		}
+	}
+	rl.mu.Unlock()
+
+	bucket.mu.Lock()
+	defer bucket.mu.Unlock()
 
 	now := time.Now()
-	elapsed := now.Sub(rl.last).Seconds()
-	rl.tokens += elapsed * rl.rps
-	if rl.tokens > float64(rl.burst) {
-		rl.tokens = float64(rl.burst)
+	elapsed := now.Sub(bucket.last).Seconds()
+	bucket.tokens += elapsed * rl.rps
+	if bucket.tokens > float64(rl.burst) {
+		bucket.tokens = float64(rl.burst)
 	}
-	rl.last = now
+	bucket.last = now
 
-	if rl.tokens >= 1 {
-		rl.tokens--
+	if bucket.tokens >= 1 {
+		bucket.tokens--
 		return true
 	}
 	return false
 }
 
-func RateLimitMiddleware(rl *rateLimiter) func(http.Handler) http.Handler {
+func (rl *perClientRateLimiter) evictOldest() {
+	var oldestKey string
+	var oldestTime time.Time
+	for key, bucket := range rl.buckets {
+		if oldestKey == "" || bucket.last.Before(oldestTime) {
+			oldestKey = key
+			oldestTime = bucket.last
+		}
+	}
+	if oldestKey != "" {
+		delete(rl.buckets, oldestKey)
+	}
+}
+
+func (rl *perClientRateLimiter) cleanupLoop() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			rl.evictStale()
+		case <-rl.done:
+			return
+		}
+	}
+}
+
+func (rl *perClientRateLimiter) evictStale() {
+	cutoff := time.Now().Add(-10 * time.Minute)
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+	for key, bucket := range rl.buckets {
+		bucket.mu.Lock()
+		if bucket.last.Before(cutoff) {
+			delete(rl.buckets, key)
+		}
+		bucket.mu.Unlock()
+	}
+}
+
+func getClientKey(r *http.Request) string {
+	if sub, ok := GetUserAddress(r.Context()); ok {
+		return "jwt:" + sub
+	}
+	return "ip:" + r.RemoteAddr
+}
+
+func RateLimitMiddleware(rl *perClientRateLimiter) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if !rl.allow() {
+			clientKey := getClientKey(r)
+			if !rl.allow(clientKey) {
 				w.Header().Set("Retry-After", "1")
-				http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+				http.Error(w, fmt.Sprintf("Too Many Requests (client: %s)", clientKey), http.StatusTooManyRequests)
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -166,8 +247,9 @@ func NewRouter(h *APIHandler) *chi.Mux {
 	r.Use(CORSMiddleware(h.cfg.CORSAllowedOrigins))
 	r.Use(SecurityHeadersMiddleware())
 
-	// Global rate limiter for auth and invoice creation
-	rl := newRateLimiter(h.cfg.RateLimitRPS, h.cfg.RateLimitRPS*2)
+	// Per-client rate limiter for auth and invoice creation
+	// Max 1000 clients to bound memory usage
+	rl := newPerClientRateLimiter(h.cfg.RateLimitRPS, h.cfg.RateLimitRPS*2, 1000)
 
 	// Health check
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {

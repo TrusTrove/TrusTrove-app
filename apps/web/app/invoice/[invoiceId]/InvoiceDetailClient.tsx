@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PageLayout } from "@/components/shared/PageLayout";
 import { useInvoice, useInvoices } from "@/hooks/useInvoices";
@@ -15,6 +16,7 @@ import {
   Copy,
   Check,
   ArrowLeft,
+  ChevronRight,
   Lock,
   Users,
   Activity,
@@ -148,9 +150,9 @@ export default function InvoiceDetailClient({
           </p>
           <Button
             className="border border-border text-slate-300 font-mono text-xs uppercase px-4 py-2 hover:bg-slate-900"
-            onClick={() => router.push("/marketplace")}
+            onClick={() => router.push("/dashboard")}
           >
-            Return to Marketplace
+            Return to Dashboard
           </Button>
         </div>
       </PageLayout>
@@ -165,16 +167,24 @@ export default function InvoiceDetailClient({
   return (
     <PageLayout>
       <div className="space-y-6 py-4">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => router.back()}
-            className="flex items-center gap-1.5 text-xs font-bold font-mono text-slate-500 hover:text-white uppercase transition-colors"
+        <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold font-mono uppercase tracking-wider">
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-1.5 text-slate-500 transition-colors hover:text-white"
           >
-            <ArrowLeft className="w-3.5 h-3.5" /> Back
-          </button>
-          <span className="text-slate-600 font-mono text-xs">/</span>
-          <span className="text-slate-400 font-mono text-xs font-bold">
-            Ledger Details
+            <ArrowLeft className="w-3.5 h-3.5" />
+            Dashboard
+          </Link>
+          <ChevronRight className="w-3.5 h-3.5 text-slate-700" />
+          <Link
+            href="/dashboard"
+            className="text-slate-500 transition-colors hover:text-white"
+          >
+            Invoices
+          </Link>
+          <ChevronRight className="w-3.5 h-3.5 text-slate-700" />
+          <span className="text-slate-400">
+            Invoice #{invoice.id.slice(0, 6)}...
           </span>
         </div>
 
@@ -354,7 +364,10 @@ export default function InvoiceDetailClient({
                 <div className="flex justify-between">
                   <span className="text-slate-500">Net Discount Fee:</span>
                   <span className="text-slate-300 font-bold">
-                    {formatAmount(invoice.faceValue - invoice.fundedAmount)}
+                    {formatAmount(
+                      BigInt(invoice.faceValue) - BigInt(invoice.fundedAmount),
+                      invoice.asset,
+                    )}
                   </span>
                 </div>
               </div>

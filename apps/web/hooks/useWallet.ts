@@ -1,11 +1,6 @@
 import { useState } from "react";
 import { useWalletStore } from "@/store/wallet";
-import {
-  connectFreighter,
-  FreighterError,
-  detectFreighterNetwork,
-  getFreighterNetworkSwitchUrl,
-} from "@/lib/freighter";
+import { connectFreighter, FreighterError } from "@/lib/freighter";
 import { useBalances } from "./useBalances";
 import { createErrorHandler } from "@/lib/errors";
 

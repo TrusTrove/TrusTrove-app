@@ -16,8 +16,6 @@ vi.mock("@/lib/freighter", () => ({
       this.code = code;
     }
   },
-  detectFreighterNetwork: vi.fn(),
-  getFreighterNetworkSwitchUrl: vi.fn(() => "https://www.freighter.app/#settings/network"),
 }));
 
 vi.mock("./useBalances", () => ({
