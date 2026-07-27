@@ -40,14 +40,14 @@ type DbPoolStats struct {
 }
 
 type ProtocolStats struct {
-	TotalUSDCFinanced   string `json:"total_usdc_financed"`
-	ActiveInvoiceCount  int    `json:"active_invoice_count"`
-	TotalInvoices       int    `json:"total_invoices"`
-	TotalRepaid         int    `json:"total_repaid"`
-	TotalDefaulted      int    `json:"total_defaulted"`
-	AverageYieldBps     int    `json:"average_yield_bps"`
-	PoolUtilizationBps  int    `json:"pool_utilization_bps"`
-	RegisteredIssuers   int    `json:"registered_issuers"`
+	TotalUSDCFinanced  string `json:"total_usdc_financed"`
+	ActiveInvoiceCount int    `json:"active_invoice_count"`
+	TotalInvoices      int    `json:"total_invoices"`
+	TotalRepaid        int    `json:"total_repaid"`
+	TotalDefaulted     int    `json:"total_defaulted"`
+	AverageYieldBps    int    `json:"average_yield_bps"`
+	PoolUtilizationBps int    `json:"pool_utilization_bps"`
+	RegisteredIssuers  int    `json:"registered_issuers"`
 }
 
 func GetProtocolStats(ctx context.Context) (*ProtocolStats, error) {
