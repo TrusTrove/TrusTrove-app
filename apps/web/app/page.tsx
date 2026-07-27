@@ -22,7 +22,11 @@ import {
 
 export default function Home() {
   const { stats, isStatsLoading, statsError } = usePool();
-  const { stats: protocolStats, isLoading: isProtocolStatsLoading, error: protocolStatsError } = useStats();
+  const {
+    stats: protocolStats,
+    isLoading: isProtocolStatsLoading,
+    error: protocolStatsError,
+  } = useStats();
 
   // Compact USDC formatting (e.g. "12.4M") derived from the stroop-denominated stat.
   const formatCompactUsdc = (amount: bigint | undefined): string | null => {
@@ -35,7 +39,11 @@ export default function Home() {
   };
 
   // Per-stat renderer: skeleton while loading, graceful fallback when the indexer is unavailable.
-  const renderStat = (value: string | null, isLoading?: boolean, error?: any) => {
+  const renderStat = (
+    value: string | null,
+    isLoading?: boolean,
+    error?: any,
+  ) => {
     if (isLoading) {
       return <SkeletonShimmer className="h-7 w-20 mx-auto lg:mx-0" />;
     }
