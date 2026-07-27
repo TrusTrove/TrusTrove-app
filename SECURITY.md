@@ -12,17 +12,26 @@ No mainnet deployment exists. Smart contracts have not undergone a formal audit.
 
 ## Scope
 
-The following are in scope for security reports:
+TrusTrove is split across two repositories, each with its own security scope:
 
-- Smart contract logic errors in `contracts/` (registry, invoice, escrow, pool)
-- Authentication bypass or unauthorized fund access in Soroban contracts
-- Integer overflow or underflow in amount calculations
-- Incorrect state transitions in the invoice lifecycle
-- USDC drainage vulnerabilities in the pool or escrow contracts
+- **This repository ([TrusTrove-app](https://github.com/Maxwell316/TrusTrove-app))**
+  covers the web frontend (`apps/web`), the indexer/API (`indexer/`), and the
+  SDK (`packages/sdk`).
+- **[TrusTrove-contract](https://github.com/Maxwell316/TrusTrove-contract)**
+  covers the Soroban smart contracts (registry, invoice, escrow, pool).
+  Report smart contract vulnerabilities there — see that repository's
+  `SECURITY.md` for its reporting process.
+
+The following are in scope for security reports in this repository:
+
+- Authentication bypass or unauthorized access in the indexer/API
 - Frontend issues that could cause users to sign unintended transactions
+- SDK bugs that produce incorrect transaction construction or signing
+- Indexer bugs that misreport on-chain state
 
-The following are out of scope:
+The following are out of scope for this repository:
 
+- Smart contract logic errors — report to [TrusTrove-contract](https://github.com/Maxwell316/TrusTrove-contract)
 - Stellar protocol-level issues (report to SDF directly)
 - Freighter wallet vulnerabilities (report to Freighter team)
 - Testnet-only issues with no mainnet impact path
@@ -40,7 +49,7 @@ Include in your report:
 
 - Description of the vulnerability
 - Steps to reproduce
-- Affected contract or component
+- Affected repository and component (e.g. `apps/web`, `indexer/`, `packages/sdk`)
 - Potential impact
 - Suggested fix if you have one
 
@@ -62,7 +71,8 @@ unless they prefer to remain anonymous.
 
 ## Audit Status
 
-TrusTrove smart contracts have not been formally audited.
+The [TrusTrove-contract](https://github.com/Maxwell316/TrusTrove-contract)
+smart contracts have not been formally audited.
 Users interact with testnet contracts at their own risk.
 A security audit is planned prior to any mainnet deployment.
 
