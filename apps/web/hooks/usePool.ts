@@ -6,6 +6,7 @@ import { useWalletStore } from "@/store/wallet";
 import { showSuccessToast } from "@/lib/toast";
 import { createErrorHandler } from "@/lib/errors";
 import { useTokenAllowance } from "./useTokenAllowance";
+import { useAppError } from "./useAppError";
 
 const { handleMutationError } = createErrorHandler("usePool");
 
@@ -42,6 +43,7 @@ export function usePool() {
   const queryClient = useQueryClient();
   const { address } = useWalletStore();
   const { ensureAllowance } = useTokenAllowance();
+  const { error: appError, handleError, clearError } = useAppError();
 
   const poolClient = useMemo(() => new PoolClient(poolContractID), []);
 
@@ -68,17 +70,18 @@ export function usePool() {
   const depositMutation = useMutation({
     mutationFn: async ({ amount }: { amount: bigint }) => {
       if (!address) throw new Error("Wallet not connected");
-      // Ensure the pool contract has sufficient USDC allowance before depositing
       await ensureAllowance(poolContractID, amount);
       return poolClient.deposit(address, amount, address);
     },
     onSuccess: (txHash: string) => {
+      clearError();
       queryClient.invalidateQueries({ queryKey: ["poolStats"] });
       queryClient.invalidateQueries({ queryKey: ["lpPosition", address] });
       showSuccessToast("Deposit Complete", txHash);
     },
     onError: (error) => {
       handleMutationError(error, "Deposit Failed");
+      handleError(error, "Deposit failed");
     },
   });
 
@@ -94,12 +97,14 @@ export function usePool() {
       return poolClient.withdraw(address, shares, address);
     },
     onSuccess: (txHash: string) => {
+      clearError();
       queryClient.invalidateQueries({ queryKey: ["poolStats"] });
       queryClient.invalidateQueries({ queryKey: ["lpPosition", address] });
       showSuccessToast("Withdrawal Complete", txHash);
     },
     onError: (error) => {
       handleMutationError(error, "Withdrawal Failed");
+      handleError(error, "Withdrawal failed");
     },
   });
 
@@ -121,5 +126,6 @@ export function usePool() {
     withdraw: withdrawMutation.mutateAsync,
     isWithdrawing: withdrawMutation.isPending,
     withdrawError: withdrawMutation.error,
+    appError,
   };
 }
