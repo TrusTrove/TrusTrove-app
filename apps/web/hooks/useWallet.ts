@@ -1,11 +1,16 @@
 import { useState } from "react";
 import { getNetworkDetails } from "@stellar/freighter-api";
 import { useWalletStore } from "@/store/wallet";
-import { connectFreighter, FreighterError } from "@/lib/freighter";
+import {
+  connectFreighter,
+  getFreighterNetwork,
+  FreighterError,
+} from "@/lib/freighter";
 import { useBalances } from "./useBalances";
 import { createErrorHandler } from "@/lib/errors";
 
 const { captureError } = createErrorHandler("useWallet");
+const REQUIRED_NETWORK = "testnet";
 
 const EXPECTED_NETWORK = "testnet";
 const WRONG_NETWORK_ERROR_CODE = "wrong_network";
