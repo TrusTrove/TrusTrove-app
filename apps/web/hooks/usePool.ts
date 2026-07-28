@@ -45,6 +45,15 @@ export function usePool() {
   });
 
   const depositMutation = useMutation({
+    mutationFn: async ({
+      amount,
+      asset = "USDC",
+    }: {
+      amount: bigint;
+      asset?: AssetType;
+    }) => {
+      if (!address) throw new Error("Wallet not connected");
+
     mutationFn: async ({ amount, asset }: DepositArguments) => {
       if (!address) {
         throw new Error("Wallet not connected");

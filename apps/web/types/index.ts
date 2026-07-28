@@ -1,11 +1,31 @@
 export type {
-  Invoice,
   InvoiceStatus,
   PoolStats,
   LPPosition,
   Profile,
   AssetType,
 } from "@trusttrove/sdk";
+
+import type { Invoice as SdkInvoice } from "@trusttrove/sdk";
+
+// Extend the SDK Invoice type with extra fields that parseInvoiceResponse adds at runtime
+// These fields are attached via Object.assign() so they are optional on the type
+export interface Invoice extends SdkInvoice {
+  listedAt?: number | null;
+  issuerConfirmedAt?: number | null;
+  buyerConfirmedAt?: number | null;
+  defaultedAt?: number | null;
+  transactionHashes?: string[];
+  txHashes?: string[];
+  createdTxHash?: string;
+  listedTxHash?: string;
+  fundedTxHash?: string;
+  shippedTxHash?: string | null;
+  issuerConfirmedTxHash?: string | null;
+  buyerConfirmedTxHash?: string | null;
+  repaidTxHash?: string | null;
+  defaultedTxHash?: string | null;
+}
 
 export interface EventLog {
   id: number;

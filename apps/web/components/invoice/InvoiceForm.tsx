@@ -10,7 +10,6 @@ import { AmountInput } from "@/components/shared/AmountInput";
 import { useWalletStore } from "@/store/wallet";
 
 const invoiceContractID = process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID || "";
-
 const getStellarSdk = () => import("@stellar/stellar-sdk");
 const getTrustroveSdk = () => import("@trusttrove/sdk");
 
@@ -79,13 +78,10 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
       setError("Buyer must be a valid Stellar public key (G... account address)");
       return;
     }
-    if (trimmedBuyer !== buyer) setBuyer(trimmedBuyer);
-
     if (parsedValue <= 0) {
       setError("Face value must be a positive number");
       return;
     }
-
     if (!dueDate) {
       setError("Please select a due date");
       return;
@@ -98,7 +94,7 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
       setError("Due date must be in the future");
       return;
     }
-
+    if (trimmedBuyer !== buyer) setBuyer(trimmedBuyer);
     setStep(2);
   };
 
@@ -115,8 +111,8 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
 
       const response = await createInvoice({
         buyer,
-        faceValue: faceValueStroops,
-        dueDate: dueDateTimestamp,
+        faceValue: BigInt(Math.floor(parsedValue * 10_000_000)).toString(),
+        dueDate: Math.floor(new Date(dueDate).getTime() / 1000),
         asset,
       });
 

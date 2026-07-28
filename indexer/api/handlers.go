@@ -867,6 +867,49 @@ func (h *APIHandler) HandleGetPoolStats(w http.ResponseWriter, r *http.Request) 
 	json.NewEncoder(w).Encode(stats)
 }
 
+// POST /invoices/{id}/cancel (protected)
+func (h *APIHandler) HandleCancelInvoice(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		http.Error(w, "missing invoice id", http.StatusBadRequest)
+		return
+	}
+
+	userAddr, ok := GetUserAddress(r.Context())
+	if !ok || userAddr == "" {
+		http.Error(w, "Unauthorized: user address missing from context", http.StatusUnauthorized)
+		return
+	}
+
+	// Verify the invoice exists and belongs to the caller
+	invoice, err := db.GetInvoiceByID(r.Context(), id)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to retrieve invoice: %s", err.Error()), http.StatusInternalServerError)
+		return
+	}
+	if invoice == nil {
+		http.Error(w, "invoice not found", http.StatusNotFound)
+		return
+	}
+
+	if invoice.Issuer != userAddr {
+		http.Error(w, "only the invoice issuer can cancel an invoice", http.StatusForbidden)
+		return
+	}
+
+	if err := db.CancelInvoice(r.Context(), id); err != nil {
+		http.Error(w, fmt.Sprintf("failed to cancel invoice: %s", err.Error()), http.StatusConflict)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{
+		"status":  "cancelled",
+		"message": "Invoice successfully cancelled",
+	})
+}
+
 // GET /events
 func (h *APIHandler) HandleGetEvents(w http.ResponseWriter, r *http.Request) {
 	limitStr := r.URL.Query().Get("limit")
