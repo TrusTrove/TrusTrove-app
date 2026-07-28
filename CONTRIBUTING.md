@@ -17,6 +17,7 @@ Thank you for your interest in contributing to TrusTrove! To maintain code quali
 Before opening or requesting review of a pull request, confirm the following:
 
 - [ ] Code compiles without errors (`pnpm build` / `go build -v .`)
+- [ ] TypeScript type-checking passes with no errors (`pnpm typecheck`)
 - [ ] Linting passes (`pnpm --filter web lint` / `go vet ./...`)
 - [ ] All existing and new tests pass (`pnpm test` / `go test ./...`)
 - [ ] No `TODO`, stub, or placeholder code is present
@@ -65,7 +66,17 @@ cd indexer
 go build -v .
 ```
 
-### 2. Linting & Code Quality
+### 2. Type-Checking
+
+Run the TypeScript compiler in check-only mode across all packages:
+
+```bash
+pnpm typecheck
+```
+
+This runs `tsc --noEmit` recursively over every TypeScript package in the monorepo and reports type errors without emitting any output files. Fix all errors before opening a PR.
+
+### 3. Linting & Code Quality
 
 Run linters on edited workspace directories:
 
@@ -78,12 +89,14 @@ cd indexer
 go vet ./...
 ```
 
-### 3. Testing
+### 4. Testing
 
-Ensure all tests pass before submitting code:
+The test suite is split across two runtimes. Both must pass before opening a PR.
+
+**TypeScript tests** (SDK + web, run from the repo root):
 
 ```bash
-# Run all workspace tests
+# Run all TypeScript workspace tests
 pnpm test
 
 # Run frontend tests only
@@ -91,10 +104,9 @@ pnpm --filter web test
 
 # Run SDK tests only
 pnpm --filter @trusttrove/sdk test
-
-# Run Go indexer tests
-cd indexer && go test ./...
 ```
+
+> **Note:** `pnpm test` only covers the TypeScript packages (`@trusttrove/sdk` and `web`). It does **not** run the Go indexer tests.
 
 Example output (all passing):
 
@@ -104,6 +116,17 @@ Example output (all passing):
 Test Suites: 12 passed, 12 total
 Tests:       47 passed, 47 total
 Time:        2.34 s
+```
+
+**Go tests** (indexer, run from the `indexer/` directory):
+
+```bash
+cd indexer && go test ./...
+```
+
+Example output (all passing):
+
+```text
 ok  	github.com/trusttrove/indexer	0.876s
 ```
 

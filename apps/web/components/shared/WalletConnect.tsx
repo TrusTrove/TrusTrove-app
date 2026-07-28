@@ -23,6 +23,7 @@ export function WalletConnect() {
     disconnectWallet,
     loading,
     error: walletError,
+    errorCode,
   } = useWallet();
 
   const { network } = useWalletStore();
@@ -135,12 +136,35 @@ export function WalletConnect() {
         )}
       </div>
 
-      {walletError && (
-        <div className="flex items-center gap-1.5 text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-md px-2.5 py-1">
+      {walletError && errorCode === "user_rejected" && (
+        <div className="flex items-center gap-1.5 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-md px-2.5 py-1">
           <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-          <span className="truncate max-w-xs">{walletError}</span>
+          <span className="truncate max-w-xs">
+            You cancelled the connection request
+          </span>
         </div>
       )}
+
+      {walletError && errorCode === "not_installed" && (
+        <a
+          href="https://www.freighter.app/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-md px-2.5 py-1 hover:bg-amber-500/20 transition-all"
+        >
+          <span>Install Freighter</span>
+          <ExternalLink className="h-3.5 w-3.5" />
+        </a>
+      )}
+
+      {walletError &&
+        errorCode !== "user_rejected" &&
+        errorCode !== "not_installed" && (
+          <div className="flex items-center gap-1.5 text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-md px-2.5 py-1">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate max-w-xs">{walletError}</span>
+          </div>
+        )}
     </div>
   );
 }

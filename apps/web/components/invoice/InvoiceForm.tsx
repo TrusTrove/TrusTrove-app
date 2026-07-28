@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useInvoices } from "@/hooks/useInvoices";
 import { Button } from "@/components/ui/button";
 import { ShieldAlert, PlusCircle } from "lucide-react";
@@ -8,11 +8,12 @@ import type { AssetType } from "@/types";
 import { ASSET_OPTIONS } from "@/lib/assets";
 import { AmountInput } from "@/components/shared/AmountInput";
 import { useWalletStore } from "@/store/wallet";
-import { InvoiceClient } from "@trusttrove/sdk";
-import { xdr, nativeToScVal, StrKey } from "@stellar/stellar-sdk";
 import { SimulationPreview } from "@/components/shared/SimulationPreview";
 
 const invoiceContractID = process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID || "";
+
+const getStellarSdk = () => import("@stellar/stellar-sdk");
+const getTrustroveSdk = () => import("@trusttrove/sdk");
 
 /** Zero-byte placeholder invoice ID for fee estimation simulation only */
 const SIMULATION_PLACEHOLDER_INVOICE_ID =
@@ -27,7 +28,7 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
   const [buyer, setBuyer] = useState("");
   const [faceValue, setFaceValue] = useState("");
   const [asset, setAsset] = useState<AssetType>("USDC");
-  const [dueDays, setDueDays] = useState("60");
+  const [dueDate, setDueDate] = useState<string>("");
   const [discountBps, setDiscountBps] = useState(200); // default 2% (200 bps)
   const [immediateList, setImmediateList] = useState(true);
 
@@ -61,6 +62,10 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
       setIsFallback(false);
 
       try {
+        const [{ InvoiceClient }, { xdr, nativeToScVal }] = await Promise.all([
+          getTrustroveSdk(),
+          getStellarSdk(),
+        ]);
         const invoiceClient = new InvoiceClient(invoiceContractID);
         const args = [
           xdr.ScVal.scvBytes(
@@ -106,17 +111,27 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
     };
   }, [step, address, simulationDiscountBps]);
 
-  const parsedValue = parseFloat(faceValue.replace(/,/g, "")) || 0;
+  const parsedValue = useMemo(
+    () => parseFloat(faceValue.replace(/,/g, "")) || 0,
+    [faceValue],
+  );
 
   // Calculations
-  const discountPaid = parsedValue * (discountBps / 10000);
-  const payoutAmount = parsedValue - discountPaid;
+  const discountPaid = useMemo(
+    () => parsedValue * (discountBps / 10000),
+    [parsedValue, discountBps],
+  );
+  const payoutAmount = useMemo(
+    () => parsedValue - discountPaid,
+    [parsedValue, discountPaid],
+  );
 
-  const handleNextStep = (e: React.FormEvent) => {
+  const handleNextStep = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
     const trimmedBuyer = buyer.trim();
+    const { StrKey } = await getStellarSdk();
     if (!trimmedBuyer || !StrKey.isValidEd25519PublicKey(trimmedBuyer)) {
       setError(
         "Buyer must be a valid Stellar public key (G... account address)",
@@ -130,9 +145,15 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
       return;
     }
 
-    const days = parseInt(dueDays, 10);
-    if (isNaN(days) || days <= 0) {
-      setError("Due days must be at least 1 day in the future");
+    if (!dueDate) {
+      setError("Please select a due date");
+      return;
+    }
+    const selected = new Date(dueDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (selected.getTime() <= today.getTime()) {
+      setError("Due date must be in the future");
       return;
     }
 
@@ -145,8 +166,7 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
       const faceValueStroops = BigInt(
         Math.floor(parsedValue * 10_000_000),
       ).toString();
-      const dueDateTimestamp =
-        Math.floor(Date.now() / 1000) + parseInt(dueDays, 10) * 24 * 60 * 60;
+      const dueDateTimestamp = Math.floor(new Date(dueDate).getTime() / 1000);
 
       // Transaction 1: Create
       const res = await createInvoice({
@@ -170,6 +190,9 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
         setIsListing(true);
         // Pre-simulate list_for_financing on the newly created invoice ID before Freighter opens
         try {
+          const [{ InvoiceClient }, { xdr, nativeToScVal }] = await Promise.all(
+            [getTrustroveSdk(), getStellarSdk()],
+          );
           const invoiceClient = new InvoiceClient(invoiceContractID);
           const args = [
             xdr.ScVal.scvBytes(Buffer.from(invoiceId, "hex")),
@@ -195,7 +218,7 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
       // Reset Form
       setBuyer("");
       setFaceValue("");
-      setDueDays("60");
+      setDueDate("");
       setStep(1);
 
       if (onSuccess) {
@@ -297,20 +320,22 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
 
             <div className="space-y-1">
               <label className="block text-[10px] font-bold font-mono text-slate-500 uppercase tracking-wider">
-                Due Days
+                Due Date
               </label>
               <input
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                placeholder="60"
+                type="date"
+                min={
+                  new Date(Date.now() + 24 * 60 * 60 * 1000)
+                    .toISOString()
+                    .split("T")[0]
+                }
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
                 className="w-full bg-[#080c10] border border-border rounded px-3 py-2.5 text-white text-xs font-mono focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all min-h-[44px]"
-                value={dueDays}
-                onChange={(e) => setDueDays(e.target.value.replace(/\D/g, ""))}
                 required
               />
               <span className="text-[10px] font-mono text-slate-500 block mt-1">
-                Days until payment maturity
+                Select invoice maturity date
               </span>
             </div>
           </div>
@@ -400,12 +425,23 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
                     {payoutAmount.toLocaleString()} {asset}
                   </span>
                 </div>
-                <div className="flex justify-between text-slate-400 text-[10px]">
-                  <span>Buyer Repayment (due in {dueDays}d):</span>
-                  <span>
-                    {parsedValue.toLocaleString()} {asset}
-                  </span>
-                </div>
+                {dueDate &&
+                  (() => {
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const diff =
+                      (new Date(dueDate).getTime() - today.getTime()) /
+                      (1000 * 60 * 60 * 24);
+                    const days = Math.max(1, Math.ceil(diff));
+                    return (
+                      <div className="flex justify-between text-slate-400 text-[10px]">
+                        <span>Buyer Repayment (due in {days}d):</span>
+                        <span>
+                          {parsedValue.toLocaleString()} {asset}
+                        </span>
+                      </div>
+                    );
+                  })()}
               </>
             ) : (
               <div className="text-[10px] text-slate-400 pt-2 border-t border-border/20">

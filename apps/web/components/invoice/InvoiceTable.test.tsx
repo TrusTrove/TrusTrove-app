@@ -1,6 +1,6 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
-import { describe, it, expect } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
 import { InvoiceTable } from "./InvoiceTable";
 
 const mockInvoices = [
@@ -29,8 +29,38 @@ describe("InvoiceTable", () => {
     expect(screen.getByText(/2,000.00 USDC/)).toBeInTheDocument();
   });
 
-  it("renders empty state when no invoices", () => {
+  it("renders a helpful empty state when no invoices", () => {
     render(<InvoiceTable invoices={[]} />);
-    expect(screen.getByText(/No invoices found/i)).toBeInTheDocument();
+    expect(screen.getByText(/No invoices yet/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Create Your First Invoice/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("renders pagination controls when provided", () => {
+    const onPageChange = vi.fn();
+    const onLimitChange = vi.fn();
+
+    render(
+      <InvoiceTable
+        invoices={mockInvoices as any}
+        pagination={{
+          page: 1,
+          limit: 20,
+          total: 40,
+          totalPages: 2,
+          onPageChange,
+          onLimitChange,
+        }}
+      />,
+    );
+
+    fireEvent.change(screen.getByRole("combobox"), {
+      target: { value: "50" },
+    });
+    expect(onLimitChange).toHaveBeenCalledWith(50);
+
+    fireEvent.click(screen.getByRole("button", { name: /Next/i }));
+    expect(onPageChange).toHaveBeenCalledWith(2);
   });
 });

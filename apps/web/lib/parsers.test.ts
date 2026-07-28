@@ -84,7 +84,7 @@ describe("parseInvoiceResponse", () => {
   });
 
   it("preserves extra fields (tx hashes, timestamps)", () => {
-    const result = parseInvoiceResponse(VALID_RAW);
+    const result = parseInvoiceResponse(VALID_RAW) as any;
 
     expect(result.listedAt).toBe(1735603200);
     expect(result.issuerConfirmedAt).toBeNull();

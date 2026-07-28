@@ -14,49 +14,6 @@ interface TickerItem {
   country: string;
 }
 
-const tickerItems: TickerItem[] = [
-  {
-    id: "1",
-    sme: "Lagos Textile Supplier",
-    amount: "34,500 USDC",
-    discount: "2.1%",
-    time: "3m ago",
-    country: "🇳🇬",
-  },
-  {
-    id: "2",
-    sme: "Nairobi Agri-Exporter",
-    amount: "18,200 USDC",
-    discount: "1.8%",
-    time: "8m ago",
-    country: "🇰🇪",
-  },
-  {
-    id: "3",
-    sme: "Accra Electronics",
-    amount: "52,000 USDC",
-    discount: "2.5%",
-    time: "12m ago",
-    country: "🇬🇭",
-  },
-  {
-    id: "4",
-    sme: "Mombasa Logistics Ltd",
-    amount: "27,800 USDC",
-    discount: "2.0%",
-    time: "22m ago",
-    country: "🇰🇪",
-  },
-  {
-    id: "5",
-    sme: "Dakar Fish Processing",
-    amount: "41,300 USDC",
-    discount: "2.3%",
-    time: "35m ago",
-    country: "🇸🇳",
-  },
-];
-
 export function TopStatusBar() {
   const { events: rawEvents, isLoading, error } = useRecentEvents(20);
   const isError = error !== null;
@@ -68,10 +25,12 @@ export function TopStatusBar() {
     // Extract amount from event data (assuming it's in USDC)
     let amount = "0 USDC";
     if (event.data && event.data.funded_amount) {
-      const amountInUSDC = Number(event.data.funded_amount) / 1000000; // Convert from stroops to USDC
+      const amountInUSDC = Number(
+        BigInt(event.data.funded_amount) / 10_000_000n,
+      ); // Convert from stroops (7 decimals) to USDC
       amount = `${Math.round(amountInUSDC).toLocaleString()} USDC`;
     } else if (event.data && event.data.face_value) {
-      const amountInUSDC = Number(event.data.face_value) / 1000000; // Convert from stroops to USDC
+      const amountInUSDC = Number(BigInt(event.data.face_value) / 10_000_000n); // Convert from stroops (7 decimals) to USDC
       amount = `${Math.round(amountInUSDC).toLocaleString()} USDC`;
     }
 

@@ -83,7 +83,7 @@ describe("Regression: Polling lifecycle and config validation (PR #176)", () => 
 
   describe("Invoice creation validation", () => {
     it("throws error when invoice_id is missing from creation result", () => {
-      const res = { transaction_hash: "0xabc" };
+      const res: any = { transaction_hash: "0xabc" };
       expect(() => {
         if (!res.invoice_id) {
           throw new Error("Invoice creation did not return a valid invoice ID");
@@ -92,7 +92,7 @@ describe("Regression: Polling lifecycle and config validation (PR #176)", () => 
     });
 
     it("throws error when transaction_hash is missing from creation result", () => {
-      const res = { invoice_id: "inv123" };
+      const res: any = { invoice_id: "inv123" };
       expect(() => {
         if (!res.transaction_hash) {
           throw new Error("Invoice creation did not return a transaction hash");
@@ -101,7 +101,7 @@ describe("Regression: Polling lifecycle and config validation (PR #176)", () => 
     });
 
     it("passes validation when both invoice_id and transaction_hash are present", () => {
-      const res = { invoice_id: "inv123", transaction_hash: "0xabc" };
+      const res: any = { invoice_id: "inv123", transaction_hash: "0xabc" };
       expect(() => {
         if (!res.invoice_id) {
           throw new Error("Invoice creation did not return a valid invoice ID");

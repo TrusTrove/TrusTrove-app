@@ -3,7 +3,8 @@ packages:
   - "packages/*"
 
 allowBuilds:
-  unrs-resolver: true
+  esbuild: set this to true or false
+  unrs-resolver: set this to true or false
 
 onlyBuiltDependencies:
   - unrs-resolver

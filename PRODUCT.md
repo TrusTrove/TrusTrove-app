@@ -2,7 +2,25 @@
 
 ## Register
 
-product
+Registration is the one-time on-chain step that gates all protocol activity. No address can create an invoice, fund a pool, or repay a trade obligation unless both the issuer (SME) and the buyer are registered in the registry contract.
+
+**SME (Issuer) flow:**
+
+1. Install the [Freighter](https://freighter.app) browser extension and switch it to Testnet.
+2. Visit the app and click **Connect Wallet** — Freighter handles the SEP-10 authentication challenge automatically.
+3. On first connection the app detects an unverified address and surfaces an onboarding prompt. Click **Register as SME**, fill in company details, and sign the `register_issuer` transaction with Freighter. This is a one-time action; the registry contract stores the profile on-chain and emits an `issuer_registered` event.
+
+**Buyer flow:**
+
+The SME shares the app link with their corporate counterparty. The buyer connects their Freighter wallet and completes an equivalent one-time `register_buyer` transaction before any invoice referencing their address can be created.
+
+**Liquidity Provider (LP) flow:**
+
+LPs do not need a separate registration step. Connecting a funded Freighter wallet is sufficient to deposit USDC into the pool and receive LP shares.
+
+**Profile verification:**
+
+The registry contract stores a `Profile` struct with `role` (`Issuer` or `Buyer`), a `verified` flag, `registered_at` timestamp, and arbitrary `metadata`. The admin can revoke verification at any time by setting `verified = false`; revoked addresses cannot participate in new invoice transactions.
 
 ## Users
 

@@ -40,6 +40,37 @@ function getTxType(funcName: string): string {
   return FUNCTION_LABELS[funcName] || "Contract Invocation";
 }
 
+export function extractOpAmount(
+  op: any,
+  userAddress: string,
+): { amount: string; token: string } | undefined {
+  const type: string = op.type;
+  const typeI: number = op.type_i;
+
+  if (type === "payment" || typeI === 1) {
+    const amount: string = op.amount;
+    const token: string = op.asset_type === "native" ? "XLM" : op.asset_code;
+    if (!amount || !token) return undefined;
+    return { amount, token };
+  }
+
+  if (type === "invoke_host_function" || typeI === 24) {
+    if (!op.asset_balance_changes?.length) return undefined;
+    const relevant = op.asset_balance_changes.find(
+      (change: any) => change.from === userAddress || change.to === userAddress,
+    );
+    if (relevant) {
+      const amount: string = relevant.amount;
+      const token: string =
+        relevant.asset_type === "native" ? "XLM" : relevant.asset_code;
+      if (!amount || !token) return undefined;
+      return { amount, token };
+    }
+  }
+
+  return undefined;
+}
+
 export interface TxHistoryResult {
   transactions: TxHistoryItem[];
   isLoading: boolean;
@@ -94,10 +125,13 @@ async function fetchPage(address: string, cursor?: string) {
 
     const mainOp = matchingOps[0] as any;
     const type = getTxType(mainOp.function);
+    const amountToken = extractOpAmount(mainOp, address);
 
     items.push({
       id: tx.hash,
       type,
+      amount: amountToken?.amount,
+      token: amountToken?.token,
       timestamp: new Date(tx.created_at).getTime() / 1000,
       hash: tx.hash,
       status: tx.successful ? "success" : "failed",

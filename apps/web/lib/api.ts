@@ -86,6 +86,11 @@ export async function apiFetch<T>(
 
   if (!res.ok) {
     const text = await res.text();
+    if (res.status === 503 || res.status === 504) {
+      throw new Error(
+        text || "Service Temporarily Unavailable. Please try again later.",
+      );
+    }
     throw new Error(text || `HTTP error! status: ${res.status}`);
   }
 
@@ -265,4 +270,19 @@ export async function getRecentEvents(limit?: number): Promise<EventLog[]> {
 
 export async function getPoolSnapshots(): Promise<PoolSnapshot[]> {
   return apiClient.fetch<PoolSnapshot[]>("/pool/snapshots");
+}
+
+export interface ProtocolStats {
+  total_usdc_financed: string;
+  active_invoice_count: number;
+  total_invoices: number;
+  total_repaid: number;
+  total_defaulted: number;
+  average_yield_bps: number;
+  pool_utilization_bps: number;
+  registered_issuers: number;
+}
+
+export async function getProtocolStats(): Promise<ProtocolStats> {
+  return apiClient.fetch<ProtocolStats>("/stats");
 }

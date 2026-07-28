@@ -24,11 +24,11 @@ import { useConfirmDialogStore } from "@/store/confirmDialog";
 interface InvoiceCardProps {
   invoice: Invoice;
   role?: "issuer" | "buyer" | "lp";
-  onSelect?: () => void;
+  onSelect?: (invoice: Invoice) => void;
   isSelected?: boolean;
 }
 
-export function InvoiceCard({
+export const InvoiceCard = React.memo(function InvoiceCard({
   invoice,
   role,
   onSelect,
@@ -113,7 +113,7 @@ export function InvoiceCard({
   // Render actions depending on state
   return (
     <div
-      onClick={onSelect}
+      onClick={() => onSelect?.(invoice)}
       className={`relative overflow-hidden bg-card border transition-all duration-300 rounded-lg p-5 cursor-pointer hover:-translate-y-0.5 ${
         isSelected
           ? "border-primary shadow-[0_0_24px_rgba(0,212,170,0.15)] bg-[#0d131a]"
@@ -441,4 +441,4 @@ export function InvoiceCard({
       )}
     </div>
   );
-}
+});

@@ -71,7 +71,7 @@ describe("useProfile", () => {
       registeredAt: 1000,
     };
 
-    vi.mocked(useQuery).mockImplementation(function (args: any) {
+    vi.mocked(useQuery).mockImplementation(function (args: any): any {
       const qk = args.queryKey;
       if (qk[0] === "profile") {
         return {
@@ -107,7 +107,7 @@ describe("useProfile", () => {
       isLoading: true,
       error: null,
       refetch: vi.fn(),
-    });
+    } as any);
 
     const { result } = renderHook(() => useProfile());
     expect(result.current.isProfileLoading).toBe(true);
@@ -119,7 +119,7 @@ describe("useProfile", () => {
       isLoading: false,
       error: new Error("Profile fetch failed"),
       refetch: vi.fn(),
-    });
+    } as any);
 
     const { result } = renderHook(() => useProfile());
     expect(result.current.profileError).toEqual(
