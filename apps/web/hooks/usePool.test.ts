@@ -111,7 +111,7 @@ describe("usePool", () => {
   });
 
   it("returns position when wallet is connected", () => {
-    vi.mocked(useQuery).mockImplementation(function (args: any) {
+    vi.mocked(useQuery).mockImplementation(function (args: any): any {
       const qk = args.queryKey;
       if (qk[0] === "poolStats") {
         return { data: null, isLoading: false, error: null, refetch: vi.fn() };
@@ -142,7 +142,7 @@ describe("usePool", () => {
       isLoading: false,
       error: null,
       refetch: vi.fn(),
-    });
+    } as any);
 
     renderHook(() => usePool());
     const calls = vi.mocked(useQuery).mock.calls;
