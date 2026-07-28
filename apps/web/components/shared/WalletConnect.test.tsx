@@ -6,7 +6,7 @@ import { useWallet } from "@/hooks/useWallet";
 import { isFreighterInstalled } from "@/lib/freighter";
 
 vi.mock("@/hooks/useWallet", () => {
-  const state = "disconnected";
+  const state: string = "disconnected";
   return {
     useWallet: vi.fn(() => ({
       connected: state === "connected",

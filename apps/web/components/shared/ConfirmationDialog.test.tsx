@@ -17,7 +17,7 @@ describe("ConfirmationDialog", () => {
   it("renders non-null pendingAction happy path correctly", () => {
     const mockFn = vi.fn().mockResolvedValue(undefined);
     const mockCancel = vi.fn();
-    
+
     vi.mocked(useConfirmDialogStore).mockReturnValue({
       pendingAction: {
         label: "Repay Debt",
@@ -32,12 +32,12 @@ describe("ConfirmationDialog", () => {
 
     // Verify it renders dialog title with action label
     expect(screen.getByText("Confirm Repay Debt")).toBeInTheDocument();
-    
+
     // Verify invoice ID is truncated correctly: "invoic...hash"
     expect(screen.getByText("invoic...hash")).toBeInTheDocument();
 
     // Verify confirm button exists
-    const confirmBtn = screen.getByRole("button", { name: /confirm/i });
+    const confirmBtn = screen.getByRole("button", { name: /^confirm$/i });
     expect(confirmBtn).toBeInTheDocument();
 
     // Click confirm triggers fn and cancel

@@ -9,7 +9,9 @@ vi.mock("@/hooks/useEvents", () => ({
 }));
 
 vi.mock("@/components/shared/SkeletonLoader", () => ({
-  InvoiceFeedSkeleton: () => <div data-testid="invoice-feed-skeleton">Loading...</div>,
+  InvoiceFeedSkeleton: () => (
+    <div data-testid="invoice-feed-skeleton">Loading...</div>
+  ),
 }));
 
 describe("InvoiceFeed", () => {
@@ -17,6 +19,9 @@ describe("InvoiceFeed", () => {
     const mockEvents = [
       {
         id: 1,
+        event_id: "evt_1",
+        contract_id: "contract_example",
+        ledger: 100,
         event_type: "InvoiceCreated",
         ledger_closed_at: Math.floor(Date.now() / 1000) - 30, // less than 60s -> just now
         data: {
@@ -25,13 +30,16 @@ describe("InvoiceFeed", () => {
       },
       {
         id: 2,
+        event_id: "evt_2",
+        contract_id: "contract_example",
+        ledger: 101,
         event_type: "InvoiceFunded",
         ledger_closed_at: Math.floor(Date.now() / 1000) - 120, // 2 min ago
         data: {
           invoice_id: "0000001234567890",
         },
       },
-    ];
+    ] as any[]; // inline cast if typescript needs, or keep it typed correctly. Under types/index.ts. Let's make it fully correct.
 
     vi.mocked(useRecentEvents).mockReturnValue({
       events: mockEvents,
