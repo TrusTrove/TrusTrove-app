@@ -7,6 +7,10 @@ import { useBalances } from "./useBalances";
 
 vi.mock("@/lib/freighter", () => ({
   connectFreighter: vi.fn(),
+  getFreighterNetwork: vi.fn().mockResolvedValue({
+    network: "testnet",
+    networkPassphrase: "Test SDF Network ; September 2015",
+  }),
   FreighterError: class FreighterError extends Error {
     readonly code: string;
     constructor(code: string, message: string) {

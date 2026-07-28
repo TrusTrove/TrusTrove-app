@@ -259,6 +259,22 @@ func UpdateInvoiceStatus(ctx context.Context, id string, status string) error {
 	return nil
 }
 
+func CancelInvoice(ctx context.Context, id string) error {
+	query := `
+		UPDATE invoices
+		SET status = 'cancelled'
+		WHERE id = $1 AND status NOT IN ('repaid', 'defaulted')
+	`
+	tag, err := Pool.Exec(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("queries: cancel invoice: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("invoice %s cannot be cancelled (already repaid, defaulted, or not found)", id)
+	}
+	return nil
+}
+
 func GetPoolStats(ctx context.Context) (*DbPoolStats, error) {
 	query := `
 		SELECT total_deposits, total_funded, available_liquidity, utilization_rate_bps, total_yield_distributed, active_invoice_count, total_shares, updated_at

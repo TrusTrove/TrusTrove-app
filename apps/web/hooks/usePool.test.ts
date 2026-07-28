@@ -27,6 +27,38 @@ vi.mock("./useTokenAllowance", () => ({
   }),
 }));
 
+function makeQueryResult(overrides: Record<string, any> = {}): any {
+  return {
+    data: null,
+    dataUpdatedAt: 0,
+    error: null,
+    errorUpdatedAt: 0,
+    failureCount: 0,
+    failureReason: null,
+    errorUpdateCount: 0,
+    fetchStatus: "idle",
+    isFetched: false,
+    isFetchedAfterMount: false,
+    isFetching: false,
+    isInitialLoading: false,
+    isLoading: false,
+    isError: false,
+    isEnabled: true,
+    isRefetching: false,
+    isPending: false,
+    isLoadingError: false,
+    isRefetchError: false,
+    isPlaceholderData: false,
+    isPaused: false,
+    isStale: false,
+    isSuccess: false,
+    promise: Promise.resolve(),
+    refetch: vi.fn(),
+    status: "pending",
+    ...overrides,
+  };
+}
+
 function mockMutation() {
   vi.mocked(useMutation).mockImplementation(
     (options: any) =>
@@ -59,23 +91,17 @@ describe("usePool", () => {
       invalidateQueries: mockInvalidateQueries,
     } as any);
 
-    vi.mocked(useQuery).mockReturnValue({
-      data: null,
-      isLoading: false,
-      error: null,
-      refetch: vi.fn(),
-    } as any);
+    vi.mocked(useQuery).mockReturnValue(makeQueryResult());
 
     mockMutation();
   });
 
   it("returns stats from query", () => {
-    vi.mocked(useQuery).mockReturnValue({
-      data: { totalDeposits: 1000n, utilizationRateBps: 500 },
-      isLoading: false,
-      error: null,
-      refetch: vi.fn(),
-    } as any);
+    vi.mocked(useQuery).mockReturnValue(
+      makeQueryResult({
+        data: { totalDeposits: 1000n, utilizationRateBps: 500 },
+      }),
+    );
 
     const { result } = renderHook(() => usePool());
     expect(result.current.stats).toEqual({
@@ -87,24 +113,26 @@ describe("usePool", () => {
   });
 
   it("shows stats loading state", () => {
-    vi.mocked(useQuery).mockReturnValue({
-      data: undefined,
-      isLoading: true,
-      error: null,
-      refetch: vi.fn(),
-    } as any);
+    vi.mocked(useQuery).mockReturnValue(
+      makeQueryResult({
+        data: undefined,
+        isLoading: true,
+      }),
+    );
 
     const { result } = renderHook(() => usePool());
     expect(result.current.isStatsLoading).toBe(true);
   });
 
   it("shows stats error state", () => {
-    vi.mocked(useQuery).mockReturnValue({
-      data: undefined,
-      isLoading: false,
-      error: new Error("Stats fetch failed"),
-      refetch: vi.fn(),
-    } as any);
+    vi.mocked(useQuery).mockReturnValue(
+      makeQueryResult({
+        data: undefined,
+        isLoading: false,
+        isError: true,
+        error: new Error("Stats fetch failed"),
+      }),
+    );
 
     const { result } = renderHook(() => usePool());
     expect(result.current.statsError).toEqual(new Error("Stats fetch failed"));
@@ -114,17 +142,12 @@ describe("usePool", () => {
     vi.mocked(useQuery).mockImplementation(function (args: any) {
       const qk = args.queryKey;
       if (qk[0] === "poolStats") {
-        return { data: null, isLoading: false, error: null, refetch: vi.fn() };
+        return makeQueryResult();
       }
       if (qk[0] === "lpPosition") {
-        return {
-          data: { shares: 500n, usdcValue: 1000n },
-          isLoading: false,
-          error: null,
-          refetch: vi.fn(),
-        };
+        return makeQueryResult({ data: { shares: 500n, usdcValue: 1000n } });
       }
-      return { data: null, isLoading: false, error: null, refetch: vi.fn() };
+      return makeQueryResult();
     });
 
     act(() => {
@@ -137,12 +160,7 @@ describe("usePool", () => {
   });
 
   it("position query is disabled without wallet", () => {
-    vi.mocked(useQuery).mockReturnValue({
-      data: undefined,
-      isLoading: false,
-      error: null,
-      refetch: vi.fn(),
-    });
+    vi.mocked(useQuery).mockReturnValue(makeQueryResult());
 
     renderHook(() => usePool());
     const calls = vi.mocked(useQuery).mock.calls;
@@ -168,7 +186,7 @@ describe("usePool", () => {
       await result.current.deposit({ amount: 100n });
     });
 
-    expect(mockDeposit).toHaveBeenCalledWith("G123", 100n, "G123");
+    expect(mockDeposit).toHaveBeenCalledWith("G123", 100n, "USDC", "G123");
     expect(mockInvalidateQueries).toHaveBeenCalledWith({
       queryKey: ["poolStats"],
     });

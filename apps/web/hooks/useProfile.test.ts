@@ -15,6 +15,38 @@ vi.mock("@trusttrove/sdk", () => ({
   RegistryClient: vi.fn(function () {}),
 }));
 
+function makeQueryResult(overrides: Record<string, any> = {}): any {
+  return {
+    data: null,
+    dataUpdatedAt: 0,
+    error: null,
+    errorUpdatedAt: 0,
+    failureCount: 0,
+    failureReason: null,
+    errorUpdateCount: 0,
+    fetchStatus: "idle",
+    isFetched: false,
+    isFetchedAfterMount: false,
+    isFetching: false,
+    isInitialLoading: false,
+    isLoading: false,
+    isError: false,
+    isEnabled: true,
+    isRefetching: false,
+    isPending: false,
+    isLoadingError: false,
+    isRefetchError: false,
+    isPlaceholderData: false,
+    isPaused: false,
+    isStale: false,
+    isSuccess: false,
+    promise: Promise.resolve(),
+    refetch: vi.fn(),
+    status: "pending",
+    ...overrides,
+  };
+}
+
 function mockMutation() {
   vi.mocked(useMutation).mockImplementation(
     (options: any) =>
@@ -47,12 +79,7 @@ describe("useProfile", () => {
       invalidateQueries: mockInvalidateQueries,
     } as any);
 
-    vi.mocked(useQuery).mockReturnValue({
-      data: null,
-      isLoading: false,
-      error: null,
-      refetch: vi.fn(),
-    } as any);
+    vi.mocked(useQuery).mockReturnValue(makeQueryResult());
 
     mockMutation();
   });
@@ -74,22 +101,12 @@ describe("useProfile", () => {
     vi.mocked(useQuery).mockImplementation(function (args: any) {
       const qk = args.queryKey;
       if (qk[0] === "profile") {
-        return {
-          data: mockProfile,
-          isLoading: false,
-          error: null,
-          refetch: vi.fn(),
-        };
+        return makeQueryResult({ data: mockProfile });
       }
       if (qk[0] === "isVerified") {
-        return {
-          data: true,
-          isLoading: false,
-          error: null,
-          refetch: vi.fn(),
-        };
+        return makeQueryResult({ data: true });
       }
-      return { data: null, isLoading: false, error: null, refetch: vi.fn() };
+      return makeQueryResult();
     });
 
     act(() => {
@@ -102,24 +119,23 @@ describe("useProfile", () => {
   });
 
   it("shows profile loading state", () => {
-    vi.mocked(useQuery).mockReturnValue({
-      data: undefined,
-      isLoading: true,
-      error: null,
-      refetch: vi.fn(),
-    });
+    vi.mocked(useQuery).mockReturnValue(
+      makeQueryResult({ data: undefined, isLoading: true }),
+    );
 
     const { result } = renderHook(() => useProfile());
     expect(result.current.isProfileLoading).toBe(true);
   });
 
   it("shows profile error state", () => {
-    vi.mocked(useQuery).mockReturnValue({
-      data: undefined,
-      isLoading: false,
-      error: new Error("Profile fetch failed"),
-      refetch: vi.fn(),
-    });
+    vi.mocked(useQuery).mockReturnValue(
+      makeQueryResult({
+        data: undefined,
+        isLoading: false,
+        isError: true,
+        error: new Error("Profile fetch failed"),
+      }),
+    );
 
     const { result } = renderHook(() => useProfile());
     expect(result.current.profileError).toEqual(
@@ -242,9 +258,9 @@ describe("useProfile", () => {
     const mockImpl: any = (args: any) => {
       const qk = args.queryKey;
       if (qk[0] === "profile") {
-        return { data: null, isLoading: false, error: null, refetch: refetch1 };
+        return makeQueryResult({ data: null, refetch: refetch1 });
       }
-      return { data: false, isLoading: false, error: null, refetch: refetch2 };
+      return makeQueryResult({ data: false, refetch: refetch2 });
     };
     vi.mocked(useQuery).mockImplementation(mockImpl);
 

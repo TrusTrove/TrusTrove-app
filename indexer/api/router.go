@@ -287,6 +287,7 @@ func NewRouter(h *APIHandler) *chi.Mux {
 		r.Use(AuthMiddleware(h.cfg.JWTSecret))
 		r.Use(RateLimitMiddleware(rl))
 		r.Post("/invoices", h.HandleCreateInvoice)
+		r.Post("/invoices/{id}/cancel", h.HandleCancelInvoice)
 	})
 
 	return r

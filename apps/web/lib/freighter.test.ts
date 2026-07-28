@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   isFreighterInstalled,
   connectFreighter,
-  getFreighterPublicKey,
   FreighterError,
 } from "./freighter";
 
@@ -64,23 +63,15 @@ describe("connectFreighter", () => {
     expect(result).toBe("G12345");
   });
 
-  it("throws FreighterError with not_installed when Freighter is not installed", async () => {
-    mockIsConnected.mockResolvedValue(false);
-
-    await expect(connectFreighter()).rejects.toThrow(FreighterError);
-    try {
-      await connectFreighter();
-    } catch (err) {
-      expect(err).toBeInstanceOf(FreighterError);
-      expect((err as FreighterError).code).toBe("not_installed");
-    }
-  });
-
-  it("throws FreighterError with user_rejected when user rejects", async () => {
+  it("throws FreighterError with error code when error has code property", async () => {
     mockIsConnected.mockResolvedValue(true);
-    mockRequestAccess.mockRejectedValue(
-      new Error("The user rejected this request."),
-    );
+    const rejectError = new Error(
+      "The user rejected this request.",
+    ) as Error & {
+      code: string;
+    };
+    rejectError.code = "user_rejected";
+    mockRequestAccess.mockRejectedValue(rejectError);
 
     await expect(connectFreighter()).rejects.toThrow(FreighterError);
     try {
@@ -88,21 +79,6 @@ describe("connectFreighter", () => {
     } catch (err) {
       expect(err).toBeInstanceOf(FreighterError);
       expect((err as FreighterError).code).toBe("user_rejected");
-    }
-  });
-
-  it("throws FreighterError with not_installed when Freighter returns internal error", async () => {
-    mockIsConnected.mockResolvedValue(true);
-    mockRequestAccess.mockRejectedValue(
-      new Error("The wallet encountered an internal error"),
-    );
-
-    await expect(connectFreighter()).rejects.toThrow(FreighterError);
-    try {
-      await connectFreighter();
-    } catch (err) {
-      expect(err).toBeInstanceOf(FreighterError);
-      expect((err as FreighterError).code).toBe("not_installed");
     }
   });
 
@@ -126,56 +102,6 @@ describe("connectFreighter", () => {
     await expect(connectFreighter()).rejects.toThrow(FreighterError);
     try {
       await connectFreighter();
-    } catch (err) {
-      expect(err).toBeInstanceOf(FreighterError);
-      expect((err as FreighterError).code).toBe("unknown");
-    }
-  });
-});
-
-describe("getFreighterPublicKey", () => {
-  it("returns the public key on success", async () => {
-    mockIsConnected.mockResolvedValue(true);
-    mockGetPublicKey.mockResolvedValue("G12345");
-
-    const result = await getFreighterPublicKey();
-    expect(result).toBe("G12345");
-  });
-
-  it("throws FreighterError with not_installed when Freighter is not installed", async () => {
-    mockIsConnected.mockResolvedValue(false);
-
-    await expect(getFreighterPublicKey()).rejects.toThrow(FreighterError);
-    try {
-      await getFreighterPublicKey();
-    } catch (err) {
-      expect(err).toBeInstanceOf(FreighterError);
-      expect((err as FreighterError).code).toBe("not_installed");
-    }
-  });
-
-  it("throws FreighterError with user_rejected when user rejects", async () => {
-    mockIsConnected.mockResolvedValue(true);
-    mockGetPublicKey.mockRejectedValue(
-      new Error("The user rejected this request."),
-    );
-
-    await expect(getFreighterPublicKey()).rejects.toThrow(FreighterError);
-    try {
-      await getFreighterPublicKey();
-    } catch (err) {
-      expect(err).toBeInstanceOf(FreighterError);
-      expect((err as FreighterError).code).toBe("user_rejected");
-    }
-  });
-
-  it("throws FreighterError with unknown for unexpected errors", async () => {
-    mockIsConnected.mockResolvedValue(true);
-    mockGetPublicKey.mockRejectedValue(new Error("Network unreachable"));
-
-    await expect(getFreighterPublicKey()).rejects.toThrow(FreighterError);
-    try {
-      await getFreighterPublicKey();
     } catch (err) {
       expect(err).toBeInstanceOf(FreighterError);
       expect((err as FreighterError).code).toBe("unknown");

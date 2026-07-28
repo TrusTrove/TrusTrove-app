@@ -5,22 +5,9 @@ import { WalletConnect } from "./WalletConnect";
 import { useWallet } from "@/hooks/useWallet";
 import { isFreighterInstalled } from "@/lib/freighter";
 
-vi.mock("@/hooks/useWallet", () => {
-  const state = "disconnected";
-  return {
-    useWallet: vi.fn(() => ({
-      connected: state === "connected",
-      loading: state === "connecting",
-      address:
-        state === "connected"
-          ? "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB"
-          : null,
-      error: state === "error" ? "Connection failed" : null,
-      connectWallet: vi.fn(),
-      disconnectWallet: vi.fn(),
-    })),
-  };
-});
+vi.mock("@/hooks/useWallet", () => ({
+  useWallet: vi.fn(),
+}));
 
 vi.mock("@/lib/freighter", () => ({
   isFreighterInstalled: vi.fn().mockResolvedValue(true),
