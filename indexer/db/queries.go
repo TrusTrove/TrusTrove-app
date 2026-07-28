@@ -47,6 +47,7 @@ type ProtocolStats struct {
 	TotalDefaulted     int    `json:"total_defaulted"`
 	AverageYieldBps    int    `json:"average_yield_bps"`
 	PoolUtilizationBps int    `json:"pool_utilization_bps"`
+	RegisteredIssuers  int    `json:"registered_issuers"`
 }
 
 func GetProtocolStats(ctx context.Context) (*ProtocolStats, error) {
@@ -58,7 +59,8 @@ func GetProtocolStats(ctx context.Context) (*ProtocolStats, error) {
 			COUNT(*) FILTER (WHERE status = 'repaid') AS total_repaid,
 			COUNT(*) FILTER (WHERE status = 'defaulted') AS total_defaulted,
 			COALESCE(AVG(discount_bps) FILTER (WHERE status IN ('funded', 'shipped', 'confirmed', 'repaid')), 0)::INTEGER AS average_yield_bps,
-			COALESCE((SELECT utilization_rate_bps FROM pool_snapshots WHERE id = 1), 0) AS pool_utilization_bps
+			COALESCE((SELECT utilization_rate_bps FROM pool_snapshots WHERE id = 1), 0) AS pool_utilization_bps,
+			COUNT(DISTINCT issuer) AS registered_issuers
 		FROM invoices
 	`
 	row := Pool.QueryRow(ctx, query)
@@ -71,6 +73,7 @@ func GetProtocolStats(ctx context.Context) (*ProtocolStats, error) {
 		&stats.TotalDefaulted,
 		&stats.AverageYieldBps,
 		&stats.PoolUtilizationBps,
+		&stats.RegisteredIssuers,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("queries: get protocol stats: %w", err)

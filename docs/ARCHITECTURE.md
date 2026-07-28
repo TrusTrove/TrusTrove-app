@@ -2,8 +2,6 @@
 
 This document provides a high-level overview of the TrusTrove system architecture, describing the components, their responsibilities, and the exact data flow for invoice creation.
 
----
-
 ## 1. System Overview
 
 TrusTrove is a decentralized trade finance platform built on the Stellar network. The system consists of three main tiers:
