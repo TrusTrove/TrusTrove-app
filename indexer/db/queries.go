@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -95,9 +96,9 @@ func InsertInvoice(ctx context.Context, inv *DbInvoice) error {
 		"id":                 inv.ID,
 		"issuer":             inv.Issuer,
 		"buyer":              inv.Buyer,
-		"face_value":         inv.FaceValue,
-		"discount_bps":       inv.DiscountBps,
-		"funded_amount":      inv.FundedAmount,
+		"face_value":        inv.FaceValue,
+		"discount_bps":      inv.DiscountBps,
+		"funded_amount":     inv.FundedAmount,
 		"due_date":           inv.DueDate,
 		"status":             inv.Status,
 		"created_at":         inv.CreatedAt,
@@ -139,28 +140,42 @@ func GetInvoiceByID(ctx context.Context, id string) (*DbInvoice, error) {
 }
 
 func GetInvoicesPage(ctx context.Context, status, issuer string, limit, offset int) ([]*DbInvoice, int, error) {
-	countQuery := `
-		SELECT COUNT(*)
-		FROM invoices
-		WHERE ($1 = '' OR status = $1)
-		  AND ($2 = '' OR issuer = $2)
-	`
+	predicates := make([]string, 0, 2)
+	filterArgs := make([]any, 0, 2)
+
+	if status != "" {
+		predicates = append(predicates, fmt.Sprintf("status = $%d", len(filterArgs)+1))
+		filterArgs = append(filterArgs, status)
+	}
+	if issuer != "" {
+		predicates = append(predicates, fmt.Sprintf("issuer = $%d", len(filterArgs)+1))
+		filterArgs = append(filterArgs, issuer)
+	}
+
+	whereClause := ""
+	if len(predicates) > 0 {
+		whereClause = " WHERE " + strings.Join(predicates, " AND ")
+	}
+
+	countQuery := "SELECT COUNT(*) FROM invoices" + whereClause
 	var total int
-	if err := Pool.QueryRow(ctx, countQuery, status, issuer).Scan(&total); err != nil {
+	if err := Pool.QueryRow(ctx, countQuery, filterArgs...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("queries: count invoices: %w", err)
 	}
 
-	query := `
+	limitPlaceholder := len(filterArgs) + 1
+	offsetPlaceholder := len(filterArgs) + 2
+	query := fmt.Sprintf(`
 		SELECT 
 			id, issuer, buyer, face_value, discount_bps, funded_amount, due_date, status, created_at,
 			funded_at, shipped_at, issuer_confirmed, buyer_confirmed, buyer_confirmed_at, repaid_at
-		FROM invoices
-		WHERE ($1 = '' OR status = $1)
-		  AND ($2 = '' OR issuer = $2)
+		FROM invoices%s
 		ORDER BY created_at DESC
-		LIMIT $3 OFFSET $4
-	`
-	rows, err := Pool.Query(ctx, query, status, issuer, limit, offset)
+		LIMIT $%d OFFSET $%d
+	`, whereClause, limitPlaceholder, offsetPlaceholder)
+	queryArgs := append(append([]any{}, filterArgs...), limit, offset)
+
+	rows, err := Pool.Query(ctx, query, queryArgs...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("queries: get invoices: %w", err)
 	}
@@ -291,7 +306,7 @@ func UpdatePoolStats(ctx context.Context, stats *DbPoolStats) error {
 		    total_yield_distributed = @total_yield_distributed,
 		    active_invoice_count = @active_invoice_count,
 		    total_shares = @total_shares,
-		    updated_at = CURRENT_TIMESTAMP
+		updated_at = CURRENT_TIMESTAMP
 		WHERE id = 1
 	`
 	args := pgx.NamedArgs{

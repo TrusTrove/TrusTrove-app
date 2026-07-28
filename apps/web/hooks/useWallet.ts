@@ -6,6 +6,7 @@ import { useBalances } from "./useBalances";
 import { createErrorHandler } from "@/lib/errors";
 
 const { captureError } = createErrorHandler("useWallet");
+const REQUIRED_NETWORK = "testnet";
 
 const EXPECTED_NETWORK = "testnet";
 const WRONG_NETWORK_ERROR_CODE = "wrong_network";
@@ -99,6 +100,7 @@ export function useWallet() {
     setLoading(true);
     setError(null);
     setErrorCode(null);
+
     try {
       const addr = await connectFreighter();
       await validateFreighterNetwork();

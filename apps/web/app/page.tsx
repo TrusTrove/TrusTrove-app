@@ -20,6 +20,11 @@ import {
   Landmark,
 } from "lucide-react";
 
+const specificationUrl = "https://k1ngd4vid.gitbook.io/trustrove/";
+const stellarExpertUrl = process.env.NEXT_PUBLIC_POOL_CONTRACT_ID
+  ? `https://stellar.expert/explorer/testnet/contract/${process.env.NEXT_PUBLIC_POOL_CONTRACT_ID}`
+  : "https://stellar.expert/explorer/testnet";
+
 export default function Home() {
   const { stats, isStatsLoading, statsError } = usePool();
   const {
@@ -339,10 +344,20 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4">
           <span>© 2026 TRUSTROVE PROTOCOL — VERIFIED TRADE FINANCE</span>
           <div className="flex gap-4">
-            <a href="#" className="hover:text-primary transition-colors">
+            <a
+              href={specificationUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-primary transition-colors"
+            >
               SPECIFICATION
             </a>
-            <a href="#" className="hover:text-primary transition-colors">
+            <a
+              href={stellarExpertUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-primary transition-colors"
+            >
               STELLAR EXPERT
             </a>
             <Link href="/docs" className="hover:text-primary transition-colors">

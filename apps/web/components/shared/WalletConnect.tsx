@@ -18,6 +18,15 @@ import {
   Info,
 } from "lucide-react";
 
+interface FreighterNetworkApi {
+  setNetwork?: (network: string) => Promise<unknown>;
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  return "Freighter could not switch networks";
+}
+
 export function WalletConnect() {
   const {
     address,
@@ -33,7 +42,8 @@ export function WalletConnect() {
   const { network } = useWalletStore();
   const [installed, setInstalled] = useState<boolean | null>(null);
   const [copied, setCopied] = useState(false);
-  const [switchAction, setSwitchAction] = useState<NetworkSwitchAction | null>(
+  const [switchingNetwork, setSwitchingNetwork] = useState(false);
+  const [networkSwitchError, setNetworkSwitchError] = useState<string | null>(
     null,
   );
 
@@ -46,6 +56,38 @@ export function WalletConnect() {
     await navigator.clipboard.writeText(address);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleSwitchToTestnet = async () => {
+    setSwitchingNetwork(true);
+    setNetworkSwitchError(null);
+
+    try {
+      const freighter =
+        (await import("@stellar/freighter-api")) as unknown as FreighterNetworkApi;
+
+      if (typeof freighter.setNetwork !== "function") {
+        throw new Error(
+          "Your Freighter version does not support network switching from this app.",
+        );
+      }
+
+      const response = await freighter.setNetwork("TESTNET");
+      if (
+        response &&
+        typeof response === "object" &&
+        "error" in response &&
+        response.error
+      ) {
+        throw new Error(String(response.error));
+      }
+
+      await connectWallet();
+    } catch (error) {
+      setNetworkSwitchError(getErrorMessage(error));
+    } finally {
+      setSwitchingNetwork(false);
+    }
   };
 
   const formatAddress = (addr: string) => {
@@ -76,50 +118,52 @@ export function WalletConnect() {
     <div className="flex flex-col gap-2 md:flex-row md:items-center">
       {/* Network Badge */}
       {connected && (
-        <div className="flex items-center gap-2">
-          {network === "testnet" ? (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-amber-500/10 border border-amber-500/20 text-amber-400 font-mono">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-              Testnet
-            </span>
-          ) : network === "mainnet" ? (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Mainnet
-            </span>
-          ) : (
-            <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            {network === "testnet" ? (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-amber-500/10 border border-amber-500/20 text-amber-400 font-mono">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                Testnet
+              </span>
+            ) : network === "mainnet" ? (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Mainnet
+              </span>
+            ) : (
               <Button
                 variant="outline"
                 size="sm"
                 className="text-xs border-amber-500/30 text-amber-500 hover:bg-amber-500/10 rounded-md font-mono"
-                onClick={handleSwitchNetwork}
+                onClick={handleSwitchToTestnet}
+                disabled={switchingNetwork}
               >
-                Switch to Testnet
-                <ArrowRight className="w-3 h-3 ml-1" />
+                {switchingNetwork && (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                )}
+                {switchingNetwork ? "SWITCHING..." : "Switch to Testnet"}
               </Button>
-              {switchAction?.needsManualSwitch && (
-                <div className="flex items-start gap-1.5 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-md px-2.5 py-1.5 max-w-xs">
-                  <Info className="w-3 h-3 shrink-0 mt-0.5" />
-                  <span className="leading-relaxed">
-                    {switchAction.message}
-                  </span>
-                  <a
-                    href={switchAction.switchUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-amber-400 hover:text-amber-300 font-semibold whitespace-nowrap"
-                  >
-                    Open Freighter
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                </div>
-              )}
-              {switchAction && !switchAction.needsManualSwitch && (
-                <div className="flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-md px-2.5 py-1">
-                  <span>{switchAction.message}</span>
-                </div>
-              )}
+            )}
+          </div>
+
+          {networkSwitchError && (
+            <div className="flex flex-col gap-1 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-md px-2.5 py-2">
+              <span className="flex items-start gap-1.5">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                <span>
+                  Open Freighter, switch its network to Testnet, then reconnect
+                  your wallet.
+                </span>
+              </span>
+              <a
+                href="https://www.freighter.app/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 font-semibold hover:underline"
+              >
+                <span>Open Freighter</span>
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
             </div>
           )}
         </div>
