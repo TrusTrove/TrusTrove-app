@@ -33,6 +33,18 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Log secret sources for transparency (never log the secrets themselves)
+	if cfg.JWTSecretGenerated {
+		slog.Info("JWT secret: generated (fallback for development)")
+	} else {
+		slog.Info("JWT secret: sourced from environment variable")
+	}
+	if cfg.ServerSeedGenerated {
+		slog.Info("Server seed: generated (fallback for development)")
+	} else {
+		slog.Info("Server seed: sourced from environment variable")
+	}
+
 	// 2. Initialize DB Connection Pool
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
