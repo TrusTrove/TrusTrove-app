@@ -6,6 +6,15 @@ import {
 
 export type FreighterErrorCode = "user_rejected" | "not_installed" | "unknown";
 
+interface FreighterConnectedResponse {
+  isConnected?: boolean;
+}
+
+interface FreighterAccessResponse {
+  address?: string;
+  error?: string;
+}
+
 export class FreighterError extends Error {
   readonly code: FreighterErrorCode;
   constructor(code: FreighterErrorCode, message: string) {
@@ -45,7 +54,10 @@ export async function isFreighterInstalled(): Promise<boolean> {
     if (typeof res === "boolean") {
       return res;
     }
-    return !!(res as any)?.isConnected;
+    if (res && typeof res === "object" && "isConnected" in res) {
+      return !!(res as FreighterConnectedResponse).isConnected;
+    }
+    return false;
   } catch (err) {
     console.error("Failed to check if Freighter is installed:", err);
     return false;
@@ -66,11 +78,14 @@ export async function connectFreighter(): Promise<string> {
     if (typeof res === "string") {
       return res;
     }
-    if ((res as any)?.address) {
-      return (res as any).address;
-    }
-    if ((res as any)?.error) {
-      throw mapFreighterError(new Error((res as any).error));
+    if (res && typeof res === "object") {
+      const accessRes = res as FreighterAccessResponse;
+      if (accessRes.address) {
+        return accessRes.address;
+      }
+      if (accessRes.error) {
+        throw mapFreighterError(new Error(accessRes.error));
+      }
     }
     throw new FreighterError("unknown", "No address returned from Freighter");
   } catch (err) {
