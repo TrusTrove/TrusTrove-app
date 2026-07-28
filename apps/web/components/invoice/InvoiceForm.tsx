@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useInvoices } from "@/hooks/useInvoices";
 import { Button } from "@/components/ui/button";
 import { ShieldAlert, PlusCircle } from "lucide-react";
@@ -11,11 +11,8 @@ import { useWalletStore } from "@/store/wallet";
 import { SimulationPreview } from "@/components/shared/SimulationPreview";
 
 const invoiceContractID = process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID || "";
-
 const getStellarSdk = () => import("@stellar/stellar-sdk");
 const getTrustroveSdk = () => import("@trusttrove/sdk");
-
-/** Zero-byte placeholder invoice ID for fee estimation simulation only */
 const SIMULATION_PLACEHOLDER_INVOICE_ID =
   "0000000000000000000000000000000000000000000000000000000000000000";
 
@@ -23,20 +20,37 @@ interface InvoiceFormProps {
   onSuccess?: () => void;
 }
 
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
+async function cancelCreatedInvoice(invoiceId: string) {
+  const response = await fetch(
+    `/api/invoices/${encodeURIComponent(invoiceId)}/cancel`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason: "Immediate listing transaction failed" }),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error("Unable to cancel the created invoice");
+  }
+}
+
 export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
   const { createInvoice, isCreating, listInvoice } = useInvoices();
+  const { address } = useWalletStore();
   const [buyer, setBuyer] = useState("");
   const [faceValue, setFaceValue] = useState("");
   const [asset, setAsset] = useState<AssetType>("USDC");
-  const [dueDate, setDueDate] = useState<string>("");
-  const [discountBps, setDiscountBps] = useState(200); // default 2% (200 bps)
+  const [dueDate, setDueDate] = useState("");
+  const [discountBps, setDiscountBps] = useState(200);
   const [immediateList, setImmediateList] = useState(true);
-
   const [error, setError] = useState<string | null>(null);
-  const [step, setStep] = useState<1 | 2>(1); // Step 1: Input, Step 2: Sign Summary
+  const [step, setStep] = useState<1 | 2>(1);
   const [isListing, setIsListing] = useState(false);
-
-  const { address } = useWalletStore();
   const [simDetails, setSimDetails] = useState<any>(null);
   const [simError, setSimError] = useState<string | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
@@ -44,7 +58,6 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
   const [simulationDiscountBps, setSimulationDiscountBps] =
     useState(discountBps);
 
-  // Debounce discount changes so simulation only runs after slider settles on step 2
   useEffect(() => {
     if (step !== 2) return;
     const timer = setTimeout(() => setSimulationDiscountBps(discountBps), 500);
@@ -53,9 +66,9 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
 
   useEffect(() => {
     if (step !== 2 || !address) return;
-
     let active = true;
-    const runSim = async () => {
+
+    const runSimulation = async () => {
       setIsSimulating(true);
       setSimError(null);
       setSimDetails(null);
@@ -66,48 +79,41 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
           getTrustroveSdk(),
           getStellarSdk(),
         ]);
-        const invoiceClient = new InvoiceClient(invoiceContractID);
-        const args = [
-          xdr.ScVal.scvBytes(
-            Buffer.from(SIMULATION_PLACEHOLDER_INVOICE_ID, "hex"),
-          ),
-          nativeToScVal(simulationDiscountBps, { type: "u32" }),
-        ];
-
-        const simResult = await invoiceClient.simulateTransaction(
+        const client = new InvoiceClient(invoiceContractID);
+        const result = await client.simulateTransaction(
           "list_for_financing",
-          args,
+          [
+            xdr.ScVal.scvBytes(
+              Buffer.from(SIMULATION_PLACEHOLDER_INVOICE_ID, "hex"),
+            ),
+            nativeToScVal(simulationDiscountBps, { type: "u32" }),
+          ],
           address,
         );
+        if (active) setSimDetails(result);
+      } catch (err: unknown) {
         if (!active) return;
-        setSimDetails(simResult);
-      } catch (err: any) {
-        if (!active) return;
-        const errMsg = err.message || "";
+        const message = getErrorMessage(err, "");
         if (
-          errMsg.includes("not found") ||
-          errMsg.includes("NotFound") ||
-          errMsg.includes("Host") ||
-          errMsg.includes("Simulation failed") ||
-          errMsg.includes("missing")
+          message.includes("not found") ||
+          message.includes("NotFound") ||
+          message.includes("Host") ||
+          message.includes("Simulation failed") ||
+          message.includes("missing")
         ) {
           setIsFallback(true);
-          setSimDetails(null);
         } else {
-          setSimError(errMsg);
+          setSimError(message);
         }
       } finally {
         if (active) setIsSimulating(false);
       }
     };
 
-    const timerId = setTimeout(() => {
-      runSim();
-    }, 300);
-
+    const timer = setTimeout(() => void runSimulation(), 300);
     return () => {
       active = false;
-      clearTimeout(timerId);
+      clearTimeout(timer);
     };
   }, [step, address, simulationDiscountBps]);
 
@@ -115,8 +121,6 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
     () => parseFloat(faceValue.replace(/,/g, "")) || 0,
     [faceValue],
   );
-
-  // Calculations
   const discountPaid = useMemo(
     () => parsedValue * (discountBps / 10000),
     [parsedValue, discountBps],
@@ -126,8 +130,8 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
     [parsedValue, discountPaid],
   );
 
-  const handleNextStep = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleNextStep = async (event: React.FormEvent) => {
+    event.preventDefault();
     setError(null);
 
     const trimmedBuyer = buyer.trim();
@@ -138,94 +142,90 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
       );
       return;
     }
-    if (trimmedBuyer !== buyer) setBuyer(trimmedBuyer);
-
     if (parsedValue <= 0) {
       setError("Face value must be a positive number");
       return;
     }
-
     if (!dueDate) {
       setError("Please select a due date");
       return;
     }
-    const selected = new Date(dueDate);
+    const selectedDate = new Date(dueDate);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    if (selected.getTime() <= today.getTime()) {
+    if (selectedDate.getTime() <= today.getTime()) {
       setError("Due date must be in the future");
       return;
     }
-
+    if (trimmedBuyer !== buyer) setBuyer(trimmedBuyer);
     setStep(2);
   };
 
   const handleCreate = async () => {
     setError(null);
-    try {
-      const faceValueStroops = BigInt(
-        Math.floor(parsedValue * 10_000_000),
-      ).toString();
-      const dueDateTimestamp = Math.floor(new Date(dueDate).getTime() / 1000);
+    let createdInvoiceId: string | null = null;
 
-      // Transaction 1: Create
-      const res = await createInvoice({
+    try {
+      const response = await createInvoice({
         buyer,
-        faceValue: faceValueStroops,
-        dueDate: dueDateTimestamp,
+        faceValue: BigInt(Math.floor(parsedValue * 10_000_000)).toString(),
+        dueDate: Math.floor(new Date(dueDate).getTime() / 1000),
         asset,
       });
 
-      if (!res.invoice_id) {
-        throw new Error("Invoice creation did not return a valid invoice ID");
+      if (!response.invoice_id || !response.transaction_hash) {
+        throw new Error("Invoice creation did not return valid transaction data");
       }
-      if (!res.transaction_hash) {
-        throw new Error("Invoice creation did not return a transaction hash");
-      }
+      createdInvoiceId = response.invoice_id;
 
-      const invoiceId = res.invoice_id;
-
-      // Transaction 2: Immediate List
       if (immediateList) {
         setIsListing(true);
-        // Pre-simulate list_for_financing on the newly created invoice ID before Freighter opens
         try {
-          const [{ InvoiceClient }, { xdr, nativeToScVal }] = await Promise.all(
-            [getTrustroveSdk(), getStellarSdk()],
-          );
-          const invoiceClient = new InvoiceClient(invoiceContractID);
-          const args = [
-            xdr.ScVal.scvBytes(Buffer.from(invoiceId, "hex")),
-            nativeToScVal(discountBps, { type: "u32" }),
-          ];
-          await invoiceClient.simulateTransaction(
+          const [{ InvoiceClient }, { xdr, nativeToScVal }] = await Promise.all([
+            getTrustroveSdk(),
+            getStellarSdk(),
+          ]);
+          const client = new InvoiceClient(invoiceContractID);
+          await client.simulateTransaction(
             "list_for_financing",
-            args,
+            [
+              xdr.ScVal.scvBytes(Buffer.from(createdInvoiceId, "hex")),
+              nativeToScVal(discountBps, { type: "u32" }),
+            ],
             address!,
           );
-        } catch (simErr: any) {
+          await listInvoice({ invoiceId: createdInvoiceId, discountBps });
+        } catch (listingError: unknown) {
+          const listingMessage = getErrorMessage(
+            listingError,
+            "Immediate listing failed",
+          );
+          try {
+            await cancelCreatedInvoice(createdInvoiceId);
+          } catch {
+            throw new Error(
+              `${listingMessage}. We could not cancel the created invoice automatically. Please contact support with invoice ID ${createdInvoiceId}.`,
+            );
+          }
+
+          setBuyer("");
+          setFaceValue("");
+          setDueDate("");
+          setStep(1);
+          onSuccess?.();
           throw new Error(
-            `Simulation failed: ${simErr.message || "Validation error"}`,
+            `${listingMessage}. The created invoice was cancelled and is not available for financing.`,
           );
         }
-
-        await listInvoice({
-          invoiceId,
-          discountBps,
-        });
       }
 
-      // Reset Form
       setBuyer("");
       setFaceValue("");
       setDueDate("");
       setStep(1);
-
-      if (onSuccess) {
-        onSuccess();
-      }
-    } catch (err: any) {
-      setError(err.message || "Transaction failed");
+      onSuccess?.();
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "Transaction failed"));
     } finally {
       setIsListing(false);
     }
@@ -240,255 +240,153 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
         </h2>
       </div>
 
-      {/* Step Indicators */}
       <div className="flex items-center gap-2 mb-5 px-1">
-        <div
-          className={`flex items-center gap-1.5 ${step === 1 ? "text-primary" : "text-emerald-400"}`}
-        >
-          <div
-            className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold font-mono border ${step === 1 ? "bg-primary/20 border-primary text-primary" : "bg-emerald-400/20 border-emerald-400 text-emerald-400"}`}
-          >
-            1
-          </div>
-          <span className="text-[10px] font-bold font-mono uppercase tracking-wider">
-            Terms
-          </span>
-        </div>
-        <div
-          className={`flex-1 h-px mx-1 ${step === 2 ? "bg-emerald-400/50" : "bg-border"}`}
-        />
-        <div
-          className={`flex items-center gap-1.5 ${step === 2 ? "text-primary" : "text-slate-500"}`}
-        >
-          <div
-            className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold font-mono border ${step === 2 ? "bg-primary/20 border-primary text-primary" : "bg-slate-800 border-border text-slate-500"}`}
-          >
-            2
-          </div>
-          <span className="text-[10px] font-bold font-mono uppercase tracking-wider">
-            Sign
-          </span>
-        </div>
+        <span className={step === 1 ? "text-primary" : "text-emerald-400"}>
+          1. Terms
+        </span>
+        <span className="flex-1 h-px bg-border" />
+        <span className={step === 2 ? "text-primary" : "text-slate-500"}>
+          2. Sign
+        </span>
       </div>
 
       {step === 1 ? (
         <form onSubmit={handleNextStep} className="space-y-4">
-          {/* Buyer input */}
-          <div className="space-y-1">
-            <label className="block text-[10px] font-bold font-mono text-slate-500 uppercase tracking-wider">
-              Buyer Wallet Address
-            </label>
+          <label className="block text-xs font-mono text-slate-400">
+            Buyer Wallet Address
             <input
               type="text"
               placeholder="e.g. GBBD47IF6L... (Stellar Public Key)"
-              className="w-full bg-[#080c10] border border-border rounded px-3 py-2.5 text-white text-xs font-mono focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all min-h-[44px]"
+              className="mt-1 w-full bg-[#080c10] border border-border rounded px-3 py-2.5 text-white"
               value={buyer}
-              onChange={(e) => setBuyer(e.target.value)}
+              onChange={(event) => setBuyer(event.target.value)}
               required
             />
-          </div>
-
-          {/* Value, Asset, and Days */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="col-span-2 space-y-1">
-              <AmountInput
-                value={faceValue}
-                onChange={setFaceValue}
-                asset={asset}
-                label="Face Value"
-                placeholder="50,000.00"
-                required
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="block text-[10px] font-bold font-mono text-slate-500 uppercase tracking-wider">
-                Asset
-              </label>
-              <select
-                value={asset}
-                onChange={(e) => setAsset(e.target.value as AssetType)}
-                className="w-full bg-[#080c10] border border-border rounded px-3 py-2.5 text-white text-xs font-mono focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all min-h-[44px]"
-              >
-                {ASSET_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="block text-[10px] font-bold font-mono text-slate-500 uppercase tracking-wider">
-                Due Date
-              </label>
-              <input
-                type="date"
-                min={
-                  new Date(Date.now() + 24 * 60 * 60 * 1000)
-                    .toISOString()
-                    .split("T")[0]
-                }
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                className="w-full bg-[#080c10] border border-border rounded px-3 py-2.5 text-white text-xs font-mono focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all min-h-[44px]"
-                required
-              />
-              <span className="text-[10px] font-mono text-slate-500 block mt-1">
-                Select invoice maturity date
-              </span>
-            </div>
-          </div>
-
-          {/* Discount slider */}
-          <div className="space-y-2 pt-2 border-t border-border/30">
-            <div className="flex justify-between text-[10px] font-mono">
-              <span className="text-slate-500 font-bold uppercase tracking-wider">
-                Financing Discount Rate
-              </span>
-              <span className="text-primary font-bold">
-                {(discountBps / 100).toFixed(2)}% ({discountBps} bps)
-              </span>
-            </div>
-            <input
-              type="range"
-              min="50"
-              max="500"
-              step="10"
-              value={discountBps}
-              onChange={(e) => setDiscountBps(parseInt(e.target.value))}
-              aria-label="Financing Discount Rate"
-              aria-valuemin={50}
-              aria-valuemax={500}
-              aria-valuenow={discountBps}
-              className="w-full accent-primary bg-slate-900 h-2 rounded cursor-pointer touch-pan-y"
-            />
-            <div className="flex justify-between text-[9px] text-slate-600 font-mono">
-              <span>0.5% (50 bps)</span>
-              <span>5.0% (500 bps)</span>
-            </div>
-          </div>
-
-          {/* Immediate Listing option */}
-          <div className="flex items-center gap-3 pt-2">
+          </label>
+          <AmountInput
+            value={faceValue}
+            onChange={setFaceValue}
+            asset={asset}
+            label="Face Value"
+            placeholder="50,000.00"
+            required
+          />
+          <select
+            value={asset}
+            onChange={(event) => setAsset(event.target.value as AssetType)}
+            className="w-full bg-[#080c10] border border-border rounded px-3 py-2.5 text-white"
+          >
+            {ASSET_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <input
+            type="date"
+            min={new Date(Date.now() + 86400000).toISOString().split("T")[0]}
+            value={dueDate}
+            onChange={(event) => setDueDate(event.target.value)}
+            className="w-full bg-[#080c10] border border-border rounded px-3 py-2.5 text-white"
+            required
+          />
+          <input
+            type="range"
+            min="50"
+            max="500"
+            step="10"
+            value={discountBps}
+            onChange={(event) =>
+              setDiscountBps(parseInt(event.target.value, 10))
+            }
+            aria-label="Financing Discount Rate"
+            className="w-full"
+          />
+          <label className="flex items-center gap-2 text-xs text-slate-400">
             <input
               type="checkbox"
-              id="immediateList"
-              className="rounded bg-[#080c10] border-border text-primary focus:ring-primary focus:ring-offset-0 w-5 h-5 shrink-0 cursor-pointer"
               checked={immediateList}
-              onChange={(e) => setImmediateList(e.target.checked)}
+              onChange={(event) => setImmediateList(event.target.checked)}
             />
-            <label
-              htmlFor="immediateList"
-              className="text-xs font-mono text-slate-400 cursor-pointer select-none py-2"
-            >
-              List for immediate LP financing at creation
-            </label>
-          </div>
-
+            List for immediate LP financing at creation
+          </label>
           {error && (
-            <div className="p-3 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-start gap-2">
-              <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
-              <span className="font-mono">{error}</span>
+            <div className="p-3 text-rose-400 text-xs flex gap-2">
+              <ShieldAlert className="w-4 h-4" />
+              <span>{error}</span>
             </div>
           )}
-
-          <Button
-            type="submit"
-            className="w-full bg-primary hover:bg-primary-hover text-black font-bold uppercase tracking-wider text-xs rounded py-2.5 min-h-[44px] shadow-[0_0_15px_rgba(0,212,170,0.1)]"
-          >
+          <Button type="submit" className="w-full">
             REVIEW FINANCING TERMS
           </Button>
         </form>
       ) : (
-        // Step 2: Sign summary
         <div className="space-y-4 font-mono text-xs">
-          <div className="bg-[#080c10] border border-border p-4 rounded-lg space-y-2">
+          <div className="border border-border p-4 rounded-lg space-y-2">
             <div className="flex justify-between">
-              <span className="text-slate-500">Invoice Face Value:</span>
-              <span className="text-white font-bold">
+              <span>Invoice Face Value:</span>
+              <span>
                 {parsedValue.toLocaleString()} {asset}
               </span>
             </div>
-
             {immediateList ? (
               <>
-                <div className="flex justify-between text-rose-400">
-                  <span>Discount ({(discountBps / 100).toFixed(2)}%):</span>
+                <div className="flex justify-between">
+                  <span>Discount:</span>
                   <span>
                     -{discountPaid.toLocaleString()} {asset}
                   </span>
                 </div>
-                <div className="border-t border-border/40 my-2 pt-2 flex justify-between text-emerald-400 font-bold">
+                <div className="flex justify-between">
                   <span>Net Payout Today:</span>
                   <span>
                     {payoutAmount.toLocaleString()} {asset}
                   </span>
                 </div>
-                {dueDate &&
-                  (() => {
-                    const today = new Date();
-                    today.setHours(0, 0, 0, 0);
-                    const diff =
-                      (new Date(dueDate).getTime() - today.getTime()) /
-                      (1000 * 60 * 60 * 24);
-                    const days = Math.max(1, Math.ceil(diff));
-                    return (
-                      <div className="flex justify-between text-slate-400 text-[10px]">
-                        <span>Buyer Repayment (due in {days}d):</span>
-                        <span>
-                          {parsedValue.toLocaleString()} {asset}
-                        </span>
-                      </div>
-                    );
-                  })()}
               </>
             ) : (
-              <div className="text-[10px] text-slate-400 pt-2 border-t border-border/20">
-                Created with zero discount list terms. (Can configure financing
-                later).
+              <div className="text-slate-400">
+                The invoice will be created without immediate listing.
               </div>
             )}
           </div>
-
-          <div className="bg-[#080c10] border border-amber-500/20 p-3 rounded text-[10px] text-amber-500 leading-normal">
-            <span className="font-bold block uppercase mb-1">
-              On-chain privacy note
-            </span>
-            Your invoice ID is generated on-chain. No commercial documents are
-            stored on-chain — only invoice terms and addresses.
-          </div>
-
           {immediateList && (
             <SimulationPreview
               details={simDetails}
-              error={simError}
               isLoading={isSimulating}
+              error={simError}
               isFallback={isFallback}
             />
           )}
-
           {error && (
-            <div className="p-3 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-start gap-2">
-              <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
+            <div className="p-3 text-rose-400 text-xs flex gap-2">
+              <ShieldAlert className="w-4 h-4" />
               <span>{error}</span>
             </div>
           )}
-
-          <div className="flex gap-2">
+          <div className="flex gap-3">
             <Button
-              className="flex-1 border border-border bg-transparent hover:bg-slate-900 text-slate-400 font-bold uppercase py-2 min-h-[44px]"
+              type="button"
+              variant="outline"
+              className="flex-1"
               onClick={() => setStep(1)}
               disabled={isCreating || isListing}
             >
-              EDIT
+              BACK
             </Button>
             <Button
-              className="flex-1 bg-primary hover:bg-primary-hover text-black font-bold uppercase py-2 min-h-[44px] flex items-center justify-center gap-1.5 shadow-[0_0_15px_rgba(0,212,170,0.15)]"
-              onClick={handleCreate}
+              type="button"
+              className="flex-1"
+              onClick={() => void handleCreate()}
               disabled={isCreating || isListing}
             >
-              {isCreating || isListing ? "SIGNING..." : "SIGN & LIST"}
+              {isListing
+                ? "LISTING..."
+                : isCreating
+                  ? "CREATING..."
+                  : immediateList
+                    ? "CREATE & LIST"
+                    : "CREATE INVOICE"}
             </Button>
           </div>
         </div>
