@@ -12,8 +12,11 @@ CREATE TABLE IF NOT EXISTS invoices (
     shipped_at BIGINT,
     issuer_confirmed BOOLEAN NOT NULL DEFAULT FALSE,
     buyer_confirmed BOOLEAN NOT NULL DEFAULT FALSE,
+    buyer_confirmed_at BIGINT,
     repaid_at BIGINT
 );
+
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS buyer_confirmed_at BIGINT;
 
 CREATE TABLE IF NOT EXISTS pool_snapshots (
     id INTEGER PRIMARY KEY,

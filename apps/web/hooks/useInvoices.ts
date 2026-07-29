@@ -1,11 +1,20 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getInvoices, getInvoiceByID, createInvoice, PaginatedInvoices } from '@/lib/api';
-import { InvoiceClient, PoolClient } from '@trusttrove/sdk';
-import { useWalletStore } from '@/store/wallet';
-import { showSuccessToast, showErrorToast } from '@/lib/toast';
+import { useRef, useCallback } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  getInvoices,
+  getInvoiceByID,
+  createInvoice,
+  PaginatedInvoices,
+} from "@/lib/api";
+import { useWalletStore } from "@/store/wallet";
+import { showSuccessToast } from "@/lib/toast";
+import { createErrorHandler } from "@/lib/errors";
+import { useTokenAllowance } from "./useTokenAllowance";
 
-const invoiceContractID = process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID || '';
-const poolContractID = process.env.NEXT_PUBLIC_POOL_CONTRACT_ID || '';
+const { handleMutationError } = createErrorHandler("useInvoices");
+
+const invoiceContractID = process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID || "";
+const poolContractID = process.env.NEXT_PUBLIC_POOL_CONTRACT_ID || "";
 
 /**
  * Custom hook for managing invoice lifecycle operations on the TrusTrove platform.
@@ -48,121 +57,180 @@ const poolContractID = process.env.NEXT_PUBLIC_POOL_CONTRACT_ID || '';
  * @example
  * const { invoices, total, totalPages, page } = useInvoices({ status: 'pending', page: 2, limit: 10 });
  */
-export function useInvoices(filters?: { status?: string; issuer?: string; page?: number; limit?: number }) {
+export function useInvoices(filters?: {
+  status?: string;
+  issuer?: string;
+  page?: number;
+  limit?: number;
+}) {
   const queryClient = useQueryClient();
   const { address } = useWalletStore();
+  const { ensureAllowance } = useTokenAllowance();
+
+  const invoiceClientRef = useRef<any>(null);
+  const poolClientRef = useRef<any>(null);
+
+  const getInvoiceClient = useCallback(async () => {
+    if (!invoiceClientRef.current) {
+      const { InvoiceClient } = await import("@trusttrove/sdk");
+      invoiceClientRef.current = new InvoiceClient(invoiceContractID);
+    }
+    return invoiceClientRef.current;
+  }, []);
+
+  const getPoolClient = useCallback(async () => {
+    if (!poolClientRef.current) {
+      const { PoolClient } = await import("@trusttrove/sdk");
+      poolClientRef.current = new PoolClient(poolContractID);
+    }
+    return poolClientRef.current;
+  }, []);
 
   const invoicesQuery = useQuery<PaginatedInvoices>({
-    queryKey: ['invoices', filters],
+    queryKey: ["invoices", filters],
     queryFn: () => getInvoices(filters),
+    refetchInterval: 15000,
+    staleTime: 15000,
   });
 
   const createInvoiceMutation = useMutation({
-    mutationFn: async ({ buyer, faceValue, dueDate, asset }: { buyer: string; faceValue: string; dueDate: number; asset?: string }) => {
+    mutationFn: async ({
+      buyer,
+      faceValue,
+      dueDate,
+      asset,
+    }: {
+      buyer: string;
+      faceValue: string;
+      dueDate: number;
+      asset?: string;
+    }) => {
       return createInvoice(buyer, faceValue, dueDate, asset as any);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['invoices'] });
-      showSuccessToast('Invoice Created');
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      showSuccessToast("Invoice Created");
     },
     onError: (error) => {
-      showErrorToast('Invoice Creation Failed', error instanceof Error ? error : undefined);
+      handleMutationError(error, "Invoice Creation Failed");
     },
   });
 
   const listInvoiceMutation = useMutation({
-    mutationFn: async ({ invoiceId, discountBps }: { invoiceId: string; discountBps: number }) => {
-      if (!address) throw new Error('Wallet not connected');
-      const invoiceClient = new InvoiceClient(invoiceContractID);
-      return invoiceClient.listForFinancing(invoiceId, discountBps, address);
+    mutationFn: async ({
+      invoiceId,
+      discountBps,
+    }: {
+      invoiceId: string;
+      discountBps: number;
+    }) => {
+      if (!address) throw new Error("Wallet not connected");
+      const client = await getInvoiceClient();
+      return client.listForFinancing(invoiceId, discountBps, address);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['invoices'] });
-      showSuccessToast('Invoice Listed for Financing');
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      showSuccessToast("Invoice Listed for Financing");
     },
     onError: (error) => {
-      showErrorToast('Listing Failed', error instanceof Error ? error : undefined);
+      handleMutationError(error, "Listing Failed");
     },
   });
 
   const fundInvoiceMutation = useMutation({
     mutationFn: async ({ invoiceId }: { invoiceId: string }) => {
-      if (!address) throw new Error('Wallet not connected');
-      const poolClient = new PoolClient(poolContractID);
-      return poolClient.fundInvoice(invoiceId, address);
+      if (!address) throw new Error("Wallet not connected");
+      const client = await getPoolClient();
+      return client.fundInvoice(invoiceId, address);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['invoices'] });
-      queryClient.invalidateQueries({ queryKey: ['poolStats'] });
-      queryClient.invalidateQueries({ queryKey: ['lpPosition', address] });
-      showSuccessToast('Invoice Funded');
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["poolStats"] });
+      queryClient.invalidateQueries({ queryKey: ["lpPosition", address] });
+      showSuccessToast("Invoice Funded");
     },
     onError: (error) => {
-      showErrorToast('Funding Failed', error instanceof Error ? error : undefined);
+      handleMutationError(error, "Funding Failed");
     },
   });
 
   const shipInvoiceMutation = useMutation({
     mutationFn: async ({ invoiceId }: { invoiceId: string }) => {
-      if (!address) throw new Error('Wallet not connected');
-      const invoiceClient = new InvoiceClient(invoiceContractID);
-      return invoiceClient.markShipped(invoiceId, address);
+      if (!address) throw new Error("Wallet not connected");
+      const client = await getInvoiceClient();
+      return client.markShipped(invoiceId, address);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['invoices'] });
-      showSuccessToast('Invoice Shipped');
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      showSuccessToast("Invoice Shipped");
     },
     onError: (error) => {
-      showErrorToast('Shipping Failed', error instanceof Error ? error : undefined);
+      handleMutationError(error, "Shipping Failed");
     },
   });
 
   const confirmDeliveryMutation = useMutation({
     mutationFn: async ({ invoiceId }: { invoiceId: string }) => {
-      if (!address) throw new Error('Wallet not connected');
-      const invoiceClient = new InvoiceClient(invoiceContractID);
-      return invoiceClient.confirmDelivery(invoiceId, address, address);
+      if (!address) throw new Error("Wallet not connected");
+      const invoice = await getInvoiceByID(invoiceId);
+      const client = await getInvoiceClient();
+      return client.confirmDelivery(invoiceId, invoice.buyer, address);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['invoices'] });
-      showSuccessToast('Delivery Confirmed');
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      showSuccessToast("Delivery Confirmed");
     },
     onError: (error) => {
-      showErrorToast('Confirmation Failed', error instanceof Error ? error : undefined);
+      handleMutationError(error, "Confirmation Failed");
     },
   });
 
   const repayInvoiceMutation = useMutation({
     mutationFn: async ({ invoiceId }: { invoiceId: string }) => {
-      if (!address) throw new Error('Wallet not connected');
-      const invoiceClient = new InvoiceClient(invoiceContractID);
-      return invoiceClient.repay(invoiceId, address);
+      if (!address) throw new Error("Wallet not connected");
+      const client = await getInvoiceClient();
+      const invoice = await client.get(invoiceId, address);
+      try {
+        await ensureAllowance(invoiceContractID, invoice.faceValue);
+      } catch (allowanceErr: any) {
+        const message = allowanceErr?.message || "";
+        if (
+          message.toLowerCase().includes("user rejected") ||
+          message.toLowerCase().includes("rejected") ||
+          message.toLowerCase().includes("user denied") ||
+          message.toLowerCase().includes("canceled")
+        ) {
+          throw new Error("Allowance rejected");
+        }
+        throw allowanceErr;
+      }
+      return client.repay(invoiceId, address);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['invoices'] });
-      queryClient.invalidateQueries({ queryKey: ['poolStats'] });
-      queryClient.invalidateQueries({ queryKey: ['lpPosition', address] });
-      showSuccessToast('Invoice Repaid');
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["poolStats"] });
+      queryClient.invalidateQueries({ queryKey: ["lpPosition", address] });
+      showSuccessToast("Invoice Repaid");
     },
     onError: (error) => {
-      showErrorToast('Repayment Failed', error instanceof Error ? error : undefined);
+      handleMutationError(error, "Repayment Failed");
     },
   });
 
   const defaultInvoiceMutation = useMutation({
     mutationFn: async ({ invoiceId }: { invoiceId: string }) => {
-      if (!address) throw new Error('Wallet not connected');
-      const invoiceClient = new InvoiceClient(invoiceContractID);
-      return invoiceClient.triggerDefault(invoiceId, address);
+      if (!address) throw new Error("Wallet not connected");
+      const client = await getInvoiceClient();
+      return client.triggerDefault(invoiceId, address);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['invoices'] });
-      queryClient.invalidateQueries({ queryKey: ['poolStats'] });
-      queryClient.invalidateQueries({ queryKey: ['lpPosition', address] });
-      showSuccessToast('Invoice Defaulted');
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["poolStats"] });
+      queryClient.invalidateQueries({ queryKey: ["lpPosition", address] });
+      showSuccessToast("Invoice Defaulted");
     },
     onError: (error) => {
-      showErrorToast('Default Action Failed', error instanceof Error ? error : undefined);
+      handleMutationError(error, "Default Action Failed");
     },
   });
 
@@ -223,9 +291,10 @@ export function useInvoices(filters?: { status?: string; issuer?: string; page?:
  */
 export function useInvoice(id: string) {
   const invoiceQuery = useQuery({
-    queryKey: ['invoice', id],
+    queryKey: ["invoice", id],
     queryFn: () => getInvoiceByID(id),
     enabled: !!id,
+    staleTime: 60000,
   });
 
   return {

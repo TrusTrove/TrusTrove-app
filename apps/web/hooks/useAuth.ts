@@ -1,7 +1,14 @@
-import { useState } from 'react';
-import { useWalletStore } from '@/store/wallet';
-import { signTransaction } from '@stellar/freighter-api';
-import { fetchChallenge, verifyChallenge } from '@/lib/api';
+import { useState } from "react";
+import { useWalletStore } from "@/store/wallet";
+import { signTransaction } from "@stellar/freighter-api";
+import {
+  fetchChallenge,
+  verifyChallenge,
+  initApiClientWithToken,
+} from "@/lib/api";
+import { createErrorHandler } from "@/lib/errors";
+
+const { captureError } = createErrorHandler("useAuth");
 
 /**
  * Custom hook for authenticating the connected Stellar wallet via SEP-10.
@@ -39,7 +46,7 @@ export function useAuth() {
    */
   const login = async () => {
     if (!address) {
-      setError('Wallet not connected');
+      setError("Wallet not connected");
       return;
     }
 
@@ -47,23 +54,25 @@ export function useAuth() {
     setError(null);
 
     try {
-      // 1. Fetch challenge XDR; network_passphrase is returned by the server
       const { transaction, network_passphrase } = await fetchChallenge(address);
 
-      // 2. Sign with Freighter wallet using the server-provided passphrase
+      const rawNetwork = process.env.NEXT_PUBLIC_STELLAR_NETWORK || "TESTNET";
+      const stellarNetwork =
+        rawNetwork.toUpperCase() === "PUBLIC" ? "PUBLIC" : "TESTNET";
       const signedXdr = await signTransaction(transaction, {
-        network: 'TESTNET',
+        network: "TESTNET",
         networkPassphrase: network_passphrase,
         accountToSign: address,
       });
 
-      // 3. Submit signed challenge to verify and receive JWT
       const { token: jwt } = await verifyChallenge(signedXdr);
       setToken(jwt);
+      initApiClientWithToken();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Authentication failed';
-      setError(message);
+      const appError = captureError(err);
+      setError(appError.message);
       setToken(null);
+      initApiClientWithToken();
     } finally {
       setLoading(false);
     }
@@ -74,6 +83,7 @@ export function useAuth() {
    */
   const logout = () => {
     setToken(null);
+    initApiClientWithToken();
     disconnect();
   };
 
