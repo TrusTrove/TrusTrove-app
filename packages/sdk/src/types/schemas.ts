@@ -126,6 +126,7 @@ export const poolStatsSchema = z.object({
   utilizationRateBps: numberSchema,
   totalYieldDistributed: bigintSchema,
   activeInvoiceCount: numberSchema,
+  totalShares: bigintSchema,
 });
 
 export function parsePoolStats(native: unknown): PoolStats {
