@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useWalletStore } from '@/store/wallet';
 import { signTransaction } from '@stellar/freighter-api';
-import { fetchChallenge, verifyChallenge } from '@/lib/api';
+import { fetchChallenge, verifyChallenge, initApiClientWithToken } from '@/lib/api';
 
 /**
  * Custom hook for authenticating the connected Stellar wallet via SEP-10.
@@ -60,10 +60,12 @@ export function useAuth() {
       // 3. Submit signed challenge to verify and receive JWT
       const { token: jwt } = await verifyChallenge(signedXdr);
       setToken(jwt);
+      initApiClientWithToken();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Authentication failed';
       setError(message);
       setToken(null);
+      initApiClientWithToken();
     } finally {
       setLoading(false);
     }
@@ -74,6 +76,7 @@ export function useAuth() {
    */
   const logout = () => {
     setToken(null);
+    initApiClientWithToken();
     disconnect();
   };
 

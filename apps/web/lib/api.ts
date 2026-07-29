@@ -5,8 +5,15 @@ const getApiUrl = () => {
   return process.env.NEXT_PUBLIC_INDEXER_API_URL || 'http://localhost:8080';
 };
 
-async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+let cachedToken: string | null = null;
+
+export function initApiClientWithToken(): void {
   const token = useWalletStore.getState().token;
+  cachedToken = token;
+}
+
+async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = cachedToken || useWalletStore.getState().token;
   const headers = new Headers(options.headers || {});
   
   if (token) {
