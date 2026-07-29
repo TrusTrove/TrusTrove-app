@@ -8,6 +8,7 @@ From the Liquidity Provider Dashboard, click **Deposit USDC**.
 - **Estimated Shares** — the number of pool shares you will receive in return. This is calculated using the current share price.
 
 As you enter the amount, the form shows a live preview:
+
 - You deposit: 1,000.00 USDC
 - Share price: 1.05 USDC per share
 - You receive: 952.38 shares

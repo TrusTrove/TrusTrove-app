@@ -1,8 +1,9 @@
-'use client';
+"use client";
 
-import React from 'react';
-import { motion } from 'framer-motion';
-import { Loader2, ExternalLink, ShieldCheck } from 'lucide-react';
+import React, { useState } from "react";
+import { motion } from "framer-motion";
+import { Loader2, ExternalLink, ShieldCheck } from "lucide-react";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 
 interface TransactionPendingProps {
   isOpen: boolean;
@@ -11,11 +12,69 @@ interface TransactionPendingProps {
   onClose?: () => void;
 }
 
-export function TransactionPending({ isOpen, txHash, statusText = 'Waiting for confirmation...', onClose }: TransactionPendingProps) {
+export function TransactionPending({
+  isOpen,
+  txHash,
+  statusText = "Waiting for confirmation...",
+  onClose,
+}: TransactionPendingProps) {
+  const [localStatus, setLocalStatus] = useState<string | null>(null);
+  const [timedOut, setTimedOut] = useState(false);
+
+  // Only allow dismissal (Escape / backdrop click) after the transaction has
+  // completed, i.e. when txHash is available.
+  const canDismiss = timedOut || Boolean(txHash && onClose);
+
+  const overlayRef = useFocusTrap<HTMLDivElement>(
+    isOpen,
+    canDismiss ? onClose : undefined,
+  );
+
+  // Register a global Escape-key listener that dismisses the dialog only
+  // after the transaction has completed or timed out.
+  React.useEffect(() => {
+    if (!canDismiss) return;
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose!();
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [canDismiss, onClose]);
+
+  // Timeout logic: if modal stays open for 60s without a tx hash, mark as timed out.
+  React.useEffect(() => {
+    if (!isOpen || txHash) return;
+    setTimedOut(false);
+    setLocalStatus("Waiting for confirmation...");
+    const timer = setTimeout(() => {
+      setTimedOut(true);
+      setLocalStatus(
+        "Confirmation timed out. You can close and check status manually.",
+      );
+    }, 60_000);
+    return () => clearTimeout(timer);
+  }, [isOpen, txHash]);
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#080c10]/95 backdrop-blur-sm p-4">
+    <div
+      ref={overlayRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Transaction Pending"
+      tabIndex={-1}
+      // Backdrop click dismisses the dialog only after the transaction
+      // completes. Clicks that bubble up from children are ignored.
+      onClick={(e) => {
+        if (canDismiss && e.target === e.currentTarget) onClose!();
+      }}
+      // Keyboard handler satisfies jsx-a11y/click-events-have-key-events.
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && canDismiss) onClose!();
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#080c10]/95 backdrop-blur-sm p-4"
+    >
       <div className="w-full max-w-md bg-card border border-border rounded-lg p-6 flex flex-col items-center justify-center text-center shadow-[0_0_50px_rgba(0,212,170,0.05)]">
         {/* Animated Stellar Orbit Logo */}
         <div className="relative w-28 h-28 flex items-center justify-center mb-6">
@@ -23,10 +82,10 @@ export function TransactionPending({ isOpen, txHash, statusText = 'Waiting for c
           <div className="w-12 h-12 rounded-full border border-primary/40 bg-primary/10 flex items-center justify-center">
             <ShieldCheck className="w-6 h-6 text-primary" />
           </div>
-          
+
           {/* Orbital path */}
           <div className="absolute w-24 h-24 rounded-full border border-border/30 border-dashed" />
-          
+
           {/* Orbiting Moon */}
           <motion.div
             className="absolute w-3 h-3 rounded-full bg-primary"
@@ -36,13 +95,13 @@ export function TransactionPending({ isOpen, txHash, statusText = 'Waiting for c
             transition={{
               repeat: Infinity,
               duration: 4,
-              ease: 'linear',
+              ease: "linear",
             }}
             style={{
-              originX: '50%',
-              originY: '50%',
-              width: '96px', // spans outer bounds
-              height: '12px',
+              originX: "50%",
+              originY: "50%",
+              width: "96px", // spans outer bounds
+              height: "12px",
             }}
           />
         </div>
@@ -52,7 +111,7 @@ export function TransactionPending({ isOpen, txHash, statusText = 'Waiting for c
         </h3>
         <p className="text-slate-400 text-xs font-mono mb-6 flex items-center gap-1.5 justify-center">
           <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
-          {statusText}
+          {timedOut ? localStatus || statusText : statusText}
         </p>
 
         {txHash && (
@@ -90,7 +149,15 @@ export function TransactionPending({ isOpen, txHash, statusText = 'Waiting for c
 }
 
 // Simple button helper to bypass standard UI import issues
-function Button({ children, className, onClick }: { children: React.ReactNode; className: string; onClick?: () => void }) {
+function Button({
+  children,
+  className,
+  onClick,
+}: {
+  children: React.ReactNode;
+  className: string;
+  onClick?: () => void;
+}) {
   return (
     <button className={className} onClick={onClick}>
       {children}

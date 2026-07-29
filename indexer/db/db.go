@@ -106,6 +106,27 @@ func RunMigration(ctx context.Context) error {
 }
 
 func locateMigrationDir() (string, error) {
+	// 1. Check INDEXER_MIGRATIONS_DIR env var first
+	if envDir := os.Getenv("INDEXER_MIGRATIONS_DIR"); envDir != "" {
+		info, err := os.Stat(envDir)
+		if err == nil && info.IsDir() {
+			return envDir, nil
+		}
+		return "", fmt.Errorf("INDEXER_MIGRATIONS_DIR set to %s but not a valid directory", envDir)
+	}
+
+	// 2. Resolve from executable location
+	execPath, err := os.Executable()
+	if err == nil {
+		execDir := filepath.Dir(execPath)
+		execRelativePath := filepath.Join(execDir, "..", "db", "migrations")
+		info, err := os.Stat(execRelativePath)
+		if err == nil && info.IsDir() {
+			return execRelativePath, nil
+		}
+	}
+
+	// 3. Fall back to relative paths from current working directory
 	candidates := []string{
 		filepath.Join("db", "migrations"),
 		filepath.Join("indexer", "db", "migrations"),
