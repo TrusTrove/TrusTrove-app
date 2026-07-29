@@ -74,6 +74,20 @@ async function withRetry<T>(
   throw lastError;
 }
 
+/**
+ * Result type returned by transaction simulations.
+ */
+export interface SimulationResult {
+  /** Estimated fee in XLM (formatted to 7 decimal places) */
+  estimatedFeeXlm: string;
+  /** Name of the contract method being simulated */
+  functionName: string;
+  /** Decoded return value from the simulation, or undefined if none */
+  expectedResult: any;
+  /** Number of ledger entries accessed (read-only + read-write) */
+  footprintSize: number;
+}
+
 export class BaseContractClient {
   protected contractId: string;
 
@@ -184,12 +198,7 @@ export class BaseContractClient {
     method: string,
     args: xdr.ScVal[],
     publicKey: string
-  ): Promise<{
-    estimatedFeeXlm: string;
-    functionName: string;
-    expectedResult: any;
-    footprintSize: number;
-  }> {
+  ): Promise<SimulationResult> {
     const config = getConfig();
     const server = getSorobanServer();
     const account = await withRetry(() => server.getAccount(publicKey));

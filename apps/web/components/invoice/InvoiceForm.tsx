@@ -8,7 +8,7 @@ import type { AssetType } from '@/types';
 import { ASSET_OPTIONS } from '@/lib/assets';
 import { AmountInput } from '@/components/shared/AmountInput';
 import { useWalletStore } from '@/store/wallet';
-import { InvoiceClient } from '@trusttrove/sdk';
+import { InvoiceClient, SimulationResult } from '@trusttrove/sdk';
 import { xdr, nativeToScVal } from '@stellar/stellar-sdk';
 import { SimulationPreview } from '@/components/shared/SimulationPreview';
 
@@ -33,7 +33,7 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
   const [isListing, setIsListing] = useState(false);
 
   const { address } = useWalletStore();
-  const [simDetails, setSimDetails] = useState<any>(null);
+  const [simDetails, setSimDetails] = useState<SimulationResult | null>(null);
   const [simError, setSimError] = useState<string | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
   const [isFallback, setIsFallback] = useState(false);

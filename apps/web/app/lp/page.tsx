@@ -15,7 +15,7 @@ import { Coins, Unlock, Landmark, Wallet, ShieldAlert, Activity } from 'lucide-r
 import { motion } from 'framer-motion';
 import type { AssetType } from '@/types';
 import { ASSET_OPTIONS, formatAmount } from '@/lib/assets';
-import { PoolClient } from '@trusttrove/sdk';
+import { PoolClient, SimulationResult } from '@trusttrove/sdk';
 import { Address, nativeToScVal } from '@stellar/stellar-sdk';
 import { SimulationPreview } from '@/components/shared/SimulationPreview';
 import { useQuery } from '@tanstack/react-query';
@@ -51,7 +51,7 @@ export default function LPDashboard() {
   const [pendingText, setPendingText] = useState('Waiting for confirmation...');
 
   // Simulation states
-  const [simDetails, setSimDetails] = useState<any>(null);
+  const [simDetails, setSimDetails] = useState<SimulationResult | null>(null);
   const [simError, setSimError] = useState<string | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
 
