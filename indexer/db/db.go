@@ -2,13 +2,16 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -85,7 +88,7 @@ func RunMigration(ctx context.Context) error {
 		}
 
 		if _, err := tx.Exec(ctx, string(migrationBytes)); err != nil {
-			tx.Rollback(ctx)
+			rollbackOnError(ctx, tx)
 			return fmt.Errorf("failed to execute migration %s: %w", filename, err)
 		}
 
@@ -93,7 +96,7 @@ func RunMigration(ctx context.Context) error {
 			INSERT INTO schema_migrations (version, applied_at)
 			VALUES ($1, $2)
 		`, version, time.Now().UTC()); err != nil {
-			tx.Rollback(ctx)
+			rollbackOnError(ctx, tx)
 			return fmt.Errorf("failed to record migration %s: %w", filename, err)
 		}
 
@@ -169,4 +172,13 @@ func loadAppliedMigrations(ctx context.Context) (map[string]bool, error) {
 	}
 
 	return applied, rows.Err()
+}
+
+// rollbackOnError rolls back the transaction and logs any unexpected error.
+// It ignores pgx.ErrTxClosed since that is expected when the transaction is
+// already closed.
+func rollbackOnError(ctx context.Context, tx pgx.Tx) {
+	if err := tx.Rollback(ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+		slog.Warn("transaction rollback failed", "error", err)
+	}
 }
