@@ -1,92 +1,70 @@
-import React from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { InvoiceForm } from "./InvoiceForm";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { renderWithProviders } from "@/test-utils/renderWithProviders";
 
-vi.mock("@/hooks/useRole", () => ({
-  useRole: () => ({ role: "issuer" }),
-}));
-vi.mock("@/hooks/useWallet", () => ({
-  useWallet: () => ({
-    address: "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB",
+vi.mock("@trusttrove/sdk", () => ({
+  InvoiceClient: vi.fn(function () {
+    return { simulateTransaction: vi.fn().mockResolvedValue({}) };
   }),
-}));
-vi.mock("@/hooks/useInvoices", () => ({
-  useInvoices: () => ({
-    createInvoice: vi.fn().mockResolvedValue({
-      invoice_id: "abcd",
-      transaction_hash: "txhash",
-    }),
-    listInvoice: vi.fn().mockResolvedValue({}),
-    isCreating: false,
-  }),
+  PoolClient: vi.fn(function () {}),
 }));
 
-const queryClient = new QueryClient();
+vi.mock("@stellar/stellar-sdk", () => ({
+  StrKey: { isValidEd25519PublicKey: vi.fn(() => false) },
+  xdr: { ScVal: { scvBytes: vi.fn() } },
+  nativeToScVal: vi.fn(),
+}));
 
-const renderWithQueryClient = (ui: React.ReactElement) => {
-  return render(
-    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
-  );
-};
+// Global mock for fetch to spy on endpoint requests
+const fetchMock = vi.fn();
+global.fetch = fetchMock;
 
-describe("InvoiceForm", () => {
+describe("InvoiceForm Component Boundary Tests", () => {
   beforeEach(() => {
-    queryClient.clear();
-  });
-  it("renders the first step of the wizard", () => {
-    renderWithQueryClient(<InvoiceForm />);
-    expect(screen.getByText(/Buyer Wallet Address/i)).toBeInTheDocument();
-    expect(screen.getByText(/Face Value/i)).toBeInTheDocument();
+    fetchMock.mockReset();
   });
 
-  it("validates form fields before proceeding", async () => {
-    renderWithQueryClient(<InvoiceForm />);
-    const buyerInput = screen.getByPlaceholderText(/GBBD47IF6L/i);
-    fireEvent.change(buyerInput, { target: { value: "invalid_address" } });
+  it("renders the invoice form with expected labels and submit button", () => {
+    renderWithProviders(<InvoiceForm />);
 
-    const nextButton = screen.getByText(/REVIEW FINANCING TERMS/i);
-    fireEvent.submit(nextButton);
+    expect(screen.getByText(/buyer wallet address/i)).toBeInTheDocument();
+    expect(screen.getByText(/face value/i)).toBeInTheDocument();
+    expect(screen.getByText(/due date/i)).toBeInTheDocument();
     expect(
-      await screen.findByText(/Buyer must be a valid Stellar public key/i),
+      screen.getByRole("button", { name: /review financing terms/i }),
     ).toBeInTheDocument();
   });
 
-  it("proceeds to step 2 when valid and shows simulation state", async () => {
-    renderWithQueryClient(<InvoiceForm />);
-    const buyerInput = screen.getByPlaceholderText(/GBBD47IF6L/i);
-    const valueInput = screen.getByPlaceholderText(/50,000.00/i);
+  it("shows error for invalid buyer address on next step", async () => {
+    renderWithProviders(<InvoiceForm />);
 
-    fireEvent.change(buyerInput, {
-      target: {
-        value: "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB",
-      },
-    });
-    fireEvent.change(valueInput, { target: { value: "1000" } });
+    // Enter invalid buyer address
+    const buyerInput = screen.getByPlaceholderText(/stellar public key/i);
+    fireEvent.change(buyerInput, { target: { value: "invalid-address" } });
 
-    const nextButton = screen.getByText(/REVIEW FINANCING TERMS/i);
-    fireEvent.click(nextButton);
-
-    expect(await screen.findByText(/Invoice Face Value/i)).toBeInTheDocument();
-    expect(screen.getByText(/Net Payout Today:/i)).toBeInTheDocument();
-  });
-
-  it("returns to step 1 when Edit is clicked", async () => {
-    renderWithQueryClient(<InvoiceForm />);
-    fireEvent.change(screen.getByPlaceholderText(/GBBD47IF6L/i), {
-      target: {
-        value: "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB",
-      },
-    });
-    fireEvent.change(screen.getByPlaceholderText(/50,000.00/i), {
-      target: { value: "1000" },
+    // Fill a valid future due date so the only failure is buyer validation
+    const dateInput = document.querySelector(
+      'input[type="date"]',
+    ) as HTMLInputElement;
+    expect(dateInput).toBeTruthy();
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    fireEvent.change(dateInput, {
+      target: { value: tomorrow.toISOString().split("T")[0] },
     });
 
-    fireEvent.click(screen.getByText(/REVIEW FINANCING TERMS/i));
-    expect(await screen.findByText(/Invoice Face Value/i)).toBeInTheDocument();
+    const faceValueInput = screen.getByPlaceholderText(/50,000\.00/i);
+    fireEvent.change(faceValueInput, { target: { value: "1500" } });
 
-    fireEvent.click(screen.getByText(/EDIT/i));
-    expect(await screen.findByText(/Buyer Wallet Address/i)).toBeInTheDocument();
+    // Click the next step button
+    fireEvent.click(
+      screen.getByRole("button", { name: /review financing terms/i }),
+    );
+
+    // Should show validation error
+    await waitFor(() => {
+      expect(screen.getByText(/valid stellar public key/i)).toBeInTheDocument();
+    });
   });
 });

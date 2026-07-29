@@ -9,6 +9,8 @@ import (
 	"trusttrove/indexer/api"
 	"trusttrove/indexer/config"
 	"trusttrove/indexer/db"
+
+	"github.com/stellar/go-stellar-sdk/keypair"
 )
 
 // SorobanEvent represents a normalized event emitted by a Soroban contract
@@ -72,18 +74,19 @@ type GetEventsParams struct {
 
 // EventListener listens to Soroban events and routes them to database and state synchronizers
 type EventListener struct {
-	cfg *config.Config
+	cfg    *config.Config
+	health *api.ListenerHealth
 }
 
 // NewEventListener constructs a new EventListener
-func NewEventListener(cfg *config.Config) *EventListener {
-	return &EventListener{cfg: cfg}
+func NewEventListener(cfg *config.Config, health *api.ListenerHealth) *EventListener {
+	return &EventListener{cfg: cfg, health: health}
 }
 
 // getLatestLedgerSequence fetches the latest ledger sequence number from the Soroban RPC
 func (l *EventListener) getLatestLedgerSequence(ctx context.Context) (int32, error) {
 	var res GetLatestLedgerResult
-	err := api.CallSorobanRPC(l.cfg.SorobanRPCURL, "getLatestLedger", nil, &res)
+	err := api.CallSorobanRPC(ctx, l.cfg.SorobanRPCURL, "getLatestLedger", nil, &res)
 	if err != nil {
 		return 0, fmt.Errorf("call getLatestLedger: %w", err)
 	}
@@ -92,6 +95,17 @@ func (l *EventListener) getLatestLedgerSequence(ctx context.Context) (int32, err
 
 // Start starts the event listening loop
 func (l *EventListener) Start(ctx context.Context) error {
+	if l.health != nil {
+		l.health.MarkStarted()
+	}
+
+	if l.cfg.ServerSeed == "" {
+		return fmt.Errorf("ServerSeed is required when event listener is enabled")
+	}
+	if _, err := keypair.ParseFull(l.cfg.ServerSeed); err != nil {
+		return fmt.Errorf("invalid ServerSeed configuration: %w", err)
+	}
+
 	// 1. Determine start ledger sequence
 	// Prefer checkpoint for accurate resume across empty-ledger ranges
 	currentLedger, err := db.GetCheckpoint(ctx)
@@ -132,13 +146,21 @@ func (l *EventListener) Start(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			slog.Info("Event listener stopping...")
+			if l.health != nil {
+				l.health.MarkStopped()
+			}
 			return nil
 		case <-ticker.C:
 			nextLedger, err := l.pollEvents(ctx, currentLedger)
 			if err != nil {
 				slog.Error("Error polling events", "error", err)
-				// Retry from the same ledger on the next tick
-				continue
+				if l.health != nil {
+					l.health.MarkStopped()
+				}
+				return fmt.Errorf("listener poll failed: %w", err)
+			}
+			if l.health != nil {
+				l.health.MarkHeartbeat()
 			}
 			currentLedger = nextLedger
 
@@ -196,7 +218,7 @@ func (l *EventListener) pollEvents(ctx context.Context, startLedger int32) (int3
 		}
 
 		var res GetEventsResult
-		err := api.CallSorobanRPC(l.cfg.SorobanRPCURL, "getEvents", params, &res)
+		err := api.CallSorobanRPC(ctx, l.cfg.SorobanRPCURL, "getEvents", params, &res)
 		if err != nil {
 			return startLedger, fmt.Errorf("call getEvents (startLedger=%d, cursor=%s): %w", startLedger, cursor, err)
 		}

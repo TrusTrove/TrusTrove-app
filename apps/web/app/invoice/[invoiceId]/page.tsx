@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Invoice } from "@/types";
 import { formatAmount } from "@/lib/assets";
+import { parseInvoiceResponse } from "@/lib/parsers";
 import InvoiceDetailClient from "./InvoiceDetailClient";
 
 const getIndexerApiUrl = () => {
@@ -14,23 +15,7 @@ async function fetchInvoiceById(invoiceId: string): Promise<Invoice | null> {
     });
     if (!res.ok) return null;
     const raw = await res.json();
-    return {
-      id: raw.id,
-      issuer: raw.issuer,
-      buyer: raw.buyer,
-      faceValue: BigInt(raw.face_value || 0),
-      asset: raw.asset || "USDC",
-      discountBps: Number(raw.discount_bps || 0),
-      fundedAmount: BigInt(raw.funded_amount || 0),
-      dueDate: Number(raw.due_date || 0),
-      status: raw.status,
-      createdAt: Number(raw.created_at || 0),
-      fundedAt: raw.funded_at ? Number(raw.funded_at) : null,
-      shippedAt: raw.shipped_at ? Number(raw.shipped_at) : null,
-      issuerConfirmed: !!raw.issuer_confirmed,
-      buyerConfirmed: !!raw.buyer_confirmed,
-      repaidAt: raw.repaid_at ? Number(raw.repaid_at) : null,
-    };
+    return parseInvoiceResponse(raw);
   } catch {
     return null;
   }

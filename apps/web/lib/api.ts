@@ -16,7 +16,18 @@ const getApiUrl = () => {
   return process.env.NEXT_PUBLIC_INDEXER_API_URL || "http://localhost:8080";
 };
 
-async function apiFetch<T>(
+const apiClient = new ApiClient(getApiUrl());
+
+function initApiClientWithToken(): void {
+  const token = useWalletStore.getState().token;
+  if (token) {
+    apiClient.setToken(token);
+  }
+}
+
+export { ApiClient, apiClient, initApiClientWithToken };
+
+export async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
@@ -40,6 +51,11 @@ async function apiFetch<T>(
 
   if (!res.ok) {
     const text = await res.text();
+    if (res.status === 503 || res.status === 504) {
+      throw new Error(
+        text || "Service Temporarily Unavailable. Please try again later.",
+      );
+    }
     throw new Error(text || `HTTP error! status: ${res.status}`);
   }
 
@@ -49,7 +65,7 @@ async function apiFetch<T>(
 export async function fetchChallenge(
   address: string,
 ): Promise<{ transaction: string; network_passphrase: string }> {
-  return apiFetch<{ transaction: string; network_passphrase: string }>(
+  return apiClient.fetch<{ transaction: string; network_passphrase: string }>(
     `/auth?address=${address}`,
   );
 }
@@ -57,7 +73,7 @@ export async function fetchChallenge(
 export async function verifyChallenge(
   transaction: string,
 ): Promise<{ token: string }> {
-  return apiFetch<{ token: string }>("/auth", {
+  return apiClient.fetch<{ token: string }>("/auth", {
     method: "POST",
     body: JSON.stringify({ transaction }),
   });
@@ -69,7 +85,7 @@ export async function createInvoice(
   dueDate: number,
   asset: AssetType = "USDC",
 ): Promise<{ invoice_id: string; transaction_hash: string; status: string }> {
-  return apiFetch<{
+  return apiClient.fetch<{
     invoice_id: string;
     transaction_hash: string;
     status: string;
@@ -119,7 +135,7 @@ export async function getInvoices(filters?: {
   }>(`/invoices${query}`);
 
   return {
-    data: raw.data.map(parseRawInvoice),
+    data: raw.data.map(parseInvoiceResponse),
     total: raw.total,
     page: raw.page,
     limit: raw.limit,

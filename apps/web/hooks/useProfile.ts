@@ -1,8 +1,47 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { RegistryClient, Profile } from "@trusttrove/sdk";
 import { useWalletStore } from "@/store/wallet";
+import { createErrorHandler } from "@/lib/errors";
+
+const { captureError } = createErrorHandler("useProfile");
 
 const registryContractID = process.env.NEXT_PUBLIC_REGISTRY_CONTRACT_ID || "";
+
+type ErrorWithResponse = {
+  status?: number;
+  statusCode?: number;
+  response?: {
+    status?: number;
+    statusCode?: number;
+  };
+};
+
+function getErrorStatus(error: unknown): number | undefined {
+  if (typeof error !== "object" || error === null) return undefined;
+
+  const errorWithResponse = error as ErrorWithResponse;
+  return (
+    errorWithResponse.status ??
+    errorWithResponse.statusCode ??
+    errorWithResponse.response?.status ??
+    errorWithResponse.response?.statusCode
+  );
+}
+
+function isProfileNotFoundError(error: unknown): boolean {
+  if (getErrorStatus(error) === 404) return true;
+
+  if (!(error instanceof Error)) return false;
+
+  const message = error.message.toLowerCase();
+  return (
+    message.includes("profile not found") ||
+    message.includes("profile does not exist") ||
+    message.includes("no profile found") ||
+    message.includes("profile is not registered") ||
+    message.includes("profile not registered")
+  );
+}
 
 /**
  * Custom hook for interacting with the TrusTrove registry contract.
@@ -34,9 +73,12 @@ export function useProfile() {
         const profile = await client.getProfile(address, address);
         return profile;
       } catch (err) {
-        // getProfile throws a simulation error if profile doesn't exist.
-        // We return null to indicate the profile is not registered.
-        return null;
+        if (isProfileNotFoundError(err)) {
+          return null;
+        }
+
+        captureError(err);
+        throw err;
       }
     },
     enabled: !!address,
@@ -51,6 +93,7 @@ export function useProfile() {
         const verified = await client.isVerified(address, address);
         return verified;
       } catch (err) {
+        captureError(err);
         return false;
       }
     },
@@ -76,6 +119,9 @@ export function useProfile() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["profile", address] });
       queryClient.invalidateQueries({ queryKey: ["isVerified", address] });
+    },
+    onError: (error) => {
+      captureError(error);
     },
   });
 

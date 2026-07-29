@@ -13,6 +13,16 @@
 | `NEXT_PUBLIC_USDC_ISSUER`          | Frontend + Backend | USDC issuer on Stellar testnet           | `GBBD...`                                            |
 | `NEXT_PUBLIC_USDC_ASSET_CODE`      | Frontend + Backend | USDC asset code                          | `USDC`                                               |
 | `NEXT_PUBLIC_INDEXER_API_URL`      | Frontend only      | Indexer API base URL                     | `http://localhost:8080`                              |
+| `STELLAR_NETWORK`                  | Backend only       | Network name                             | `testnet`                                            |
+| `HORIZON_URL`                      | Backend only       | Horizon REST API endpoint                | `https://horizon-testnet.stellar.org`                |
+| `SOROBAN_RPC_URL`                  | Backend only       | Soroban RPC endpoint                     | `https://soroban-testnet.stellar.org`                |
+| `NETWORK_PASSPHRASE`               | Backend only       | Stellar network passphrase               | `Test SDF Network ; September 2015`                  |
+| `REGISTRY_CONTRACT_ID`             | Backend only       | Deployed registry contract address       | `CABG...`                                            |
+| `INVOICE_CONTRACT_ID`              | Backend only       | Deployed invoice contract address        | `CA4O...`                                            |
+| `ESCROW_CONTRACT_ID`               | Backend only       | Deployed escrow contract address         | `CAJW...`                                            |
+| `POOL_CONTRACT_ID`                 | Backend only       | Deployed pool contract address           | `CAKE...`                                            |
+| `USDC_ISSUER`                      | Backend only       | USDC issuer on Stellar testnet           | `GBBD...`                                            |
+| `USDC_ASSET_CODE`                  | Backend only       | USDC asset code                          | `USDC`                                               |
 | `DATABASE_URL`                     | Backend only       | Neon pooled connection string            | `postgresql://user:pass@host/db?sslmode=require`     |
 | `DATABASE_URL_UNPOOLED`            | Backend only       | Neon direct connection string            | `postgresql://user:pass@host/db?sslmode=require`     |
 | `API_PORT`                         | Backend only       | Indexer HTTP port (fallback: `PORT`)     | `8080`                                               |
@@ -23,7 +33,7 @@
 
 ## Source of truth
 
-- **Local dev (backend):** Root `.env` + `.env.local` (loaded by godotenv, `.env.local` secrets take precedence)
+- **Local dev (backend):** Root `.env.local` (loaded by godotenv)
 - **Local dev (frontend):** `apps/web/.env.local` (loaded by Next.js)
 - **Production (backend):** Render dashboard → Environment Variables
 - **Production (frontend):** Vercel dashboard → Environment Variables

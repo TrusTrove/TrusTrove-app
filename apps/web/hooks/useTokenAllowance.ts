@@ -1,6 +1,6 @@
-import { useCallback } from 'react';
-import { TokenClient, getSorobanServer } from '@trusttrove/sdk';
-import { useWalletStore } from '@/store/wallet';
+import { useCallback } from "react";
+import { TokenClient, getSorobanServer } from "@trusttrove/sdk";
+import { useWalletStore } from "@/store/wallet";
 
 /**
  * Default approval expiration offset in ledger sequences.
@@ -40,7 +40,7 @@ export function useTokenAllowance() {
 
   const ensureAllowance = useCallback(
     async (spenderContractId: string, amount: bigint): Promise<void> => {
-      if (!address) throw new Error('Wallet not connected');
+      if (!address) throw new Error("Wallet not connected");
 
       const tokenClient = TokenClient.forUSDC();
 
@@ -48,7 +48,7 @@ export function useTokenAllowance() {
       const currentAllowance = await tokenClient.allowance(
         address,
         spenderContractId,
-        address
+        address,
       );
 
       // 2. If sufficient, nothing to do
@@ -65,10 +65,10 @@ export function useTokenAllowance() {
         spenderContractId,
         amount,
         expirationLedger,
-        address
+        address,
       );
     },
-    [address]
+    [address],
   );
 
   return { ensureAllowance };

@@ -6,8 +6,10 @@ import { Navbar } from "@/components/shared/Navbar";
 import { InvoiceFeed } from "@/components/shared/InvoiceFeed";
 import { LpYieldCalculator } from "@/components/shared/LpYieldCalculator";
 import { DiscountCalculator } from "@/components/shared/DiscountCalculator";
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { SkeletonShimmer } from "@/components/shared/SkeletonLoader";
 import { usePool } from "@/hooks/usePool";
+import { useStats } from "@/hooks/useStats";
 import {
   ShieldCheck,
   FileCheck2,
@@ -18,8 +20,18 @@ import {
   Landmark,
 } from "lucide-react";
 
+const specificationUrl = "https://k1ngd4vid.gitbook.io/trustrove/";
+const stellarExpertUrl = process.env.NEXT_PUBLIC_POOL_CONTRACT_ID
+  ? `https://stellar.expert/explorer/testnet/contract/${process.env.NEXT_PUBLIC_POOL_CONTRACT_ID}`
+  : "https://stellar.expert/explorer/testnet";
+
 export default function Home() {
   const { stats, isStatsLoading, statsError } = usePool();
+  const {
+    stats: protocolStats,
+    isLoading: isProtocolStatsLoading,
+    error: protocolStatsError,
+  } = useStats();
 
   // Compact USDC formatting (e.g. "12.4M") derived from the stroop-denominated stat.
   const formatCompactUsdc = (amount: bigint | undefined): string | null => {
@@ -32,11 +44,15 @@ export default function Home() {
   };
 
   // Per-stat renderer: skeleton while loading, graceful fallback when the indexer is unavailable.
-  const renderStat = (value: string | null) => {
-    if (isStatsLoading) {
+  const renderStat = (
+    value: string | null,
+    isLoading?: boolean,
+    error?: any,
+  ) => {
+    if (isLoading) {
       return <SkeletonShimmer className="h-7 w-20 mx-auto lg:mx-0" />;
     }
-    if (statsError || value === null) {
+    if (error || value === null) {
       return (
         <span className="text-xl sm:text-2xl font-bold font-mono text-slate-600 block">
           —
@@ -70,7 +86,9 @@ export default function Home() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 pt-4 items-start">
           {/* LEFT: Live Invoice Financing Feed */}
           <div className="lg:col-span-3 space-y-3">
-            <InvoiceFeed />
+            <ErrorBoundary context="InvoiceFeed">
+              <InvoiceFeed />
+            </ErrorBoundary>
             <div className="bg-[#0d131a] border border-border rounded-lg p-4 font-mono text-[10px] text-slate-500 leading-normal">
               <span className="text-primary font-bold block mb-1">
                 STELLAR INTEGRATION
@@ -103,12 +121,15 @@ export default function Home() {
 
             {/* Core Stats Row */}
             <div className="grid grid-cols-3 gap-4 border-t border-b border-border/40 py-6">
+              {/* Pool Value */}
               <div className="text-center lg:text-left">
                 {renderStat(formatCompactUsdc(stats?.totalDeposits))}
                 <span className="text-[10px] font-mono text-slate-500 uppercase font-bold tracking-wider block mt-1">
                   USDC POOL VALUE
                 </span>
               </div>
+
+              {/* Invoices Funded */}
               <div className="text-center lg:text-left">
                 {renderStat(
                   stats
@@ -119,6 +140,8 @@ export default function Home() {
                   INVOICES FUNDED
                 </span>
               </div>
+
+              {/* Yield Distributed */}
               <div className="text-center lg:text-left">
                 {renderStat(formatCompactUsdc(stats?.totalYieldDistributed))}
                 <span className="text-[10px] font-mono text-slate-500 uppercase font-bold tracking-wider block mt-1">
@@ -128,13 +151,15 @@ export default function Home() {
             </div>
 
             <div className="text-xs font-mono text-slate-400 border-l-2 border-primary pl-3">
-              &quot;From invoice to USDC in minutes. Not weeks.&quot;
+              &ldquo;From invoice to USDC in minutes. Not weeks.&rdquo;
             </div>
           </div>
 
           {/* RIGHT: LP Yield Calculator */}
           <div className="lg:col-span-4">
-            <LpYieldCalculator />
+            <ErrorBoundary context="LpYieldCalculator">
+              <LpYieldCalculator />
+            </ErrorBoundary>
           </div>
         </div>
 
@@ -234,7 +259,13 @@ export default function Home() {
               </p>
               <div className="bg-[#080c10] border border-border/40 p-2.5 rounded text-[10px] font-mono flex justify-between text-slate-500">
                 <span>VERIFIED ISSUERS:</span>
-                <span className="text-white font-bold">142 registered</span>
+                {renderStat(
+                  protocolStats
+                    ? `${protocolStats.registered_issuers} registered`
+                    : null,
+                  isProtocolStatsLoading,
+                  protocolStatsError,
+                )}
               </div>
             </div>
 
@@ -252,7 +283,13 @@ export default function Home() {
               </p>
               <div className="bg-[#080c10] border border-border/40 p-2.5 rounded text-[10px] font-mono flex justify-between text-slate-500">
                 <span>TOTAL OBLIGATIONS:</span>
-                <span className="text-white font-bold">8,920 invoices</span>
+                {renderStat(
+                  protocolStats
+                    ? `${protocolStats.total_invoices.toLocaleString()} invoices`
+                    : null,
+                  isProtocolStatsLoading,
+                  protocolStatsError,
+                )}
               </div>
             </div>
 
@@ -270,7 +307,17 @@ export default function Home() {
               </p>
               <div className="bg-[#080c10] border border-border/40 p-2.5 rounded text-[10px] font-mono flex justify-between text-slate-500">
                 <span>UTILIZATION RATE:</span>
-                <span className="text-white font-bold">78.5% capacity</span>
+                {isStatsLoading ? (
+                  <span className="text-white font-bold animate-pulse">
+                    --.-%
+                  </span>
+                ) : statsError ? (
+                  <span className="text-white font-bold">--.-%</span>
+                ) : (
+                  <span className="text-white font-bold">
+                    {(stats?.utilizationRateBps || 0) / 100}% capacity
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -286,7 +333,9 @@ export default function Home() {
               INTERACTIVE ECONOMIC COMPILER
             </p>
           </div>
-          <DiscountCalculator />
+          <ErrorBoundary context="DiscountCalculator">
+            <DiscountCalculator />
+          </ErrorBoundary>
         </div>
       </main>
 
@@ -295,10 +344,20 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4">
           <span>© 2026 TRUSTROVE PROTOCOL — VERIFIED TRADE FINANCE</span>
           <div className="flex gap-4">
-            <a href="#" className="hover:text-primary transition-colors">
+            <a
+              href={specificationUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-primary transition-colors"
+            >
               SPECIFICATION
             </a>
-            <a href="#" className="hover:text-primary transition-colors">
+            <a
+              href={stellarExpertUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-primary transition-colors"
+            >
               STELLAR EXPERT
             </a>
             <Link href="/docs" className="hover:text-primary transition-colors">
