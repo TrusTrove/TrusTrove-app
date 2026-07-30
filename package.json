@@ -8,6 +8,7 @@
     "build": "pnpm --filter @trusttrove/sdk build && pnpm --filter web build",
     "lint": "pnpm --filter web lint",
     "test": "pnpm --filter @trusttrove/sdk test && pnpm --filter web test",
+    "test:e2e": "pnpm --filter web test:e2e",
     "typecheck": "pnpm -r exec tsc --noEmit"
   },
   "devDependencies": {
