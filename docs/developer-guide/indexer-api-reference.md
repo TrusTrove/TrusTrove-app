@@ -1,6 +1,6 @@
 # Indexer API Reference
 
-The Go indexer runs at `https://trusttrove-app.onrender.com` in production 
+The Go indexer runs at `https://trusttrove-app.onrender.com` in production
 and `http://localhost:8080` in local development.
 
 All amounts are returned as strings to preserve u128 precision.
@@ -18,12 +18,14 @@ Health check. Returns 200 if the indexer is running.
 Returns invoices with optional filtering.
 
 **Query parameters:**
+
 - `status` — filter by status: `Created`, `Listed`, `Funded`, `Active`, `Confirmed`, `Repaid`, `Defaulted`
 - `issuer` — filter by issuer Stellar address
 - `page` — page number (default: 1)
 - `limit` — results per page (default: 20, max: 100)
 
 **Response:**
+
 ```json
 {
   "data": [

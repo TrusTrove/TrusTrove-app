@@ -2,13 +2,16 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -85,7 +88,7 @@ func RunMigration(ctx context.Context) error {
 		}
 
 		if _, err := tx.Exec(ctx, string(migrationBytes)); err != nil {
-			tx.Rollback(ctx)
+			rollbackOnError(ctx, tx)
 			return fmt.Errorf("failed to execute migration %s: %w", filename, err)
 		}
 
@@ -93,7 +96,7 @@ func RunMigration(ctx context.Context) error {
 			INSERT INTO schema_migrations (version, applied_at)
 			VALUES ($1, $2)
 		`, version, time.Now().UTC()); err != nil {
-			tx.Rollback(ctx)
+			rollbackOnError(ctx, tx)
 			return fmt.Errorf("failed to record migration %s: %w", filename, err)
 		}
 
@@ -106,6 +109,27 @@ func RunMigration(ctx context.Context) error {
 }
 
 func locateMigrationDir() (string, error) {
+	// 1. Check INDEXER_MIGRATIONS_DIR env var first
+	if envDir := os.Getenv("INDEXER_MIGRATIONS_DIR"); envDir != "" {
+		info, err := os.Stat(envDir)
+		if err == nil && info.IsDir() {
+			return envDir, nil
+		}
+		return "", fmt.Errorf("INDEXER_MIGRATIONS_DIR set to %s but not a valid directory", envDir)
+	}
+
+	// 2. Resolve from executable location
+	execPath, err := os.Executable()
+	if err == nil {
+		execDir := filepath.Dir(execPath)
+		execRelativePath := filepath.Join(execDir, "..", "db", "migrations")
+		info, err := os.Stat(execRelativePath)
+		if err == nil && info.IsDir() {
+			return execRelativePath, nil
+		}
+	}
+
+	// 3. Fall back to relative paths from current working directory
 	candidates := []string{
 		filepath.Join("db", "migrations"),
 		filepath.Join("indexer", "db", "migrations"),
@@ -148,4 +172,13 @@ func loadAppliedMigrations(ctx context.Context) (map[string]bool, error) {
 	}
 
 	return applied, rows.Err()
+}
+
+// rollbackOnError rolls back the transaction and logs any unexpected error.
+// It ignores pgx.ErrTxClosed since that is expected when the transaction is
+// already closed.
+func rollbackOnError(ctx context.Context, tx pgx.Tx) {
+	if err := tx.Rollback(ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+		slog.Warn("transaction rollback failed", "error", err)
+	}
 }

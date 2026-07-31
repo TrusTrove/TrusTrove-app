@@ -2,20 +2,23 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math/big"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"trusttrove/indexer/config"
 	"trusttrove/indexer/db"
+	"trusttrove/indexer/xdrutil"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v5"
@@ -26,28 +29,77 @@ import (
 )
 
 type APIHandler struct {
-	cfg         *config.Config
-	serverKP    *keypair.Full
-	statsMu     sync.Mutex
-	statsData   *db.ProtocolStats
-	statsCached time.Time
+	cfg             *config.Config
+	serverKP        *keypair.Full
+	statsMu         sync.RWMutex
+	statsData       *db.ProtocolStats
+	statsCached     time.Time
+	listenerHealth  *ListenerHealth
+	dbHealthChecker func(context.Context) error
+
+	// dependency-injectable storage and contract readers. Defaults are wired
+	// in NewAPIHandler so production behavior is unchanged; tests in this
+	// package can override individual fields to avoid requiring a live DB
+	// or Soroban RPC.
+	getInvoiceByIDFn   func(context.Context, string) (*db.DbInvoice, error)
+	getPoolStatsFn     func(context.Context) (*db.DbPoolStats, error)
+	getRecentEventsFn  func(context.Context, int) ([]*db.EventLog, error)
+	getProtocolStatsFn func(context.Context) (*db.ProtocolStats, error)
+	readContractFn     func(ctx context.Context, rpcURL string, contractID string, method string, args []xdr.ScVal, serverKP *keypair.Full) (xdr.ScVal, error)
 }
 
 func NewAPIHandler(cfg *config.Config) (*APIHandler, error) {
-	kp, err := GetServerKeypair(cfg.JWTSecret)
+	kp, err := GetServerKeypair(cfg.ServerSeed)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid server seed: %w", err)
 	}
 	return &APIHandler{
-		cfg:      cfg,
-		serverKP: kp,
+		cfg:                cfg,
+		serverKP:           kp,
+		listenerHealth:     NewListenerHealth(),
+		dbHealthChecker:    defaultDBHealthChecker,
+		getInvoiceByIDFn:   db.GetInvoiceByID,
+		getPoolStatsFn:     db.GetPoolStats,
+		getRecentEventsFn:  db.GetRecentEvents,
+		getProtocolStatsFn: db.GetProtocolStats,
+		readContractFn:     ReadContract,
 	}, nil
 }
 
-// GetServerKeypair derives a keypair deterministically from the JWT secret
-func GetServerKeypair(jwtSecret string) (*keypair.Full, error) {
-	hash := sha256.Sum256([]byte(jwtSecret))
-	return keypair.FromRawSeed(hash)
+func GetServerKeypair(seed string) (*keypair.Full, error) {
+	if strings.TrimSpace(seed) == "" {
+		return nil, fmt.Errorf("empty server seed")
+	}
+	return keypair.ParseFull(seed)
+}
+
+// writeJSON sets the Content-Type header, writes the status code, encodes v as
+// JSON, and logs any encoding error at WARN level.
+func writeJSON(w http.ResponseWriter, status int, v interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		slog.Warn("failed to encode JSON response", "error", err)
+	}
+}
+
+func (h *APIHandler) ListenerHealth() *ListenerHealth {
+	if h.listenerHealth == nil {
+		h.listenerHealth = NewListenerHealth()
+	}
+	return h.listenerHealth
+}
+
+func (h *APIHandler) CheckHealth(ctx context.Context) error {
+	if h.dbHealthChecker != nil {
+		if err := h.dbHealthChecker(ctx); err != nil {
+			return fmt.Errorf("database health check failed: %w", err)
+		}
+	}
+	if h.ListenerHealth() != nil && !h.ListenerHealth().IsHealthy() {
+		return fmt.Errorf("listener is not healthy")
+	}
+	return nil
 }
 
 type JsonRpcRequest struct {
@@ -67,7 +119,11 @@ type JsonRpcResponse struct {
 	} `json:"error"`
 }
 
-func CallSorobanRPC(rpcURL string, method string, params interface{}, result interface{}) error {
+var sorobanRPCClient = &http.Client{
+	Timeout: 30 * time.Second,
+}
+
+func CallSorobanRPC(ctx context.Context, rpcURL string, method string, params interface{}, result interface{}) error {
 	reqBody := JsonRpcRequest{
 		Jsonrpc: "2.0",
 		Id:      1,
@@ -80,7 +136,13 @@ func CallSorobanRPC(rpcURL string, method string, params interface{}, result int
 		return err
 	}
 
-	resp, err := http.Post(rpcURL, "application/json", bytes.NewBuffer(bodyBytes))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, rpcURL, bytes.NewBuffer(bodyBytes))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := sorobanRPCClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -197,6 +259,7 @@ type GetAccountResponse struct {
 }
 
 func ReadContract(
+	ctx context.Context,
 	rpcURL string,
 	contractID string,
 	method string,
@@ -216,10 +279,7 @@ func ReadContract(
 		IncrementSequenceNum: false,
 		BaseFee:              txnbuild.MinBaseFee,
 		Preconditions: txnbuild.Preconditions{
-			TimeBounds: txnbuild.TimeBounds{
-				MinTime: 0,
-				MaxTime: time.Now().Add(1 * time.Hour).Unix(),
-			},
+			TimeBounds: txnbuild.NewTimebounds(0, time.Now().Add(1*time.Hour).Unix()),
 		},
 		Operations: []txnbuild.Operation{op},
 	})
@@ -233,7 +293,7 @@ func ReadContract(
 	}
 
 	var simResp SimulateResponse
-	err = CallSorobanRPC(rpcURL, "simulateTransaction", map[string]string{"transaction": txBase64}, &simResp)
+	err = CallSorobanRPC(ctx, rpcURL, "simulateTransaction", map[string]string{"transaction": txBase64}, &simResp)
 	if err != nil {
 		return xdr.ScVal{}, err
 	}
@@ -249,38 +309,6 @@ func ReadContract(
 	}
 
 	return val, nil
-}
-
-func GetMapVal(val xdr.ScVal, key string) (xdr.ScVal, bool) {
-	if val.Type != xdr.ScValTypeScvMap || val.Map == nil || *val.Map == nil {
-		return xdr.ScVal{}, false
-	}
-	for _, entry := range **val.Map {
-		if entry.Key.Type == xdr.ScValTypeScvSymbol && entry.Key.Sym != nil {
-			if string(*entry.Key.Sym) == key {
-				return entry.Val, true
-			}
-		}
-	}
-	return xdr.ScVal{}, false
-}
-
-func GetU128Val(val xdr.ScVal) (string, bool) {
-	if val.Type != xdr.ScValTypeScvU128 || val.U128 == nil {
-		return "0", false
-	}
-	hi := big.NewInt(int64(val.U128.Hi))
-	lo := big.NewInt(int64(val.U128.Lo))
-	result := new(big.Int).Lsh(hi, 64)
-	result.Or(result, lo)
-	return result.String(), true
-}
-
-func GetU32Val(val xdr.ScVal) (uint32, bool) {
-	if val.Type != xdr.ScValTypeScvU32 || val.U32 == nil {
-		return 0, false
-	}
-	return uint32(*val.U32), true
 }
 
 func ParseInvoiceIDFromResult(resultXDR string) (string, error) {
@@ -311,10 +339,7 @@ func GenerateChallenge(serverKP *keypair.Full, clientAddr string, passphrase str
 		IncrementSequenceNum: false,
 		BaseFee:              txnbuild.MinBaseFee,
 		Preconditions: txnbuild.Preconditions{
-			TimeBounds: txnbuild.TimeBounds{
-				MinTime: time.Now().Unix(),
-				MaxTime: time.Now().Add(15 * time.Minute).Unix(),
-			},
+			TimeBounds: txnbuild.NewTimebounds(time.Now().Unix(), time.Now().Add(15*time.Minute).Unix()),
 		},
 		Operations: []txnbuild.Operation{
 			&txnbuild.ManageData{
@@ -446,8 +471,7 @@ func (h *APIHandler) HandleGetAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	writeJSON(w, http.StatusOK, map[string]string{
 		"transaction":        xdrString,
 		"network_passphrase": h.cfg.NetworkPassphrase,
 	})
@@ -480,8 +504,7 @@ func (h *APIHandler) HandlePostAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	writeJSON(w, http.StatusOK, map[string]string{
 		"token": token,
 	})
 }
@@ -498,7 +521,11 @@ func (h *APIHandler) HandleCreateInvoice(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	issuer := r.Context().Value("user_address").(string)
+	issuer, ok := GetUserAddress(r.Context())
+	if !ok || issuer == "" {
+		http.Error(w, "Unauthorized: user address missing from context", http.StatusUnauthorized)
+		return
+	}
 
 	if body.Buyer == "" || body.FaceValue == "" || body.DueDate <= 0 {
 		http.Error(w, "missing required invoice parameters", http.StatusBadRequest)
@@ -517,7 +544,7 @@ func (h *APIHandler) HandleCreateInvoice(w http.ResponseWriter, r *http.Request)
 	}
 
 	var accResp GetAccountResponse
-	err := CallSorobanRPC(h.cfg.SorobanRPCURL, "getAccount", map[string]string{"address": h.serverKP.Address()}, &accResp)
+	err := CallSorobanRPC(r.Context(), h.cfg.SorobanRPCURL, "getAccount", map[string]string{"address": h.serverKP.Address()}, &accResp)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to fetch server account: %s", err.Error()), http.StatusInternalServerError)
 		return
@@ -556,10 +583,7 @@ func (h *APIHandler) HandleCreateInvoice(w http.ResponseWriter, r *http.Request)
 		IncrementSequenceNum: true,
 		BaseFee:              txnbuild.MinBaseFee,
 		Preconditions: txnbuild.Preconditions{
-			TimeBounds: txnbuild.TimeBounds{
-				MinTime: 0,
-				MaxTime: time.Now().Add(1 * time.Hour).Unix(),
-			},
+			TimeBounds: txnbuild.NewTimebounds(0, time.Now().Add(1*time.Hour).Unix()),
 		},
 		Operations: []txnbuild.Operation{op},
 	})
@@ -575,7 +599,7 @@ func (h *APIHandler) HandleCreateInvoice(w http.ResponseWriter, r *http.Request)
 	}
 
 	var simResp SimulateResponse
-	err = CallSorobanRPC(h.cfg.SorobanRPCURL, "simulateTransaction", map[string]string{"transaction": txBase64}, &simResp)
+	err = CallSorobanRPC(r.Context(), h.cfg.SorobanRPCURL, "simulateTransaction", map[string]string{"transaction": txBase64}, &simResp)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("simulation failed: %s", err.Error()), http.StatusInternalServerError)
 		return
@@ -654,7 +678,7 @@ func (h *APIHandler) HandleCreateInvoice(w http.ResponseWriter, r *http.Request)
 		Status string `json:"status"`
 		Error  string `json:"error"`
 	}
-	err = CallSorobanRPC(h.cfg.SorobanRPCURL, "sendTransaction", map[string]string{"transaction": signedBase64}, &submitResp)
+	err = CallSorobanRPC(r.Context(), h.cfg.SorobanRPCURL, "sendTransaction", map[string]string{"transaction": signedBase64}, &submitResp)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to send transaction: %s", err.Error()), http.StatusInternalServerError)
 		return
@@ -665,12 +689,54 @@ func (h *APIHandler) HandleCreateInvoice(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(map[string]string{
+	type GetTransactionResult struct {
+		Hash   string `json:"hash"`
+		Status string `json:"status"`
+		Error  string `json:"error"`
+	}
+	const maxPollAttempts = 30
+	pollDelay := 1 * time.Second
+	var txResult GetTransactionResult
+	pollAttempts := 0
+
+	for {
+		err = CallSorobanRPC(r.Context(), h.cfg.SorobanRPCURL, "getTransaction", map[string]string{"hash": submitResp.Hash}, &txResult)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to poll transaction: %s", err.Error()), http.StatusInternalServerError)
+			return
+		}
+
+		if txResult.Status == "SUCCESS" {
+			break
+		}
+
+		if txResult.Status == "FAILED" {
+			errMsg := "transaction failed on-chain"
+			if txResult.Error != "" {
+				errMsg = fmt.Sprintf("transaction failed on-chain: %s", txResult.Error)
+			}
+			http.Error(w, errMsg, http.StatusInternalServerError)
+			return
+		}
+
+		pollAttempts++
+		if pollAttempts >= maxPollAttempts {
+			http.Error(w, fmt.Sprintf("transaction confirmation timed out after %d attempts: %s", maxPollAttempts, submitResp.Hash), http.StatusGatewayTimeout)
+			return
+		}
+
+		select {
+		case <-r.Context().Done():
+			http.Error(w, "request cancelled: "+r.Context().Err().Error(), http.StatusGatewayTimeout)
+			return
+		case <-time.After(pollDelay):
+		}
+	}
+
+	writeJSON(w, http.StatusCreated, map[string]string{
 		"invoice_id":       invoiceID,
 		"transaction_hash": submitResp.Hash,
-		"status":           submitResp.Status,
+		"status":           txResult.Status,
 	})
 }
 
@@ -682,7 +748,7 @@ func (h *APIHandler) HandleGetInvoiceByID(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	invoice, err := db.GetInvoiceByID(r.Context(), id)
+	invoice, err := h.getInvoiceByIDFn(r.Context(), id)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to retrieve invoice: %s", err.Error()), http.StatusInternalServerError)
 		return
@@ -693,8 +759,7 @@ func (h *APIHandler) HandleGetInvoiceByID(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(invoice)
+	writeJSON(w, http.StatusOK, invoice)
 }
 
 // GET /invoices
@@ -702,46 +767,102 @@ func (h *APIHandler) HandleGetInvoices(w http.ResponseWriter, r *http.Request) {
 	status := r.URL.Query().Get("status")
 	issuer := r.URL.Query().Get("issuer")
 
-	invoices, err := db.GetInvoices(r.Context(), status, issuer)
+	// Parse pagination params
+	page := 1
+	limit := 20
+
+	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
+		if v, err := strconv.Atoi(pageStr); err == nil && v >= 1 {
+			page = v
+		} else {
+			http.Error(w, "invalid page parameter: must be a positive integer", http.StatusBadRequest)
+			return
+		}
+	}
+
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		if v, err := strconv.Atoi(limitStr); err == nil && v >= 1 {
+			if v > 100 {
+				limit = 100
+			} else {
+				limit = v
+			}
+		} else {
+			http.Error(w, "invalid limit parameter: must be a positive integer", http.StatusBadRequest)
+			return
+		}
+	}
+
+	offset := (page - 1) * limit
+
+	invoices, total, err := db.GetInvoicesPage(r.Context(), status, issuer, limit, offset)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to retrieve invoices: %s", err.Error()), http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(invoices)
+	// Ensure data is always a JSON array, never null
+	if invoices == nil {
+		invoices = []*db.DbInvoice{}
+	}
+
+	totalPages := (total + limit - 1) / limit
+	if totalPages < 1 {
+		totalPages = 1
+	}
+
+	resp := map[string]interface{}{
+		"data":       invoices,
+		"total":      total,
+		"page":       page,
+		"limit":      limit,
+		"totalPages": totalPages,
+	}
+
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // GET /stats
 func (h *APIHandler) HandleGetStats(w http.ResponseWriter, r *http.Request) {
+	// Try to read the cache with a read lock
+	h.statsMu.RLock()
+	if h.statsData != nil && time.Since(h.statsCached) < 30*time.Second {
+		data := h.statsData
+		h.statsMu.RUnlock()
+		writeJSON(w, http.StatusOK, data)
+		return
+	}
+	h.statsMu.RUnlock()
+
+	// Cache is missing or expired, we need to update it.
+	// Take a write lock (but first we must release the read lock, which we did above).
 	h.statsMu.Lock()
+	// Double-check the cache after acquiring the write lock.
 	if h.statsData != nil && time.Since(h.statsCached) < 30*time.Second {
 		data := h.statsData
 		h.statsMu.Unlock()
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(data)
+		writeJSON(w, http.StatusOK, data)
 		return
 	}
-	h.statsMu.Unlock()
 
-	stats, err := db.GetProtocolStats(r.Context())
+	// Cache is still invalid, fetch from DB and update.
+	stats, err := h.getProtocolStatsFn(r.Context())
 	if err != nil {
+		h.statsMu.Unlock()
 		http.Error(w, fmt.Sprintf("failed to retrieve protocol stats: %s", err.Error()), http.StatusInternalServerError)
 		return
 	}
 
-	h.statsMu.Lock()
 	h.statsData = stats
 	h.statsCached = time.Now()
 	h.statsMu.Unlock()
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(stats)
+	writeJSON(w, http.StatusOK, stats)
 }
 
 // GET /pool/stats
 func (h *APIHandler) HandleGetPoolStats(w http.ResponseWriter, r *http.Request) {
-	stats, err := db.GetPoolStats(r.Context())
+	stats, err := h.getPoolStatsFn(r.Context())
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to retrieve pool statistics: %s", err.Error()), http.StatusInternalServerError)
 		return
@@ -759,8 +880,7 @@ func (h *APIHandler) HandleGetPoolStats(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(stats)
+	writeJSON(w, http.StatusOK, stats)
 }
 
 // GET /events
@@ -773,7 +893,7 @@ func (h *APIHandler) HandleGetEvents(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	events, err := db.GetRecentEvents(r.Context(), limit)
+	events, err := h.getRecentEventsFn(r.Context(), limit)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to retrieve events: %s", err.Error()), http.StatusInternalServerError)
 		return
@@ -783,8 +903,7 @@ func (h *APIHandler) HandleGetEvents(w http.ResponseWriter, r *http.Request) {
 		events = []*db.EventLog{}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(events)
+	writeJSON(w, http.StatusOK, events)
 }
 
 // GET /pool/position/{address}
@@ -806,7 +925,7 @@ func (h *APIHandler) HandleGetLPPosition(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	scValResult, err := ReadContract(h.cfg.SorobanRPCURL, h.cfg.PoolContractID, "get_lp_position", []xdr.ScVal{addrVal}, h.serverKP)
+	scValResult, err := h.readContractFn(r.Context(), h.cfg.SorobanRPCURL, h.cfg.PoolContractID, "get_lp_position", []xdr.ScVal{addrVal}, h.serverKP)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to read LP position from pool: %s", err.Error()), http.StatusInternalServerError)
 		return
@@ -817,22 +936,20 @@ func (h *APIHandler) HandleGetLPPosition(w http.ResponseWriter, r *http.Request)
 	yieldEarned := "0"
 	depositCount := 0
 
-	if val, ok := GetMapVal(scValResult, "shares"); ok {
-		shares, _ = GetU128Val(val)
+	if val, ok := xdrutil.GetMapVal(scValResult, "shares"); ok {
+		shares = xdrutil.ParseU128(val)
 	}
-	if val, ok := GetMapVal(scValResult, "usdc_value"); ok {
-		usdcValue, _ = GetU128Val(val)
+	if val, ok := xdrutil.GetMapVal(scValResult, "usdc_value"); ok {
+		usdcValue = xdrutil.ParseU128(val)
 	}
-	if val, ok := GetMapVal(scValResult, "yield_earned"); ok {
-		yieldEarned, _ = GetU128Val(val)
+	if val, ok := xdrutil.GetMapVal(scValResult, "yield_earned"); ok {
+		yieldEarned = xdrutil.ParseU128(val)
 	}
-	if val, ok := GetMapVal(scValResult, "deposit_count"); ok {
-		depVal, _ := GetU32Val(val)
-		depositCount = int(depVal)
+	if val, ok := xdrutil.GetMapVal(scValResult, "deposit_count"); ok {
+		depositCount = int(xdrutil.ParseU32(val))
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"shares":        shares,
 		"usdc_value":    usdcValue,
 		"yield_earned":  yieldEarned,

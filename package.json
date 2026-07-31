@@ -7,6 +7,7 @@
     "dev": "pnpm --filter web dev",
     "build": "pnpm --filter @trusttrove/sdk build && pnpm --filter web build",
     "lint": "pnpm --filter web lint",
+    "test": "pnpm --filter @trusttrove/sdk test && pnpm --filter web test",
     "typecheck": "pnpm -r exec tsc --noEmit"
   },
   "devDependencies": {

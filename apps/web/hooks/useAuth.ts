@@ -1,15 +1,22 @@
-import { useState } from 'react';
-import { useWalletStore } from '@/store/wallet';
-import { signTransaction } from '@stellar/freighter-api';
-import { Networks } from '@stellar/stellar-sdk';
+import { useState } from "react";
+import { useWalletStore } from "@/store/wallet";
+import { signTransaction } from "@stellar/freighter-api";
+import {
+  fetchChallenge,
+  verifyChallenge,
+  initApiClientWithToken,
+} from "@/lib/api";
+import { createErrorHandler } from "@/lib/errors";
+
+const { captureError } = createErrorHandler("useAuth");
 
 /**
  * Custom hook for authenticating the connected Stellar wallet via SEP-10.
  *
  * Performs a three-step challenge-sign-verify flow:
- * 1. Fetches a challenge transaction XDR from the indexer API.
+ * 1. Fetches a challenge transaction XDR from the indexer API via fetchChallenge.
  * 2. Signs the XDR with the Freighter wallet extension.
- * 3. Submits the signed XDR to the indexer to receive a JWT.
+ * 3. Submits the signed XDR to the indexer via verifyChallenge to receive a JWT.
  *
  * Requires a wallet to be connected first (i.e. `useWallet` must have been called).
  *
@@ -33,17 +40,13 @@ export function useAuth() {
   const [error, setError] = useState<string | null>(null);
 
   /**
-   * Initiates the SEP-10 wallet authentication flow.
-   *
-   * Fetches a challenge XDR from `NEXT_PUBLIC_INDEXER_API_URL`, signs it via
-   * Freighter using `NEXT_PUBLIC_NETWORK_PASSPHRASE` (defaults to Testnet),
-   * then submits the signed transaction to obtain and store a JWT.
+   * Initiates the SEP-10 wallet authentication flow using the api utility functions.
    *
    * @throws Sets `error` state instead of throwing; caller does not need try/catch.
    */
   const login = async () => {
     if (!address) {
-      setError('Wallet not connected');
+      setError("Wallet not connected");
       return;
     }
 
@@ -51,43 +54,25 @@ export function useAuth() {
     setError(null);
 
     try {
-      const apiBaseUrl = process.env.NEXT_PUBLIC_INDEXER_API_URL || 'http://localhost:8080';
+      const { transaction, network_passphrase } = await fetchChallenge(address);
 
-      // 1. Fetch challenge XDR
-      const challengeRes = await fetch(`${apiBaseUrl}/auth?address=${address}`);
-      if (!challengeRes.ok) {
-        throw new Error(`Failed to fetch auth challenge: ${challengeRes.statusText}`);
-      }
-      const challengeData = await challengeRes.json();
-      const { transaction } = challengeData;
-
-      // 2. Sign with Freighter wallet
-      const networkPassphrase = process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE || Networks.TESTNET;
+      const rawNetwork = process.env.NEXT_PUBLIC_STELLAR_NETWORK || "TESTNET";
+      const stellarNetwork =
+        rawNetwork.toUpperCase() === "PUBLIC" ? "PUBLIC" : "TESTNET";
       const signedXdr = await signTransaction(transaction, {
-        network: 'TESTNET',
-        networkPassphrase,
+        network: "TESTNET",
+        networkPassphrase: network_passphrase,
         accountToSign: address,
       });
 
-      // 3. Submit signed challenge to verify and receive JWT
-      const verifyRes = await fetch(`${apiBaseUrl}/auth`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ transaction: signedXdr }),
-      });
-
-      if (!verifyRes.ok) {
-        throw new Error('Authentication failed');
-      }
-
-      const verifyData = await verifyRes.json();
-      setToken(verifyData.token);
+      const { token: jwt } = await verifyChallenge(signedXdr);
+      setToken(jwt);
+      initApiClientWithToken();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Authentication failed';
-      setError(message);
+      const appError = captureError(err);
+      setError(appError.message);
       setToken(null);
+      initApiClientWithToken();
     } finally {
       setLoading(false);
     }
@@ -98,6 +83,7 @@ export function useAuth() {
    */
   const logout = () => {
     setToken(null);
+    initApiClientWithToken();
     disconnect();
   };
 

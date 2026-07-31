@@ -1,58 +1,63 @@
-import { useQuery } from '@tanstack/react-query';
-import { getPoolStats } from '@/lib/api';
+import { useMemo } from "react";
 
-/** A single data point for a chart series. */
-export interface PoolChartDataPoint {
+export interface ChartDataItem {
   label: string;
   value: number;
 }
 
-/** Chart-ready pool statistics broken into display series. */
-export interface PoolChartData {
-  /** Deposit & funding overview (total deposits, total funded). */
-  overview: PoolChartDataPoint[];
-  /** Liquidity breakdown (available vs utilised). */
-  liquidity: PoolChartDataPoint[];
+export interface UsePoolChartDataOptions {
+  data: ChartDataItem[];
+  width?: number;
+  height?: number;
+  padding?: number;
 }
 
-/**
- * Fetches on-chain pool statistics and transforms them into chart-friendly
- * data series suitable for bar / pie / line charts.
- *
- * Uses `@tanstack/react-query` under the hood, caching responses under the
- * `['poolStats']` query key.
- *
- * @returns An object with:
- *   - `chartData` — formatted {@link PoolChartData}, or `null` while loading / on error.
- *   - `isLoading` — `true` while the underlying fetch is in-flight.
- *   - `error` — the fetch error if one occurred, otherwise `null`.
- *   - `refetch` — manually trigger a re-fetch of pool statistics.
- *
- * @example
- * const { chartData, isLoading, error } = usePoolChartData();
- * // Pass `chartData.overview` and `chartData.liquidity` to your chart component.
- */
-export function usePoolChartData() {
-  const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['poolStats'],
-    queryFn: () => getPoolStats(),
-  });
+export function usePoolChartData({
+  data,
+  width = 500,
+  height = 200,
+  padding = 20,
+}: UsePoolChartDataOptions) {
+  const chartLayout = useMemo(() => {
+    if (!data || data.length === 0) {
+      return { linePath: "", areaPath: "", points: [] };
+    }
 
-  const chartData: PoolChartData | null = data
-    ? {
-        overview: [
-          { label: 'Total Deposits', value: Number(data.totalDeposits) },
-          { label: 'Total Funded', value: Number(data.totalFunded) },
-        ],
-        liquidity: [
-          { label: 'Available', value: Number(data.availableLiquidity) },
-          {
-            label: 'Utilised',
-            value: Number(data.totalDeposits - data.availableLiquidity),
-          },
-        ],
-      }
-    : null;
+    const chartWidth = width - padding * 2;
+    const chartHeight = height - padding * 2;
 
-  return { chartData, isLoading, error, refetch };
+    const values = data.map((d) => d.value);
+    const minVal = Math.min(...values);
+    const maxVal = Math.max(...values);
+    const valRange = maxVal - minVal === 0 ? 1 : maxVal - minVal;
+
+    // Map raw data entries into X, Y canvas space coordinate arrays
+    const points = data.map((item, index) => {
+      const x = padding + (index / (data.length - 1)) * chartWidth;
+      const y =
+        padding +
+        chartHeight -
+        ((item.value - minVal) / valRange) * chartHeight;
+      return { x, y, label: item.label, value: item.value };
+    });
+
+    // Generate the SVG continuous Bezier line commands
+    const linePath = points.reduce((acc, pt, i) => {
+      return i === 0 ? `M ${pt.x} ${pt.y}` : `${acc} L ${pt.x} ${pt.y}`;
+    }, "");
+
+    // Close the SVG region loop down to the bottom baseline boundary to create a filled shaded area
+    const areaPath =
+      points.length > 0
+        ? `${linePath} L ${points[points.length - 1].x} ${height - padding} L ${points[0].x} ${height - padding} Z`
+        : "";
+
+    return {
+      linePath,
+      areaPath,
+      points,
+    };
+  }, [data, width, height, padding]);
+
+  return chartLayout;
 }
