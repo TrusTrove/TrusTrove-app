@@ -126,6 +126,20 @@ async function withRetry<T>(
   throw lastError;
 }
 
+/**
+ * Result type returned by transaction simulations.
+ */
+export interface SimulationResult {
+  /** Estimated fee in XLM (formatted to 7 decimal places) */
+  estimatedFeeXlm: string;
+  /** Name of the contract method being simulated */
+  functionName: string;
+  /** Decoded return value from the simulation, or undefined if none */
+  expectedResult: any;
+  /** Number of ledger entries accessed (read-only + read-write) */
+  footprintSize: number;
+}
+
 export class BaseContractClient {
   protected contractId: string;
   private contractInstance: Contract;

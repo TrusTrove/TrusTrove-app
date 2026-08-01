@@ -9,7 +9,7 @@ interface SimulationDetails {
 }
 
 interface SimulationPreviewProps {
-  details: SimulationDetails | null;
+  details: SimulationResult | null;
   error: string | null;
   isLoading: boolean;
   isFallback?: boolean;
