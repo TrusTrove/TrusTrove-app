@@ -7,7 +7,7 @@ import {
   PoolSnapshot,
 } from "@/types";
 
-function parseRawInvoice(raw: any): Invoice {
+export function parseRawInvoice(raw: any): Invoice {
   const invoice: Invoice = {
     id: raw.id,
     issuer: raw.issuer,
@@ -48,7 +48,7 @@ function parseRawInvoice(raw: any): Invoice {
   });
 }
 
-function parseRawPoolStats(raw: any): PoolStats {
+export function parseRawPoolStats(raw: any): PoolStats {
   return {
     totalDeposits: BigInt(raw.total_deposits || 0),
     totalFunded: BigInt(raw.total_funded || 0),
@@ -60,7 +60,7 @@ function parseRawPoolStats(raw: any): PoolStats {
   };
 }
 
-function parseRawLPPosition(raw: any): LPPosition {
+export function parseRawLPPosition(raw: any): LPPosition {
   return {
     shares: BigInt(raw.shares || 0),
     usdcValue: BigInt(raw.usdc_value || 0),
@@ -69,7 +69,7 @@ function parseRawLPPosition(raw: any): LPPosition {
   };
 }
 
-function parseRawEventLog(raw: any): EventLog {
+export function parseRawEventLog(raw: any): EventLog {
   return {
     id: raw.id,
     event_id: raw.event_id,
