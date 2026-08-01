@@ -2,6 +2,7 @@ import {
   isConnected,
   requestAccess,
   getPublicKey,
+  getNetwork,
 } from "@stellar/freighter-api";
 
 export type FreighterErrorCode = "user_rejected" | "not_installed" | "unknown";
@@ -119,4 +120,10 @@ export async function getFreighterPublicKey(): Promise<string> {
     console.error("Failed to get public key from Freighter:", err);
     throw mapFreighterError(err);
   }
+}
+
+const FREIGHTER_APP_URL = "https://www.freighter.app/";
+
+export function getFreighterNetworkSwitchUrl(): string {
+  return `${FREIGHTER_APP_URL}#settings/network`;
 }

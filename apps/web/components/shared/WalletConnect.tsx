@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import * as freighterApi from "@stellar/freighter-api";
 import { useWallet } from "@/hooks/useWallet";
+import type { NetworkSwitchAction } from "@/hooks/useWallet";
 import { Button } from "@/components/ui/button";
 import { isFreighterInstalled } from "@/lib/freighter";
 import { useWalletStore } from "@/store/wallet";
@@ -14,6 +15,8 @@ import {
   Copy,
   Check,
   ExternalLink,
+  ArrowRight,
+  Info,
 } from "lucide-react";
 
 interface FreighterNetworkApi {
@@ -31,6 +34,7 @@ export function WalletConnect() {
     connected,
     connectWallet,
     disconnectWallet,
+    switchNetworkToTestnet,
     loading,
     error: walletError,
     errorCode,
@@ -89,6 +93,11 @@ export function WalletConnect() {
 
   const formatAddress = (addr: string) => {
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+  };
+
+  const handleSwitchNetwork = async () => {
+    const action = await switchNetworkToTestnet();
+    setSwitchAction(action);
   };
 
   // If Freighter is not installed

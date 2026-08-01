@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { WalletConnect } from "./WalletConnect";
 import { useWallet } from "@/hooks/useWallet";
 import { isFreighterInstalled } from "@/lib/freighter";
+import type { NetworkSwitchAction } from "@/hooks/useWallet";
 
 vi.mock("@/hooks/useWallet", () => {
   const state: string = "disconnected";
@@ -16,8 +17,10 @@ vi.mock("@/hooks/useWallet", () => {
           ? "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB"
           : null,
       error: state === "error" ? "Connection failed" : null,
+      network: state === "wrong-network" ? "futurenet" : "testnet",
       connectWallet: vi.fn(),
       disconnectWallet: vi.fn(),
+      switchNetworkToTestnet: vi.fn(),
     })),
   };
 });
@@ -156,8 +159,10 @@ describe("WalletConnect", () => {
       loading: false,
       address,
       error: null,
+      network: "testnet",
       connectWallet: vi.fn(),
       disconnectWallet: vi.fn(),
+      switchNetworkToTestnet: vi.fn(),
     } as any);
     vi.mocked(isFreighterInstalled).mockResolvedValue(true);
 
@@ -169,5 +174,37 @@ describe("WalletConnect", () => {
 
     fireEvent.click(screen.getByLabelText(/Copy wallet address/i));
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(address);
+  });
+
+  it("calls switchNetworkToTestnet when Switch to Testnet button is clicked", async () => {
+    const mockSwitch = vi.fn().mockResolvedValue({
+      needsManualSwitch: true,
+      message:
+        "Your Freighter wallet is on futurenet. Please switch to Testnet in Freighter, then reconnect.",
+      switchUrl: "https://www.freighter.app/#settings/network",
+    } as NetworkSwitchAction);
+
+    vi.mocked(useWallet).mockReturnValue({
+      connected: true,
+      loading: false,
+      address: "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGBYZ",
+      error: null,
+      network: "futurenet",
+      connectWallet: vi.fn(),
+      disconnectWallet: vi.fn(),
+      switchNetworkToTestnet: mockSwitch,
+    } as any);
+    vi.mocked(isFreighterInstalled).mockResolvedValue(true);
+
+    render(<WalletConnect />);
+
+    const switchButton = await screen.findByText(/Switch to Testnet/i);
+    fireEvent.click(switchButton);
+
+    expect(mockSwitch).toHaveBeenCalledTimes(1);
+    expect(mockSwitch).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+    );
   });
 });
