@@ -10,6 +10,12 @@ import { useBalances } from "@/hooks/useBalances";
 import { useProfile } from "@/hooks/useProfile";
 import { Wallet, Shield, Terminal, ExternalLink, Menu, X } from "lucide-react";
 
+type UserRole = 'issuer' | 'buyer' | 'lp';
+
+function isUserRole(value: string): value is UserRole {
+  return value === 'issuer' || value === 'buyer' || value === 'lp';
+}
+
 export function Navbar() {
   const pathname = usePathname();
   const { role, setRole, connected } = useWalletStore();
@@ -125,7 +131,12 @@ export function Navbar() {
                   </span>
                   <select
                     value={role}
-                    onChange={(e) => setRole(e.target.value as any)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (isUserRole(value)) {
+                        setRole(value);
+                      }
+                    }}
                     className="bg-transparent text-xs text-white border-none focus:ring-0 focus:outline-none font-bold font-mono cursor-pointer pr-5 py-0"
                   >
                     <option
