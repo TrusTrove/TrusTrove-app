@@ -7,3 +7,4 @@ export * from "./clients/pool.js";
 export * from "./clients/escrow.js";
 export * from "./clients/token.js";
 export * from "./types/schemas.js";
+export type { SimulationResult } from "./base.js";

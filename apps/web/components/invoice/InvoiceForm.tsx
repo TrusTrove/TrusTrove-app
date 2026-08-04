@@ -8,6 +8,7 @@ import type { AssetType } from "@/types";
 import { ASSET_OPTIONS } from "@/lib/assets";
 import { AmountInput } from "@/components/shared/AmountInput";
 import { useWalletStore } from "@/store/wallet";
+import { DatePicker } from "@/components/ui/date-picker";
 
 const invoiceContractID = process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID || "";
 
@@ -285,15 +286,10 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
               <label className="block text-[10px] font-bold font-mono text-slate-500 uppercase tracking-wider">
                 Due Date
               </label>
-              <input
-                type="date"
-                min={
-                  new Date(Date.now() + 86400000).toISOString().split("T")[0]
-                }
+              <DatePicker
                 value={dueDate}
-                onChange={(event) => setDueDate(event.target.value)}
-                className="w-full bg-[#080c10] border border-border rounded px-3 py-2.5 text-white text-xs font-mono min-h-[44px]"
-                required
+                onChange={setDueDate}
+                minDate={new Date()}
               />
               <span className="text-[10px] font-mono text-slate-500 block mt-1">
                 Select invoice maturity date
