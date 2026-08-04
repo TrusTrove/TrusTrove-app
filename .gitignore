@@ -1,6 +1,7 @@
 # Dependency directories
 node_modules/
 /jspm_packages/
+.tools/
 
 # Build outputs
 **/dist/
@@ -40,5 +41,3 @@ pnpm-debug.log*
 .DS_Store
 Thumbs.db
 .neon
-create_pr.ps1
-build_output.txt

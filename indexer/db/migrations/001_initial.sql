@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS invoices (
     shipped_at BIGINT,
     issuer_confirmed BOOLEAN NOT NULL DEFAULT FALSE,
     buyer_confirmed BOOLEAN NOT NULL DEFAULT FALSE,
+    buyer_confirmed_at BIGINT,
     repaid_at BIGINT
 );
 

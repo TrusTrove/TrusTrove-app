@@ -61,7 +61,10 @@ func makeContractAddressScVal(address string) xdr.ScVal {
 
 // makeMapScVal builds a map ScVal from key→value pairs.
 // ScVal.Map is **xdr.ScMap (nullable XDR pointer), so we build via two pointer steps.
-func makeMapScVal(entries []struct{ key string; val xdr.ScVal }) xdr.ScVal {
+func makeMapScVal(entries []struct {
+	key string
+	val xdr.ScVal
+}) xdr.ScVal {
 	var scMap xdr.ScMap
 	for _, e := range entries {
 		sym := xdr.ScSymbol(e.key)
@@ -217,7 +220,10 @@ func TestParseU64_WrongType(t *testing.T) {
 
 func TestGetMapVal_Found(t *testing.T) {
 	wantVal := makeU32ScVal(777)
-	mapVal := makeMapScVal([]struct{ key string; val xdr.ScVal }{
+	mapVal := makeMapScVal([]struct {
+		key string
+		val xdr.ScVal
+	}{
 		{"amount", wantVal},
 	})
 
@@ -231,7 +237,10 @@ func TestGetMapVal_Found(t *testing.T) {
 }
 
 func TestGetMapVal_NotFound(t *testing.T) {
-	mapVal := makeMapScVal([]struct{ key string; val xdr.ScVal }{
+	mapVal := makeMapScVal([]struct {
+		key string
+		val xdr.ScVal
+	}{
 		{"x", makeU32ScVal(1)},
 	})
 	_, ok := GetMapVal(mapVal, "missing")

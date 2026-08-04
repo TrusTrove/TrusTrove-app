@@ -1,5 +1,5 @@
-import Link from 'next/link';
-import { FileQuestion, Home, ListChecks } from 'lucide-react';
+import Link from "next/link";
+import { FileQuestion, Home, ListChecks } from "lucide-react";
 
 export default function NotFound() {
   return (

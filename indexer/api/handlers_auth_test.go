@@ -20,10 +20,15 @@ const testNetworkPassphrase = "Test SDF Network ; September 2015"
 // newTestHandler creates an APIHandler backed by a deterministic test keypair.
 func newTestHandler(t *testing.T) *APIHandler {
 	t.Helper()
+	serverKP, err := keypair.Random()
+	if err != nil {
+		t.Fatalf("generate test keypair: %v", err)
+	}
 	cfg := &config.Config{
 		NetworkPassphrase: testNetworkPassphrase,
 		JWTSecret:         "test-jwt-secret-for-unit-tests",
 		JWTExpiryHours:    24,
+		ServerSeed:        serverKP.Seed(),
 	}
 	h, err := NewAPIHandler(cfg)
 	if err != nil {

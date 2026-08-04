@@ -1,25 +1,28 @@
 # How to Contribute
 
-TrusTrove is open source and actively looking for contributors through the 
+TrusTrove is open source and actively looking for contributors through the
 Stellar Wave program on Drips.
 
 ### Find an issue
 
 All open issues are on GitHub:
+
 - [TrusTrove-app issues](https://github.com/TrusTrove/TrusTrove-app/issues)
 - [TrusTrove-contract issues](https://github.com/TrusTrove/TrusTrove-contract/issues)
 
 Issues are labeled by complexity:
+
 - `complexity:low` — isolated scope, good starting point
 - `complexity:medium` — touches 2–3 components
 - `complexity:high` — architectural changes
 
-Assign yourself to an issue before starting work. If two people are working on 
+Assign yourself to an issue before starting work. If two people are working on
 the same issue, only one PR will be merged.
 
 ### Setup
 
 Follow the local setup guide for the repo you are contributing to:
+
 - [App repo setup](../developer-guide/local-setup.md)
 - [Contracts repo setup](https://github.com/TrusTrove/TrusTrove-contract#quick-start)
 
@@ -44,6 +47,7 @@ docs(api): add indexer pagination reference
 ### PR checklist
 
 Before opening a PR:
+
 - [ ] All existing tests pass
 - [ ] New tests written for new functionality
 - [ ] TypeScript compiles with no errors (`tsc --noEmit`)

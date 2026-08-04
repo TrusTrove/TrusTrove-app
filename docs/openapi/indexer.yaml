@@ -16,8 +16,8 @@ info:
 servers:
   - url: http://localhost:8080
     description: Local development
-  - url: https://api.trusttrove.example
-    description: Deployment placeholder
+  - url: https://trusttrove-app.onrender.com
+    description: Production
 
 tags:
   - name: Health
@@ -37,12 +37,12 @@ paths:
       summary: Health check
       security: []
       responses:
-        '200':
+        "200":
           description: API is alive
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HealthResponse'
+                $ref: "#/components/schemas/HealthResponse"
               examples:
                 ok:
                   value:
@@ -62,19 +62,19 @@ paths:
             type: string
           example: GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF
       responses:
-        '200':
+        "200":
           description: Challenge transaction generated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthChallengeResponse'
+                $ref: "#/components/schemas/AuthChallengeResponse"
               examples:
                 challenge:
                   value:
                     transaction: AAAAAgAAA...
                     network_passphrase: Test SDF Network ; September 2015
-        '400':
-          $ref: '#/components/responses/BadRequest'
+        "400":
+          $ref: "#/components/responses/BadRequest"
     post:
       tags: [Auth]
       summary: Exchange signed SEP-10 challenge for JWT
@@ -85,27 +85,27 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AuthRequest'
+              $ref: "#/components/schemas/AuthRequest"
             examples:
               signedChallenge:
                 value:
                   transaction: AAAAAgAAA...signed...
       responses:
-        '200':
+        "200":
           description: Authentication successful
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthTokenResponse'
+                $ref: "#/components/schemas/AuthTokenResponse"
               examples:
                 token:
                   value:
                     token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
                     expires_in: 86400
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /events:
     get:
@@ -113,10 +113,10 @@ paths:
       summary: List indexed Soroban events
       security: []
       parameters:
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Cursor'
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
       responses:
-        '200':
+        "200":
           description: Indexed events
           content:
             application/json:
@@ -126,7 +126,7 @@ paths:
                   events:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Event'
+                      $ref: "#/components/schemas/Event"
                   next_cursor:
                     type: string
                     nullable: true
@@ -148,10 +148,10 @@ paths:
           required: false
           schema:
             type: string
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Cursor'
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
       responses:
-        '200':
+        "200":
           description: Invoice list
           content:
             application/json:
@@ -161,7 +161,7 @@ paths:
                   invoices:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Invoice'
+                      $ref: "#/components/schemas/Invoice"
                   next_cursor:
                     type: string
                     nullable: true
@@ -176,25 +176,25 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateInvoiceRequest'
+              $ref: "#/components/schemas/CreateInvoiceRequest"
             examples:
               invoice:
                 value:
                   buyer: GBUYERAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-                  face_value: '1000.00'
+                  face_value: "1000.00"
                   due_date: 1735689600
                   asset: USDC
       responses:
-        '201':
+        "201":
           description: Invoice created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Invoice'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+                $ref: "#/components/schemas/Invoice"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /invoices/{id}:
     get:
@@ -207,16 +207,16 @@ paths:
           required: true
           schema:
             type: string
-          example: inv_01HZY...
+          example: a3f8c1d27e904b6a8d5f0139c2e7ab64f0d8c3b19a6e52f7b4c0d91e8a2735bc
       responses:
-        '200':
+        "200":
           description: Invoice found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Invoice'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                $ref: "#/components/schemas/Invoice"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /stats:
     get:
@@ -224,12 +224,12 @@ paths:
       summary: Protocol statistics
       security: []
       responses:
-        '200':
+        "200":
           description: Protocol aggregate stats
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ProtocolStats'
+                $ref: "#/components/schemas/ProtocolStats"
 
   /pool/stats:
     get:
@@ -237,12 +237,12 @@ paths:
       summary: Liquidity pool statistics
       security: []
       responses:
-        '200':
+        "200":
           description: Pool aggregate stats
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PoolStats'
+                $ref: "#/components/schemas/PoolStats"
 
   /pool/position/{address}:
     get:
@@ -257,14 +257,14 @@ paths:
             type: string
           example: GLPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
       responses:
-        '200':
+        "200":
           description: LP position
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LPPosition'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                $ref: "#/components/schemas/LPPosition"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
 components:
   securitySchemes:
@@ -296,107 +296,98 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
-          examples:
-            invalid:
-              value:
-                error: invalid request payload
+            $ref: "#/components/schemas/Error"
     Unauthorized:
-      description: Missing, invalid, or expired bearer token
+      description: Authentication required or invalid
       content:
-        text/plain:
+        application/json:
           schema:
-            type: string
-          example: 'Unauthorized: missing token'
+            $ref: "#/components/schemas/Error"
     NotFound:
       description: Resource not found
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
-          examples:
-            notFound:
-              value:
-                error: not found
+            $ref: "#/components/schemas/Error"
 
   schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+
     HealthResponse:
       type: object
-      required: [status]
       properties:
         status:
           type: string
-          example: ok
+      required: [status]
 
     AuthChallengeResponse:
       type: object
-      required: [transaction]
       properties:
         transaction:
           type: string
-          description: Base64-encoded SEP-10 challenge transaction XDR.
         network_passphrase:
           type: string
+      required: [transaction, network_passphrase]
 
     AuthRequest:
       type: object
-      required: [transaction]
       properties:
         transaction:
           type: string
-          description: Base64-encoded signed SEP-10 challenge transaction XDR.
+      required: [transaction]
 
     AuthTokenResponse:
       type: object
-      required: [token]
       properties:
         token:
           type: string
         expires_in:
           type: integer
-          description: Token lifetime in seconds.
+      required: [token, expires_in]
 
     CreateInvoiceRequest:
       type: object
-      required: [buyer, face_value, due_date]
       properties:
         buyer:
           type: string
         face_value:
           type: string
-          example: '1000.00'
         due_date:
           type: integer
           format: int64
-          description: Unix timestamp.
         asset:
           type: string
-          default: USDC
+      required: [buyer, face_value, due_date, asset]
 
     Invoice:
       type: object
       properties:
         id:
           type: string
+          description: Hexadecimal BytesN<32> invoice identifier.
+          pattern: "^[0-9a-fA-F]{64}$"
         issuer:
           type: string
         buyer:
           type: string
         face_value:
           type: string
+        funded_amount:
+          type: string
         due_date:
           type: integer
           format: int64
-        asset:
-          type: string
         status:
           type: string
         created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
+          type: integer
+          format: int64
+      required: [id, issuer, buyer, face_value, due_date, status]
 
     Event:
       type: object
@@ -405,56 +396,60 @@ components:
           type: string
         contract_id:
           type: string
-        topic:
+        type:
           type: string
-        payload:
-          type: object
-          additionalProperties: true
         ledger:
           type: integer
-        created_at:
+          format: int64
+        transaction_hash:
           type: string
-          format: date-time
+        data:
+          type: object
+          additionalProperties: true
+      required: [id, contract_id, type]
 
     ProtocolStats:
       type: object
       properties:
+        total_usdc_financed:
+          type: string
+        active_invoice_count:
+          type: integer
         total_invoices:
           type: integer
-        total_financed:
-          type: string
         total_repaid:
-          type: string
-        active_lps:
+          type: integer
+        total_defaulted:
+          type: integer
+        average_yield_bps:
+          type: integer
+        pool_utilization_bps:
           type: integer
 
     PoolStats:
       type: object
       properties:
-        total_liquidity:
+        total_deposits:
+          type: string
+        total_funded:
           type: string
         available_liquidity:
           type: string
-        utilization_bps:
+        utilization_rate_bps:
           type: integer
-        apy_bps:
+        total_yield_distributed:
+          type: string
+        active_invoice_count:
           type: integer
 
     LPPosition:
       type: object
       properties:
-        address:
-          type: string
         shares:
           type: string
-        deposited:
+        usdc_value:
           type: string
-        claimable_yield:
+        yield_earned:
           type: string
-
-    ErrorResponse:
-      type: object
-      required: [error]
-      properties:
-        error:
-          type: string
+        deposit_count:
+          type: integer
