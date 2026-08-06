@@ -46,6 +46,41 @@ jobs:
       - name: Check Formatting
         run: npx prettier --check .
 
+  verify-e2e-tests:
+    name: Run E2E Tests (Playwright)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Browsers
+        run: pnpm --filter web exec playwright install --with-deps chromium
+
+      - name: Build Packages (SDK & Web App)
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_REGISTRY_CONTRACT_ID: CABGWVIZFF62FG67ZGFEP67NEEY4WYTMFURDMFTKKNRDAFPKPOJDTN4C
+          NEXT_PUBLIC_INVOICE_CONTRACT_ID: CA4O3MR7LWHRSUDBNU6FY6UDFFYBN7TGBZXBDZB4OYYXFYXIFJ6RJF6B
+          NEXT_PUBLIC_POOL_CONTRACT_ID: CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS
+          NEXT_PUBLIC_ESCROW_CONTRACT_ID: CAJWGUKDTTC3SKN4RAAY72J4DVIIYSCFHX6GIMNTT22ABMISJK4GBCEH
+
+      - name: Run E2E Tests
+        run: pnpm test:e2e
+
   verify-go-indexer:
     name: Verify Go Indexer & API
     runs-on: ubuntu-latest
@@ -57,7 +92,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          go-version-file: "indexer/go.mod"
 
       - name: Get Dependencies
         run: |
