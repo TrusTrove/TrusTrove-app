@@ -181,42 +181,44 @@ test.describe("Wallet Connect & SEP-10 Auth Flow", () => {
 });
 
 baseTest.describe("Wallet Error Handling & Uninstalled Extension", () => {
-  baseTest("Displays user cancellation message when request is rejected", async ({
-    page,
-  }) => {
-    await page.addInitScript(() => {
-      window.freighter = {
-        isConnected: () => Promise.resolve(true),
-        isAllowed: () => Promise.resolve(true),
-        setAllowed: () => Promise.resolve(),
-        requestAccess: () =>
-          Promise.reject(new Error("User rejected this request")),
-        signTransaction: () => Promise.resolve(""),
-        signAuthEntry: () => Promise.resolve(""),
-        getPublicKey: () => Promise.resolve(""),
-        getNetworkDetails: () => Promise.resolve({ network: "TESTNET" }),
-      };
-    });
+  baseTest(
+    "Displays user cancellation message when request is rejected",
+    async ({ page }) => {
+      await page.addInitScript(() => {
+        window.freighter = {
+          isConnected: () => Promise.resolve(true),
+          isAllowed: () => Promise.resolve(true),
+          setAllowed: () => Promise.resolve(),
+          requestAccess: () =>
+            Promise.reject(new Error("User rejected this request")),
+          signTransaction: () => Promise.resolve(""),
+          signAuthEntry: () => Promise.resolve(""),
+          getPublicKey: () => Promise.resolve(""),
+          getNetworkDetails: () => Promise.resolve({ network: "TESTNET" }),
+        };
+      });
 
-    await page.goto("/");
-    const connectBtn = page.getByRole("button", { name: /CONNECT WALLET/i });
-    await connectBtn.click();
+      await page.goto("/");
+      const connectBtn = page.getByRole("button", { name: /CONNECT WALLET/i });
+      await connectBtn.click();
 
-    await expect(
-      page.getByText(/You cancelled the connection request/i),
-    ).toBeVisible();
-  });
+      await expect(
+        page.getByText(/You cancelled the connection request/i),
+      ).toBeVisible();
+    },
+  );
 
-  baseTest("Displays Install Freighter link when extension is missing", async ({
-    page,
-  }) => {
-    await page.addInitScript(() => {
-      delete (window as any).freighter;
-    });
+  baseTest(
+    "Displays Install Freighter link when extension is missing",
+    async ({ page }) => {
+      await page.addInitScript(() => {
+        delete (window as any).freighter;
+      });
 
-    await page.goto("/");
-    await expect(
-      page.getByRole("link", { name: /Install Freighter/i }),
-    ).toBeVisible();
-  });
+      await page.goto("/");
+      await expect(
+        page.getByRole("link", { name: /Install Freighter/i }),
+      ).toBeVisible();
+    },
+  );
 });

@@ -23,9 +23,9 @@ test.describe("Invoice Lifecycle - Happy Path", () => {
     await page.getByRole("button", { name: /Create Invoice/i }).click();
 
     await page
-      .getByLabelText(/Buyer Address/i)
+      .getByLabel(/Buyer Address/i)
       .fill("GBBUYERXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
-    await page.getByLabelText(/Face Value/i).fill("1000");
+    await page.getByLabel(/Face Value/i).fill("1000");
     await page.getByRole("button", { name: /Next/i }).click();
 
     await page.getByRole("button", { name: /Confirm & Create/i }).click();
