@@ -67,11 +67,6 @@ export async function apiFetch<T>(
   options: RequestInit = {},
 ): Promise<T> {
   const token = useWalletStore.getState().token;
-  cachedToken = token;
-}
-
-async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = cachedToken || useWalletStore.getState().token;
   const headers = new Headers(options.headers || {});
 
   if (token) {
