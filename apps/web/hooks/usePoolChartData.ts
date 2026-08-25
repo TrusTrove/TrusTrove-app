@@ -12,8 +12,6 @@ export interface UsePoolChartDataOptions {
   padding?: number;
 }
 
-const SINGLE_POINT_MARKER_RADIUS = 4;
-
 export function usePoolChartData({
   data,
   width = 500,
@@ -33,10 +31,10 @@ export function usePoolChartData({
     const maxVal = Math.max(...values);
     const valRange = maxVal - minVal === 0 ? 1 : maxVal - minVal;
 
-    // Map raw data entries into X, Y canvas space coordinate arrays
+    // Handle single point or multiple points with zero denominator safely
     const points = data.map((item, index) => {
       const x =
-        data.length === 1
+        data.length <= 1
           ? padding + chartWidth / 2
           : padding + (index / (data.length - 1)) * chartWidth;
       const y =
@@ -46,22 +44,16 @@ export function usePoolChartData({
       return { x, y, label: item.label, value: item.value };
     });
 
-    // Generate the SVG continuous Bezier line commands. A single SVG move
-    // command is not visible, so render a small horizontal marker instead.
-    const linePath =
-      points.length === 1
-        ? `M ${points[0].x - SINGLE_POINT_MARKER_RADIUS} ${points[0].y} L ${points[0].x + SINGLE_POINT_MARKER_RADIUS} ${points[0].y}`
-        : points.reduce((acc, pt, i) => {
-            return i === 0 ? `M ${pt.x} ${pt.y}` : `${acc} L ${pt.x} ${pt.y}`;
-          }, "");
+    // Generate the SVG continuous Bezier line commands
+    const linePath = points.reduce((acc, pt, i) => {
+      return i === 0 ? `M ${pt.x} ${pt.y}` : `${acc} L ${pt.x} ${pt.y}`;
+    }, "");
 
     // Close the SVG region loop down to the bottom baseline boundary to create a filled shaded area
     const areaPath =
-      points.length === 1
-        ? `${linePath} L ${points[0].x + SINGLE_POINT_MARKER_RADIUS} ${height - padding} L ${points[0].x - SINGLE_POINT_MARKER_RADIUS} ${height - padding} Z`
-        : points.length > 0
-          ? `${linePath} L ${points[points.length - 1].x} ${height - padding} L ${points[0].x} ${height - padding} Z`
-          : "";
+      points.length > 0
+        ? `${linePath} L ${points[points.length - 1].x} ${height - padding} L ${points[0].x} ${height - padding} Z`
+        : "";
 
     return {
       linePath,
