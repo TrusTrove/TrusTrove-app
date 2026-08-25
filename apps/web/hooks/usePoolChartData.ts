@@ -31,9 +31,12 @@ export function usePoolChartData({
     const maxVal = Math.max(...values);
     const valRange = maxVal - minVal === 0 ? 1 : maxVal - minVal;
 
-    // Map raw data entries into X, Y canvas space coordinate arrays
+    // Handle single point or multiple points with zero denominator safely
     const points = data.map((item, index) => {
-      const x = padding + (index / (data.length - 1)) * chartWidth;
+      const x =
+        data.length <= 1
+          ? padding + chartWidth / 2
+          : padding + (index / (data.length - 1)) * chartWidth;
       const y =
         padding +
         chartHeight -
