@@ -26,6 +26,19 @@ export function usePoolChartData({
     const chartWidth = width - padding * 2;
     const chartHeight = height - padding * 2;
 
+    // If only one snapshot has been indexed, render a single-point placeholder to prevent division by zero (NaN)
+    if (data.length === 1) {
+      const item = data[0];
+      const x = padding + chartWidth / 2;
+      const y = padding + chartHeight / 2;
+      const points = [{ x, y, label: item.label, value: item.value }];
+      return {
+        linePath: `M ${x} ${y}`,
+        areaPath: `M ${x} ${y} L ${x} ${height - padding} L ${x} ${height - padding} Z`,
+        points,
+      };
+    }
+
     const values = data.map((d) => d.value);
     const minVal = Math.min(...values);
     const maxVal = Math.max(...values);
