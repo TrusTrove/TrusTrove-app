@@ -29,7 +29,7 @@ export default function NotFound() {
           </Link>
 
           <Link
-            href="/invoices"
+            href="/marketplace"
             className="w-full font-bold uppercase tracking-wider text-xs rounded py-2.5 flex items-center justify-center gap-1.5 border border-border bg-transparent hover:bg-slate-900 text-slate-300 transition-all"
           >
             <ListChecks className="w-3.5 h-3.5" />
