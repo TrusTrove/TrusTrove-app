@@ -26,7 +26,7 @@ export function parseRawInvoice(raw: any): Invoice {
     repaidAt: raw.repaid_at ? Number(raw.repaid_at) : null,
   };
 
-  return Object.assign(invoice, {
+  return Object.assign(invoice, { 
     listedAt: raw.listed_at ? Number(raw.listed_at) : null,
     issuerConfirmedAt: raw.issuer_confirmed_at
       ? Number(raw.issuer_confirmed_at)
