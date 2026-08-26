@@ -97,36 +97,57 @@ export async function apiFetch<T>(
   return res.json() as Promise<T>;
 }
 
-export function parseRawPoolStats(raw: any): PoolStats {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function toBigInt(val: unknown): bigint {
+  if (typeof val === "bigint") return val;
+  if (typeof val === "number") return BigInt(val);
+  if (typeof val === "string") return BigInt(val);
+  return 0n;
+}
+
+function toNumber(val: unknown): number {
+  if (typeof val === "number") return val;
+  if (typeof val === "bigint") return Number(val);
+  if (typeof val === "string") return Number(val);
+  return 0;
+}
+
+export function parseRawPoolStats(raw: unknown): PoolStats {
+  const r = isRecord(raw) ? raw : {};
   return {
-    totalDeposits: BigInt(raw.total_deposits || 0),
-    totalFunded: BigInt(raw.total_funded || 0),
-    availableLiquidity: BigInt(raw.available_liquidity || 0),
-    utilizationRateBps: Number(raw.utilization_rate_bps || 0),
-    totalYieldDistributed: BigInt(raw.total_yield_distributed || 0),
-    activeInvoiceCount: Number(raw.active_invoice_count || 0),
-    totalShares: BigInt(raw.total_shares || 0),
+    totalDeposits: toBigInt(r.total_deposits),
+    totalFunded: toBigInt(r.total_funded),
+    availableLiquidity: toBigInt(r.available_liquidity),
+    utilizationRateBps: toNumber(r.utilization_rate_bps),
+    totalYieldDistributed: toBigInt(r.total_yield_distributed),
+    activeInvoiceCount: toNumber(r.active_invoice_count),
+    totalShares: toBigInt(r.total_shares),
   };
 }
 
-export function parseRawLPPosition(raw: any): LPPosition {
+export function parseRawLPPosition(raw: unknown): LPPosition {
+  const r = isRecord(raw) ? raw : {};
   return {
-    shares: BigInt(raw.shares || 0),
-    usdcValue: BigInt(raw.usdc_value || 0),
-    yieldEarned: BigInt(raw.yield_earned || 0),
-    depositCount: Number(raw.deposit_count || 0),
+    shares: toBigInt(r.shares),
+    usdcValue: toBigInt(r.usdc_value),
+    yieldEarned: toBigInt(r.yield_earned),
+    depositCount: toNumber(r.deposit_count),
   };
 }
 
-export function parseRawEventLog(raw: any): EventLog {
+export function parseRawEventLog(raw: unknown): EventLog {
+  const r = isRecord(raw) ? raw : {};
   return {
-    id: raw.id,
-    event_id: raw.event_id,
-    contract_id: raw.contract_id,
-    ledger: raw.ledger,
-    ledger_closed_at: raw.ledger_closed_at,
-    event_type: raw.event_type,
-    data: raw.data || {},
+    id: toNumber(r.id),
+    event_id: String(r.event_id ?? ""),
+    contract_id: String(r.contract_id ?? ""),
+    ledger: toNumber(r.ledger),
+    ledger_closed_at: toNumber(r.ledger_closed_at),
+    event_type: String(r.event_type ?? ""),
+    data: (r.data as Record<string, unknown>) || {},
   };
 }
 
