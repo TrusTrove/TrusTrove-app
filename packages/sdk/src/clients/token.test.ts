@@ -23,14 +23,10 @@ vi.mock("../config.js", () => ({
   getConfig: vi.fn(),
 }));
 
-const owner =
-  "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB";
-const spender =
-  "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
-const signer =
-  "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB";
-const usdcIssuer =
-  "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
+const owner = "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB";
+const spender = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
+const signer = "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB";
+const usdcIssuer = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
 
 describe("TokenClient", () => {
   let client: TokenClient;
@@ -69,9 +65,8 @@ describe("TokenClient", () => {
       const result = await client.allowance(owner, spender, signer);
 
       expect(result).toBe(1250000n);
-      const [method, args, publicKey] = vi.mocked(
-        client["readContract"],
-      ).mock.calls[0];
+      const [method, args, publicKey] = vi.mocked(client["readContract"]).mock
+        .calls[0];
       expect(method).toBe("allowance");
       expect(args).toHaveLength(2);
       expect(scValToNative(args[0])).toBe(owner);
@@ -94,12 +89,17 @@ describe("TokenClient", () => {
     it("encodes addresses, amount, and expiration ledger", async () => {
       vi.mocked(client["writeContract"]).mockResolvedValue("mock-hash");
 
-      const result = await client.approve(owner, spender, 987654321n, 456789, signer);
+      const result = await client.approve(
+        owner,
+        spender,
+        987654321n,
+        456789,
+        signer,
+      );
 
       expect(result).toBe("mock-hash");
-      const [method, args, publicKey] = vi.mocked(
-        client["writeContract"],
-      ).mock.calls[0];
+      const [method, args, publicKey] = vi.mocked(client["writeContract"]).mock
+        .calls[0];
       expect(method).toBe("approve");
       expect(args).toHaveLength(4);
       expect(scValToNative(args[0])).toBe(owner);
