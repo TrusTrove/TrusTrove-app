@@ -9,6 +9,16 @@ import { Invoice, InvoiceStatus } from "../types/index.js";
 import { parseInvoice } from "../types/schemas.js";
 
 export class InvoiceClient extends BaseContractClient {
+  /**
+   * Initializes the invoice contract with its admin address.
+   * Side effect: stores the admin address on-chain. Can only be called once —
+   * a second call panics.
+   *
+   * @param adminAddress - The Stellar address to set as the contract admin.
+   * @param signerPublicKey - The Stellar public key that will sign the transaction. Must be the deployer/admin.
+   * @returns The transaction hash of the on-chain submission.
+   * @throws If the contract is already initialized, the transaction simulation fails, or on-chain submission errors.
+   */
   async initialize(
     adminAddress: string,
     signerPublicKey: string,
@@ -17,6 +27,19 @@ export class InvoiceClient extends BaseContractClient {
     return this.writeContract("initialize", args, signerPublicKey);
   }
 
+  /**
+   * Creates a new invoice on-chain in `Created` status.
+   * Side effect: stores the invoice record and emits an event consumed by the indexer.
+   * Both `issuer` and `buyer` must be registered in the registry contract.
+   *
+   * @param issuer - The Stellar address of the invoice issuer (SME). Must match `signerPublicKey` — `issuer.require_auth()` is enforced on-chain.
+   * @param buyer - The Stellar address of the invoice buyer.
+   * @param faceValue - The invoice face value in USDC stroops (1 USDC = 10,000,000 stroops).
+   * @param dueDate - The invoice due date as a Unix timestamp in seconds.
+   * @param signerPublicKey - The Stellar public key that will sign the transaction. Must be the invoice issuer.
+   * @returns The transaction hash of the on-chain submission.
+   * @throws If `issuer` or `buyer` is not registered in the registry contract, the transaction simulation fails, or on-chain submission errors.
+   */
   async create(
     issuer: string,
     buyer: string,
@@ -57,6 +80,15 @@ export class InvoiceClient extends BaseContractClient {
     );
   }
 
+  /**
+   * Marks an invoice as shipped on-chain.
+   * Side effect: the invoice status transitions to `Active`.
+   *
+   * @param invoiceIdHex - The invoice ID as a 32-byte hex string.
+   * @param signerPublicKey - The Stellar public key that will sign the transaction. Must be the invoice issuer.
+   * @returns `true` when the transaction succeeds on-chain.
+   * @throws If the transaction simulation fails or the on-chain submission errors.
+   */
   async markShipped(
     invoiceIdHex: string,
     signerPublicKey: string,
@@ -105,6 +137,16 @@ export class InvoiceClient extends BaseContractClient {
     return this.writeContract("repay", args, signerPublicKey).then(() => true);
   }
 
+  /**
+   * Triggers a default on an overdue invoice on-chain.
+   * Side effect: the invoice status transitions to `Defaulted` and `pool_contract.handle_default()` is invoked.
+   * Only callable by the contract admin or the pool contract, and only after the invoice's due date has passed.
+   *
+   * @param invoiceIdHex - The invoice ID as a 32-byte hex string.
+   * @param signerPublicKey - The Stellar public key that will sign the transaction. Must be the contract admin.
+   * @returns `true` when the transaction succeeds on-chain.
+   * @throws If the invoice is not in `Funded`, `Active`, or `Confirmed` status, its due date has not passed, the transaction simulation fails, or on-chain submission errors.
+   */
   async triggerDefault(
     invoiceIdHex: string,
     signerPublicKey: string,
