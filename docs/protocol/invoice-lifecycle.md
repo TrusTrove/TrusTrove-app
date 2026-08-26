@@ -29,6 +29,10 @@ The SME sets a discount rate and makes the invoice visible in the marketplace. L
 providers can see and fund it. The discount rate is final — it cannot be changed after
 listing.
 
+Listing requires a stored risk attestation from a registered Underwrite agent (see
+[submit_attestation](../smart-contracts/invoice-contract.md#submit_attestation) for the
+full mechanism). If none exists, the call fails fast with `VerificationRequired`.
+
 ### Funded
 
 Triggered by: `pool_contract.fund_invoice(invoice_id)`  

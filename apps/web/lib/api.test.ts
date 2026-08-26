@@ -10,14 +10,12 @@ import {
   getLPPosition,
   getRecentEvents,
   getPoolSnapshots,
-  parseRawInvoice,
   parseRawPoolStats,
   parseRawLPPosition,
   initApiClientWithToken,
   apiClient,
 } from "./api";
 import { useWalletStore } from "@/store/wallet";
-import type { AssetType } from "@/types";
 
 // Mock useWalletStore
 vi.mock("@/store/wallet", () => ({
@@ -99,86 +97,6 @@ describe("apiFetch internal function", () => {
     await expect(fetchChallenge("GTEST")).rejects.toThrow(
       "HTTP error! status: 500",
     );
-  });
-});
-
-describe("parseRawInvoice", () => {
-  it("should parse a complete invoice correctly", () => {
-    const raw = {
-      id: "test-invoice-id",
-      issuer: "GISSUER",
-      buyer: "GBUYER",
-      face_value: "10000000000",
-      asset: "USDC",
-      discount_bps: 200,
-      funded_amount: "9800000000",
-      due_date: 123456789,
-      status: "FUNDED",
-      created_at: 987654321,
-      funded_at: 987654322,
-      shipped_at: null,
-      issuer_confirmed: true,
-      buyer_confirmed: false,
-      repaid_at: null,
-      listed_at: 987654320,
-      issuer_confirmed_at: 987654325,
-      buyer_confirmed_at: null,
-      defaulted_at: null,
-      transaction_hashes: ["tx1"],
-      tx_hashes: ["tx1"],
-      created_tx_hash: "tx1",
-      listed_tx_hash: "tx2",
-      funded_tx_hash: "tx3",
-      shipped_tx_hash: null,
-      issuer_confirmed_tx_hash: "tx4",
-      buyer_confirmed_tx_hash: null,
-      repaid_tx_hash: null,
-      defaulted_tx_hash: null,
-    };
-
-    const result = parseRawInvoice(raw);
-    expect(result.id).toEqual("test-invoice-id");
-    expect(result.issuer).toEqual("GISSUER");
-    expect(result.faceValue).toEqual(BigInt("10000000000"));
-    expect(result.asset).toEqual("USDC" as AssetType);
-    expect(result.discountBps).toEqual(200);
-    expect(result.fundedAmount).toEqual(BigInt("9800000000"));
-    expect(result.dueDate).toEqual(123456789);
-    expect(result.status).toEqual("FUNDED");
-    expect(result.createdAt).toEqual(987654321);
-    expect(result.fundedAt).toEqual(987654322);
-    expect(result.shippedAt).toBeNull();
-    expect(result.issuerConfirmed).toBe(true);
-    expect(result.buyerConfirmed).toBe(false);
-    expect(result.repaidAt).toBeNull();
-  });
-
-  it("should handle null/0 values gracefully", () => {
-    const raw = {
-      id: "test-id",
-      issuer: "GISSUE",
-      buyer: "GBUYER",
-      face_value: null,
-      asset: null,
-      discount_bps: null,
-      funded_amount: null,
-      due_date: null,
-      status: "CREATED",
-      created_at: null,
-      funded_at: null,
-      shipped_at: null,
-      issuer_confirmed: false,
-      buyer_confirmed: false,
-      repaid_at: null,
-    };
-
-    const result = parseRawInvoice(raw);
-    expect(result.faceValue).toEqual(BigInt(0));
-    expect(result.asset).toEqual("USDC" as AssetType);
-    expect(result.discountBps).toEqual(0);
-    expect(result.fundedAmount).toEqual(BigInt(0));
-    expect(result.dueDate).toEqual(0);
-    expect(result.createdAt).toEqual(0);
   });
 });
 

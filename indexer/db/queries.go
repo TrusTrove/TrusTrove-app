@@ -64,9 +64,8 @@ func GetProtocolStats(ctx context.Context) (*ProtocolStats, error) {
 			COUNT(DISTINCT issuer) AS registered_issuers
 		FROM invoices
 	`
-	row := Pool.QueryRow(ctx, query)
 	var stats ProtocolStats
-	err := row.Scan(
+	err := Pool.QueryRow(ctx, query).Scan(
 		&stats.TotalUSDCFinanced,
 		&stats.ActiveInvoiceCount,
 		&stats.TotalInvoices,
@@ -118,17 +117,15 @@ func InsertInvoice(ctx context.Context, inv *DbInvoice) error {
 
 func GetInvoiceByID(ctx context.Context, id string) (*DbInvoice, error) {
 	query := `
-		SELECT 
-			id, issuer, buyer, face_value, discount_bps, funded_amount, due_date, status, created_at,
+		SELECT id, issuer, buyer, face_value, discount_bps, funded_amount, due_date, status, created_at,
 			funded_at, shipped_at, issuer_confirmed, buyer_confirmed, buyer_confirmed_at, repaid_at
-		FROM invoices
-		WHERE id = $1
+		FROM invoices WHERE id = $1
 	`
-	row := Pool.QueryRow(ctx, query, id)
 	var inv DbInvoice
-	err := row.Scan(
-		&inv.ID, &inv.Issuer, &inv.Buyer, &inv.FaceValue, &inv.DiscountBps, &inv.FundedAmount, &inv.DueDate, &inv.Status, &inv.CreatedAt,
-		&inv.FundedAt, &inv.ShippedAt, &inv.IssuerConfirmed, &inv.BuyerConfirmed, &inv.BuyerConfirmedAt, &inv.RepaidAt,
+	err := Pool.QueryRow(ctx, query, id).Scan(
+		&inv.ID, &inv.Issuer, &inv.Buyer, &inv.FaceValue, &inv.DiscountBps, &inv.FundedAmount,
+		&inv.DueDate, &inv.Status, &inv.CreatedAt, &inv.FundedAt, &inv.ShippedAt,
+		&inv.IssuerConfirmed, &inv.BuyerConfirmed, &inv.BuyerConfirmedAt, &inv.RepaidAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -181,14 +178,14 @@ func GetInvoicesPage(ctx context.Context, status, issuer string, limit, offset i
 	}
 	defer rows.Close()
 
-	var invoices []*DbInvoice
+	invoices := make([]*DbInvoice, 0)
 	for rows.Next() {
 		var inv DbInvoice
-		err := rows.Scan(
-			&inv.ID, &inv.Issuer, &inv.Buyer, &inv.FaceValue, &inv.DiscountBps, &inv.FundedAmount, &inv.DueDate, &inv.Status, &inv.CreatedAt,
-			&inv.FundedAt, &inv.ShippedAt, &inv.IssuerConfirmed, &inv.BuyerConfirmed, &inv.BuyerConfirmedAt, &inv.RepaidAt,
-		)
-		if err != nil {
+		if err := rows.Scan(
+			&inv.ID, &inv.Issuer, &inv.Buyer, &inv.FaceValue, &inv.DiscountBps, &inv.FundedAmount,
+			&inv.DueDate, &inv.Status, &inv.CreatedAt, &inv.FundedAt, &inv.ShippedAt,
+			&inv.IssuerConfirmed, &inv.BuyerConfirmed, &inv.BuyerConfirmedAt, &inv.RepaidAt,
+		); err != nil {
 			return nil, 0, fmt.Errorf("queries: scan invoice: %w", err)
 		}
 		invoices = append(invoices, &inv)
@@ -343,14 +340,39 @@ func LogEvent(ctx context.Context, eventID, contractID string, ledger int32, led
 	return nil
 }
 
-func IsEventProcessed(ctx context.Context, eventID string) (bool, error) {
-	query := `SELECT EXISTS(SELECT 1 FROM events_log WHERE event_id = $1)`
-	var exists bool
-	err := Pool.QueryRow(ctx, query, eventID).Scan(&exists)
-	if err != nil {
-		return false, fmt.Errorf("queries: is event processed: %w", err)
+// AreEventsProcessed returns the event IDs from ids that have already been
+// recorded. It deliberately performs one query for the whole polling batch.
+func AreEventsProcessed(ctx context.Context, ids []string) (map[string]bool, error) {
+	processed := make(map[string]bool, len(ids))
+	if len(ids) == 0 {
+		return processed, nil
 	}
-	return exists, nil
+
+	rows, err := Pool.Query(ctx, `SELECT event_id FROM events_log WHERE event_id = ANY($1)`, ids)
+	if err != nil {
+		return nil, fmt.Errorf("queries: check processed events: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("queries: scan processed event: %w", err)
+		}
+		processed[id] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("queries: iterate processed events: %w", err)
+	}
+	return processed, nil
+}
+
+func IsEventProcessed(ctx context.Context, id string) (bool, error) {
+	processed, err := AreEventsProcessed(ctx, []string{id})
+	if err != nil {
+		return false, err
+	}
+	return processed[id], nil
 }
 
 type EventLog struct {

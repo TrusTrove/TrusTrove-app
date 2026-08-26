@@ -33,6 +33,16 @@ export class InvoiceClient extends BaseContractClient {
     return this.writeContract("create", args, signerPublicKey);
   }
 
+  /**
+   * Lists an existing invoice for public financing on the marketplace.
+   * Side effect: the invoice status transitions to `Listed`.
+   *
+   * @param invoiceIdHex - The invoice ID as a 32-byte hex string.
+   * @param discountBps - The discount rate in basis points (e.g. 500 = 5%).
+   * @param signerPublicKey - The Stellar public key that will sign the transaction. Must be the invoice issuer.
+   * @returns `true` when the transaction succeeds on-chain.
+   * @throws If the transaction simulation fails or the on-chain submission errors.
+   */
   async listForFinancing(
     invoiceIdHex: string,
     discountBps: number,
@@ -57,6 +67,16 @@ export class InvoiceClient extends BaseContractClient {
     );
   }
 
+  /**
+   * Confirms delivery of goods for an invoice on-chain.
+   * Side effect: updates the confirmation status for the provided `confirmerAddress`.
+   *
+   * @param invoiceIdHex - The invoice ID as a 32-byte hex string.
+   * @param confirmerAddress - The Stellar address whose delivery confirmation is being recorded.
+   * @param signerPublicKey - The Stellar public key that will sign the transaction. Must be the buyer or issuer.
+   * @returns `true` when the transaction succeeds on-chain.
+   * @throws If the transaction simulation fails or the on-chain submission errors.
+   */
   async confirmDelivery(
     invoiceIdHex: string,
     confirmerAddress: string,
@@ -71,6 +91,15 @@ export class InvoiceClient extends BaseContractClient {
     );
   }
 
+  /**
+   * Repays a financed invoice on-chain, returning funds to the liquidity pool.
+   * Side effect: the invoice status transitions to `Repaid` and LP yield is distributed.
+   *
+   * @param invoiceIdHex - The invoice ID as a 32-byte hex string.
+   * @param signerPublicKey - The Stellar public key that will sign the transaction. Must be the invoice buyer.
+   * @returns `true` when the transaction succeeds on-chain.
+   * @throws If the transaction simulation fails or the on-chain submission errors.
+   */
   async repay(invoiceIdHex: string, signerPublicKey: string): Promise<boolean> {
     const args = [xdr.ScVal.scvBytes(Buffer.from(invoiceIdHex, "hex"))];
     return this.writeContract("repay", args, signerPublicKey).then(() => true);
@@ -86,6 +115,15 @@ export class InvoiceClient extends BaseContractClient {
     );
   }
 
+  /**
+   * Retrieves a single invoice by its on-chain ID.
+   * This is a read-only (simulated) call — no on-chain side effects.
+   *
+   * @param invoiceIdHex - The invoice ID as a 32-byte hex string.
+   * @param signerPublicKey - The Stellar public key used to simulate the read call.
+   * @returns The parsed {@link Invoice} object.
+   * @throws If the simulation fails or the return value cannot be parsed.
+   */
   async get(invoiceIdHex: string, signerPublicKey: string): Promise<Invoice> {
     const args = [xdr.ScVal.scvBytes(Buffer.from(invoiceIdHex, "hex"))];
     return this.readContract("get", args, signerPublicKey, (val) =>

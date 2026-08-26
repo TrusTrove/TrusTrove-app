@@ -5,7 +5,7 @@ import { parseInvoiceResponse } from "@/lib/parsers";
 import InvoiceDetailClient from "./InvoiceDetailClient";
 
 const getIndexerApiUrl = () => {
-  return process.env.NEXT_PUBLIC_INDEXER_API_URL || "http://localhost:8080";
+  return process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
 };
 
 async function fetchInvoiceById(invoiceId: string): Promise<Invoice | null> {

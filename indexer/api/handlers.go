@@ -36,6 +36,16 @@ type APIHandler struct {
 	statsCached     time.Time
 	listenerHealth  *ListenerHealth
 	dbHealthChecker func(context.Context) error
+
+	// dependency-injectable storage and contract readers. Defaults are wired
+	// in NewAPIHandler so production behavior is unchanged; tests in this
+	// package can override individual fields to avoid requiring a live DB
+	// or Soroban RPC.
+	getInvoiceByIDFn   func(context.Context, string) (*db.DbInvoice, error)
+	getPoolStatsFn     func(context.Context) (*db.DbPoolStats, error)
+	getRecentEventsFn  func(context.Context, int) ([]*db.EventLog, error)
+	getProtocolStatsFn func(context.Context) (*db.ProtocolStats, error)
+	readContractFn     func(ctx context.Context, rpcURL string, contractID string, method string, args []xdr.ScVal, serverKP *keypair.Full) (xdr.ScVal, error)
 }
 
 func NewAPIHandler(cfg *config.Config) (*APIHandler, error) {
@@ -44,10 +54,15 @@ func NewAPIHandler(cfg *config.Config) (*APIHandler, error) {
 		return nil, fmt.Errorf("invalid server seed: %w", err)
 	}
 	return &APIHandler{
-		cfg:             cfg,
-		serverKP:        kp,
-		listenerHealth:  NewListenerHealth(),
-		dbHealthChecker: defaultDBHealthChecker,
+		cfg:                cfg,
+		serverKP:           kp,
+		listenerHealth:     NewListenerHealth(),
+		dbHealthChecker:    defaultDBHealthChecker,
+		getInvoiceByIDFn:   db.GetInvoiceByID,
+		getPoolStatsFn:     db.GetPoolStats,
+		getRecentEventsFn:  db.GetRecentEvents,
+		getProtocolStatsFn: db.GetProtocolStats,
+		readContractFn:     ReadContract,
 	}, nil
 }
 
@@ -733,7 +748,7 @@ func (h *APIHandler) HandleGetInvoiceByID(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	invoice, err := db.GetInvoiceByID(r.Context(), id)
+	invoice, err := h.getInvoiceByIDFn(r.Context(), id)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to retrieve invoice: %s", err.Error()), http.StatusInternalServerError)
 		return
@@ -831,7 +846,7 @@ func (h *APIHandler) HandleGetStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Cache is still invalid, fetch from DB and update.
-	stats, err := db.GetProtocolStats(r.Context())
+	stats, err := h.getProtocolStatsFn(r.Context())
 	if err != nil {
 		h.statsMu.Unlock()
 		http.Error(w, fmt.Sprintf("failed to retrieve protocol stats: %s", err.Error()), http.StatusInternalServerError)
@@ -847,7 +862,7 @@ func (h *APIHandler) HandleGetStats(w http.ResponseWriter, r *http.Request) {
 
 // GET /pool/stats
 func (h *APIHandler) HandleGetPoolStats(w http.ResponseWriter, r *http.Request) {
-	stats, err := db.GetPoolStats(r.Context())
+	stats, err := h.getPoolStatsFn(r.Context())
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to retrieve pool statistics: %s", err.Error()), http.StatusInternalServerError)
 		return
@@ -878,7 +893,7 @@ func (h *APIHandler) HandleGetEvents(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	events, err := db.GetRecentEvents(r.Context(), limit)
+	events, err := h.getRecentEventsFn(r.Context(), limit)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to retrieve events: %s", err.Error()), http.StatusInternalServerError)
 		return
@@ -910,7 +925,7 @@ func (h *APIHandler) HandleGetLPPosition(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	scValResult, err := ReadContract(r.Context(), h.cfg.SorobanRPCURL, h.cfg.PoolContractID, "get_lp_position", []xdr.ScVal{addrVal}, h.serverKP)
+	scValResult, err := h.readContractFn(r.Context(), h.cfg.SorobanRPCURL, h.cfg.PoolContractID, "get_lp_position", []xdr.ScVal{addrVal}, h.serverKP)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to read LP position from pool: %s", err.Error()), http.StatusInternalServerError)
 		return

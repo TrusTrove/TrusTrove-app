@@ -27,6 +27,13 @@ export class EscrowClient extends BaseContractClient {
     return this.writeContract("lock", args, signerPublicKey).then(() => true);
   }
 
+  /**
+   * Releases locked funds to the invoice issuer.
+   * @param invoiceIdHex - The hexadecimal ID of the invoice
+   * @param signerPublicKey - The public key that must sign the transaction
+   * @returns True if release succeeded
+   * @throws Error if simulation fails or transaction submission fails
+   */
   async releaseToIssuer(
     invoiceIdHex: string,
     signerPublicKey: string,
@@ -37,6 +44,14 @@ export class EscrowClient extends BaseContractClient {
     );
   }
 
+  /**
+   * Releases locked funds to the pool as repayment.
+   * @param invoiceIdHex - The hexadecimal ID of the invoice
+   * @param repaymentAmount - The amount being repaid (in stroops)
+   * @param signerPublicKey - The public key that must sign the transaction
+   * @returns True if release succeeded
+   * @throws Error if simulation fails or transaction submission fails
+   */
   async releaseToPool(
     invoiceIdHex: string,
     repaymentAmount: bigint,
@@ -51,6 +66,13 @@ export class EscrowClient extends BaseContractClient {
     );
   }
 
+  /**
+   * Handles default scenario by releasing locked funds according to pool rules.
+   * @param invoiceIdHex - The hexadecimal ID of the defaulted invoice
+   * @param signerPublicKey - The public key that must sign the transaction
+   * @returns True if handling succeeded
+   * @throws Error if simulation fails or transaction submission fails
+   */
   async handleDefault(
     invoiceIdHex: string,
     signerPublicKey: string,
@@ -61,6 +83,13 @@ export class EscrowClient extends BaseContractClient {
     );
   }
 
+  /**
+   * Retrieves the locked amount for an invoice (read-only).
+   * @param invoiceIdHex - The hexadecimal ID of the invoice
+   * @param signerPublicKey - The public key for RPC account lookup
+   * @returns The locked amount in stroops
+   * @throws Error if simulation fails
+   */
   async getLocked(
     invoiceIdHex: string,
     signerPublicKey: string,
