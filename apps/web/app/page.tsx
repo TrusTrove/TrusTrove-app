@@ -47,7 +47,7 @@ export default function Home() {
   const renderStat = (
     value: string | null,
     isLoading?: boolean,
-    error?: any,
+    error?: unknown,
   ) => {
     if (isLoading) {
       return <SkeletonShimmer className="h-7 w-20 mx-auto lg:mx-0" />;
