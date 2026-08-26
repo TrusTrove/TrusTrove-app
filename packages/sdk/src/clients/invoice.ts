@@ -173,6 +173,15 @@ export class InvoiceClient extends BaseContractClient {
     );
   }
 
+  /**
+   * Retrieves all invoices with the specified on-chain status.
+   * This is a read-only (simulated) call — no on-chain side effects.
+   *
+   * @param status - The {@link InvoiceStatus} to filter invoices by.
+   * @param signerPublicKey - The Stellar public key used to simulate the read call.
+   * @returns An array of parsed {@link Invoice} objects matching the status, or an empty array when no invoices match.
+   * @throws If the simulation fails or a returned invoice cannot be parsed.
+   */
   async getByStatus(
     status: InvoiceStatus,
     signerPublicKey: string,
@@ -185,6 +194,15 @@ export class InvoiceClient extends BaseContractClient {
     });
   }
 
+  /**
+   * Retrieves all invoices issued by a specific address.
+   * This is a read-only (simulated) call — no on-chain side effects.
+   *
+   * @param address - The Stellar address of the invoice issuer to filter by.
+   * @param signerPublicKey - The Stellar public key used to simulate the read call.
+   * @returns An array of parsed {@link Invoice} objects issued by the address, or an empty array when none are found.
+   * @throws If the address is invalid, the simulation fails, or a returned invoice cannot be parsed.
+   */
   async getByIssuer(
     address: string,
     signerPublicKey: string,
@@ -197,6 +215,15 @@ export class InvoiceClient extends BaseContractClient {
     });
   }
 
+  /**
+   * Retrieves all invoices associated with a specific buyer address.
+   * This is a read-only (simulated) call — no on-chain side effects.
+   *
+   * @param address - The Stellar address of the buyer to filter by.
+   * @param signerPublicKey - The Stellar public key used to simulate the read call.
+   * @returns An array of parsed {@link Invoice} objects for the buyer, or an empty array when none are found.
+   * @throws If the address is invalid, the simulation fails, or a returned invoice cannot be parsed.
+   */
   async getByBuyer(
     address: string,
     signerPublicKey: string,
