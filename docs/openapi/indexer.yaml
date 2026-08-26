@@ -142,7 +142,7 @@ paths:
           required: false
           schema:
             type: string
-            enum: [pending, funded, shipped, delivered, repaid, defaulted]
+            enum: [Created, Listed, Funded, Active, Confirmed, Repaid, Defaulted]
         - name: issuer
           in: query
           required: false
@@ -384,6 +384,7 @@ components:
           format: int64
         status:
           type: string
+          enum: [Created, Listed, Funded, Active, Confirmed, Repaid, Defaulted]
         created_at:
           type: integer
           format: int64
