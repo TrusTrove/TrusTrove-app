@@ -69,6 +69,16 @@ PoolStats {
 }
 ```
 
+### get_utilization_rate
+
+```rust
+get_utilization_rate(env: Env) -> u32
+```
+
+Returns the current pool utilization rate in basis points (`total_funded / total_deposits × 10_000`).
+Read-only, no auth required. Returns `0` when `total_deposits` is zero. Panics with
+`Overflow` if scaling `total_funded` into basis points would overflow.
+
 ### get_lp_position
 
 ```rust
