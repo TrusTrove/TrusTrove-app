@@ -52,7 +52,14 @@ export default function Home() {
     if (isLoading) {
       return <SkeletonShimmer className="h-7 w-20 mx-auto lg:mx-0" />;
     }
-    if (error || value === null) {
+
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : error == null
+          ? null
+          : "An unexpected error occurred.";
+    if (errorMessage !== null || value === null) {
       return (
         <span className="text-xl sm:text-2xl font-bold font-mono text-slate-600 block">
           —
