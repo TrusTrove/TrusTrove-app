@@ -102,6 +102,19 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
       return;
     }
 
+    const minDate = new Date(today);
+    minDate.setDate(minDate.getDate() + 7);
+    const maxDate = new Date(today);
+    maxDate.setDate(maxDate.getDate() + 365);
+    if (selectedDate.getTime() < minDate.getTime()) {
+      setError("Due date must be at least 7 days from today");
+      return;
+    }
+    if (selectedDate.getTime() > maxDate.getTime()) {
+      setError("Due date must be within 365 days from today");
+      return;
+    }
+
     setStep(2);
   };
 
