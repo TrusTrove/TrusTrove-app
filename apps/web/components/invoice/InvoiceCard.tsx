@@ -80,23 +80,23 @@ export const InvoiceCard = React.memo(function InvoiceCard({
       }
       await listInvoice({ invoiceId: invoice.id, discountBps: bps });
       setShowListForm(false);
-    } catch (err: any) {
-      setError(err.message || "Failed to list invoice");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to list invoice");
     } finally {
       setLoading(false);
     }
   };
 
   const handleAction = async (
-    actionFn: () => Promise<any>,
+    actionFn: () => Promise<boolean>,
     errorMsg: string,
   ) => {
     setLoading(true);
     setError(null);
     try {
       await actionFn();
-    } catch (err: any) {
-      setError(err.message || errorMsg);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : errorMsg);
     } finally {
       setLoading(false);
     }
