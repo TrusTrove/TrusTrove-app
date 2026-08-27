@@ -68,8 +68,12 @@ export function useInvoices(filters?: {
   const { address } = useWalletStore();
   const { ensureAllowance } = useTokenAllowance();
 
-  const invoiceClientRef = useRef<InstanceType<typeof import("@trusttrove/sdk").InvoiceClient> | null>(null);
-  const poolClientRef = useRef<InstanceType<typeof import("@trusttrove/sdk").PoolClient> | null>(null);
+  const invoiceClientRef = useRef<InstanceType<
+    typeof import("@trusttrove/sdk").InvoiceClient
+  > | null>(null);
+  const poolClientRef = useRef<InstanceType<
+    typeof import("@trusttrove/sdk").PoolClient
+  > | null>(null);
 
   const getInvoiceClient = useCallback(async () => {
     if (!invoiceClientRef.current) {
