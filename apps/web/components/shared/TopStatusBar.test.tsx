@@ -61,9 +61,7 @@ describe("TopStatusBar", () => {
     // time is rendered wrapped in parentheses: `(just now)`
     expect(screen.getAllByText("(just now)").length).toBeGreaterThan(0);
     // buyer sliced to first 8 chars
-    expect(
-      screen.getAllByText(/GBUVPV52\.\.\./).length,
-    ).toBeGreaterThan(0);
+    expect(screen.getAllByText(/GBUVPV52\.\.\./).length).toBeGreaterThan(0);
   });
 
   it("formats older event times as hours/days ago", () => {
