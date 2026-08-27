@@ -15,7 +15,7 @@ describe("Button", () => {
     render(
       <Button variant="destructive" size="sm">
         Delete
-      </Button>
+      </Button>,
     );
     const button = screen.getByRole("button", { name: "Delete" });
     expect(button).toBeInTheDocument();
@@ -39,8 +39,11 @@ describe("Button", () => {
     render(
       <Button asChild>
         <a href="/test">Link</a>
-      </Button>
+      </Button>,
     );
-    expect(screen.getByRole("link", { name: "Link" })).toHaveAttribute("href", "/test");
+    expect(screen.getByRole("link", { name: "Link" })).toHaveAttribute(
+      "href",
+      "/test",
+    );
   });
 });
