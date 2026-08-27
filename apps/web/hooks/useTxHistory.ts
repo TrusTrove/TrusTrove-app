@@ -111,6 +111,31 @@ async function fetchPage(address: string, cursor?: string) {
   return { items, nextCursor };
 }
 
+/**
+ * Custom hook for paginated transaction history from the Stellar Horizon API.
+ *
+ * Fetches transactions for the given address, filtering to only those that
+ * invoke TrusTrove smart contracts (registry, invoice, pool, escrow).
+ * Supports cursor-based forward/backward pagination with 10 items per page.
+ *
+ * @param address - The Stellar public key to fetch transaction history for.
+ *   The query is disabled (skipped) when the address is an empty string.
+ *
+ * @returns An object containing:
+ *   - `transactions` — Array of `TxHistoryItem` for the current page (defaults to `[]`).
+ *   - `isLoading` — `true` while transactions are being fetched.
+ *   - `error` — Fetch error, or `null` if none.
+ *   - `hasNext` — `true` if there are more pages forward.
+ *   - `hasPrev` — `true` if there are pages before the current one.
+ *   - `goNext` — Advances to the next page of results.
+ *   - `goPrev` — Returns to the previous page of results.
+ *   - `page` — Current 1-based page number.
+ *   - `refetch` — Function to manually re-trigger the query.
+ *
+ * @example
+ * const { transactions, isLoading, hasNext, goNext, goPrev } =
+ *   useTxHistory(walletAddress);
+ */
 export function useTxHistory(address: string): TxHistoryResult {
   const [cursorStack, setCursorStack] = useState<(string | undefined)[]>([
     undefined,

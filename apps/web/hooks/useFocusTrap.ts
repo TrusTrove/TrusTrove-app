@@ -2,6 +2,30 @@
 
 import { useEffect, useRef } from "react";
 
+/**
+ * Client-side hook that traps keyboard focus inside a container element,
+ * commonly used for modals, drawers, and dialogs.
+ *
+ * When `enabled` is `true`, Tab and Shift+Tab cycle through focusable
+ * elements within the referenced container. Pressing Escape calls the
+ * optional `onEscape` callback. Previous focus is restored on disable.
+ *
+ * @param enabled - Whether the focus trap is active. Pass `false` to disable.
+ * @param onEscape - Optional callback invoked when the Escape key is pressed
+ *   while the trap is active.
+ *
+ * @returns A `RefObject<T>` that must be attached to the trap container element.
+ *
+ * @example
+ * const dialogRef = useFocusTrap<HTMLDivElement>(isOpen, onClose);
+ *
+ * return (
+ *   <div ref={dialogRef} role="dialog">
+ *     <button>First</button>
+ *     <button>Last</button>
+ *   </div>
+ * );
+ */
 export function useFocusTrap<T extends HTMLElement>(
   enabled: boolean,
   onEscape?: () => void,

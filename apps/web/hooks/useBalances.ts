@@ -11,6 +11,23 @@ export interface Balances {
 const HORIZON_URL =
   process.env.NEXT_PUBLIC_HORIZON_URL || "https://horizon-testnet.stellar.org";
 
+/**
+ * Custom hook for fetching the connected wallet's USDC and XLM balances
+ * from the Stellar Horizon API.
+ *
+ * Polls automatically every 30 seconds when a wallet is connected.
+ * Returns zeroed balances when the account does not yet exist on-chain.
+ *
+ * @returns An object containing:
+ *   - `balances` — Object with `usdc` and `xlm` string balances (or `null` if unavailable).
+ *   - `loading` — `true` while balances are being fetched.
+ *   - `error` — Error message string if the fetch failed, otherwise `null`.
+ *   - `refetch` — Function to manually trigger a balance refresh.
+ *
+ * @example
+ * const { balances, loading, error, refetch } = useBalances();
+ * console.log(balances.usdc); // "100.50" or null
+ */
 export function useBalances() {
   const { address, connected } = useWalletStore();
   const [balances, setBalances] = useState<Balances>({ usdc: null, xlm: null });
