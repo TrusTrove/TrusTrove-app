@@ -12,12 +12,12 @@ describe("PageLayout", () => {
     render(
       <PageLayout>
         <div data-testid="child-content">Test Child Content</div>
-      </PageLayout>
+      </PageLayout>,
     );
 
     const mainContent = document.getElementById("main-content");
     expect(mainContent).toBeInTheDocument();
-    
+
     const child = screen.getByTestId("child-content");
     expect(child).toBeInTheDocument();
     expect(child).toHaveTextContent("Test Child Content");
@@ -27,7 +27,7 @@ describe("PageLayout", () => {
     render(
       <PageLayout>
         <div>Content</div>
-      </PageLayout>
+      </PageLayout>,
     );
 
     const navbar = screen.getByTestId("mock-navbar");
@@ -38,11 +38,13 @@ describe("PageLayout", () => {
     render(
       <PageLayout>
         <div>Content</div>
-      </PageLayout>
+      </PageLayout>,
     );
 
     const currentYear = new Date().getFullYear();
-    const footerText = screen.getByText(new RegExp(`© ${currentYear} TrusTrove`, "i"));
+    const footerText = screen.getByText(
+      new RegExp(`© ${currentYear} TrusTrove`, "i"),
+    );
     expect(footerText).toBeInTheDocument();
   });
 });
