@@ -9,6 +9,7 @@ import { InvoiceClient, PoolClient } from "@trusttrove/sdk";
 import { useWalletStore } from "@/store/wallet";
 import { useTokenAllowance } from "./useTokenAllowance";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
+import type { AssetType } from "@/types";
 
 const invoiceContractID = process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID || "";
 const poolContractID = process.env.NEXT_PUBLIC_POOL_CONTRACT_ID || "";
@@ -79,9 +80,9 @@ export function useInvoices(filters?: {
       buyer: string;
       faceValue: string;
       dueDate: number;
-      asset?: string;
+      asset?: AssetType;
     }) => {
-      return createInvoice(buyer, faceValue, dueDate, asset as any);
+      return createInvoice(buyer, faceValue, dueDate, asset);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
