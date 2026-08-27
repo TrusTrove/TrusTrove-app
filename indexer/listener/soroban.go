@@ -9,6 +9,8 @@ import (
 	"trusttrove/indexer/api"
 	"trusttrove/indexer/config"
 	"trusttrove/indexer/db"
+
+	"github.com/stellar/go-stellar-sdk/keypair"
 )
 
 // SorobanEvent represents a normalized event emitted by a Soroban contract
@@ -35,14 +37,12 @@ type rpcEvent struct {
 	} `json:"value"`
 }
 
-// GetEventsResult represents the result field of getEvents RPC response
 type GetEventsResult struct {
 	LatestLedger uint32     `json:"latestLedger"`
 	Events       []rpcEvent `json:"events"`
 	Cursor       string     `json:"cursor"`
 }
 
-// GetLatestLedgerResult represents the result field of getLatestLedger RPC response
 type GetLatestLedgerResult struct {
 	ID              string `json:"id"`
 	Sequence        int32  `json:"sequence"`
@@ -50,60 +50,79 @@ type GetLatestLedgerResult struct {
 	ProtocolVersion int    `json:"protocolVersion"`
 }
 
-// EventFilter represents the filter structure for getEvents RPC
 type EventFilter struct {
 	Type        string   `json:"type"`
 	ContractIDs []string `json:"contractIds,omitempty"`
 	Topics      []string `json:"topics,omitempty"`
 }
 
-// PaginationParams represents pagination parameters for getEvents RPC
 type PaginationParams struct {
 	Cursor string `json:"cursor,omitempty"`
 	Limit  int    `json:"limit,omitempty"`
 }
 
-// GetEventsParams represents request parameters for getEvents RPC
 type GetEventsParams struct {
 	StartLedger int32             `json:"startLedger"`
 	Filters     []EventFilter     `json:"filters,omitempty"`
 	Pagination  *PaginationParams `json:"pagination,omitempty"`
 }
 
-// EventListener listens to Soroban events and routes them to database and state synchronizers
 type EventListener struct {
-	cfg *config.Config
+	cfg    *config.Config
+	health *api.ListenerHealth
+
+	// dependency-injectable storage helpers. Defaults are wired in
+	// NewEventListener so production behavior is unchanged; tests in this
+	// package can override individual fields to avoid requiring a live DB
+	// for the bookkeeping paths.
+	getCheckpointFn            func(context.Context) (int32, error)
+	getLatestProcessedLedgerFn func(context.Context) (int32, error)
+	upsertCheckpointFn         func(context.Context, int32) error
+	isEventProcessedFn         func(context.Context, string) (bool, error)
 }
 
-// NewEventListener constructs a new EventListener
-func NewEventListener(cfg *config.Config) *EventListener {
-	return &EventListener{cfg: cfg}
+func NewEventListener(cfg *config.Config, health *api.ListenerHealth) *EventListener {
+	return &EventListener{
+		cfg:                        cfg,
+		health:                     health,
+		getCheckpointFn:            db.GetCheckpoint,
+		getLatestProcessedLedgerFn: db.GetLatestProcessedLedger,
+		upsertCheckpointFn:         db.UpsertCheckpoint,
+		isEventProcessedFn:         db.IsEventProcessed,
+	}
 }
 
-// getLatestLedgerSequence fetches the latest ledger sequence number from the Soroban RPC
 func (l *EventListener) getLatestLedgerSequence(ctx context.Context) (int32, error) {
 	var res GetLatestLedgerResult
-	err := api.CallSorobanRPC(l.cfg.SorobanRPCURL, "getLatestLedger", nil, &res)
-	if err != nil {
+	if err := api.CallSorobanRPC(ctx, l.cfg.SorobanRPCURL, "getLatestLedger", nil, &res); err != nil {
 		return 0, fmt.Errorf("call getLatestLedger: %w", err)
 	}
 	return res.Sequence, nil
 }
 
-// Start starts the event listening loop
 func (l *EventListener) Start(ctx context.Context) error {
+	if l.health != nil {
+		l.health.MarkStarted()
+	}
+
+	if l.cfg.ServerSeed == "" {
+		return fmt.Errorf("ServerSeed is required when event listener is enabled")
+	}
+	if _, err := keypair.ParseFull(l.cfg.ServerSeed); err != nil {
+		return fmt.Errorf("invalid ServerSeed configuration: %w", err)
+	}
+
 	// 1. Determine start ledger sequence
 	// Prefer checkpoint for accurate resume across empty-ledger ranges
-	currentLedger, err := db.GetCheckpoint(ctx)
+	currentLedger, err := l.getCheckpointFn(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get checkpoint: %w", err)
 	}
-
 	if currentLedger > 0 {
 		slog.Info("Resuming event indexing from checkpoint", "startLedger", currentLedger)
 	} else {
 		// Fallback: use MAX(ledger) from events_log for backward compatibility
-		startLedger, err := db.GetLatestProcessedLedger(ctx)
+		startLedger, err := l.getLatestProcessedLedgerFn(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to get latest processed ledger: %w", err)
 		}
@@ -124,7 +143,6 @@ func (l *EventListener) Start(ctx context.Context) error {
 	if pollInterval <= 0 {
 		pollInterval = 5 * time.Second
 	}
-
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 
@@ -132,25 +150,32 @@ func (l *EventListener) Start(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			slog.Info("Event listener stopping...")
+			if l.health != nil {
+				l.health.MarkStopped()
+			}
 			return nil
 		case <-ticker.C:
 			nextLedger, err := l.pollEvents(ctx, currentLedger)
 			if err != nil {
 				slog.Error("Error polling events", "error", err)
-				// Retry from the same ledger on the next tick
-				continue
+				if l.health != nil {
+					l.health.MarkStopped()
+				}
+				return fmt.Errorf("listener poll failed: %w", err)
+			}
+			if l.health != nil {
+				l.health.MarkHeartbeat()
 			}
 			currentLedger = nextLedger
 
 			// Persist checkpoint so restart resumes from this exact ledger
-			if err := db.UpsertCheckpoint(ctx, currentLedger); err != nil {
+			if err := l.upsertCheckpointFn(ctx, currentLedger); err != nil {
 				slog.Error("Failed to save checkpoint", "ledger", currentLedger, "error", err)
 			}
 		}
 	}
 }
 
-// pollEvents queries getEvents, processes results, updates DB and checkpoints, and returns the next start ledger sequence
 func (l *EventListener) pollEvents(ctx context.Context, startLedger int32) (int32, error) {
 	var contractIDs []string
 	if l.cfg.RegistryContractID != "" {
@@ -175,36 +200,23 @@ func (l *EventListener) pollEvents(ctx context.Context, startLedger int32) (int3
 		return latest + 1, nil
 	}
 
-	filters := []EventFilter{
-		{
-			Type:        "contract",
-			ContractIDs: contractIDs,
-		},
-	}
-
+	filters := []EventFilter{{Type: "contract", ContractIDs: contractIDs}}
 	cursor := ""
-	var latestLedgerSeq int32 = 0
-
+	var latestLedgerSeq int32
+	var events []SorobanEvent
 	for {
 		params := GetEventsParams{
 			StartLedger: startLedger,
 			Filters:     filters,
-			Pagination: &PaginationParams{
-				Limit:  100,
-				Cursor: cursor,
-			},
+			Pagination:  &PaginationParams{Limit: 100, Cursor: cursor},
 		}
-
 		var res GetEventsResult
-		err := api.CallSorobanRPC(l.cfg.SorobanRPCURL, "getEvents", params, &res)
-		if err != nil {
+		if err := api.CallSorobanRPC(ctx, l.cfg.SorobanRPCURL, "getEvents", params, &res); err != nil {
 			return startLedger, fmt.Errorf("call getEvents (startLedger=%d, cursor=%s): %w", startLedger, cursor, err)
 		}
-
 		if res.LatestLedger != 0 {
 			latestLedgerSeq = int32(res.LatestLedger)
 		}
-
 		for _, ev := range res.Events {
 			sorobanEv := SorobanEvent{
 				ID:             ev.ID,
@@ -215,7 +227,7 @@ func (l *EventListener) pollEvents(ctx context.Context, startLedger int32) (int3
 				Value:          ev.Value.Xdr,
 			}
 
-			processed, err := db.IsEventProcessed(ctx, sorobanEv.ID)
+			processed, err := l.isEventProcessedFn(ctx, sorobanEv.ID)
 			if err != nil {
 				slog.Error("Failed to check if event is processed", "eventId", sorobanEv.ID, "error", err)
 			}
@@ -228,7 +240,6 @@ func (l *EventListener) pollEvents(ctx context.Context, startLedger int32) (int3
 				return startLedger, fmt.Errorf("handle event %s: %w", sorobanEv.ID, err)
 			}
 		}
-
 		if res.Cursor != "" && len(res.Events) > 0 {
 			cursor = res.Cursor
 		} else {
@@ -236,6 +247,23 @@ func (l *EventListener) pollEvents(ctx context.Context, startLedger int32) (int3
 		}
 	}
 
+	ids := make([]string, 0, len(events))
+	for _, event := range events {
+		ids = append(ids, event.ID)
+	}
+	processed, err := db.AreEventsProcessed(ctx, ids)
+	if err != nil {
+		slog.Error("Failed to check if events are processed", "error", err)
+		processed = nil
+	}
+	for _, event := range events {
+		if processed[event.ID] {
+			continue
+		}
+		if err := l.handleEvent(ctx, event); err != nil {
+			return startLedger, fmt.Errorf("handle event %s: %w", event.ID, err)
+		}
+	}
 	if latestLedgerSeq >= startLedger {
 		return latestLedgerSeq + 1, nil
 	}

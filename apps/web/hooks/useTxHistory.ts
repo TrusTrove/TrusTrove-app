@@ -36,8 +36,58 @@ const FUNCTION_LABELS: Record<string, string> = {
   handle_default: "Handle Default",
 };
 
+interface HorizonAssetBalanceChange {
+  from?: string;
+  to?: string;
+  amount?: string;
+  asset_type?: string;
+  asset_code?: string;
+}
+
+interface HorizonOperationRecord {
+  type?: string;
+  type_i?: number;
+  amount?: string;
+  asset_type?: string;
+  asset_code?: string;
+  contract_id?: string;
+  function?: string;
+  asset_balance_changes?: HorizonAssetBalanceChange[];
+}
+
 function getTxType(funcName: string): string {
   return FUNCTION_LABELS[funcName] || "Contract Invocation";
+}
+
+export function extractOpAmount(
+  op: HorizonOperationRecord,
+  userAddress: string,
+): { amount: string; token: string } | undefined {
+  const type = op.type;
+  const typeI = op.type_i;
+
+  if (type === "payment" || typeI === 1) {
+    const amount = op.amount;
+    const token = op.asset_type === "native" ? "XLM" : op.asset_code;
+    if (!amount || !token) return undefined;
+    return { amount, token };
+  }
+
+  if (type === "invoke_host_function" || typeI === 24) {
+    if (!op.asset_balance_changes?.length) return undefined;
+    const relevant = op.asset_balance_changes.find(
+      (change) => change.from === userAddress || change.to === userAddress,
+    );
+    if (relevant) {
+      const amount = relevant.amount;
+      const token =
+        relevant.asset_type === "native" ? "XLM" : relevant.asset_code;
+      if (!amount || !token) return undefined;
+      return { amount, token };
+    }
+  }
+
+  return undefined;
 }
 
 export interface TxHistoryResult {
@@ -85,19 +135,22 @@ async function fetchPage(address: string, cursor?: string) {
 
     if (opsResult.status === "rejected") continue;
 
-    const ops = opsResult.value.records;
+    const ops = opsResult.value.records as HorizonOperationRecord[];
     const matchingOps = ops.filter(
-      (op: any) => op.contract_id && CONTRACT_IDS.includes(op.contract_id),
+      (op) => op.contract_id && CONTRACT_IDS.includes(op.contract_id),
     );
 
     if (matchingOps.length === 0) continue;
 
-    const mainOp = matchingOps[0] as any;
-    const type = getTxType(mainOp.function);
+    const mainOp = matchingOps[0];
+    const type = getTxType(mainOp.function ?? "");
+    const amountToken = extractOpAmount(mainOp, address);
 
     items.push({
       id: tx.hash,
       type,
+      amount: amountToken?.amount,
+      token: amountToken?.token,
       timestamp: new Date(tx.created_at).getTime() / 1000,
       hash: tx.hash,
       status: tx.successful ? "success" : "failed",

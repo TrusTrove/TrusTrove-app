@@ -87,7 +87,7 @@ JWT_SECRET=your-strong-random-secret-here
 JWT_EXPIRY_HOURS=24
 
 # Indexer API URL (exposed to frontend)
-NEXT_PUBLIC_INDEXER_API_URL=https://your-indexer-domain.com
+NEXT_PUBLIC_API_BASE_URL=https://your-indexer-domain.com
 
 # Database connection strings (Neon Postgres)
 DATABASE_URL=postgresql://user:pass@host/mainnet-db?sslmode=require
@@ -230,7 +230,7 @@ const transaction = new Transaction(
    NEXT_PUBLIC_POOL_CONTRACT_ID=<your-contract-id>
    NEXT_PUBLIC_USDC_ISSUER=GA5ZSEJYB37JRC5AVCIA5MOP4SHAHTQO62OJJVTIL7FWRVJRNRQWWIV
    NEXT_PUBLIC_USDC_ASSET_CODE=USDC
-   NEXT_PUBLIC_INDEXER_API_URL=https://your-indexer-domain.com
+   NEXT_PUBLIC_API_BASE_URL=https://your-indexer-domain.com
    ```
 
 2. Deploy the frontend

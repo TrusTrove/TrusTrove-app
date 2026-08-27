@@ -21,7 +21,7 @@ func SyncPoolStats(ctx context.Context, cfg *config.Config, serverKP *keypair.Fu
 	slog.Info("Syncing pool stats from chain...")
 
 	// Read stats from pool contract on-chain
-	scValResult, err := api.ReadContract(cfg.SorobanRPCURL, cfg.PoolContractID, "get_stats", []xdr.ScVal{}, serverKP)
+	scValResult, err := api.ReadContract(ctx, cfg.SorobanRPCURL, cfg.PoolContractID, "get_stats", []xdr.ScVal{}, serverKP)
 	if err != nil {
 		return fmt.Errorf("sync pool stats: read contract: %w", err)
 	}
@@ -300,7 +300,7 @@ func (l *EventListener) handleEvent(ctx context.Context, event SorobanEvent) err
 	}
 	eventName := string(*topicVal.Sym)
 
-	serverKP, err := api.GetServerKeypair(l.cfg.JWTSecret)
+	serverKP, err := api.GetServerKeypair(l.cfg.ServerSeed)
 	if err != nil {
 		return fmt.Errorf("get server keypair: %w", err)
 	}

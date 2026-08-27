@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PageLayout } from "@/components/shared/PageLayout";
 import { useInvoice, useInvoices } from "@/hooks/useInvoices";
@@ -15,6 +16,7 @@ import {
   Copy,
   Check,
   ArrowLeft,
+  ChevronRight,
   Lock,
   Users,
   Activity,
@@ -25,6 +27,24 @@ import { formatAmount } from "@/lib/assets";
 
 interface InvoiceDetailClientProps {
   invoiceId: string;
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof error.message === "string" &&
+    error.message.length > 0
+  ) {
+    return error.message;
+  }
+
+  return fallback;
 }
 
 export default function InvoiceDetailClient({
@@ -87,7 +107,7 @@ export default function InvoiceDetailClient({
   };
 
   const handleAction = async (
-    actionFn: () => Promise<any>,
+    actionFn: () => Promise<unknown>,
     text: string,
     errorMsg: string,
   ) => {
@@ -103,8 +123,8 @@ export default function InvoiceDetailClient({
         setPendingHash(res);
       }
       await refetch();
-    } catch (err: any) {
-      setError(err.message || errorMsg);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, errorMsg));
       setShowPending(false);
     } finally {
       setSubmitting(false);
@@ -148,9 +168,9 @@ export default function InvoiceDetailClient({
           </p>
           <Button
             className="border border-border text-slate-300 font-mono text-xs uppercase px-4 py-2 hover:bg-slate-900"
-            onClick={() => router.push("/marketplace")}
+            onClick={() => router.push("/dashboard")}
           >
-            Return to Marketplace
+            Return to Dashboard
           </Button>
         </div>
       </PageLayout>
@@ -161,20 +181,33 @@ export default function InvoiceDetailClient({
   const secondsRemaining = Number(invoice.dueDate) - nowSecs;
   const daysRemaining = Math.ceil(secondsRemaining / (24 * 3600));
   const isOverdue = secondsRemaining < 0;
+  const canShip = connected && role === "issuer" && invoice.status === "Funded";
+  const canConfirm =
+    connected && role === "buyer" && invoice.status === "Active";
+  const canRepay =
+    connected && role === "buyer" && invoice.status === "Confirmed";
+  const canDefault = connected && invoice.status === "Confirmed" && isOverdue;
 
   return (
     <PageLayout>
       <div className="space-y-6 py-4">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => router.back()}
-            className="flex items-center gap-1.5 text-xs font-bold font-mono text-slate-500 hover:text-white uppercase transition-colors"
+        <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold font-mono uppercase tracking-wider">
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-1.5 text-slate-500 transition-colors hover:text-white"
           >
-            <ArrowLeft className="w-3.5 h-3.5" /> Back
-          </button>
-          <span className="text-slate-600 font-mono text-xs">/</span>
-          <span className="text-slate-400 font-mono text-xs font-bold">
-            Ledger Details
+            <ArrowLeft className="w-3.5 h-3.5" /> Dashboard
+          </Link>
+          <ChevronRight className="w-3.5 h-3.5 text-slate-700" />
+          <Link
+            href="/dashboard"
+            className="text-slate-500 transition-colors hover:text-white"
+          >
+            Invoices
+          </Link>
+          <ChevronRight className="w-3.5 h-3.5 text-slate-700" />
+          <span className="text-slate-400">
+            Invoice #{invoice.id.slice(0, 6)}...
           </span>
         </div>
 
@@ -203,7 +236,6 @@ export default function InvoiceDetailClient({
               </button>
             </div>
           </div>
-
           <div className="bg-[#0d131a] border border-border rounded px-4 py-2 font-mono text-right">
             <span className="text-[10px] text-slate-500 font-bold uppercase block">
               Face Value Obligations
@@ -229,7 +261,6 @@ export default function InvoiceDetailClient({
                 <Users className="w-3.5 h-3.5 text-primary" />
                 Obligation Parties
               </h3>
-
               <div className="space-y-4 font-mono text-xs">
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 p-2.5 bg-[#080c10]/40 rounded border border-border/30">
                   <div className="space-y-0.5">
@@ -252,7 +283,6 @@ export default function InvoiceDetailClient({
                     <span>{copiedIssuer ? "COPIED" : "COPY"}</span>
                   </button>
                 </div>
-
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 p-2.5 bg-[#080c10]/40 rounded border border-border/30">
                   <div className="space-y-0.5">
                     <span className="text-[10px] text-slate-500 font-bold uppercase block">
@@ -282,7 +312,6 @@ export default function InvoiceDetailClient({
                 <Lock className="w-3.5 h-3.5 text-primary" />
                 Escrow Security Vault
               </h3>
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-mono text-xs">
                 <div className="bg-[#080c10] border border-border/40 p-3 rounded">
                   <span className="text-[10px] text-slate-500 font-bold uppercase block">
@@ -322,7 +351,6 @@ export default function InvoiceDetailClient({
                 <Calendar className="w-3.5 h-3.5 text-primary" />
                 Maturity Parameters
               </h3>
-
               <div className="space-y-4 font-mono text-xs">
                 <div className="flex justify-between">
                   <span className="text-slate-500">Maturity Date:</span>
@@ -330,7 +358,6 @@ export default function InvoiceDetailClient({
                     {new Date(invoice.dueDate * 1000).toLocaleDateString()}
                   </span>
                 </div>
-
                 <div className="flex justify-between">
                   <span className="text-slate-500">Maturity Status:</span>
                   <span
@@ -341,7 +368,6 @@ export default function InvoiceDetailClient({
                       : `${daysRemaining} days remaining`}
                   </span>
                 </div>
-
                 <div className="flex justify-between border-t border-border/20 pt-3">
                   <span className="text-slate-500">Discount Rate:</span>
                   <span className="text-primary font-bold">
@@ -350,11 +376,13 @@ export default function InvoiceDetailClient({
                       : "—"}
                   </span>
                 </div>
-
                 <div className="flex justify-between">
                   <span className="text-slate-500">Net Discount Fee:</span>
                   <span className="text-slate-300 font-bold">
-                    {formatAmount(invoice.faceValue - invoice.fundedAmount)}
+                    {formatAmount(
+                      BigInt(invoice.faceValue) - BigInt(invoice.fundedAmount),
+                      invoice.asset,
+                    )}
                   </span>
                 </div>
               </div>
@@ -366,147 +394,121 @@ export default function InvoiceDetailClient({
                 Share Invoice
               </h3>
               <div className="space-y-3 text-xs font-mono">
-                <div className="flex flex-col gap-2">
-                  <Button
-                    variant="outline"
-                    className="w-full justify-between"
-                    onClick={() =>
-                      copyToClipboard(
-                        invoiceUrl || window.location.href,
-                        "link",
-                      )
-                    }
-                    disabled={!invoiceUrl}
+                <Button
+                  variant="outline"
+                  className="w-full justify-between"
+                  onClick={() =>
+                    copyToClipboard(invoiceUrl || window.location.href, "link")
+                  }
+                  disabled={!invoiceUrl}
+                >
+                  <span>
+                    {copiedLink ? "LINK COPIED" : "Copy Invoice Link"}
+                  </span>
+                  <Copy className="w-3.5 h-3.5" />
+                </Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <a
+                    className="border border-border rounded px-2 py-2 text-center text-slate-300 hover:text-white"
+                    href={whatsappUrl}
+                    target="_blank"
+                    rel="noreferrer"
                   >
-                    <span>
-                      {copiedLink ? "LINK COPIED" : "Copy Invoice Link"}
-                    </span>
-                    <span className="text-slate-400 text-[10px]">
-                      {invoiceUrl ? invoiceUrl : ""}
-                    </span>
-                  </Button>
-                  <div className="grid grid-cols-2 gap-2">
-                    <a
-                      href={whatsappUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center justify-center rounded-md border border-border bg-[#111827] px-3 py-2 text-center text-[11px] font-bold uppercase tracking-wider text-slate-200 hover:bg-slate-800"
-                    >
-                      WhatsApp
-                    </a>
-                    <a
-                      href={telegramUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center justify-center rounded-md border border-border bg-[#111827] px-3 py-2 text-center text-[11px] font-bold uppercase tracking-wider text-slate-200 hover:bg-slate-800"
-                    >
-                      Telegram
-                    </a>
-                  </div>
+                    WhatsApp
+                  </a>
+                  <a
+                    className="border border-border rounded px-2 py-2 text-center text-slate-300 hover:text-white"
+                    href={telegramUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Telegram
+                  </a>
                 </div>
               </div>
             </div>
 
-            {connected && (
-              <div className="bg-[#0d131a] border border-border rounded-lg p-5 space-y-4">
-                <h3 className="text-xs font-bold font-mono text-white uppercase tracking-wider border-b border-border/40 pb-2 flex items-center gap-1.5">
+            {(canShip || canConfirm || canRepay || canDefault) && (
+              <div className="bg-[#0d131a] border border-border rounded-lg p-5 space-y-3">
+                <h3 className="text-xs font-bold font-mono text-white uppercase tracking-wider flex items-center gap-1.5">
                   <TrendingUp className="w-3.5 h-3.5 text-primary" />
-                  Contract Triggers
+                  Available Action
                 </h3>
-
-                {error && (
-                  <div className="p-3 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 text-[10px] font-mono leading-normal">
-                    <ShieldAlert className="w-3.5 h-3.5 inline mr-1" />
-                    {error}
-                  </div>
+                {canShip && (
+                  <Button
+                    className="w-full"
+                    disabled={submitting}
+                    onClick={() =>
+                      handleAction(
+                        () => shipInvoice({ invoiceId: invoice.id }),
+                        "Marking goods as shipped...",
+                        "Unable to mark goods as shipped.",
+                      )
+                    }
+                  >
+                    MARK GOODS SHIPPED
+                  </Button>
                 )}
-
-                <div className="space-y-3">
-                  {invoice.status === "Funded" && role === "issuer" && (
-                    <Button
-                      className="w-full bg-primary hover:bg-primary-hover text-black font-bold uppercase text-xs tracking-wider py-2.5 rounded"
-                      onClick={() =>
-                        handleAction(
-                          () => shipInvoice({ invoiceId: invoice.id }),
-                          "Submitting shipment confirmation...",
-                          "Failed to mark as shipped",
-                        )
-                      }
-                      disabled={submitting}
-                    >
-                      MARK GOODS SHIPPED
-                    </Button>
-                  )}
-
-                  {invoice.status === "Active" &&
-                    role === "buyer" &&
-                    !invoice.buyerConfirmed && (
-                      <Button
-                        className="w-full bg-primary hover:bg-primary-hover text-black font-bold uppercase text-xs tracking-wider py-2.5 rounded"
-                        onClick={() =>
-                          handleAction(
-                            () => confirmDelivery({ invoiceId: invoice.id }),
-                            "Submitting delivery confirmation...",
-                            "Failed to confirm delivery",
-                          )
-                        }
-                        disabled={submitting}
-                      >
-                        CONFIRM DELIVERY
-                      </Button>
-                    )}
-
-                  {invoice.status === "Confirmed" && role === "buyer" && (
-                    <Button
-                      className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold uppercase text-xs tracking-wider py-2.5 rounded shadow-[0_0_15px_rgba(16,185,129,0.15)]"
-                      onClick={() =>
-                        handleAction(
-                          () => repayInvoice({ invoiceId: invoice.id }),
-                          "Submitting USDC repayment...",
-                          "Failed to repay invoice",
-                        )
-                      }
-                      disabled={submitting}
-                    >
-                      REPAY {formatAmount(invoice.faceValue)}
-                    </Button>
-                  )}
-
-                  {invoice.status === "Active" && isOverdue && (
-                    <Button
-                      className="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold uppercase text-xs tracking-wider py-2.5 rounded"
-                      onClick={() =>
-                        handleAction(
-                          () => defaultInvoice({ invoiceId: invoice.id }),
-                          "Triggering default on-chain...",
-                          "Failed to trigger default",
-                        )
-                      }
-                      disabled={submitting}
-                    >
-                      TRIGGER DEFAULT (OVERDUE)
-                    </Button>
-                  )}
-
-                  <div className="text-[10px] font-mono text-slate-500 text-center uppercase tracking-wider py-2 leading-relaxed">
-                    Connected wallet: {formatAddress(address!)} <br />
-                    Consoling role:{" "}
-                    <span className="text-primary font-bold">
-                      {role.toUpperCase()}
-                    </span>
-                  </div>
-                </div>
+                {canConfirm && (
+                  <Button
+                    className="w-full"
+                    disabled={submitting}
+                    onClick={() =>
+                      handleAction(
+                        () => confirmDelivery({ invoiceId: invoice.id }),
+                        "Confirming delivery...",
+                        "Unable to confirm delivery.",
+                      )
+                    }
+                  >
+                    CONFIRM DELIVERY
+                  </Button>
+                )}
+                {canRepay && (
+                  <Button
+                    className="w-full"
+                    disabled={submitting}
+                    onClick={() =>
+                      handleAction(
+                        () => repayInvoice({ invoiceId: invoice.id }),
+                        "Repaying invoice...",
+                        "Unable to repay invoice.",
+                      )
+                    }
+                  >
+                    REPAY INVOICE
+                  </Button>
+                )}
+                {canDefault && (
+                  <Button
+                    className="w-full"
+                    disabled={submitting}
+                    onClick={() =>
+                      handleAction(
+                        () => defaultInvoice({ invoiceId: invoice.id }),
+                        "Defaulting invoice...",
+                        "Unable to default invoice.",
+                      )
+                    }
+                  >
+                    DEFAULT INVOICE
+                  </Button>
+                )}
+                {error && (
+                  <p className="text-xs font-mono text-red-400" role="alert">
+                    {error}
+                  </p>
+                )}
               </div>
             )}
           </div>
         </div>
       </div>
-
       <TransactionPending
         isOpen={showPending}
         txHash={pendingHash}
         statusText={pendingText}
-        onClose={pendingHash ? () => setShowPending(false) : undefined}
+        onClose={() => setShowPending(false)}
       />
     </PageLayout>
   );

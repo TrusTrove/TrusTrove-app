@@ -25,6 +25,11 @@ After creation, the invoice is in `Created` status. Go to the invoice detail pag
 and click **List for Financing**. Set your discount rate — the amount you are
 willing to give up to get paid today.
 
+Before an invoice can be listed, it is automatically checked against Underwrite's
+risk assessment. If that check hasn't finished yet, listing will be blocked for a
+few minutes — wait and try again. Once the check passes, the invoice is ready to
+list.
+
 Lower discount = cheaper but may take longer to fund.
 Higher discount = more expensive but attracts funders faster.
 

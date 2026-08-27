@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { PageLayout } from "@/components/shared/PageLayout";
-import { InvoiceForm } from "@/components/invoice/InvoiceForm";
 import { InvoiceTable } from "@/components/invoice/InvoiceTable";
 import { InvoiceCard } from "@/components/invoice/InvoiceCard";
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { useInvoices } from "@/hooks/useInvoices";
 import { useRecentEvents } from "@/hooks/useEvents";
 import { useWalletStore } from "@/store/wallet";
@@ -15,22 +16,33 @@ import {
   InvoiceTableSkeleton,
   ActivityTimelineSkeleton,
 } from "@/components/shared/SkeletonLoader";
-import {
-  Layers,
-  Plus,
-  ShieldAlert,
-  CheckCircle2,
-  Circle,
-  Lock,
-} from "lucide-react";
+import { Layers, Plus, CheckCircle2, Circle, Lock } from "lucide-react";
 import { Invoice } from "@/types";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatAmount } from "@/lib/assets";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 
+const InvoiceForm = dynamic(
+  () => import("@/components/invoice/InvoiceForm").then((m) => m.InvoiceForm),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-64 w-full flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary" />
+      </div>
+    ),
+  },
+);
+
 export default function SMEDashboard() {
   const { address, connected, role } = useWalletStore();
-  const { invoices, isLoading } = useInvoices({ issuer: address || undefined });
+  const [invoicePage, setInvoicePage] = useState(1);
+  const [invoiceLimit, setInvoiceLimit] = useState(20);
+  const { invoices, isLoading, total, totalPages } = useInvoices({
+    issuer: address || undefined,
+    page: invoicePage,
+    limit: invoiceLimit,
+  });
   const { events, isLoading: eventsLoading } = useRecentEvents(10);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -38,6 +50,10 @@ export default function SMEDashboard() {
   const createModalRef = useFocusTrap<HTMLDivElement>(showCreateModal, () =>
     setShowCreateModal(false),
   );
+
+  useEffect(() => {
+    setSelectedInvoice(null);
+  }, [invoicePage, invoiceLimit, address]);
 
   // Compute stats
   const totalFunded = invoices.reduce((sum, inv) => sum + inv.fundedAmount, 0n);
@@ -52,6 +68,17 @@ export default function SMEDashboard() {
 
   const formatAddress = (addr: string) => {
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+  };
+
+  const handlePageChange = (page: number) => {
+    setInvoicePage(page);
+    setSelectedInvoice(null);
+  };
+
+  const handleLimitChange = (limit: number) => {
+    setInvoiceLimit(limit);
+    setInvoicePage(1);
+    setSelectedInvoice(null);
   };
 
   const formatEventDisplay = (event: (typeof events)[number]) => {
@@ -321,64 +348,68 @@ export default function SMEDashboard() {
             {isLoading ? (
               <InvoiceTableSkeleton />
             ) : (
-              <InvoiceTable
-                invoices={invoices}
-                onSelectInvoice={(invoice) => setSelectedInvoice(invoice)}
-                activeId={selectedInvoice?.id}
-                emptyState={
-                  <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-                    <p className="text-slate-500 text-xs font-mono mb-6 leading-relaxed max-w-xs">
-                      Create your first invoice to get started
-                    </p>
-                    <button
-                      onClick={() => setShowCreateModal(true)}
-                      className="bg-primary hover:bg-primary-hover text-black font-bold uppercase tracking-wider text-xs rounded px-4 py-2.5 flex items-center gap-1.5 shadow-[0_0_15px_rgba(0,212,170,0.1)] transition-all"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Create Invoice
-                    </button>
-                  </div>
-                }
-              />
+              <ErrorBoundary context="InvoiceTable">
+                <InvoiceTable
+                  invoices={invoices}
+                  onSelectInvoice={(invoice) => setSelectedInvoice(invoice)}
+                  activeId={selectedInvoice?.id}
+                  emptyStateTitle="No invoices yet"
+                  emptyStateDescription="Create your first invoice to populate the dashboard and unlock the financing flow."
+                  emptyStateAction={{
+                    label: "Create Your First Invoice",
+                    onClick: () => setShowCreateModal(true),
+                  }}
+                  pagination={{
+                    page: invoicePage,
+                    limit: invoiceLimit,
+                    total,
+                    totalPages,
+                    onPageChange: handlePageChange,
+                    onLimitChange: handleLimitChange,
+                  }}
+                />
+              </ErrorBoundary>
             )}
 
             {/* Recent activity timeline */}
             {eventsLoading ? (
               <ActivityTimelineSkeleton />
             ) : (
-              <div className="bg-card border border-border rounded-lg p-5 space-y-4">
-                <h3 className="text-xs font-bold font-mono text-white uppercase tracking-wider border-b border-border/40 pb-2">
-                  On-Chain Activity Logs
-                </h3>
-                <div className="space-y-3 font-mono text-xs">
-                  {events.length === 0 && (
-                    <p className="text-slate-500 text-[10px] py-4 text-center">
-                      No events recorded yet.
-                    </p>
-                  )}
-                  {events.map((event) => {
-                    const display = formatEventDisplay(event);
-                    return (
-                      <div
-                        key={event.id}
-                        className="flex justify-between items-start gap-4 p-2 border-b border-border/20 last:border-0"
-                      >
-                        <div className="space-y-1">
-                          <span className="text-primary font-bold">
-                            {display.type}
+              <ErrorBoundary context="ActivityLog">
+                <div className="bg-card border border-border rounded-lg p-5 space-y-4">
+                  <h3 className="text-xs font-bold font-mono text-white uppercase tracking-wider border-b border-border/40 pb-2">
+                    On-Chain Activity Logs
+                  </h3>
+                  <div className="space-y-3 font-mono text-xs">
+                    {events.length === 0 && (
+                      <p className="text-slate-500 text-[10px] py-4 text-center">
+                        No events recorded yet.
+                      </p>
+                    )}
+                    {events.map((event) => {
+                      const display = formatEventDisplay(event);
+                      return (
+                        <div
+                          key={event.id}
+                          className="flex justify-between items-start gap-4 p-2 border-b border-border/20 last:border-0"
+                        >
+                          <div className="space-y-1">
+                            <span className="text-primary font-bold">
+                              {display.type}
+                            </span>
+                            <p className="text-[10px] text-slate-400">
+                              {display.details}
+                            </p>
+                          </div>
+                          <span className="text-[9px] text-slate-500 text-right">
+                            {display.time}
                           </span>
-                          <p className="text-[10px] text-slate-400">
-                            {display.details}
-                          </p>
                         </div>
-                        <span className="text-[9px] text-slate-500 text-right">
-                          {display.time}
-                        </span>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              </ErrorBoundary>
             )}
           </div>
 
@@ -388,47 +419,49 @@ export default function SMEDashboard() {
               Management console
             </h2>
 
-            <AnimatePresence mode="wait">
-              {selectedInvoice ? (
-                <motion.div
-                  key={selectedInvoice.id}
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  className="space-y-4"
-                >
-                  <div className="flex justify-between items-center">
-                    <span className="text-[10px] font-bold font-mono text-slate-500 uppercase">
-                      Selected invoice details
-                    </span>
-                    <button
-                      onClick={() => setSelectedInvoice(null)}
-                      className="text-[10px] font-mono text-primary hover:underline uppercase font-bold"
-                    >
-                      Clear console
-                    </button>
-                  </div>
-                  <InvoiceCard
-                    invoice={selectedInvoice}
-                    role={role}
-                    isSelected
-                  />
-
-                  {/* Additional invoice details */}
-                  <Link
-                    href={`/invoice/${selectedInvoice.id}`}
-                    className="w-full bg-[#0d131a] border border-border hover:border-primary/50 text-slate-300 hover:text-white font-bold text-xs uppercase tracking-wider py-2 rounded text-center block font-mono"
+            <ErrorBoundary context="ManagementConsole">
+              <AnimatePresence mode="wait">
+                {selectedInvoice ? (
+                  <motion.div
+                    key={selectedInvoice.id}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="space-y-4"
                   >
-                    View audit ledger
-                  </Link>
-                </motion.div>
-              ) : (
-                <div className="bg-card/45 border border-dashed border-border rounded-lg p-6 text-center text-slate-500 font-mono text-[10px] py-20 uppercase tracking-wider">
-                  Select an obligation from the table to load actions in the
-                  operator console.
-                </div>
-              )}
-            </AnimatePresence>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-bold font-mono text-slate-500 uppercase">
+                        Selected invoice details
+                      </span>
+                      <button
+                        onClick={() => setSelectedInvoice(null)}
+                        className="text-[10px] font-mono text-primary hover:underline uppercase font-bold"
+                      >
+                        Clear console
+                      </button>
+                    </div>
+                    <InvoiceCard
+                      invoice={selectedInvoice}
+                      role={role}
+                      isSelected
+                    />
+
+                    {/* Additional invoice details */}
+                    <Link
+                      href={`/invoice/${selectedInvoice.id}`}
+                      className="w-full bg-[#0d131a] border border-border hover:border-primary/50 text-slate-300 hover:text-white font-bold text-xs uppercase tracking-wider py-2 rounded text-center block font-mono"
+                    >
+                      View audit ledger
+                    </Link>
+                  </motion.div>
+                ) : (
+                  <div className="bg-card/45 border border-dashed border-border rounded-lg p-6 text-center text-slate-500 font-mono text-[10px] py-20 uppercase tracking-wider">
+                    Select an obligation from the table to load actions in the
+                    operator console.
+                  </div>
+                )}
+              </AnimatePresence>
+            </ErrorBoundary>
           </div>
         </div>
       </div>

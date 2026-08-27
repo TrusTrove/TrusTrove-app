@@ -1,4 +1,5 @@
 import { useWalletStore } from "@/store/wallet";
+import { parseInvoiceResponse } from "@/lib/parsers";
 import {
   AssetType,
   Invoice,
@@ -7,12 +8,61 @@ import {
   EventLog,
   PoolSnapshot,
 } from "@/types";
+class ApiClient {
+  private baseUrl: string;
+  private token?: string;
+
+  constructor(baseUrl: string) {
+    this.baseUrl = baseUrl;
+  }
+
+  setToken(token: string): void {
+    this.token = token;
+  }
+
+  async fetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+    const headers = new Headers(options.headers || {});
+
+    if (this.token) {
+      headers.set("Authorization", `Bearer ${this.token}`);
+    }
+    if (
+      !headers.has("Content-Type") &&
+      (options.method === "POST" || options.method === "PUT")
+    ) {
+      headers.set("Content-Type", "application/json");
+    }
+
+    const res = await fetch(`${this.baseUrl}${path}`, {
+      ...options,
+      headers,
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || `HTTP error! status: ${res.status}`);
+    }
+
+    return res.json() as Promise<T>;
+  }
+}
 
 const getApiUrl = () => {
-  return process.env.NEXT_PUBLIC_INDEXER_API_URL || "http://localhost:8080";
+  return process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
 };
 
-async function apiFetch<T>(
+const apiClient = new ApiClient(getApiUrl());
+
+function initApiClientWithToken(): void {
+  const token = useWalletStore.getState().token;
+  if (token) {
+    apiClient.setToken(token);
+  }
+}
+
+export { ApiClient, apiClient, initApiClientWithToken };
+
+export async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
@@ -36,77 +86,75 @@ async function apiFetch<T>(
 
   if (!res.ok) {
     const text = await res.text();
+    if (res.status === 503 || res.status === 504) {
+      throw new Error(
+        text || "Service Temporarily Unavailable. Please try again later.",
+      );
+    }
     throw new Error(text || `HTTP error! status: ${res.status}`);
   }
 
   return res.json() as Promise<T>;
 }
 
-function parseRawInvoice(raw: any): Invoice {
-  const invoice: Invoice = {
-    id: raw.id,
-    issuer: raw.issuer,
-    buyer: raw.buyer,
-    faceValue: BigInt(raw.face_value || 0),
-    asset: (raw.asset || "USDC") as AssetType,
-    discountBps: Number(raw.discount_bps || 0),
-    fundedAmount: BigInt(raw.funded_amount || 0),
-    dueDate: Number(raw.due_date || 0),
-    status: raw.status,
-    createdAt: Number(raw.created_at || 0),
-    fundedAt: raw.funded_at ? Number(raw.funded_at) : null,
-    shippedAt: raw.shipped_at ? Number(raw.shipped_at) : null,
-    issuerConfirmed: !!raw.issuer_confirmed,
-    buyerConfirmed: !!raw.buyer_confirmed,
-    repaidAt: raw.repaid_at ? Number(raw.repaid_at) : null,
-  };
-
-  return Object.assign(invoice, {
-    listedAt: raw.listed_at ? Number(raw.listed_at) : null,
-    issuerConfirmedAt: raw.issuer_confirmed_at
-      ? Number(raw.issuer_confirmed_at)
-      : null,
-    buyerConfirmedAt: raw.buyer_confirmed_at
-      ? Number(raw.buyer_confirmed_at)
-      : null,
-    defaultedAt: raw.defaulted_at ? Number(raw.defaulted_at) : null,
-    transactionHashes: raw.transaction_hashes,
-    txHashes: raw.tx_hashes,
-    createdTxHash: raw.created_tx_hash,
-    listedTxHash: raw.listed_tx_hash,
-    fundedTxHash: raw.funded_tx_hash,
-    shippedTxHash: raw.shipped_tx_hash,
-    issuerConfirmedTxHash: raw.issuer_confirmed_tx_hash,
-    buyerConfirmedTxHash: raw.buyer_confirmed_tx_hash,
-    repaidTxHash: raw.repaid_tx_hash,
-    defaultedTxHash: raw.defaulted_tx_hash,
-  });
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function parseRawPoolStats(raw: any): PoolStats {
+function toBigInt(val: unknown): bigint {
+  if (typeof val === "bigint") return val;
+  if (typeof val === "number") return BigInt(val);
+  if (typeof val === "string") return BigInt(val);
+  return 0n;
+}
+
+function toNumber(val: unknown): number {
+  if (typeof val === "number") return val;
+  if (typeof val === "bigint") return Number(val);
+  if (typeof val === "string") return Number(val);
+  return 0;
+}
+
+export function parseRawPoolStats(raw: unknown): PoolStats {
+  const r = isRecord(raw) ? raw : {};
   return {
-    totalDeposits: BigInt(raw.total_deposits || 0),
-    totalFunded: BigInt(raw.total_funded || 0),
-    availableLiquidity: BigInt(raw.available_liquidity || 0),
-    utilizationRateBps: Number(raw.utilization_rate_bps || 0),
-    totalYieldDistributed: BigInt(raw.total_yield_distributed || 0),
-    activeInvoiceCount: Number(raw.active_invoice_count || 0),
+    totalDeposits: toBigInt(r.total_deposits),
+    totalFunded: toBigInt(r.total_funded),
+    availableLiquidity: toBigInt(r.available_liquidity),
+    utilizationRateBps: toNumber(r.utilization_rate_bps),
+    totalYieldDistributed: toBigInt(r.total_yield_distributed),
+    activeInvoiceCount: toNumber(r.active_invoice_count),
+    totalShares: toBigInt(r.total_shares),
   };
 }
 
-function parseRawLPPosition(raw: any): LPPosition {
+export function parseRawLPPosition(raw: unknown): LPPosition {
+  const r = isRecord(raw) ? raw : {};
   return {
-    shares: BigInt(raw.shares || 0),
-    usdcValue: BigInt(raw.usdc_value || 0),
-    yieldEarned: BigInt(raw.yield_earned || 0),
-    depositCount: Number(raw.deposit_count || 0),
+    shares: toBigInt(r.shares),
+    usdcValue: toBigInt(r.usdc_value),
+    yieldEarned: toBigInt(r.yield_earned),
+    depositCount: toNumber(r.deposit_count),
+  };
+}
+
+export function parseRawEventLog(raw: unknown): EventLog {
+  const r = isRecord(raw) ? raw : {};
+  return {
+    id: toNumber(r.id),
+    event_id: String(r.event_id ?? ""),
+    contract_id: String(r.contract_id ?? ""),
+    ledger: toNumber(r.ledger),
+    ledger_closed_at: toNumber(r.ledger_closed_at),
+    event_type: String(r.event_type ?? ""),
+    data: (r.data as Record<string, unknown>) || {},
   };
 }
 
 export async function fetchChallenge(
   address: string,
 ): Promise<{ transaction: string; network_passphrase: string }> {
-  return apiFetch<{ transaction: string; network_passphrase: string }>(
+  return apiClient.fetch<{ transaction: string; network_passphrase: string }>(
     `/auth?address=${address}`,
   );
 }
@@ -114,7 +162,7 @@ export async function fetchChallenge(
 export async function verifyChallenge(
   transaction: string,
 ): Promise<{ token: string }> {
-  return apiFetch<{ token: string }>("/auth", {
+  return apiClient.fetch<{ token: string }>("/auth", {
     method: "POST",
     body: JSON.stringify({ transaction }),
   });
@@ -126,7 +174,7 @@ export async function createInvoice(
   dueDate: number,
   asset: AssetType = "USDC",
 ): Promise<{ invoice_id: string; transaction_hash: string; status: string }> {
-  return apiFetch<{
+  return apiClient.fetch<{
     invoice_id: string;
     transaction_hash: string;
     status: string;
@@ -143,7 +191,7 @@ export async function createInvoice(
 
 export async function getInvoiceByID(id: string): Promise<Invoice> {
   const raw = await apiFetch<any>(`/invoices/${id}`);
-  return parseRawInvoice(raw);
+  return parseInvoiceResponse(raw);
 }
 
 export interface PaginatedInvoices {
@@ -167,7 +215,7 @@ export async function getInvoices(filters?: {
   if (filters?.limit != null) params.append("limit", String(filters.limit));
   const query = params.size > 0 ? `?${params.toString()}` : "";
 
-  const raw = await apiFetch<{
+  const raw = await apiClient.fetch<{
     data: any[];
     total: number;
     page: number;
@@ -176,7 +224,7 @@ export async function getInvoices(filters?: {
   }>(`/invoices${query}`);
 
   return {
-    data: raw.data.map(parseRawInvoice),
+    data: raw.data.map(parseInvoiceResponse),
     total: raw.total,
     page: raw.page,
     limit: raw.limit,
@@ -185,33 +233,36 @@ export async function getInvoices(filters?: {
 }
 
 export async function getPoolStats(): Promise<PoolStats> {
-  const raw = await apiFetch<any>("/pool/stats");
+  const raw = await apiClient.fetch<any>("/pool/stats");
   return parseRawPoolStats(raw);
 }
 
 export async function getLPPosition(address: string): Promise<LPPosition> {
-  const raw = await apiFetch<any>(`/pool/position/${address}`);
+  const raw = await apiClient.fetch<any>(`/pool/position/${address}`);
   return parseRawLPPosition(raw);
 }
 
 export async function getRecentEvents(limit?: number): Promise<EventLog[]> {
   const query = limit ? `?limit=${limit}` : "";
-  const rawList = await apiFetch<any[]>(`/events${query}`);
+  const rawList = await apiClient.fetch<any[]>(`/events${query}`);
   return rawList.map(parseRawEventLog);
 }
 
-function parseRawEventLog(raw: any): EventLog {
-  return {
-    id: raw.id,
-    event_id: raw.event_id,
-    contract_id: raw.contract_id,
-    ledger: raw.ledger,
-    ledger_closed_at: raw.ledger_closed_at,
-    event_type: raw.event_type,
-    data: raw.data || {},
-  };
+export async function getPoolSnapshots(): Promise<PoolSnapshot[]> {
+  return apiClient.fetch<PoolSnapshot[]>("/pool/snapshots");
 }
 
-export async function getPoolSnapshots(): Promise<PoolSnapshot[]> {
-  return apiFetch<PoolSnapshot[]>("/pool/snapshots");
+export interface ProtocolStats {
+  total_usdc_financed: string;
+  active_invoice_count: number;
+  total_invoices: number;
+  total_repaid: number;
+  total_defaulted: number;
+  average_yield_bps: number;
+  pool_utilization_bps: number;
+  registered_issuers: number;
+}
+
+export async function getProtocolStats(): Promise<ProtocolStats> {
+  return apiClient.fetch<ProtocolStats>("/stats");
 }

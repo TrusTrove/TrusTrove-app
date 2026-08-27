@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { PageLayout } from "@/components/shared/PageLayout";
 import { InvoiceTable } from "@/components/invoice/InvoiceTable";
 import { InvoiceCard } from "@/components/invoice/InvoiceCard";
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { useInvoices } from "@/hooks/useInvoices";
 import { usePool } from "@/hooks/usePool";
 import { useWalletStore } from "@/store/wallet";
@@ -18,17 +19,30 @@ export default function Marketplace() {
   const { isVerified } = useProfile();
   const { stats, isStatsLoading } = usePool();
   const [statusFilter, setStatusFilter] = useState<string>("Listed");
+  const [invoicePage, setInvoicePage] = useState(1);
+  const [invoiceLimit, setInvoiceLimit] = useState(20);
 
   // Filter States
   const [minAmount, setMinAmount] = useState("");
   const [maxAmount, setMaxAmount] = useState("");
   const [maxDiscount, setMaxDiscount] = useState("500"); // 500 bps max
 
-  const { invoices, isLoading } = useInvoices({
+  const { invoices, isLoading, total, totalPages } = useInvoices({
     status: statusFilter === "ALL" ? undefined : statusFilter,
+    page: invoicePage,
+    limit: invoiceLimit,
   });
 
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const handleSelectInvoice = useCallback(
+    (invoice: Invoice) => setSelectedInvoice(invoice),
+    [],
+  );
+
+  useEffect(() => {
+    setInvoicePage(1);
+    setSelectedInvoice(null);
+  }, [statusFilter, minAmount, maxAmount, maxDiscount]);
 
   // Filter and Sort Invoices
   const filteredAndSortedInvoices = useMemo(() => {
@@ -59,6 +73,17 @@ export default function Marketplace() {
       return 0;
     });
   }, [invoices, minAmount, maxAmount, maxDiscount]);
+
+  const handlePageChange = (page: number) => {
+    setInvoicePage(page);
+    setSelectedInvoice(null);
+  };
+
+  const handleLimitChange = (limit: number) => {
+    setInvoiceLimit(limit);
+    setInvoicePage(1);
+    setSelectedInvoice(null);
+  };
 
   // Calculate funded amount preview (face value - discount fee)
   const calculateFundingValue = (faceValue: bigint, discountBps: number) => {
@@ -209,43 +234,47 @@ export default function Marketplace() {
             </div>
 
             {/* Invoices Table */}
-            <InvoiceTable
-              invoices={filteredAndSortedInvoices}
-              onSelectInvoice={(invoice) => setSelectedInvoice(invoice)}
-              activeId={selectedInvoice?.id}
-              emptyState={
-                <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-                  <p className="text-slate-500 text-xs font-mono mb-6 leading-relaxed max-w-xs">
-                    No invoices match your filters
-                  </p>
-                  <button
-                    onClick={() => {
-                      setStatusFilter("Listed");
-                      setMinAmount("");
-                      setMaxAmount("");
-                      setMaxDiscount("500");
-                      setSelectedInvoice(null);
-                    }}
-                    className="border border-border hover:border-primary/50 text-slate-300 hover:text-white font-bold text-xs uppercase tracking-wider rounded px-4 py-2.5 transition-all"
-                  >
-                    Reset Filters
-                  </button>
-                </div>
-              }
-            />
+            <ErrorBoundary context="InvoiceList">
+              <InvoiceTable
+                invoices={filteredAndSortedInvoices}
+                onSelectInvoice={handleSelectInvoice}
+                activeId={selectedInvoice?.id}
+                emptyStateTitle="No invoices match your filters"
+                emptyStateDescription="Try broadening the amount range or resetting the filters to reveal more listed invoices."
+                emptyStateAction={{
+                  label: "Reset Filters",
+                  onClick: () => {
+                    setStatusFilter("Listed");
+                    setMinAmount("");
+                    setMaxAmount("");
+                    setMaxDiscount("500");
+                    setSelectedInvoice(null);
+                    setInvoicePage(1);
+                  },
+                }}
+                pagination={{
+                  page: invoicePage,
+                  limit: invoiceLimit,
+                  total,
+                  totalPages,
+                  onPageChange: handlePageChange,
+                  onLimitChange: handleLimitChange,
+                }}
+              />
 
-            {/* Mobile Cards view (hidden on desktop, but let's implement layout) */}
-            <div className="md:hidden space-y-4">
-              {filteredAndSortedInvoices.map((invoice) => (
-                <InvoiceCard
-                  key={invoice.id}
-                  invoice={invoice}
-                  role={role}
-                  onSelect={() => setSelectedInvoice(invoice)}
-                  isSelected={selectedInvoice?.id === invoice.id}
-                />
-              ))}
-            </div>
+              {/* Mobile Cards view (hidden on desktop, but let's implement layout) */}
+              <div className="md:hidden space-y-4">
+                {filteredAndSortedInvoices.map((invoice) => (
+                  <InvoiceCard
+                    key={invoice.id}
+                    invoice={invoice}
+                    role={role}
+                    onSelect={handleSelectInvoice}
+                    isSelected={selectedInvoice?.id === invoice.id}
+                  />
+                ))}
+              </div>
+            </ErrorBoundary>
           </div>
 
           {/* Console Management Center (Right) */}
@@ -254,79 +283,81 @@ export default function Marketplace() {
               Management Center
             </h2>
 
-            {selectedInvoice ? (
-              <div className="space-y-4">
-                <div className="flex justify-between items-center text-[10px] font-mono">
-                  <span className="text-slate-500 uppercase">
-                    Consoling role:{" "}
-                    <strong className="text-primary uppercase">
-                      {connected ? role : "PUBLIC VIEW"}
-                    </strong>
-                  </span>
-                  <button
-                    onClick={() => setSelectedInvoice(null)}
-                    className="text-primary hover:underline uppercase font-bold"
-                  >
-                    Clear select
-                  </button>
-                </div>
+            <ErrorBoundary context="ManagementCenter">
+              {selectedInvoice ? (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center text-[10px] font-mono">
+                    <span className="text-slate-500 uppercase">
+                      Consoling role:{" "}
+                      <strong className="text-primary uppercase">
+                        {connected ? role : "PUBLIC VIEW"}
+                      </strong>
+                    </span>
+                    <button
+                      onClick={() => setSelectedInvoice(null)}
+                      className="text-primary hover:underline uppercase font-bold"
+                    >
+                      Clear select
+                    </button>
+                  </div>
 
-                {/* LP Action: Fund from Pool Preview */}
-                {selectedInvoice.status === "Listed" &&
-                  role === "lp" &&
-                  connected && (
-                    <div className="bg-[#0d131a] border border-primary/20 rounded p-4 text-xs font-mono space-y-2">
-                      <span className="text-primary font-bold block uppercase text-[10px] tracking-wider">
-                        POOL FINANCING PREVIEW
-                      </span>
-                      <div className="flex justify-between">
-                        <span>Face Value:</span>
-                        <span>
-                          {formatAmount(
-                            selectedInvoice.faceValue,
-                            selectedInvoice.asset,
-                          )}
+                  {/* LP Action: Fund from Pool Preview */}
+                  {selectedInvoice.status === "Listed" &&
+                    role === "lp" &&
+                    connected && (
+                      <div className="bg-[#0d131a] border border-primary/20 rounded p-4 text-xs font-mono space-y-2">
+                        <span className="text-primary font-bold block uppercase text-[10px] tracking-wider">
+                          POOL FINANCING PREVIEW
                         </span>
-                      </div>
-                      <div className="flex justify-between text-primary font-bold">
-                        <span>
-                          Funded Cost (at {selectedInvoice.discountBps} bps):
-                        </span>
-                        <span>
-                          {formatAmount(
-                            calculateFundingValue(
+                        <div className="flex justify-between">
+                          <span>Face Value:</span>
+                          <span>
+                            {formatAmount(
                               selectedInvoice.faceValue,
-                              selectedInvoice.discountBps,
-                            ),
-                            selectedInvoice.asset,
-                          )}
-                        </span>
+                              selectedInvoice.asset,
+                            )}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-primary font-bold">
+                          <span>
+                            Funded Cost (at {selectedInvoice.discountBps} bps):
+                          </span>
+                          <span>
+                            {formatAmount(
+                              calculateFundingValue(
+                                selectedInvoice.faceValue,
+                                selectedInvoice.discountBps,
+                              ),
+                              selectedInvoice.asset,
+                            )}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-slate-500 pt-1 leading-normal border-t border-border/20 mt-1">
+                          Funding this invoice deploys USDC from the pool
+                          contract into escrow. LPs earn the discount difference
+                          upon repayment.
+                        </div>
                       </div>
-                      <div className="text-[10px] text-slate-500 pt-1 leading-normal border-t border-border/20 mt-1">
-                        Funding this invoice deploys USDC from the pool contract
-                        into escrow. LPs earn the discount difference upon
-                        repayment.
-                      </div>
-                    </div>
-                  )}
+                    )}
 
-                <InvoiceCard
-                  invoice={selectedInvoice}
-                  role={connected ? role : undefined}
-                  isSelected
-                />
-              </div>
-            ) : (
-              <div className="bg-card border border-dashed border-border rounded-lg p-6 text-center text-slate-500 font-mono text-[10px] py-20 uppercase tracking-wider">
-                <p className="mb-2 font-bold text-slate-400">
-                  NO INVOICE SELECTED
-                </p>
-                <p className="normal-case text-slate-500 leading-relaxed max-w-[200px] mx-auto">
-                  Select an obligation from the ledger table to view its
-                  parameters and execute smart contract actions.
-                </p>
-              </div>
-            )}
+                  <InvoiceCard
+                    invoice={selectedInvoice}
+                    role={connected ? role : undefined}
+                    isSelected
+                  />
+                </div>
+              ) : (
+                <div className="bg-card border border-dashed border-border rounded-lg p-6 text-center text-slate-500 font-mono text-[10px] py-20 uppercase tracking-wider">
+                  <p className="mb-2 font-bold text-slate-400">
+                    NO INVOICE SELECTED
+                  </p>
+                  <p className="normal-case text-slate-500 leading-relaxed max-w-[200px] mx-auto">
+                    Select an obligation from the ledger table to view its
+                    parameters and execute smart contract actions.
+                  </p>
+                </div>
+              )}
+            </ErrorBoundary>
           </div>
         </div>
       </div>

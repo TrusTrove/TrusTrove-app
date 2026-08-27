@@ -28,6 +28,50 @@ list_for_financing(env: Env, invoice_id: BytesN<32>, discount_bps: u32) -> bool
 Lists the invoice in the marketplace. `discount_bps` is basis points (200 = 2%).
 Max 5000 (50%). Issuer auth required. Invoice must be in `Created` status.
 
+Requires a stored `Attestation` for the invoice (see [submit_attestation](#submit_attestation)
+below). The check runs first, right after confirming the invoice exists and before
+issuer auth or the discount validation — an unverified invoice fails fast with
+`VerificationRequired` rather than falling through to auth/discount checks.
+
+### submit_attestation
+
+```rust
+submit_attestation(
+  env: Env,
+  invoice_id: BytesN<32>,
+  payload: Bytes,
+  signature: BytesN<65>
+) -> ()
+```
+
+Records a risk attestation for an invoice, produced off-chain by a registered
+Underwrite agent. `payload` encodes `domain_separator`, `invoice_id`, `risk_score`,
+`evidence_hash`, `agent_id`, and a `nonce`; `signature` is a recoverable
+secp256k1 signature over `keccak256(payload)`.
+
+Permissionless — no `require_auth` on the caller. Trust comes entirely from the
+signature: the contract recovers the signer's public key and checks it against
+the agent's registered pubkey via a cross-contract call to `agent-registry`
+(`AGENT_REGISTRY_CONTRACT`, deployed from the separate `underwrite-contract`
+repo — the address this contract calls is read from its own storage, set once
+at `initialize`). The agent must exist, be `active`, and its stored pubkey must
+match the recovered key, or the call panics with `UntrustedSigner`.
+
+One attestation per invoice — a second call for the same `invoice_id` panics
+with `AlreadyAttested` (replay guard). On success, stores an `Attestation` and
+emits `AttestationSubmitted(invoice_id, agent_id, risk_score)`.
+
+```rust
+struct Attestation {
+    agent_id: Symbol,
+    risk_score: u32,       // basis points, 0-10000
+    evidence_hash: BytesN<32>,
+    submitted_at: u64,
+}
+```
+
+New error variants: `UntrustedSigner`, `AlreadyAttested`, `VerificationRequired`.
+
 ### mark_funded
 
 ```rust

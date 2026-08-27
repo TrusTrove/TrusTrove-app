@@ -1,12 +1,17 @@
 package config
 
 import (
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"strings"
 
 	"github.com/joho/godotenv"
+	"github.com/stellar/go-stellar-sdk/keypair"
 )
 
 type Config struct {
@@ -24,17 +29,25 @@ type Config struct {
 	APIPort               string
 	IndexerPollIntervalMs int
 	JWTSecret             string
+	JWTSecretGenerated    bool
 	JWTExpiryHours        int
 	CORSAllowedOrigins    []string
 	RateLimitRPS          int
+	ServerSeed            string
+	ServerSeedGenerated   bool
 }
 
 func LoadConfig() (*Config, error) {
 	// Try loading from parent directories or current directory
-	_ = godotenv.Load("../.env.local")
-	_ = godotenv.Load("../.env")
-	_ = godotenv.Load(".env.local")
-	_ = godotenv.Load(".env")
+	envPaths := []string{"../.env.local", "../.env", ".env.local", ".env"}
+	for _, path := range envPaths {
+		err := godotenv.Load(path)
+		if err == nil {
+			log.Printf("INFO: loaded env file: %s", path)
+		} else if !errors.Is(err, os.ErrNotExist) {
+			log.Printf("WARN: failed to load env file %s: %v", path, err)
+		}
+	}
 
 	missing := make([]string, 0)
 	getRequired := func(name string) string {
@@ -43,6 +56,41 @@ func LoadConfig() (*Config, error) {
 			missing = append(missing, name)
 		}
 		return value
+	}
+
+	appEnv := strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
+	if appEnv == "" {
+		appEnv = "development"
+	}
+
+	jwtSecret := strings.TrimSpace(os.Getenv("JWT_SECRET"))
+	jwtSecretGenerated := false
+	if jwtSecret == "" {
+		if appEnv == "production" {
+			missing = append(missing, "JWT_SECRET")
+		} else {
+			b := make([]byte, 32)
+			if _, err := rand.Read(b); err != nil {
+				return nil, fmt.Errorf("failed to generate fallback JWT secret: %w", err)
+			}
+			jwtSecret = hex.EncodeToString(b)
+			jwtSecretGenerated = true
+		}
+	}
+
+	serverSeed := strings.TrimSpace(os.Getenv("SERVER_SEED"))
+	serverSeedGenerated := false
+	if serverSeed == "" {
+		if appEnv == "production" {
+			missing = append(missing, "SERVER_SEED")
+		} else {
+			kp, err := keypair.Random()
+			if err != nil {
+				return nil, fmt.Errorf("failed to generate fallback server seed: %w", err)
+			}
+			serverSeed = kp.Seed()
+			serverSeedGenerated = true
+		}
 	}
 
 	pollIntervalMsStr := os.Getenv("INDEXER_POLL_INTERVAL_MS")
@@ -107,10 +155,13 @@ func LoadConfig() (*Config, error) {
 		DatabaseURL:           getRequired("DATABASE_URL"),
 		APIPort:               apiPort,
 		IndexerPollIntervalMs: pollIntervalMs,
-		JWTSecret:             getRequired("JWT_SECRET"),
+		JWTSecret:             jwtSecret,
+		JWTSecretGenerated:    jwtSecretGenerated,
 		JWTExpiryHours:        jwtExpiryHours,
 		CORSAllowedOrigins:    corsOrigins,
 		RateLimitRPS:          rateLimitRPS,
+		ServerSeed:            serverSeed,
+		ServerSeedGenerated:   serverSeedGenerated,
 	}
 
 	if len(missing) > 0 {

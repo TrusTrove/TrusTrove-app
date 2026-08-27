@@ -2,15 +2,17 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math/big"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -27,28 +29,77 @@ import (
 )
 
 type APIHandler struct {
-	cfg         *config.Config
-	serverKP    *keypair.Full
-	statsMu     sync.Mutex
-	statsData   *db.ProtocolStats
-	statsCached time.Time
+	cfg             *config.Config
+	serverKP        *keypair.Full
+	statsMu         sync.RWMutex
+	statsData       *db.ProtocolStats
+	statsCached     time.Time
+	listenerHealth  *ListenerHealth
+	dbHealthChecker func(context.Context) error
+
+	// dependency-injectable storage and contract readers. Defaults are wired
+	// in NewAPIHandler so production behavior is unchanged; tests in this
+	// package can override individual fields to avoid requiring a live DB
+	// or Soroban RPC.
+	getInvoiceByIDFn   func(context.Context, string) (*db.DbInvoice, error)
+	getPoolStatsFn     func(context.Context) (*db.DbPoolStats, error)
+	getRecentEventsFn  func(context.Context, int) ([]*db.EventLog, error)
+	getProtocolStatsFn func(context.Context) (*db.ProtocolStats, error)
+	readContractFn     func(ctx context.Context, rpcURL string, contractID string, method string, args []xdr.ScVal, serverKP *keypair.Full) (xdr.ScVal, error)
 }
 
 func NewAPIHandler(cfg *config.Config) (*APIHandler, error) {
-	kp, err := GetServerKeypair(cfg.JWTSecret)
+	kp, err := GetServerKeypair(cfg.ServerSeed)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid server seed: %w", err)
 	}
 	return &APIHandler{
-		cfg:      cfg,
-		serverKP: kp,
+		cfg:                cfg,
+		serverKP:           kp,
+		listenerHealth:     NewListenerHealth(),
+		dbHealthChecker:    defaultDBHealthChecker,
+		getInvoiceByIDFn:   db.GetInvoiceByID,
+		getPoolStatsFn:     db.GetPoolStats,
+		getRecentEventsFn:  db.GetRecentEvents,
+		getProtocolStatsFn: db.GetProtocolStats,
+		readContractFn:     ReadContract,
 	}, nil
 }
 
-// GetServerKeypair derives a keypair deterministically from the JWT secret
-func GetServerKeypair(jwtSecret string) (*keypair.Full, error) {
-	hash := sha256.Sum256([]byte(jwtSecret))
-	return keypair.FromRawSeed(hash)
+func GetServerKeypair(seed string) (*keypair.Full, error) {
+	if strings.TrimSpace(seed) == "" {
+		return nil, fmt.Errorf("empty server seed")
+	}
+	return keypair.ParseFull(seed)
+}
+
+// writeJSON sets the Content-Type header, writes the status code, encodes v as
+// JSON, and logs any encoding error at WARN level.
+func writeJSON(w http.ResponseWriter, status int, v interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		slog.Warn("failed to encode JSON response", "error", err)
+	}
+}
+
+func (h *APIHandler) ListenerHealth() *ListenerHealth {
+	if h.listenerHealth == nil {
+		h.listenerHealth = NewListenerHealth()
+	}
+	return h.listenerHealth
+}
+
+func (h *APIHandler) CheckHealth(ctx context.Context) error {
+	if h.dbHealthChecker != nil {
+		if err := h.dbHealthChecker(ctx); err != nil {
+			return fmt.Errorf("database health check failed: %w", err)
+		}
+	}
+	if h.ListenerHealth() != nil && !h.ListenerHealth().IsHealthy() {
+		return fmt.Errorf("listener is not healthy")
+	}
+	return nil
 }
 
 type JsonRpcRequest struct {
@@ -68,7 +119,11 @@ type JsonRpcResponse struct {
 	} `json:"error"`
 }
 
-func CallSorobanRPC(rpcURL string, method string, params interface{}, result interface{}) error {
+var sorobanRPCClient = &http.Client{
+	Timeout: 30 * time.Second,
+}
+
+func CallSorobanRPC(ctx context.Context, rpcURL string, method string, params interface{}, result interface{}) error {
 	reqBody := JsonRpcRequest{
 		Jsonrpc: "2.0",
 		Id:      1,
@@ -81,7 +136,13 @@ func CallSorobanRPC(rpcURL string, method string, params interface{}, result int
 		return err
 	}
 
-	resp, err := http.Post(rpcURL, "application/json", bytes.NewBuffer(bodyBytes))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, rpcURL, bytes.NewBuffer(bodyBytes))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := sorobanRPCClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -198,6 +259,7 @@ type GetAccountResponse struct {
 }
 
 func ReadContract(
+	ctx context.Context,
 	rpcURL string,
 	contractID string,
 	method string,
@@ -231,7 +293,7 @@ func ReadContract(
 	}
 
 	var simResp SimulateResponse
-	err = CallSorobanRPC(rpcURL, "simulateTransaction", map[string]string{"transaction": txBase64}, &simResp)
+	err = CallSorobanRPC(ctx, rpcURL, "simulateTransaction", map[string]string{"transaction": txBase64}, &simResp)
 	if err != nil {
 		return xdr.ScVal{}, err
 	}
@@ -409,8 +471,7 @@ func (h *APIHandler) HandleGetAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	writeJSON(w, http.StatusOK, map[string]string{
 		"transaction":        xdrString,
 		"network_passphrase": h.cfg.NetworkPassphrase,
 	})
@@ -443,8 +504,7 @@ func (h *APIHandler) HandlePostAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	writeJSON(w, http.StatusOK, map[string]string{
 		"token": token,
 	})
 }
@@ -461,7 +521,11 @@ func (h *APIHandler) HandleCreateInvoice(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	issuer := r.Context().Value("user_address").(string)
+	issuer, ok := GetUserAddress(r.Context())
+	if !ok || issuer == "" {
+		http.Error(w, "Unauthorized: user address missing from context", http.StatusUnauthorized)
+		return
+	}
 
 	if body.Buyer == "" || body.FaceValue == "" || body.DueDate <= 0 {
 		http.Error(w, "missing required invoice parameters", http.StatusBadRequest)
@@ -480,7 +544,7 @@ func (h *APIHandler) HandleCreateInvoice(w http.ResponseWriter, r *http.Request)
 	}
 
 	var accResp GetAccountResponse
-	err := CallSorobanRPC(h.cfg.SorobanRPCURL, "getAccount", map[string]string{"address": h.serverKP.Address()}, &accResp)
+	err := CallSorobanRPC(r.Context(), h.cfg.SorobanRPCURL, "getAccount", map[string]string{"address": h.serverKP.Address()}, &accResp)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to fetch server account: %s", err.Error()), http.StatusInternalServerError)
 		return
@@ -535,7 +599,7 @@ func (h *APIHandler) HandleCreateInvoice(w http.ResponseWriter, r *http.Request)
 	}
 
 	var simResp SimulateResponse
-	err = CallSorobanRPC(h.cfg.SorobanRPCURL, "simulateTransaction", map[string]string{"transaction": txBase64}, &simResp)
+	err = CallSorobanRPC(r.Context(), h.cfg.SorobanRPCURL, "simulateTransaction", map[string]string{"transaction": txBase64}, &simResp)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("simulation failed: %s", err.Error()), http.StatusInternalServerError)
 		return
@@ -614,7 +678,7 @@ func (h *APIHandler) HandleCreateInvoice(w http.ResponseWriter, r *http.Request)
 		Status string `json:"status"`
 		Error  string `json:"error"`
 	}
-	err = CallSorobanRPC(h.cfg.SorobanRPCURL, "sendTransaction", map[string]string{"transaction": signedBase64}, &submitResp)
+	err = CallSorobanRPC(r.Context(), h.cfg.SorobanRPCURL, "sendTransaction", map[string]string{"transaction": signedBase64}, &submitResp)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to send transaction: %s", err.Error()), http.StatusInternalServerError)
 		return
@@ -636,7 +700,7 @@ func (h *APIHandler) HandleCreateInvoice(w http.ResponseWriter, r *http.Request)
 	pollAttempts := 0
 
 	for {
-		err = CallSorobanRPC(h.cfg.SorobanRPCURL, "getTransaction", map[string]string{"hash": submitResp.Hash}, &txResult)
+		err = CallSorobanRPC(r.Context(), h.cfg.SorobanRPCURL, "getTransaction", map[string]string{"hash": submitResp.Hash}, &txResult)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("failed to poll transaction: %s", err.Error()), http.StatusInternalServerError)
 			return
@@ -661,12 +725,15 @@ func (h *APIHandler) HandleCreateInvoice(w http.ResponseWriter, r *http.Request)
 			return
 		}
 
-		time.Sleep(pollDelay)
+		select {
+		case <-r.Context().Done():
+			http.Error(w, "request cancelled: "+r.Context().Err().Error(), http.StatusGatewayTimeout)
+			return
+		case <-time.After(pollDelay):
+		}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{
+	writeJSON(w, http.StatusCreated, map[string]string{
 		"invoice_id":       invoiceID,
 		"transaction_hash": submitResp.Hash,
 		"status":           txResult.Status,
@@ -681,7 +748,7 @@ func (h *APIHandler) HandleGetInvoiceByID(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	invoice, err := db.GetInvoiceByID(r.Context(), id)
+	invoice, err := h.getInvoiceByIDFn(r.Context(), id)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to retrieve invoice: %s", err.Error()), http.StatusInternalServerError)
 		return
@@ -692,8 +759,7 @@ func (h *APIHandler) HandleGetInvoiceByID(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(invoice)
+	writeJSON(w, http.StatusOK, invoice)
 }
 
 // GET /invoices
@@ -753,40 +819,50 @@ func (h *APIHandler) HandleGetInvoices(w http.ResponseWriter, r *http.Request) {
 		"totalPages": totalPages,
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // GET /stats
 func (h *APIHandler) HandleGetStats(w http.ResponseWriter, r *http.Request) {
+	// Try to read the cache with a read lock
+	h.statsMu.RLock()
+	if h.statsData != nil && time.Since(h.statsCached) < 30*time.Second {
+		data := h.statsData
+		h.statsMu.RUnlock()
+		writeJSON(w, http.StatusOK, data)
+		return
+	}
+	h.statsMu.RUnlock()
+
+	// Cache is missing or expired, we need to update it.
+	// Take a write lock (but first we must release the read lock, which we did above).
 	h.statsMu.Lock()
+	// Double-check the cache after acquiring the write lock.
 	if h.statsData != nil && time.Since(h.statsCached) < 30*time.Second {
 		data := h.statsData
 		h.statsMu.Unlock()
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(data)
+		writeJSON(w, http.StatusOK, data)
 		return
 	}
-	h.statsMu.Unlock()
 
-	stats, err := db.GetProtocolStats(r.Context())
+	// Cache is still invalid, fetch from DB and update.
+	stats, err := h.getProtocolStatsFn(r.Context())
 	if err != nil {
+		h.statsMu.Unlock()
 		http.Error(w, fmt.Sprintf("failed to retrieve protocol stats: %s", err.Error()), http.StatusInternalServerError)
 		return
 	}
 
-	h.statsMu.Lock()
 	h.statsData = stats
 	h.statsCached = time.Now()
 	h.statsMu.Unlock()
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(stats)
+	writeJSON(w, http.StatusOK, stats)
 }
 
 // GET /pool/stats
 func (h *APIHandler) HandleGetPoolStats(w http.ResponseWriter, r *http.Request) {
-	stats, err := db.GetPoolStats(r.Context())
+	stats, err := h.getPoolStatsFn(r.Context())
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to retrieve pool statistics: %s", err.Error()), http.StatusInternalServerError)
 		return
@@ -804,8 +880,7 @@ func (h *APIHandler) HandleGetPoolStats(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(stats)
+	writeJSON(w, http.StatusOK, stats)
 }
 
 // GET /events
@@ -818,7 +893,7 @@ func (h *APIHandler) HandleGetEvents(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	events, err := db.GetRecentEvents(r.Context(), limit)
+	events, err := h.getRecentEventsFn(r.Context(), limit)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to retrieve events: %s", err.Error()), http.StatusInternalServerError)
 		return
@@ -828,8 +903,7 @@ func (h *APIHandler) HandleGetEvents(w http.ResponseWriter, r *http.Request) {
 		events = []*db.EventLog{}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(events)
+	writeJSON(w, http.StatusOK, events)
 }
 
 // GET /pool/position/{address}
@@ -851,7 +925,7 @@ func (h *APIHandler) HandleGetLPPosition(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	scValResult, err := ReadContract(h.cfg.SorobanRPCURL, h.cfg.PoolContractID, "get_lp_position", []xdr.ScVal{addrVal}, h.serverKP)
+	scValResult, err := h.readContractFn(r.Context(), h.cfg.SorobanRPCURL, h.cfg.PoolContractID, "get_lp_position", []xdr.ScVal{addrVal}, h.serverKP)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to read LP position from pool: %s", err.Error()), http.StatusInternalServerError)
 		return
@@ -875,8 +949,7 @@ func (h *APIHandler) HandleGetLPPosition(w http.ResponseWriter, r *http.Request)
 		depositCount = int(xdrutil.ParseU32(val))
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"shares":        shares,
 		"usdc_value":    usdcValue,
 		"yield_earned":  yieldEarned,

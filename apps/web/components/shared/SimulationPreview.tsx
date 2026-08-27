@@ -15,7 +15,7 @@ interface SimulationPreviewProps {
   isFallback?: boolean;
 }
 
-export function SimulationPreview({
+export const SimulationPreview = React.memo(function SimulationPreview({
   details,
   error,
   isLoading,
@@ -130,4 +130,4 @@ export function SimulationPreview({
       </div>
     </div>
   );
-}
+});

@@ -16,8 +16,6 @@ CREATE TABLE IF NOT EXISTS invoices (
     repaid_at BIGINT
 );
 
-ALTER TABLE invoices ADD COLUMN IF NOT EXISTS buyer_confirmed_at BIGINT;
-
 CREATE TABLE IF NOT EXISTS pool_snapshots (
     id INTEGER PRIMARY KEY,
     total_deposits NUMERIC NOT NULL DEFAULT 0,

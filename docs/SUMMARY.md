@@ -1,10 +1,13 @@
-# Table of Contents
+# Table of contents
+
+- [README](README.md)
 
 ## Introduction
 
 - [What is TrusTrove?](introduction/what-is-trusttrove.md)
 - [The Problem](introduction/the-problem.md)
 - [How It Works](introduction/how-it-works.md)
+- [System Architecture](ARCHITECTURE.md)
 
 ## Protocol
 
@@ -16,10 +19,10 @@
 ## Smart Contracts
 
 - [Overview](smart-contracts/overview.md)
-- [registry_contract](smart-contracts/registry-contract.md)
-- [invoice_contract](smart-contracts/invoice-contract.md)
-- [escrow_contract](smart-contracts/escrow-contract.md)
-- [pool_contract](smart-contracts/pool-contract.md)
+- [registry\_contract](smart-contracts/registry-contract.md)
+- [invoice\_contract](smart-contracts/invoice-contract.md)
+- [escrow\_contract](smart-contracts/escrow-contract.md)
+- [pool\_contract](smart-contracts/pool-contract.md)
 
 ## For SMEs
 
