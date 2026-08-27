@@ -96,7 +96,9 @@ describe("InvoiceForm Component Boundary Tests", () => {
     // Enter a valid buyer address
     const buyerInput = screen.getByPlaceholderText(/stellar public key/i);
     fireEvent.change(buyerInput, {
-      target: { value: "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF" },
+      target: {
+        value: "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+      },
     });
 
     // Fill a valid face value
@@ -128,7 +130,9 @@ describe("InvoiceForm Component Boundary Tests", () => {
     // Enter a valid buyer address
     const buyerInput = screen.getByPlaceholderText(/stellar public key/i);
     fireEvent.change(buyerInput, {
-      target: { value: "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF" },
+      target: {
+        value: "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+      },
     });
 
     // Fill a valid face value
