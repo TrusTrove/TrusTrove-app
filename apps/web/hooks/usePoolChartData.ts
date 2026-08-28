@@ -12,6 +12,24 @@ export interface UsePoolChartDataOptions {
   padding?: number;
 }
 
+/**
+ * Custom hook that transforms raw label/value data into SVG-ready chart geometry.
+ *
+ * Computes the SVG `d` attribute strings for both a line path and a filled
+ * area path, as well as the mapped coordinate points. Designed for use with
+ * an inline SVG `<path>` element.
+ *
+ * @param options - Chart configuration.
+ * @param options.data - Array of `{ label, value }` entries to plot.
+ * @param options.width - SVG viewport width in pixels (default `500`).
+ * @param options.height - SVG viewport height in pixels (default `200`).
+ * @param options.padding - Inset padding around the chart area (default `20`).
+ *
+ * @returns An object containing:
+ *   - `linePath` — SVG path `d` string tracing the data as a continuous line.
+ *   - `areaPath` — SVG path `d` string closing the line down to the baseline for a filled region.
+ *   - `points` — Array of `{ x, y, label, value }` objects with mapped canvas coordinates.
+ */
 export function usePoolChartData({
   data,
   width = 500,
