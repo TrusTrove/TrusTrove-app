@@ -69,6 +69,7 @@ describe("config", () => {
         invoice: DEFAULT_CONTRACTS.invoice,
         pool: DEFAULT_CONTRACTS.pool,
         escrow: DEFAULT_CONTRACTS.escrow,
+        agentRegistry: DEFAULT_CONTRACTS.agentRegistry,
       });
       expect(config.usdc).toEqual({
         issuer: DEFAULT_USDC.issuer,

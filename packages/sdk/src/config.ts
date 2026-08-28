@@ -35,6 +35,10 @@ export const DEFAULT_CONTRACTS = {
     (typeof process !== "undefined" &&
       process.env?.NEXT_PUBLIC_ESCROW_CONTRACT_ID) ||
     "",
+  agentRegistry:
+    (typeof process !== "undefined" &&
+      process.env?.NEXT_PUBLIC_AGENT_REGISTRY_CONTRACT_ID) ||
+    "",
 };
 
 export const DEFAULT_USDC = {
@@ -56,6 +60,7 @@ export interface SDKConfig {
     invoice: string;
     pool: string;
     escrow: string;
+    agentRegistry: string;
   };
   usdc: {
     issuer: string;
@@ -72,6 +77,7 @@ let activeConfig: SDKConfig = {
     invoice: DEFAULT_CONTRACTS.invoice,
     pool: DEFAULT_CONTRACTS.pool,
     escrow: DEFAULT_CONTRACTS.escrow,
+    agentRegistry: DEFAULT_CONTRACTS.agentRegistry,
   },
   usdc: {
     issuer: DEFAULT_USDC.issuer,

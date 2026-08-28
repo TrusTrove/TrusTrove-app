@@ -36,7 +36,13 @@ describe("TokenClient", () => {
       horizonUrl: "https://horizon-testnet.stellar.org",
       sorobanRpcUrl: "https://soroban-testnet.stellar.org",
       networkPassphrase: Networks.TESTNET,
-      contractIds: { registry: "", invoice: "", pool: "", escrow: "" },
+      contractIds: {
+        registry: "",
+        invoice: "",
+        pool: "",
+        escrow: "",
+        agentRegistry: "",
+      },
       usdc: { assetCode: "USDC", issuer: usdcIssuer },
     });
     client = new TokenClient(

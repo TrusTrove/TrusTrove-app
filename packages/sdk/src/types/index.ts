@@ -51,3 +51,14 @@ export interface LPPosition {
   yieldEarned: bigint;
   depositCount: number;
 }
+
+export interface Agent {
+  /** The agent's on-chain identifier (Symbol). */
+  agentId: string;
+  /** The Stellar public key registered for this agent. */
+  pubkey: string;
+  /** Whether the agent is currently active and authorized to attest. */
+  active: boolean;
+  /** Unix timestamp (seconds) when the agent was registered. */
+  registeredAt: number;
+}
