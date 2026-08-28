@@ -85,7 +85,12 @@ describe("config", () => {
 
     it("deep-merges contractIds via configureSDK", () => {
       configureSDK({
-        contractIds: { registry: "C_NEW_REG", invoice: "", pool: "", escrow: "" },
+        contractIds: {
+          registry: "C_NEW_REG",
+          invoice: "",
+          pool: "",
+          escrow: "",
+        },
       } as any);
       const config = getConfig();
       expect(config.contractIds.registry).toBe("C_NEW_REG");
