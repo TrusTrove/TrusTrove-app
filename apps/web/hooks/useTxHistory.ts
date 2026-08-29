@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Horizon } from "@stellar/stellar-sdk";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type { TxHistoryItem } from "@/types";
 
 const HORIZON_URL =
@@ -170,6 +170,11 @@ export function useTxHistory(address: string): TxHistoryResult {
   ]);
   const [page, setPage] = useState(0);
   const cursor = cursorStack[page];
+
+  useEffect(() => {
+    setCursorStack([undefined]);
+    setPage(0);
+  }, [address]);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["txHistory", address, cursor],
