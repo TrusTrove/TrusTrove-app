@@ -12,7 +12,10 @@ vi.mock("./SkeletonLoader", () => ({ SkeletonShimmer: () => <span /> }));
 vi.mock("@/hooks/useBalances", () => ({ useBalances: () => ({ balances: { usdc: "1", xlm: "2" }, loading: false }) }));
 vi.mock("@/hooks/useProfile", () => ({ useProfile: () => ({ isVerified: false }) }));
 vi.mock("@/store/wallet", () => ({ useWalletStore: () => ({ role: "issuer", setRole, connected: true }) }));
-vi.mock("lucide-react", () => new Proxy({}, { get: () => () => <span /> }));
+vi.mock("lucide-react", () => {
+  const Icon = () => null;
+  return { Wallet: Icon, Shield: Icon, Terminal: Icon, ExternalLink: Icon, Menu: Icon, X: Icon };
+});
 
 describe("Navbar role select", () => {
   beforeEach(() => setRole.mockClear());
