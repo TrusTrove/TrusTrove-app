@@ -7,25 +7,24 @@ import { useProfile } from "@/hooks/useProfile";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { WalletConnect } from "@/components/shared/WalletConnect";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
+import { TransactionPending } from "@/components/shared/TransactionPending";
 import { Button } from "@/components/ui/button";
-import { ShieldCheck, ShieldAlert, Building2 } from "lucide-react";
+import {
+  ShieldCheck,
+  ShieldAlert,
+  Building2,
+  Globe,
+  FileText,
+  Calendar,
+  Lock,
+  UserCheck,
+  FileBadge2,
+  Building,
+  Mail,
+  Fingerprint,
+} from "lucide-react";
 
-function getErrorMessage(error: unknown): string | null {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "message" in error &&
-    typeof error.message === "string"
-  ) {
-    return error.message;
-  }
-
-  return null;
-}
+const registryContractID = process.env.NEXT_PUBLIC_REGISTRY_CONTRACT_ID || "";
 
 export default function ProfilePage() {
   const { connected, address } = useWalletStore();
@@ -39,10 +38,14 @@ export default function ProfilePage() {
     registerError,
   } = useProfile();
 
+  // Registration Form States
   const [showRegModal, setShowRegModal] = useState(false);
+
+  // Modal Refs
   const modalRef = useFocusTrap<HTMLDivElement>(showRegModal, () =>
     setShowRegModal(false),
   );
+
   const [regRole, setRegRole] = useState<"issuer" | "buyer">("issuer");
   const [companyName, setCompanyName] = useState("");
   const [taxId, setTaxId] = useState("");
@@ -51,8 +54,13 @@ export default function ProfilePage() {
   const [email, setEmail] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
 
-  const handleRegisterSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
+  // Transaction Modal State
+  const [showPending, setShowPending] = useState(false);
+  const [pendingHash, setPendingHash] = useState<string | null>(null);
+  const [pendingText, setPendingText] = useState("Waiting for confirmation...");
+
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setLocalError(null);
 
     if (!companyName.trim()) {
@@ -68,41 +76,60 @@ export default function ProfilePage() {
       return;
     }
 
+    setPendingText(
+      `Registering business as verified ${regRole === "issuer" ? "SME / Issuer" : "Buyer"}...`,
+    );
+    setPendingHash(null);
+    setShowPending(true);
+
     try {
-      await register({
+      const metadata: Record<string, string> = {
+        companyName: companyName.trim(),
+        taxId: taxId.trim(),
+        country: country.trim(),
+        website: website.trim(),
+        email: email.trim(),
+      };
+
+      const txHash = await register({
         role: regRole,
-        metadata: {
-          companyName: companyName.trim(),
-          taxId: taxId.trim(),
-          country: country.trim(),
-          website: website.trim(),
-          email: email.trim(),
-        },
+        metadata,
       });
+
+      if (typeof txHash === "string") {
+        setPendingHash(txHash);
+      }
       setShowRegModal(false);
-    } catch (error: unknown) {
-      setLocalError(
-        getErrorMessage(error) ?? "Registration transaction failed",
-      );
+    } catch (err: unknown) {
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : typeof err === "object" && err !== null && "message" in err && typeof (err as { message: unknown }).message === "string"
+            ? (err as { message: string }).message
+            : "Registration transaction failed";
+      setLocalError(errorMessage);
+      setShowPending(false);
     }
   };
 
-  const errorMessage = localError ?? getErrorMessage(registerError);
-  const isLoading = isProfileLoading || isVerifiedLoading;
+  const formatAddress = (addr: string) => {
+    return `${addr.slice(0, 10)}...${addr.slice(-10)}`;
+  };
 
   if (!connected) {
     return (
       <PageLayout>
-        <div className="mx-auto flex min-h-[70vh] max-w-md flex-col items-center justify-center py-20 text-center">
-          <div className="mb-6 rounded-lg border border-primary/20 bg-primary/10 p-4">
-            <Building2 className="h-12 w-12 text-primary" />
+        <div className="flex flex-col items-center justify-center text-center py-20 max-w-md mx-auto min-h-[70vh]">
+          <div className="bg-primary/10 border border-primary/20 p-4 rounded-lg mb-6 shadow-[0_0_20px_rgba(0,212,170,0.15)]">
+            <Building2 className="w-12 h-12 text-primary" />
           </div>
-          <h1 className="mb-2 font-mono text-2xl font-bold uppercase tracking-wider text-white">
+          <h1 className="text-2xl font-bold font-mono tracking-wider text-white uppercase mb-2">
             Connect Your Wallet
           </h1>
-          <p className="mb-8 font-mono text-xs leading-relaxed text-slate-400">
+          <p className="text-slate-400 text-xs font-mono mb-8 leading-relaxed">
             Connect your Freighter wallet to check your on-chain verification
-            credentials or register a new business profile.
+            credentials, register a new business profile, or update your
+            metadata.
           </p>
           <WalletConnect />
         </div>
@@ -110,109 +137,297 @@ export default function ProfilePage() {
     );
   }
 
+  const isLoading = isProfileLoading || isVerifiedLoading;
+
   return (
     <PageLayout>
-      <div className="mx-auto max-w-4xl space-y-8 py-4">
+      <div className="space-y-8 py-4 max-w-4xl mx-auto">
+        {/* Header */}
         <div className="border-b border-border/40 pb-5">
-          <h1 className="font-mono text-xl font-bold uppercase tracking-wider text-white">
-            Business profile &amp; Verification
+          <h1 className="text-xl font-bold font-mono tracking-wider uppercase text-white">
+            Business profile & Verification
           </h1>
-          <p className="mt-1 font-mono text-xs text-slate-500">
-            Manage your on-chain corporate credentials and verification states.
+          <p className="text-slate-500 text-xs font-mono mt-1">
+            Manage your on-chain corporate credentials and verification states
+            on the TrusTrove Registry contract.
           </p>
         </div>
 
         <ErrorBoundary context="ProfileContent">
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center space-y-4 rounded-lg border border-border bg-[#0d131a] p-12 font-mono text-xs">
-              <span className="h-1.5 w-1.5 animate-ping rounded-full bg-primary" />
-              <span className="animate-pulse uppercase tracking-widest text-slate-400">
-                Syncing credential ledger...
+            <div className="bg-[#0d131a] border border-border rounded-lg p-12 flex flex-col items-center justify-center space-y-4 font-mono text-xs">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-ping" />
+              <span className="text-slate-400 uppercase tracking-widest animate-pulse">
+                Loading profile...
               </span>
             </div>
-          ) : isVerified && profile ? (
-            <div className="space-y-6">
-              <div className="relative overflow-hidden rounded-lg border border-primary/30 bg-card p-6 shadow-[0_0_30px_rgba(0,212,170,0.06)] md:p-8">
-                <div className="relative z-10 flex items-center gap-4">
-                  <div className="rounded-lg border border-primary/30 bg-primary/10 p-3.5 text-primary">
-                    <ShieldCheck className="h-8 w-8" />
+          ) : profile ? (
+            <div className="bg-[#0d131a] border border-border rounded-lg p-6 md:p-8 space-y-8 shadow-xl">
+              {/* Profile Card Header */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/50 border border-border/60 p-5 rounded-lg">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
+                    {profile.role === "issuer" ? (
+                      <Building2 className="w-7 h-7" />
+                    ) : (
+                      <UserCheck className="w-7 h-7" />
+                    )}
                   </div>
                   <div>
-                    <h2 className="font-mono text-lg font-bold uppercase text-white">
-                      Verified profile
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono text-slate-400 uppercase tracking-wider">
+                        Role:
+                      </span>
+                      <span className="text-xs font-mono font-bold text-primary uppercase bg-primary/10 px-2 py-0.5 rounded">
+                        {profile.role === "issuer" ? "SME / Issuer" : "Buyer"}
+                      </span>
+                    </div>
+                    <h2 className="text-lg font-bold font-mono text-white mt-1">
+                      {formatAddress(profile.address)}
                     </h2>
-                    <p className="mt-1 font-mono text-xs text-primary">
-                      This wallet has an on-chain verification credential.
-                    </p>
                   </div>
                 </div>
+                <div>
+                  {isVerified ? (
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono text-xs font-bold uppercase">
+                      <ShieldCheck className="w-4 h-4" />
+                      Verified On-Chain
+                    </div>
+                  ) : (
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 font-mono text-xs font-bold uppercase">
+                      <ShieldAlert className="w-4 h-4" />
+                      Unverified Profile
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="rounded-lg border border-border bg-card p-6 font-mono">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                  Wallet Address
-                </p>
-                <p className="mt-1 break-all text-sm text-white">{address}</p>
+
+              {/* Metadata details */}
+              <div className="space-y-4">
+                <h3 className="text-xs font-mono font-bold text-slate-400 uppercase tracking-widest">
+                  Corporate Metadata
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-mono text-xs">
+                  <div className="bg-slate-900/40 border border-border/40 p-4 rounded-lg">
+                    <span className="text-slate-500 block mb-1">Registered At</span>
+                    <span className="text-white font-bold">
+                      {new Date(profile.registeredAt * 1000).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="bg-slate-900/40 border border-border/40 p-4 rounded-lg">
+                    <span className="text-slate-500 block mb-1">Contract ID</span>
+                    <span className="text-white font-bold truncate block">
+                      {registryContractID}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           ) : (
-            <div className="space-y-6 rounded-lg border border-border bg-card p-6">
-              <div className="flex items-center gap-4">
-                <ShieldAlert className="h-8 w-8 text-amber-400" />
-                <div>
-                  <h2 className="font-mono text-lg font-bold uppercase text-white">
-                    No verified profile
-                  </h2>
-                  <p className="font-mono text-xs text-slate-400">
-                    Register your business to create an on-chain profile.
-                  </p>
-                </div>
+            <div className="bg-[#0d131a] border border-border rounded-lg p-12 text-center space-y-6">
+              <div className="w-16 h-16 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto text-primary">
+                <FileBadge2 className="w-8 h-8" />
               </div>
-              <Button onClick={() => setShowRegModal(true)}>
-                Register business profile
-              </Button>
-              {errorMessage && (
-                <p className="rounded border border-rose-500/20 bg-rose-500/10 p-3 font-mono text-xs text-rose-400">
-                  {errorMessage}
+              <div className="max-w-md mx-auto space-y-2">
+                <h2 className="text-lg font-bold font-mono text-white uppercase tracking-wider">
+                  No Business Profile Found
+                </h2>
+                <p className="text-slate-400 text-xs font-mono leading-relaxed">
+                  You are not yet registered on the TrusTrove Registry contract.
+                  Register as an SME Issuer or Buyer to issue or finance invoices.
                 </p>
-              )}
+              </div>
+              <div>
+                <Button
+                  onClick={() => setShowRegModal(true)}
+                  className="bg-primary text-slate-950 font-mono font-bold hover:bg-primary/90 transition-all uppercase text-xs tracking-wider px-6 py-2.5"
+                >
+                  Register Profile Now
+                </Button>
+              </div>
             </div>
           )}
         </ErrorBoundary>
-
-        {showRegModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-            <div ref={modalRef} className="w-full max-w-lg rounded-lg border border-border bg-card p-6">
-              <h2 className="mb-5 font-mono text-lg font-bold uppercase text-white">
-                Register business profile
-              </h2>
-              <form onSubmit={handleRegisterSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-2">
-                  {(["issuer", "buyer"] as const).map((role) => (
-                    <button
-                      key={role}
-                      type="button"
-                      onClick={() => setRegRole(role)}
-                      className={`rounded border p-2 font-mono text-xs uppercase ${regRole === role ? "border-primary text-primary" : "border-border text-slate-400"}`}
-                    >
-                      {role}
-                    </button>
-                  ))}
-                </div>
-                <input required value={companyName} onChange={(event) => setCompanyName(event.target.value)} placeholder="Company name" className="w-full rounded border border-border bg-background p-2 text-sm text-white" />
-                <input required value={taxId} onChange={(event) => setTaxId(event.target.value)} placeholder="Tax ID / Registration number" className="w-full rounded border border-border bg-background p-2 text-sm text-white" />
-                <input required value={country} onChange={(event) => setCountry(event.target.value)} placeholder="Country of incorporation" className="w-full rounded border border-border bg-background p-2 text-sm text-white" />
-                <input value={website} onChange={(event) => setWebsite(event.target.value)} placeholder="Website (optional)" className="w-full rounded border border-border bg-background p-2 text-sm text-white" />
-                <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email (optional)" className="w-full rounded border border-border bg-background p-2 text-sm text-white" />
-                {errorMessage && <p className="text-xs text-rose-400">{errorMessage}</p>}
-                <div className="flex justify-end gap-3">
-                  <Button type="button" variant="outline" onClick={() => setShowRegModal(false)}>Cancel</Button>
-                  <Button type="submit" disabled={isRegistering}>{isRegistering ? "Registering..." : "Register"}</Button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* Registration Modal */}
+      {showRegModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div
+            ref={modalRef}
+            className="bg-slate-900 border border-border rounded-lg max-w-lg w-full p-6 md:p-8 space-y-6 shadow-2xl relative font-mono text-xs"
+          >
+            <div className="flex items-center justify-between border-b border-border/40 pb-4">
+              <h2 className="text-sm font-bold text-white uppercase tracking-wider">
+                Register Business Profile
+              ++  </h2>
+              <button
+                onClick={() => setShowRegModal(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleRegisterSubmit} className="space-y-4">
+              {localError && (
+                <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 p-3 rounded-lg flex items-start gap-2">
+                  <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{localError}</span>
+                </div>
+              )}
+
+              {registerError && (
+                <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 p-3 rounded-lg flex items-start gap-2">
+                  <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>
+                    {registerError instanceof Error
+                      ? registerError.message
+                      : typeof registerError === "object" && registerError !== null && "message" in registerError && typeof (registerError as { message: unknown }).message === "string"
+                        ? (registerError as { message: string }).message
+                        : "Registration failed"}
+                  </span>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <label className="text-slate-400 block uppercase tracking-wider">
+                  Role
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setRegRole("issuer")}
+                    className={`py-2.5 px-4 rounded-lg font-bold border transition-all uppercase tracking-wider ${
+                      regRole === "issuer"
+                        ? "bg-primary/20 border-primary text-primary"
+                        : "bg-slate-950 border-border text-slate-400 hover:border-slate-700"
+                    }`}
+                  >
+                    SME / Issuer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRegRole("buyer")}
+                    className={`py-2.5 px-4 rounded-lg font-bold border transition-all uppercase tracking-wider ${
+                      regRole === "buyer"
+                        ? "bg-primary/20 border-primary text-primary"
+                        : "bg-slate-950 border-border text-slate-400 hover:border-slate-700"
+                    }`}
+                  >
+                    Buyer
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-slate-400 block uppercase tracking-wider">
+                  Company Name *
+                </label>
+                <div className="relative">
+                  <Building className="absolute left-3 top-3 w-4 h-4 text-slate-500" />
+                  <input
+                    type="text"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    placeholder="Acme Corp"
+                    required
+                    className="w-full bg-slate-950 border border-border rounded-lg pl-9 pr-3 py-2.5 text-white placeholder:text-slate-600 focus:outline-none focus:border-primary"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-slate-400 block uppercase tracking-wider">
+                  Tax ID / Registration Number *
+                </label>
+                <div className="relative">
+                  <Fingerprint className="absolute left-3 top-3 w-4 h-4 text-slate-500" />
+                  <input
+                    type="text"
+                    value={taxId}
+                    onChange={(e) => setTaxId(e.target.value)}
+                    placeholder="REG-12345678"
+                    required
+                    className="w-full bg-slate-950 border border-border rounded-lg pl-9 pr-3 py-2.5 text-white placeholder:text-slate-600 focus:outline-none focus:border-primary"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-slate-400 block uppercase tracking-wider">
+                  Country of Incorporation *
+                </label>
+                <div className="relative">
+                  <Globe className="absolute left-3 top-3 w-4 h-4 text-slate-500" />
+                  <input
+                    type="text"
+                    value={country}
+                    onChange={(e) => setCountry(e.target.value)}
+                    placeholder="United States"
+                    required
+                    className="w-full bg-slate-950 border border-border rounded-lg pl-9 pr-3 py-2.5 text-white placeholder:text-slate-600 focus:outline-none focus:border-primary"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-slate-400 block uppercase tracking-wider">
+                    Website
+                  </label>
+                  <input
+                    type="url"
+                    value={website}
+                    onChange={(e) => setWebsite(e.target.value)}
+                    placeholder="https://acme.com"
+                    className="w-full bg-slate-950 border border-border rounded-lg px-3 py-2.5 text-white placeholder:text-slate-600 focus:outline-none focus:border-primary"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-slate-400 block uppercase tracking-wider">
+                    Corporate Email
+                  </label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="contact@acme.com"
+                    className="w-full bg-slate-950 border border-border rounded-lg px-3 py-2.5 text-white placeholder:text-slate-600 focus:outline-none focus:border-primary"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-4 flex justify-end gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowRegModal(false)}
+                  className="border-border text-slate-400 hover:text-white uppercase font-bold text-xs"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isRegistering}
+                  className="bg-primary text-slate-950 hover:bg-primary/90 font-bold uppercase text-xs"
+                >
+                  {isRegistering ? "Registering..." : "Confirm & Submit"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Transaction Pending Modal */}
+      <TransactionPending
+        isOpen={showPending}
+        onClose={() => setShowPending(false)}
+        txHash={pendingHash}
+        title="Business Profile Registration"
+        description={pendingText}
+      />
     </PageLayout>
   );
 }
