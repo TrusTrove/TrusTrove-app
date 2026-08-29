@@ -3,6 +3,8 @@
 import React, { useState } from "react";
 import { Invoice } from "@/types";
 import { InvoiceStatus } from "./InvoiceStatus";
+import { VerificationBadge } from "./VerificationBadge";
+import type { VerificationState } from "./VerificationBadge";
 import { useInvoices } from "@/hooks/useInvoices";
 import { Button } from "@/components/ui/button";
 import { useWalletStore } from "@/store/wallet";
@@ -110,6 +112,12 @@ export const InvoiceCard = React.memo(function InvoiceCard({
 
   const showActions = !!address;
 
+  // Derive per-invoice verification state from attestation fields
+  const verificationState: VerificationState =
+    invoice.riskScoreBps != null ? "verified" : "unverified";
+  // "failed" is reserved for a future explicit failure signal from the indexer;
+  // it is intentionally not wired to fake data here.
+
   // Render actions depending on state
   return (
     <div
@@ -145,7 +153,13 @@ export const InvoiceCard = React.memo(function InvoiceCard({
             Invoice obligation
           </h3>
         </div>
-        <InvoiceStatus status={invoice.status} />
+        <div className="flex items-center gap-2">
+          <VerificationBadge
+            state={verificationState}
+            riskScoreBps={invoice.riskScoreBps}
+          />
+          <InvoiceStatus status={invoice.status} />
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 mb-4">

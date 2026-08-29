@@ -33,6 +33,11 @@ export interface Invoice {
   buyerConfirmed: boolean;
   buyerConfirmedAt?: number | null;
   repaidAt: number | null;
+  /** Nullable attestation fields from the indexer (set once Underwrite verifies the invoice). */
+  attestationAgentId?: string | null;
+  riskScoreBps?: number | null;
+  evidenceHash?: string | null;
+  attestedAt?: number | null;
 }
 
 export interface PoolStats {
