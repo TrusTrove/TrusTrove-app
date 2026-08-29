@@ -17,16 +17,7 @@ interface FreighterNetworkDetails {
   network?: string;
 }
 
-function hasFreighterExtension(): boolean {
-  return typeof window !== "undefined" && "freighter" in window;
-}
-
 async function validateFreighterNetwork(): Promise<void> {
-  // The connection helper already handles wallet availability. This guard also
-  // keeps mocked connections and non-browser environments from attempting to
-  // access the extension API when no Freighter provider is present.
-  if (!hasFreighterExtension()) return;
-
   const details = (await getNetworkDetails()) as FreighterNetworkDetails;
   const network = details.network?.trim().toLowerCase();
 
