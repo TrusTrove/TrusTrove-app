@@ -43,7 +43,7 @@ export function Navbar() {
               className="flex items-center gap-2 hover:opacity-95 transition-opacity"
               onClick={closeMobileMenu}
             >
-              <div className="bg-primary/10 border border-primary/20 p-2 rounded-lg text-primary shadow-[0_0_10px_rgba(0,212,170,0.1)]">
+              <div className="bg-primary/15 border border-primary/30 p-2 rounded-lg text-primary shadow-[0_0_12px_rgba(0,212,170,0.15)]">
                 <Terminal className="w-5 h-5" />
               </div>
               <span className="font-extrabold text-lg tracking-tight font-mono text-white">
@@ -60,7 +60,7 @@ export function Navbar() {
                     href={item.href}
                     className={`px-3.5 py-1.5 rounded-lg text-xs font-bold font-mono tracking-wider uppercase transition-all duration-200 border flex items-center gap-1.5 ${
                       isActive
-                        ? "bg-primary/5 border-primary/20 text-primary"
+                        ? "bg-primary/10 border-primary/30 text-primary shadow-[0_0_10px_rgba(0,212,170,0.1)]"
                         : "border-transparent text-slate-400 hover:text-white hover:bg-slate-900/50"
                     }`}
                   >
@@ -81,42 +81,41 @@ export function Navbar() {
             {connected && (
               <>
                 {/* Balances */}
-                <div className="hidden md:flex items-center gap-3 bg-neutral-900 border border-border rounded-lg px-3 py-1">
+                <div className="hidden md:flex items-center gap-3 bg-neutral-900/90 border border-border/80 rounded-lg px-3 py-1.5 shadow-inner">
                   <div className="flex items-center gap-1.5 group relative">
-                    <Wallet className="w-3 h-3 text-sky-400" />
+                    <Wallet className="w-3.5 h-3.5 text-sky-400" />
                     {balancesLoading ? (
                       <SkeletonShimmer className="h-3.5 w-14" />
                     ) : (
                       <>
-                        <span className="text-[10px] font-mono text-slate-300 font-bold">
+                        <span className="text-[11px] font-mono text-slate-200 font-bold">
                           {balances.usdc !== null
                             ? `${parseFloat(balances.usdc).toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC`
                             : "— USDC"}
                         </span>
                         {(balances.usdc === null ||
                           parseFloat(balances.usdc) === 0) && (
-                          <div className="absolute -top-8 left-1/2 -translate-x-1/2 hidden group-hover:block whitespace-nowrap bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-mono px-2 py-1 rounded-md shadow-lg z-50">
+                          <div className="absolute -top-9 left-1/2 -translate-x-1/2 hidden group-hover:block whitespace-nowrap bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-mono px-2.5 py-1 rounded-md shadow-xl z-50">
                             <a
                               href="https://demo.stellar.org"
                               target="_blank"
                               rel="noopener noreferrer"
                               className="flex items-center gap-1 hover:underline"
                             >
-                              Get testnet USDC{" "}
-                              <ExternalLink className="w-3 h-3" />
+                              Get testnet USDC <ExternalLink className="w-3 h-3" />
                             </a>
                           </div>
                         )}
                       </>
                     )}
                   </div>
-                  <div className="w-px h-3 bg-border" />
+                  <div className="h-3 w-[1px] bg-border" />
                   <div className="flex items-center gap-1.5">
-                    <Wallet className="w-3 h-3 text-amber-400" />
+                    <Wallet className="w-3.5 h-3.5 text-amber-400" />
                     {balancesLoading ? (
-                      <SkeletonShimmer className="h-3.5 w-14" />
+                      <SkeletonShimmer className="h-3.5 w-12" />
                     ) : (
-                      <span className="text-[10px] font-mono text-slate-300 font-bold">
+                      <span className="text-[11px] font-mono text-slate-300 font-bold">
                         {balances.xlm !== null
                           ? `${parseFloat(balances.xlm).toLocaleString(undefined, { maximumFractionDigits: 2 })} XLM`
                           : "0 XLM"}
@@ -125,35 +124,28 @@ export function Navbar() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 bg-neutral-900 border border-border rounded-lg px-2.5 py-1">
-                  <Shield className="w-3.5 h-3.5 text-primary" />
-                  <span className="text-[10px] font-bold text-slate-500 font-mono uppercase tracking-wider hidden sm:inline">
-                    Role:
-                  </span>
+                {/* Role Switcher */}
+                <div className="hidden lg:flex items-center gap-1.5 bg-neutral-900/90 border border-border/80 rounded-lg px-2 py-1 shadow-inner">
+                  <Shield className="w-3.5 h-3.5 text-primary ml-1" />
                   <select
                     value={role}
                     onChange={(e) => {
-                      const value = e.target.value;
-                      if (isRole(value)) {
-                        setRole(value);
+                      const val = e.target.value;
+                      if (isRole(val)) {
+                        setRole(val);
                       }
                     }}
-                    className="bg-transparent text-xs text-white border-none focus:ring-0 focus:outline-none font-bold font-mono cursor-pointer pr-5 py-0"
+                    className="bg-transparent text-[11px] font-mono text-slate-200 font-bold uppercase tracking-wider focus:outline-none cursor-pointer py-0.5 pr-1"
+                    aria-label="Select role"
                   >
-                    <option
-                      value="issuer"
-                      className="bg-[#080c10] text-slate-200"
-                    >
-                      SME (Issuer)
+                    <option value="issuer" className="bg-neutral-900 text-slate-200">
+                      Issuer
                     </option>
-                    <option
-                      value="buyer"
-                      className="bg-[#080c10] text-slate-200"
-                    >
+                    <option value="buyer" className="bg-neutral-900 text-slate-200">
                       Buyer
                     </option>
-                    <option value="lp" className="bg-[#080c10] text-slate-200">
-                      LP (Funder)
+                    <option value="lp" className="bg-neutral-900 text-slate-200">
+                      LP
                     </option>
                   </select>
                 </div>
@@ -164,30 +156,67 @@ export function Navbar() {
               <WalletConnect />
             </div>
 
+            {/* Mobile Menu Button */}
             <button
-              type="button"
-              aria-label={
-                mobileMenuOpen
-                  ? "Close navigation menu"
-                  : "Open navigation menu"
-              }
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden p-2 rounded-lg bg-neutral-900 border border-border text-slate-300 hover:text-white"
+              aria-label="Toggle mobile menu"
               aria-expanded={mobileMenuOpen}
-              onClick={() => setMobileMenuOpen((open) => !open)}
-              className="md:hidden inline-flex items-center justify-center rounded-lg border border-border bg-neutral-900 p-2 text-slate-200 transition hover:border-primary/40 hover:text-primary"
             >
-              {mobileMenuOpen ? (
-                <X className="h-5 w-5" />
-              ) : (
-                <Menu className="h-5 w-5" />
-              )}
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
           </div>
         </div>
       </div>
 
+      {/* Mobile Menu Dropdown */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-t border-border bg-[#080c10]/95 px-4 py-4 shadow-2xl backdrop-blur-xl">
-          <div className="flex flex-col gap-2">
+        <div className="md:hidden border-t border-border bg-[#080c10]/95 px-4 pt-3 pb-5 space-y-4 shadow-2xl backdrop-blur-xl">
+          {connected && (
+            <div className="space-y-3 pb-3 border-b border-border/50">
+              <div className="flex items-center justify-between bg-neutral-900/90 border border-border/80 rounded-lg p-2.5">
+                <div className="flex items-center gap-2">
+                  <Wallet className="w-4 h-4 text-sky-400" />
+                  <span className="text-xs font-mono text-slate-200 font-bold">
+                    {balances.usdc !== null
+                      ? `${parseFloat(balances.usdc).toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC`
+                      : "— USDC"}
+                  </span>
+                </div>
+                <span className="text-xs font-mono text-slate-400">
+                  {balances.xlm !== null
+                    ? `${parseFloat(balances.xlm).toLocaleString(undefined, { maximumFractionDigits: 2 })} XLM`
+                    : "— XLM"}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between bg-neutral-900/90 border border-border/80 rounded-lg p-2.5">
+                <div className="flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-primary" />
+                  <span className="text-xs font-mono text-slate-300 uppercase tracking-wider">
+                    Active Role
+                  </span>
+                </div>
+                <select
+                  value={role}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (isRole(val)) {
+                      setRole(val);
+                    }
+                  }}
+                  className="bg-neutral-800 border border-border rounded px-2 py-1 text-xs font-mono text-slate-200 font-bold uppercase tracking-wider focus:outline-none"
+                  aria-label="Select role (mobile)"
+                >
+                  <option value="issuer">Issuer</option>
+                  <option value="buyer">Buyer</option>
+                  <option value="lp">LP</option>
+                </select>
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-col space-y-1">
             {navItems.map((item) => {
               const isActive = pathname === item.href;
               return (
@@ -195,18 +224,15 @@ export function Navbar() {
                   key={item.href}
                   href={item.href}
                   onClick={closeMobileMenu}
-                  className={`flex items-center justify-between rounded-xl border px-4 py-3 text-sm font-bold font-mono uppercase tracking-wider transition ${
+                  className={`px-3.5 py-2.5 rounded-lg text-xs font-bold font-mono tracking-wider uppercase transition-all duration-200 border flex items-center justify-between ${
                     isActive
-                      ? "border-primary/30 bg-primary/10 text-primary"
-                      : "border-border bg-neutral-900/70 text-slate-300 hover:border-primary/30 hover:text-white"
+                      ? "bg-primary/10 border-primary/30 text-primary"
+                      : "border-transparent text-slate-400 hover:text-white hover:bg-slate-900/50"
                   }`}
                 >
                   <span>{item.name}</span>
                   {item.name === "Profile" && connected && isVerified && (
-                    <span
-                      className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]"
-                      title="Verified Profile"
-                    />
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
                   )}
                 </Link>
               );
