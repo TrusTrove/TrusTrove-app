@@ -41,9 +41,24 @@ export const useWalletStore = create<WalletState>()(
       name: "wallet-storage",
       partialize: (state) => ({
         address: state.address,
+        connected: state.connected,
         network: state.network,
         role: state.role,
       }),
+      onRehydrateStorage: () => (state) => {
+        // Guard against a stale persisted snapshot (e.g. one written before
+        // `connected` was persisted): if we restarted disconnected but an
+        // address exists, clear it so address-keyed queries don't fire while
+        // the UI (and other consumers) report the wallet as disconnected.
+        // NOTE: we mutate the state object handed to the callback rather than
+        // calling useWalletStore.setState(), because at rehydration time (which
+        // runs synchronously during store creation) the store const is not yet
+        // initialised.
+        if (state && !state.connected && state.address) {
+          state.address = null;
+          state.network = null;
+        }
+      },
     },
   ),
 );

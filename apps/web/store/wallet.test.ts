@@ -113,7 +113,7 @@ describe("wallet store", () => {
     expect(useWalletStore.getState().role).toBe("lp");
   });
 
-  it("partialize persists only address, network, and role", () => {
+  it("partialize persists address, network, connected, and role", () => {
     useWalletStore.getState().connect("GA123", "testnet");
     useWalletStore.getState().setToken("jwt");
     useWalletStore.getState().setRole("buyer");
@@ -125,21 +125,70 @@ describe("wallet store", () => {
     expect(persisted.state.address).toBe("GA123");
     expect(persisted.state.network).toBe("testnet");
     expect(persisted.state.role).toBe("buyer");
-    expect(persisted.state).not.toHaveProperty("connected");
+    expect(persisted.state.connected).toBe(true);
+    // Token must stay out of localStorage (auth hygiene).
     expect(persisted.state).not.toHaveProperty("token");
   });
 
-  it("partialize excludes token and connected from localStorage", () => {
+  it("partialize excludes token from localStorage", () => {
     useWalletStore.getState().setToken("secret");
     const raw = localStorage.getItem("wallet-storage");
     const persisted = JSON.parse(raw!);
     expect(persisted.state.token).toBeUndefined();
-    expect(persisted.state.connected).toBeUndefined();
   });
 
   it("persist middleware stores state under correct key", () => {
     useWalletStore.getState().connect("GA123", "testnet");
     const raw = localStorage.getItem("wallet-storage");
     expect(raw).not.toBeNull();
+  });
+
+  describe("rehydration", () => {
+    it("rehydrates a connected wallet and fires queries consistently", async () => {
+      // Simulate a previously connected wallet surviving a full page reload.
+      localStorage.setItem(
+        "wallet-storage",
+        JSON.stringify({
+          state: {
+            address: "GA123",
+            connected: true,
+            network: "testnet",
+            role: "buyer",
+          },
+          version: 0,
+        }),
+      );
+
+      await useWalletStore.persist.rehydrate();
+
+      const state = useWalletStore.getState();
+      expect(state.address).toBe("GA123");
+      expect(state.connected).toBe(true);
+      expect(state.network).toBe("testnet");
+    });
+
+    it("clears a stale persisted address when the store rehydrates disconnected", async () => {
+      // Old schema: address persisted but `connected` absent (pre-fix stores
+      // and any snapshot saved while disconnected). Background queries keyed
+      // on address must not run while the store reports disconnected.
+      localStorage.setItem(
+        "wallet-storage",
+        JSON.stringify({
+          state: {
+            address: "GA999",
+            network: "testnet",
+            role: "buyer",
+          },
+          version: 0,
+        }),
+      );
+
+      await useWalletStore.persist.rehydrate();
+
+      const state = useWalletStore.getState();
+      expect(state.connected).toBe(false);
+      expect(state.address).toBeNull();
+      expect(state.network).toBeNull();
+    });
   });
 });
