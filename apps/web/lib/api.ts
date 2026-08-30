@@ -20,6 +20,14 @@ class ApiClient {
     this.token = token;
   }
 
+  /**
+   * Clears the cached bearer token so subsequent requests send no
+   * `Authorization` header (used on logout / auth failure).
+   */
+  clearToken(): void {
+    this.token = undefined;
+  }
+
   async fetch<T>(path: string, options: RequestInit = {}): Promise<T> {
     const headers = new Headers(options.headers || {});
 
@@ -57,6 +65,8 @@ function initApiClientWithToken(): void {
   const token = useWalletStore.getState().token;
   if (token) {
     apiClient.setToken(token);
+  } else {
+    apiClient.clearToken();
   }
 }
 

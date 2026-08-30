@@ -64,6 +64,28 @@ describe("apiFetch internal function", () => {
     expect(calledHeaders.has("Authorization")).toBe(false);
   });
 
+  it("clears a stale token via clearToken when initApiClientWithToken runs with null store token", async () => {
+    // Simulate a logged-in session that cached a JWT in the client.
+    (useWalletStore.getState as any).mockReturnValue({ token: "stale-jwt" });
+    initApiClientWithToken();
+    apiClient.setToken("stale-jwt");
+
+    // Logout path: the store token becomes null; the client must drop it too.
+    (useWalletStore.getState as any).mockReturnValue({ token: null });
+    initApiClientWithToken();
+
+    expect((apiClient as any).token).toBeUndefined();
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({}),
+    });
+    await fetchChallenge("GTEST");
+
+    const calledHeaders = mockFetch.mock.calls[0][1].headers;
+    expect(calledHeaders.has("Authorization")).toBe(false);
+  });
+
   it("should add Content-Type header for POST requests", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
