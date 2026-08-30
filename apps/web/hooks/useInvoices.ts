@@ -90,7 +90,7 @@ export function useInvoices(filters?: {
 
   const invoicesQuery = useQuery<PaginatedInvoices>({
     queryKey: ["invoices", filters],
-    queryFn: () => getInvoices(filters),
+    queryFn: ({ signal }) => getInvoices(filters, { signal }),
     refetchInterval: 15000,
     staleTime: 15000,
   });
@@ -295,7 +295,7 @@ export function useInvoices(filters?: {
 export function useInvoice(id: string) {
   const invoiceQuery = useQuery({
     queryKey: ["invoice", id],
-    queryFn: () => getInvoiceByID(id),
+    queryFn: ({ signal }) => getInvoiceByID(id, { signal }),
     enabled: !!id,
     staleTime: 60000,
   });

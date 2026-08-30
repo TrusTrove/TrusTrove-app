@@ -120,6 +120,45 @@ describe("apiFetch internal function", () => {
       "HTTP error! status: 500",
     );
   });
+
+  it("times out a hung request instead of hanging forever", async () => {
+    vi.useFakeTimers();
+    // A fetch that never resolves unless aborted.
+    mockFetch.mockImplementationOnce(
+      (_url: unknown, init: any) =>
+        new Promise((_resolve, reject) => {
+          init.signal?.addEventListener("abort", () =>
+            reject(new Error("aborted")),
+          );
+        }),
+    );
+
+    const promise = fetchChallenge("GTEST");
+
+    // Advance past REQUEST_TIMEOUT_MS (20000).
+    await vi.advanceTimersByTimeAsync(21000);
+
+    await expect(promise).rejects.toThrow("aborted");
+    vi.useRealTimers();
+  });
+
+  it("cancels an in-flight request when the caller's signal aborts", async () => {
+    mockFetch.mockImplementationOnce(
+      (_url: unknown, init: any) =>
+        new Promise((_resolve, reject) => {
+          init.signal?.addEventListener("abort", () =>
+            reject(new Error("cancelled")),
+          );
+        }),
+    );
+
+    const controller = new AbortController();
+    const promise = apiFetch("/pool/stats", { signal: controller.signal });
+
+    controller.abort();
+
+    await expect(promise).rejects.toThrow("cancelled");
+  });
 });
 
 describe("parseRawPoolStats", () => {

@@ -33,14 +33,14 @@ export function usePool() {
 
   const statsQuery = useQuery({
     queryKey: ["poolStats"],
-    queryFn: () => getPoolStats(),
+    queryFn: ({ signal }) => getPoolStats({ signal }),
     refetchInterval: 45000,
     staleTime: 45000,
   });
 
   const positionQuery = useQuery({
     queryKey: ["lpPosition", address],
-    queryFn: () => getLPPosition(address!),
+    queryFn: ({ signal }) => getLPPosition(address!, { signal }),
     enabled: !!address,
   });
 

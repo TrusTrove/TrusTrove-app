@@ -8,6 +8,43 @@ import {
   EventLog,
   PoolSnapshot,
 } from "@/types";
+/**
+ * Maximum time a request may remain in-flight before it is aborted. Prevents
+ * hung backends / dropped connections from piling up pending requests.
+ */
+const REQUEST_TIMEOUT_MS = 20000;
+
+/**
+ * Builds a fetch `signal` that aborts after {@link REQUEST_TIMEOUT_MS}, while
+ * still honouring a caller-supplied signal (e.g. react-query's query signal)
+ * so in-flight requests cancel on unmount/refetch. Returns a cleanup fn that
+ * must be called once the request settles to release the timers/listeners.
+ */
+function signalWithTimeout(
+  external?: AbortSignal | null,
+): { signal: AbortSignal; cleanup: () => void } {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+
+  if (external) {
+    if (external.aborted) {
+      abort();
+    } else {
+      external.addEventListener("abort", abort, { once: true });
+    }
+  }
+
+  const timer = setTimeout(abort, REQUEST_TIMEOUT_MS);
+
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      clearTimeout(timer);
+      external?.removeEventListener("abort", abort);
+    },
+  };
+}
+
 class ApiClient {
   private baseUrl: string;
   private token?: string;
@@ -41,17 +78,23 @@ class ApiClient {
       headers.set("Content-Type", "application/json");
     }
 
-    const res = await fetch(`${this.baseUrl}${path}`, {
-      ...options,
-      headers,
-    });
+    const { signal, cleanup } = signalWithTimeout(options.signal);
+    try {
+      const res = await fetch(`${this.baseUrl}${path}`, {
+        ...options,
+        headers,
+        signal,
+      });
 
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(text || `HTTP error! status: ${res.status}`);
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `HTTP error! status: ${res.status}`);
+      }
+
+      return res.json() as Promise<T>;
+    } finally {
+      cleanup();
     }
-
-    return res.json() as Promise<T>;
   }
 }
 
@@ -107,22 +150,28 @@ export async function apiFetch<T>(
     headers.set("Content-Type", "application/json");
   }
 
-  const res = await fetch(`${getApiUrl()}${path}`, {
-    ...options,
-    headers,
-  });
+  const { signal, cleanup } = signalWithTimeout(options.signal);
+  try {
+    const res = await fetch(`${getApiUrl()}${path}`, {
+      ...options,
+      headers,
+      signal,
+    });
 
-  if (!res.ok) {
-    const text = await res.text();
-    if (res.status === 503 || res.status === 504) {
-      throw new Error(
-        text || "Service Temporarily Unavailable. Please try again later.",
-      );
+    if (!res.ok) {
+      const text = await res.text();
+      if (res.status === 503 || res.status === 504) {
+        throw new Error(
+          text || "Service Temporarily Unavailable. Please try again later.",
+        );
+      }
+      throw new Error(text || `HTTP error! status: ${res.status}`);
     }
-    throw new Error(text || `HTTP error! status: ${res.status}`);
-  }
 
-  return res.json() as Promise<T>;
+    return res.json() as Promise<T>;
+  } finally {
+    cleanup();
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -311,8 +360,11 @@ export async function createInvoice(
  *   - `createdAt` / `fundedAt` / `shippedAt` / `repaidAt` — `number | null` timestamps.
  *   - `issuerConfirmed` / `buyerConfirmed` — `boolean` confirmation flags.
  */
-export async function getInvoiceByID(id: string): Promise<Invoice> {
-  const raw = await apiFetch<any>(`/invoices/${id}`);
+export async function getInvoiceByID(
+  id: string,
+  opts?: { signal?: AbortSignal },
+): Promise<Invoice> {
+  const raw = await apiFetch<any>(`/invoices/${id}`, { signal: opts?.signal });
   return parseInvoiceResponse(raw);
 }
 
@@ -344,12 +396,15 @@ export interface PaginatedInvoices {
  * const { data, totalPages } = await getInvoices({ status: "funded", page: 1 });
  * ```
  */
-export async function getInvoices(filters?: {
-  status?: string;
-  issuer?: string;
-  page?: number;
-  limit?: number;
-}): Promise<PaginatedInvoices> {
+export async function getInvoices(
+  filters?: {
+    status?: string;
+    issuer?: string;
+    page?: number;
+    limit?: number;
+  },
+  opts?: { signal?: AbortSignal },
+): Promise<PaginatedInvoices> {
   const params = new URLSearchParams();
   if (filters?.status) params.append("status", filters.status);
   if (filters?.issuer) params.append("issuer", filters.issuer);
@@ -363,7 +418,7 @@ export async function getInvoices(filters?: {
     page: number;
     limit: number;
     totalPages: number;
-  }>(`/invoices${query}`);
+  }>(`/invoices${query}`, { signal: opts?.signal });
 
   return {
     data: raw.data.map(parseInvoiceResponse),
@@ -382,8 +437,12 @@ export async function getInvoices(filters?: {
  *   `availableLiquidity`, `utilizationRateBps`, `totalYieldDistributed`,
  *   `activeInvoiceCount`, `totalShares`).
  */
-export async function getPoolStats(): Promise<PoolStats> {
-  const raw = await apiClient.fetch<any>("/pool/stats");
+export async function getPoolStats(
+  opts?: { signal?: AbortSignal },
+): Promise<PoolStats> {
+  const raw = await apiClient.fetch<any>("/pool/stats", {
+    signal: opts?.signal,
+  });
   return parseRawPoolStats(raw);
 }
 
@@ -395,8 +454,13 @@ export async function getPoolStats(): Promise<PoolStats> {
  *   for the field descriptions: `shares`, `usdcValue`, `yieldEarned`,
  *   `depositCount`).
  */
-export async function getLPPosition(address: string): Promise<LPPosition> {
-  const raw = await apiClient.fetch<any>(`/pool/position/${address}`);
+export async function getLPPosition(
+  address: string,
+  opts?: { signal?: AbortSignal },
+): Promise<LPPosition> {
+  const raw = await apiClient.fetch<any>(`/pool/position/${address}`, {
+    signal: opts?.signal,
+  });
   return parseRawLPPosition(raw);
 }
 
@@ -408,9 +472,14 @@ export async function getLPPosition(address: string): Promise<LPPosition> {
  *   `parseRawEventLog` (`id`, `event_id`, `contract_id`, `ledger`,
  *   `ledger_closed_at`, `event_type`, `data`).
  */
-export async function getRecentEvents(limit?: number): Promise<EventLog[]> {
+export async function getRecentEvents(
+  limit?: number,
+  opts?: { signal?: AbortSignal },
+): Promise<EventLog[]> {
   const query = limit ? `?limit=${limit}` : "";
-  const rawList = await apiClient.fetch<any[]>(`/events${query}`);
+  const rawList = await apiClient.fetch<any[]>(`/events${query}`, {
+    signal: opts?.signal,
+  });
   return rawList.map(parseRawEventLog);
 }
 
@@ -422,8 +491,12 @@ export async function getRecentEvents(limit?: number): Promise<EventLog[]> {
  *   - `utilizationRateBps` — `number` utilization at that time (basis points).
  *   - `totalYieldDistributed` — `string` cumulative yield up to that time.
  */
-export async function getPoolSnapshots(): Promise<PoolSnapshot[]> {
-  return apiClient.fetch<PoolSnapshot[]>("/pool/snapshots");
+export async function getPoolSnapshots(
+  opts?: { signal?: AbortSignal },
+): Promise<PoolSnapshot[]> {
+  return apiClient.fetch<PoolSnapshot[]>("/pool/snapshots", {
+    signal: opts?.signal,
+  });
 }
 
 export interface ProtocolStats {
@@ -450,6 +523,8 @@ export interface ProtocolStats {
  *   - `pool_utilization_bps` — `number` current pool utilization (basis points).
  *   - `registered_issuers` — `number` count of registered issuers.
  */
-export async function getProtocolStats(): Promise<ProtocolStats> {
-  return apiClient.fetch<ProtocolStats>("/stats");
+export async function getProtocolStats(
+  opts?: { signal?: AbortSignal },
+): Promise<ProtocolStats> {
+  return apiClient.fetch<ProtocolStats>("/stats", { signal: opts?.signal });
 }
