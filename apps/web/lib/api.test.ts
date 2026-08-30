@@ -14,6 +14,8 @@ import {
   parseRawLPPosition,
   initApiClientWithToken,
   apiClient,
+  isTransientHttpError,
+  mutationRetryPolicy,
 } from "./api";
 import { useWalletStore } from "@/store/wallet";
 
@@ -356,5 +358,33 @@ describe("API functions", () => {
       const result = await getPoolSnapshots();
       expect(result).toEqual(mockSnapshots);
     });
+  });
+});
+
+describe("mutationRetryPolicy", () => {
+  it("retries a transient 503 error up to the attempt cap", () => {
+    const err503: Error & { status?: number } = new Error(
+      "Service Temporarily Unavailable. Please try again later.",
+    );
+    err503.status = 503;
+
+    expect(isTransientHttpError(err503)).toBe(true);
+    expect(mutationRetryPolicy.retry(0, err503)).toBe(true);
+    expect(mutationRetryPolicy.retry(1, err503)).toBe(true);
+    // Cap out after 3 attempts.
+    expect(mutationRetryPolicy.retry(3, err503)).toBe(false);
+  });
+
+  it("does not retry permanent errors (404 or user rejection)", () => {
+    const err404: Error & { status?: number } = new Error("Not Found");
+    err404.status = 404;
+    expect(isTransientHttpError(err404)).toBe(false);
+    expect(mutationRetryPolicy.retry(0, err404)).toBe(false);
+  });
+
+  it("backs off exponentially and caps the delay", () => {
+    expect(mutationRetryPolicy.retryDelay(0)).toBeLessThanOrEqual(1000);
+    expect(mutationRetryPolicy.retryDelay(1)).toBeLessThanOrEqual(2000);
+    expect(mutationRetryPolicy.retryDelay(10)).toBeLessThanOrEqual(8000);
   });
 });

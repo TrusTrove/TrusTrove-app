@@ -4,6 +4,7 @@ import {
   getInvoices,
   getInvoiceByID,
   createInvoice,
+  mutationRetryPolicy,
   PaginatedInvoices,
 } from "@/lib/api";
 import { useWalletStore } from "@/store/wallet";
@@ -96,6 +97,7 @@ export function useInvoices(filters?: {
   });
 
   const createInvoiceMutation = useMutation({
+    ...mutationRetryPolicy,
     mutationFn: async ({
       buyer,
       faceValue,
@@ -119,6 +121,7 @@ export function useInvoices(filters?: {
   });
 
   const listInvoiceMutation = useMutation({
+    ...mutationRetryPolicy,
     mutationFn: async ({
       invoiceId,
       discountBps,
@@ -140,6 +143,7 @@ export function useInvoices(filters?: {
   });
 
   const fundInvoiceMutation = useMutation({
+    ...mutationRetryPolicy,
     mutationFn: async ({ invoiceId }: { invoiceId: string }) => {
       if (!address) throw new Error("Wallet not connected");
       const client = await getPoolClient();
@@ -157,6 +161,7 @@ export function useInvoices(filters?: {
   });
 
   const shipInvoiceMutation = useMutation({
+    ...mutationRetryPolicy,
     mutationFn: async ({ invoiceId }: { invoiceId: string }) => {
       if (!address) throw new Error("Wallet not connected");
       const client = await getInvoiceClient();
@@ -172,6 +177,7 @@ export function useInvoices(filters?: {
   });
 
   const confirmDeliveryMutation = useMutation({
+    ...mutationRetryPolicy,
     mutationFn: async ({ invoiceId }: { invoiceId: string }) => {
       if (!address) throw new Error("Wallet not connected");
       const invoice = await getInvoiceByID(invoiceId);
@@ -188,6 +194,7 @@ export function useInvoices(filters?: {
   });
 
   const repayInvoiceMutation = useMutation({
+    ...mutationRetryPolicy,
     mutationFn: async ({ invoiceId }: { invoiceId: string }) => {
       if (!address) throw new Error("Wallet not connected");
       const client = await getInvoiceClient();
@@ -221,6 +228,7 @@ export function useInvoices(filters?: {
   });
 
   const defaultInvoiceMutation = useMutation({
+    ...mutationRetryPolicy,
     mutationFn: async ({ invoiceId }: { invoiceId: string }) => {
       if (!address) throw new Error("Wallet not connected");
       const client = await getInvoiceClient();

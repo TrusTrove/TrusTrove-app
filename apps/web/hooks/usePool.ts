@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getPoolStats, getLPPosition } from "@/lib/api";
+import { getPoolStats, getLPPosition, mutationRetryPolicy } from "@/lib/api";
 import { PoolClient } from "@trusttrove/sdk";
 import { useWalletStore } from "@/store/wallet";
 import { showSuccessToast } from "@/lib/toast";
@@ -45,6 +45,7 @@ export function usePool() {
   });
 
   const depositMutation = useMutation({
+    ...mutationRetryPolicy,
     mutationFn: async ({ amount, asset }: DepositArguments) => {
       if (!address) {
         throw new Error("Wallet not connected");
@@ -68,6 +69,7 @@ export function usePool() {
   });
 
   const withdrawMutation = useMutation({
+    ...mutationRetryPolicy,
     mutationFn: async ({ shares }: { shares: bigint }) => {
       if (!address) {
         throw new Error("Wallet not connected");

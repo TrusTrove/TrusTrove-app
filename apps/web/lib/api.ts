@@ -15,6 +15,46 @@ import {
 const REQUEST_TIMEOUT_MS = 20000;
 
 /**
+ * Softer HTTP codes that indicate a transient gateway blip rather than a
+ * permanent failure. A single `503 Service Temporarily Unavailable` should
+ * not fail a money-moving mutation outright.
+ */
+const TRANSIENT_STATUSES = new Set([502, 503, 504]);
+
+/**
+ * react-query options that give financial `useMutation`s a bounded retry
+ * with exponential backoff on transient 5xx gateway errors (no automatic
+ * retry on user rejections or permanent 4xx errors).
+ */
+export const mutationRetryPolicy = {
+  retry: (failureCount: number, error: unknown) => {
+    if (failureCount >= 3) return false;
+    return isTransientHttpError(error);
+  },
+  retryDelay: (attempt: number) => Math.min(1000 * 2 ** attempt, 8000),
+} as const;
+
+/**
+ * Returns true when the error represents a transient gateway/reply failure
+ * (e.g. 502/503/504 or a network error) that is safe to retry with backoff.
+ */
+export function isTransientHttpError(error: unknown): boolean {
+  const status =
+    typeof error === "object" &&
+    error !== null &&
+    "status" in error &&
+    typeof (error as { status?: unknown }).status === "number"
+      ? (error as { status: number }).status
+      : undefined;
+
+  if (status !== undefined) return TRANSIENT_STATUSES.has(status);
+
+  return error instanceof TypeError || error instanceof Error
+    ? /temporarily unavailable|fetch failed|network/i.test(error.message)
+    : false;
+}
+
+/**
  * Builds a fetch `signal` that aborts after {@link REQUEST_TIMEOUT_MS}, while
  * still honouring a caller-supplied signal (e.g. react-query's query signal)
  * so in-flight requests cancel on unmount/refetch. Returns a cleanup fn that
@@ -88,7 +128,9 @@ class ApiClient {
 
       if (!res.ok) {
         const text = await res.text();
-        throw new Error(text || `HTTP error! status: ${res.status}`);
+        const err = new Error(text || `HTTP error! status: ${res.status}`);
+        (err as Error & { status?: number }).status = res.status;
+        throw err;
       }
 
       return res.json() as Promise<T>;
@@ -161,11 +203,15 @@ export async function apiFetch<T>(
     if (!res.ok) {
       const text = await res.text();
       if (res.status === 503 || res.status === 504) {
-        throw new Error(
+        const err = new Error(
           text || "Service Temporarily Unavailable. Please try again later.",
         );
+        (err as Error & { status?: number }).status = res.status;
+        throw err;
       }
-      throw new Error(text || `HTTP error! status: ${res.status}`);
+      const err = new Error(text || `HTTP error! status: ${res.status}`);
+      (err as Error & { status?: number }).status = res.status;
+      throw err;
     }
 
     return res.json() as Promise<T>;
