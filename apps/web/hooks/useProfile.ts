@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { RegistryClient, Profile } from "@trusttrove/sdk";
 import { useWalletStore } from "@/store/wallet";
 import { createErrorHandler } from "@/lib/errors";
+import { useAppError } from "./useAppError";
 
 const { captureError } = createErrorHandler("useProfile");
 
@@ -63,6 +64,7 @@ function isProfileNotFoundError(error: unknown): boolean {
 export function useProfile() {
   const queryClient = useQueryClient();
   const { address } = useWalletStore();
+  const { error: appError, handleError, clearError } = useAppError();
 
   const profileQuery = useQuery({
     queryKey: ["profile", address],
@@ -117,11 +119,13 @@ export function useProfile() {
       }
     },
     onSuccess: () => {
+      clearError();
       queryClient.invalidateQueries({ queryKey: ["profile", address] });
       queryClient.invalidateQueries({ queryKey: ["isVerified", address] });
     },
     onError: (error) => {
       captureError(error);
+      handleError(error, "Profile registration failed");
     },
   });
 
@@ -137,6 +141,7 @@ export function useProfile() {
     register: registerMutation.mutateAsync,
     isRegistering: registerMutation.isPending,
     registerError: registerMutation.error,
+    appError,
 
     refetchProfile: async () => {
       await Promise.all([profileQuery.refetch(), isVerifiedQuery.refetch()]);

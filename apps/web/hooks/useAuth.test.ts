@@ -71,7 +71,9 @@ describe("useAuth", () => {
     await act(async () => {
       await result.current.login();
     });
-    expect(result.current.error).toBe("Wallet not connected");
+    expect(result.current.error).toBe(
+      "Please connect your wallet to perform this action",
+    );
     expect(result.current.loading).toBe(false);
   });
 
