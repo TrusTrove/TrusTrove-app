@@ -17,6 +17,10 @@ vi.mock("@/lib/freighter", () => ({
   },
 }));
 
+vi.mock("@stellar/freighter-api", () => ({
+  getNetworkDetails: vi.fn().mockResolvedValue({ network: "testnet" }),
+}));
+
 vi.mock("./useBalances", () => ({
   useBalances: vi.fn(),
 }));
