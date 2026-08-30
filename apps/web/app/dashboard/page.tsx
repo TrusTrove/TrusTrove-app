@@ -475,6 +475,10 @@ export default function SMEDashboard() {
           aria-label="Create Invoice"
           tabIndex={-1}
           className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-[#080c10]/95 backdrop-blur-sm p-0 md:p-4"
+          onClick={() => setShowCreateModal(false)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") setShowCreateModal(false);
+          }}
         >
           <div
             className="w-full max-w-lg relative bg-card border md:border-border rounded-t-2xl md:rounded-lg max-h-[92vh] md:max-h-[85vh] overflow-hidden flex flex-col shadow-2xl"

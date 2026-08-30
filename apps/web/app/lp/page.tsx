@@ -4,21 +4,27 @@ import React, { useEffect, useState } from "react";
 import { PageLayout } from "@/components/shared/PageLayout";
 import { WalletConnect } from "@/components/shared/WalletConnect";
 import { SimulationPreview } from "@/components/shared/SimulationPreview";
+import {
+  LPPositionCardSkeleton,
+  PoolStatsPanelSkeleton,
+} from "@/components/shared/SkeletonLoader";
 import { usePool } from "@/hooks/usePool";
 import { useWalletStore } from "@/store/wallet";
+import { useConfirmDialogStore } from "@/store/confirmDialog";
 import { PoolClient, type SimulationResult } from "@trusttrove/sdk";
 import { Address, nativeToScVal } from "@stellar/stellar-sdk";
+import { formatAmount } from "@/lib/assets";
 
 const poolContractID = process.env.NEXT_PUBLIC_POOL_CONTRACT_ID || "";
-
-type SimulationDetails = {
-  estimatedFeeXlm: string;
-  functionName: string;
-  expectedResult: unknown;
-  footprintSize: number;
-};
+const STROOPS_PER_UNIT = 10_000_000;
 
 type StatsWithSharePrice = {
+  totalDeposits?: bigint;
+  availableLiquidity?: bigint;
+  totalFunded?: bigint;
+  totalYieldDistributed?: bigint;
+  activeInvoiceCount?: number;
+  utilizationRateBps?: number;
   sharePrice?: bigint | number | string;
 };
 
@@ -28,15 +34,30 @@ function formatSharePrice(
   if (value === undefined) return null;
   const numericValue = Number(value);
   if (!Number.isFinite(numericValue) || numericValue <= 0) return null;
-  return typeof value === "bigint" || numericValue >= 10_000_000
-    ? numericValue / 10_000_000
+  return typeof value === "bigint" || numericValue >= STROOPS_PER_UNIT
+    ? numericValue / STROOPS_PER_UNIT
     : numericValue;
+}
+
+function formatShareValue(value: bigint | undefined): string {
+  return formatAmount(value ?? 0n);
 }
 
 export default function LPDashboard() {
   const { connected, address } = useWalletStore();
-  const { deposit, isDepositing } = usePool();
+  const {
+    deposit,
+    withdraw,
+    isDepositing,
+    isWithdrawing,
+    stats,
+    isStatsLoading,
+    position,
+    isPositionLoading,
+  } = usePool();
+  const requestConfirmation = useConfirmDialogStore((state) => state.request);
   const [depositAmount, setDepositAmount] = useState("");
+  const [withdrawShares, setWithdrawShares] = useState("");
   const [simDetails, setSimDetails] = useState<SimulationResult | null>(null);
   const [simError, setSimError] = useState<string | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
@@ -54,7 +75,7 @@ export default function LPDashboard() {
       setIsSimulating(true);
       setSimError(null);
       try {
-        const amountStroops = BigInt(Math.floor(amount * 10_000_000));
+        const amountStroops = BigInt(Math.floor(amount * STROOPS_PER_UNIT));
         const client = new PoolClient(poolContractID);
         const result = await client.simulateTransaction(
           "deposit",
@@ -99,57 +120,222 @@ export default function LPDashboard() {
     if (!Number.isFinite(amount) || amount <= 0) return;
 
     await deposit({
-      amount: BigInt(Math.floor(amount * 10_000_000)),
+      amount: BigInt(Math.floor(amount * STROOPS_PER_UNIT)),
       asset: "USDC",
     });
     setDepositAmount("");
   };
 
+  const handleWithdraw = (event: React.FormEvent) => {
+    event.preventDefault();
+    const shares = Number(withdrawShares);
+    if (!Number.isFinite(shares) || shares <= 0) return;
+
+    const shareAmount = BigInt(Math.floor(shares * STROOPS_PER_UNIT));
+    requestConfirmation({
+      label: "Withdraw LP liquidity",
+      invoiceId: address || "LP position",
+      fn: async () => {
+        await withdraw({ shares: shareAmount });
+        setWithdrawShares("");
+      },
+    });
+  };
+
+  const typedStats: StatsWithSharePrice | undefined = stats;
+  const utilization = Math.min(
+    100,
+    Math.max(0, (typedStats?.utilizationRateBps ?? 0) / 100),
+  );
+  const sharePrice = formatSharePrice(typedStats?.sharePrice);
+
   return (
     <PageLayout>
-      <div className="mx-auto max-w-2xl space-y-6 py-4">
+      <div className="mx-auto max-w-5xl space-y-6 py-4">
         <div>
           <h1 className="text-xl font-bold uppercase text-white">
             Liquidity Provider Portal
           </h1>
           <p className="mt-1 text-sm text-slate-400">
-            Supply USDC liquidity and earn yield.
+            Supply USDC liquidity, track pool performance, and manage your
+            position.
           </p>
         </div>
 
-        <form
-          onSubmit={handleDeposit}
-          className="space-y-4 rounded-lg border border-border bg-card p-6"
-        >
-          <label
-            htmlFor="deposit-amount"
-            className="block text-sm text-slate-300"
+        <section aria-labelledby="pool-overview-heading" className="space-y-3">
+          <h2
+            id="pool-overview-heading"
+            className="text-sm font-bold uppercase tracking-wider text-white"
           >
-            Deposit amount
-          </label>
-          <input
-            id="deposit-amount"
-            type="number"
-            min="0"
-            step="any"
-            value={depositAmount}
-            onChange={(event) => setDepositAmount(event.target.value)}
-            className="w-full rounded border border-border bg-slate-950 px-3 py-2 text-white"
-          />
-          <SimulationPreview
-            details={simDetails}
-            error={simError}
-            isLoading={isSimulating}
-          />
-          <button
-            type="submit"
-            disabled={isDepositing}
-            className="rounded bg-primary px-4 py-2 font-semibold text-black disabled:opacity-50"
+            Pool Overview
+          </h2>
+          {isStatsLoading ? (
+            <PoolStatsPanelSkeleton />
+          ) : (
+            <div className="bg-card border border-border rounded-lg p-6 flex flex-col md:flex-row items-center gap-8">
+              <div
+                className="relative flex h-36 w-36 shrink-0 items-center justify-center rounded-full border-[8px] border-slate-900"
+                style={{
+                  background: `conic-gradient(#00d4aa ${utilization}%, #17212b ${utilization}% 100%)`,
+                }}
+              >
+                <div className="flex h-28 w-28 flex-col items-center justify-center rounded-full bg-card">
+                  <span className="text-2xl font-bold text-white">
+                    {utilization.toFixed(1)}%
+                  </span>
+                  <span className="text-[10px] uppercase text-slate-500">
+                    Utilization
+                  </span>
+                </div>
+              </div>
+              <div className="grid w-full grid-cols-2 gap-6">
+                <Stat
+                  label="Total Deposits"
+                  value={formatShareValue(typedStats?.totalDeposits)}
+                />
+                <Stat
+                  label="Available Liquidity"
+                  value={formatShareValue(typedStats?.availableLiquidity)}
+                />
+                <Stat
+                  label="Yield Distributed"
+                  value={formatShareValue(typedStats?.totalYieldDistributed)}
+                />
+                <Stat
+                  label="Active Invoices"
+                  value={String(typedStats?.activeInvoiceCount ?? 0)}
+                />
+                {sharePrice !== null && (
+                  <Stat
+                    label="Share Price"
+                    value={`${sharePrice.toFixed(4)} USDC`}
+                  />
+                )}
+              </div>
+            </div>
+          )}
+        </section>
+
+        <section aria-labelledby="position-heading" className="space-y-3">
+          <h2
+            id="position-heading"
+            className="text-sm font-bold uppercase tracking-wider text-white"
           >
-            {isDepositing ? "Depositing..." : "Deposit USDC"}
-          </button>
-        </form>
+            My Position
+          </h2>
+          {isPositionLoading ? (
+            <LPPositionCardSkeleton />
+          ) : (
+            <div className="bg-[#0d131a] border border-border rounded-lg p-5 space-y-4">
+              <div className="flex items-center justify-between border-b border-border/40 pb-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-white">
+                  Active LP Position
+                </span>
+                <span className="text-[10px] text-slate-500">
+                  {position?.depositCount ?? 0} deposits
+                </span>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <Stat
+                  label="Current USDC Value"
+                  value={formatShareValue(position?.usdcValue)}
+                />
+                <Stat
+                  label="Redeemable Shares"
+                  value={formatShareValue(position?.shares)}
+                />
+                <Stat
+                  label="Accrued Yield"
+                  value={formatShareValue(position?.yieldEarned)}
+                />
+              </div>
+            </div>
+          )}
+        </section>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <form
+            onSubmit={handleDeposit}
+            className="space-y-4 rounded-lg border border-border bg-card p-6"
+          >
+            <h2 className="text-sm font-bold uppercase tracking-wider text-white">
+              Deposit USDC
+            </h2>
+            <label
+              htmlFor="deposit-amount"
+              className="block text-sm text-slate-300"
+            >
+              Deposit amount
+            </label>
+            <input
+              id="deposit-amount"
+              type="number"
+              min="0"
+              step="any"
+              value={depositAmount}
+              onChange={(event) => setDepositAmount(event.target.value)}
+              className="w-full rounded border border-border bg-slate-950 px-3 py-2 text-white"
+            />
+            <SimulationPreview
+              details={simDetails}
+              error={simError}
+              isLoading={isSimulating}
+            />
+            <button
+              type="submit"
+              disabled={isDepositing}
+              className="rounded bg-primary px-4 py-2 font-semibold text-black disabled:opacity-50"
+            >
+              {isDepositing ? "Depositing..." : "Deposit USDC"}
+            </button>
+          </form>
+
+          <form
+            onSubmit={handleWithdraw}
+            className="space-y-4 rounded-lg border border-border bg-card p-6"
+          >
+            <h2 className="text-sm font-bold uppercase tracking-wider text-white">
+              Withdraw Liquidity
+            </h2>
+            <label
+              htmlFor="withdraw-shares"
+              className="block text-sm text-slate-300"
+            >
+              Shares to redeem
+            </label>
+            <input
+              id="withdraw-shares"
+              type="number"
+              min="0"
+              step="any"
+              value={withdrawShares}
+              onChange={(event) => setWithdrawShares(event.target.value)}
+              className="w-full rounded border border-border bg-slate-950 px-3 py-2 text-white"
+            />
+            <p className="text-xs text-slate-500">
+              Available: {formatShareValue(position?.shares)}
+            </p>
+            <button
+              type="submit"
+              disabled={isWithdrawing || !position?.shares}
+              className="rounded border border-rose-500/60 px-4 py-2 font-semibold text-rose-300 disabled:opacity-50"
+            >
+              {isWithdrawing ? "Withdrawing..." : "Withdraw Shares"}
+            </button>
+          </form>
+        </div>
       </div>
     </PageLayout>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="space-y-1">
+      <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+        {label}
+      </span>
+      <span className="block text-sm font-semibold text-white">{value}</span>
+    </div>
   );
 }

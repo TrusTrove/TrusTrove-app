@@ -29,6 +29,7 @@ import {
   InvoiceClient,
   PoolClient,
   EscrowClient,
+  TokenClient,
 } from "@trusttrove/sdk";
 
 const registry = new RegistryClient(
@@ -37,6 +38,7 @@ const registry = new RegistryClient(
 const invoice = new InvoiceClient(process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID!);
 const pool = new PoolClient(process.env.NEXT_PUBLIC_POOL_CONTRACT_ID!);
 const escrow = new EscrowClient(process.env.NEXT_PUBLIC_ESCROW_CONTRACT_ID!);
+const usdc = TokenClient.forUSDC();
 ```
 
 > **Note:** All write methods (`writeContract`) require a `signerPublicKey` argument — the Freighter wallet address that will sign the transaction. All read methods (`readContract`) also require it to build and simulate the transaction.
@@ -141,6 +143,21 @@ const stats = await pool.getStats(signerPublicKey);
 // Get utilization rate as a standalone call
 const rateBps = await pool.getUtilizationRate(signerPublicKey);
 
+// Before deposit or any other pool/invoice operation that transfers USDC,
+// ensure the target contract has sufficient token allowance (see Token Client below).
+await usdc.allowance(
+  lpPublicKey,
+  process.env.NEXT_PUBLIC_POOL_CONTRACT_ID!,
+  signerPublicKey,
+);
+await usdc.approve(
+  lpPublicKey,
+  process.env.NEXT_PUBLIC_POOL_CONTRACT_ID!,
+  BigInt(1_000_000_000_000),
+  expirationLedger,
+  signerPublicKey,
+);
+
 // Deposit USDC (returns tx hash)
 const txHash = await pool.deposit(
   lpPublicKey,
@@ -164,6 +181,39 @@ await pool.fundInvoice(invoiceIdHex, signerPublicKey);
 // Record a repayment back into the pool
 await pool.receiveRepayment(invoiceIdHex, repaymentAmount, signerPublicKey);
 ```
+
+---
+
+## Token Client
+
+`TokenClient` wraps the USDC Stellar Asset Contract (SAC) allowance methods. USDC deposits and repayments call `transfer_from` through the pool or invoice contract, so the spender must be approved before the financial operation is submitted. The web app's `useTokenAllowance` hook performs this check automatically.
+
+```typescript
+import { TokenClient } from "@trusttrove/sdk";
+
+const usdc = TokenClient.forUSDC();
+const allowance = await usdc.allowance(
+  userPublicKey,
+  spenderContractId,
+  signerPublicKey,
+);
+
+if (allowance < amount) {
+  const latestLedger = await server.getLatestLedger();
+  await usdc.approve(
+    userPublicKey,
+    spenderContractId,
+    amount,
+    latestLedger.sequence + 535_680,
+    signerPublicKey,
+  );
+}
+```
+
+- `TokenClient.forUSDC()` derives the configured USDC SAC contract ID.
+- `allowance(from, spender, signerPublicKey)` reads the current allowance in stroops.
+- `approve(from, spender, amount, expirationLedger, signerPublicKey)` submits the approval transaction.
+- Use the pool contract as `spenderContractId` for deposits and the invoice contract for repayments. In the web app, see `useTokenAllowance` for the reusable implementation.
 
 ---
 
