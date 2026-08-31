@@ -324,3 +324,197 @@ export function useInvoice(id: string) {
 // Stellar Wave #643: Offline vs account-not-found distinction
 // Distinguishes TypeError/FetchError from Horizon 404 responses
 // Shows explicit offline state instead of misleading no-balance
+
+// ============================================================
+// Stellar Wave #647: Confirmation step for fundInvoice and shipInvoice
+// ============================================================
+
+interface ConfirmationDialogConfig {
+  title: string;
+  description: string;
+  confirmLabel: string;
+  dangerLevel: 'low' | 'medium' | 'high';
+  requireTyping?: string;
+}
+
+const FUND_INVOICE_CONFIRMATION: ConfirmationDialogConfig = {
+  title: 'Fund Invoice',
+  description: 'This will deploy USDC from your pool to the escrow contract. This action is irreversible once confirmed on-chain.',
+  confirmLabel: 'I understand, fund this invoice',
+  dangerLevel: 'high',
+  requireTyping: 'FUND',
+};
+
+const SHIP_INVOICE_CONFIRMATION: ConfirmationDialogConfig = {
+  title: 'Mark Goods Shipped',
+  description: 'This will update the escrow state on-chain to mark this invoice as shipped. This cannot be undone.',
+  confirmLabel: 'Confirm shipment',
+  dangerLevel: 'high',
+  requireTyping: 'SHIP',
+};
+
+async function requestFundConfirmation(
+  invoiceId: string,
+  amount: string
+): Promise<boolean> {
+  const config: ConfirmationDialogConfig = {
+    ...FUND_INVOICE_CONFIRMATION,
+    description: `FUND_INVOICE_CONFIRMATION.description This will lock ${amount} USDC in escrow for invoice ${invoiceId.slice(0, 8)}...`,
+  };
+  return showConfirmationDialog(config);
+}
+
+async function requestShipConfirmation(
+  invoiceId: string
+): Promise<boolean> {
+  const config: ConfirmationDialogConfig = {
+    ...SHIP_INVOICE_CONFIRMATION,
+    description: `${SHIP_INVOICE_CONFIRMATION.description Invoice: ${invoiceId.slice(0, 8)}...`,
+  };
+  return showConfirmationDialog(config);
+}
+
+// ============================================================
+// Stellar Wave #645: TOCTOU re-validation for confirmDelivery
+// ============================================================
+
+interface InvoiceFreshnessCheck {
+  buyer: string;
+  status: string;
+  lastModified: string;
+  checkTimestamp: number;
+}
+
+async function revalidateBeforeConfirm(
+  invoiceId: string,
+  originalBuyer: string,
+  walletAddress: string
+): Promise<InvoiceFreshnessCheck> {
+  const freshInvoice = await getInvoiceByID(invoiceId);
+  const now = Date.now();
+
+  if (freshInvoice.buyer !== originalBuyer) {
+    throw new StaleDataError(
+      `Invoice buyer changed from ${originalBuyer} to ${freshInvoice.buyer}. ` +
+      `Please retry — the on-chain data may have been updated by another party.`
+    );
+  }
+
+  if (freshInvoice.status !== 'SHIPPED') {
+    throw new StaleDataError(
+      `Invoice status changed to ${freshInvoice.status}. ` +
+      `Only SHIPPED invoices can be delivery-confirmed.`
+    );
+  }
+
+  return {
+    buyer: freshInvoice.buyer,
+    status: freshInvoice.status,
+    lastModified: freshInvoice.updatedAt,
+    checkTimestamp: now,
+  };
+}
+
+class StaleDataError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'StaleDataError';
+  }
+}
+
+// ============================================================
+// Stellar Wave #644: Error propagation for useProfile verification
+// ============================================================
+
+interface VerificationResult {
+  isVerified: boolean;
+  error: Error | null;
+  checkedAt: Date;
+  source: 'registry' | 'cache' | 'fallback';
+}
+
+async function fetchVerificationStatus(
+  address: string,
+  registryContractID: string
+): Promise<VerificationResult> {
+  const client = new RegistryClient(registryContractID);
+  const checkedAt = new Date();
+
+  try {
+    const verified = await client.isVerified(address, address);
+    return {
+      isVerified: verified,
+      error: null,
+      checkedAt,
+      source: 'registry',
+    };
+  } catch (err) {
+    captureError(err);
+    // Re-throw instead of swallowing to false
+    // This lets react-query surface isVerifiedError
+    throw new VerificationCheckError(
+      `Registry check failed: ${(err as Error).message}`,
+      { cause: err as Error }
+    );
+  }
+}
+
+class VerificationCheckError extends Error {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = 'VerificationCheckError';
+  }
+}
+
+// ============================================================
+// Stellar Wave #643: Offline vs account-not-found distinction
+// ============================================================
+
+interface BalanceError {
+  kind: 'not-found' | 'offline' | 'unknown';
+  message: string;
+  rawError: unknown;
+}
+
+function classifyBalanceError(err: unknown): BalanceError {
+  if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
+    return {
+      kind: 'offline',
+      message: 'You appear to be offline. Please check your network connection and try again.',
+      rawError: err,
+    };
+  }
+
+  if (err instanceof Error && 'response' in err) {
+    const resp = (err as { response?: { status?: number } }).response;
+    if (resp?.status === 404) {
+      return {
+        kind: 'not-found',
+        message: 'Account not found on-chain. This account may not have been activated yet.',
+        rawError: err,
+      };
+    }
+  }
+
+  if (err instanceof Error && err.name === 'NotFoundError') {
+    return {
+      kind: 'not-found',
+      message: 'Account not found on-chain.',
+      rawError: err,
+    };
+  }
+
+  return {
+    kind: 'unknown',
+    message: `Balance fetch failed: ${(err as Error)?.message ?? 'unknown error'}`,
+    rawError: err,
+  };
+}
+
+function isOfflineError(err: unknown): boolean {
+  return classifyBalanceError(err).kind === 'offline';
+}
+
+function isAccountNotFoundError(err: unknown): boolean {
+  return classifyBalanceError(err).kind === 'not-found';
+}
