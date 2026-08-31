@@ -15,6 +15,14 @@ vi.mock("@/hooks/useProfile", () => ({
   useProfile: vi.fn(() => ({ isVerified: true })),
 }));
 
+const requestConfirmationMock = vi.fn();
+
+vi.mock("@/store/confirmDialog", () => ({
+  useConfirmDialogStore: vi.fn(() => ({
+    request: requestConfirmationMock,
+  })),
+}));
+
 vi.mock("@/hooks/useInvoices", () => ({
   useInvoices: () => ({
     listInvoice: vi.fn().mockResolvedValue({}),
@@ -130,6 +138,47 @@ describe("InvoiceCard", () => {
     );
     // Buyer can confirm delivery when shipped (in contract it's Active)
     expect(screen.getByText(/CONFIRM DELIVERY/i)).toBeInTheDocument();
+  });
+
+  it("asks for confirmation before funding an invoice", () => {
+    renderWithQueryClient(
+      <InvoiceCard
+        invoice={{ ...mockInvoice, status: "Listed" } as any}
+        role="lp"
+      />,
+    );
+    fireEvent.click(screen.getByText(/FUND INVOICE/i));
+    expect(requestConfirmationMock).toHaveBeenCalledTimes(1);
+    expect(requestConfirmationMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        label: "Fund Invoice",
+        invoiceId: "abcd",
+        fn: expect.any(Function),
+      }),
+    );
+    // The on-chain mutation must not fire before confirmation.
+    const { fundInvoice } = require("@/hooks/useInvoices");
+    expect(fundInvoice).not.toHaveBeenCalled();
+  });
+
+  it("asks for confirmation before marking goods shipped", () => {
+    renderWithQueryClient(
+      <InvoiceCard
+        invoice={{ ...mockInvoice, status: "Funded" } as any}
+        role="issuer"
+      />,
+    );
+    fireEvent.click(screen.getByText(/MARK GOODS SHIPPED/i));
+    expect(requestConfirmationMock).toHaveBeenCalledTimes(1);
+    expect(requestConfirmationMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        label: "Mark Goods Shipped",
+        invoiceId: "abcd",
+        fn: expect.any(Function),
+      }),
+    );
+    const { shipInvoice } = require("@/hooks/useInvoices");
+    expect(shipInvoice).not.toHaveBeenCalled();
   });
 
   it("renders correct action buttons for delivered status (buyer)", () => {
