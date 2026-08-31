@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useId, useState } from "react";
 import { Invoice } from "@/types";
 import { InvoiceStatus } from "./InvoiceStatus";
 import { VerificationBadge } from "./VerificationBadge";
@@ -53,6 +53,7 @@ export const InvoiceCard = React.memo(function InvoiceCard({
   const [copiedBuyer, setCopiedBuyer] = useState(false);
   const [discountBpsInput, setDiscountBpsInput] = useState("200"); // default 2%
   const [showListForm, setShowListForm] = useState(false);
+  const discountBpsId = useId();
 
   const truncateAddr = (addr: string) => {
     if (!addr) return "";
@@ -297,10 +298,14 @@ export const InvoiceCard = React.memo(function InvoiceCard({
           {showListForm && (
             <div className="bg-[#080c10] p-3 border border-border rounded space-y-3">
               <div>
-                <label className="block text-[10px] font-bold font-mono text-slate-500 uppercase tracking-wider mb-1">
+                <label
+                  htmlFor={discountBpsId}
+                  className="block text-[10px] font-bold font-mono text-slate-500 uppercase tracking-wider mb-1"
+                >
                   Discount Basis Points (e.g. 200 = 2.00%)
                 </label>
                 <input
+                  id={discountBpsId}
                   type="number"
                   className="w-full bg-slate-900 border border-border rounded px-3 py-1.5 text-white font-mono text-xs focus:outline-none focus:border-primary"
                   value={discountBpsInput}

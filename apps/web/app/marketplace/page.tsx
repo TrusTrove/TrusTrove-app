@@ -173,10 +173,14 @@ export default function Marketplace() {
           </div>
 
           <div className="space-y-1">
-            <span className="text-[10px] text-slate-500 font-bold uppercase">
+            <label
+              htmlFor="marketplace-min-value"
+              className="text-[10px] text-slate-500 font-bold uppercase"
+            >
               Min Value
-            </span>
+            </label>
             <input
+              id="marketplace-min-value"
               type="number"
               placeholder="e.g. 5000"
               className="w-full bg-[#080c10] border border-border rounded px-3 py-1.5 text-white focus:outline-none focus:border-primary"
@@ -186,10 +190,14 @@ export default function Marketplace() {
           </div>
 
           <div className="space-y-1">
-            <span className="text-[10px] text-slate-500 font-bold uppercase">
+            <label
+              htmlFor="marketplace-max-value"
+              className="text-[10px] text-slate-500 font-bold uppercase"
+            >
               Max Value
-            </span>
+            </label>
             <input
+              id="marketplace-max-value"
               type="number"
               placeholder="e.g. 50000"
               className="w-full bg-[#080c10] border border-border rounded px-3 py-1.5 text-white focus:outline-none focus:border-primary"
