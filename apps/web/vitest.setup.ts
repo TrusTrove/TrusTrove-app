@@ -1,3 +1,4 @@
+import '@testing-library/jest-dom/vitest';
 import "@testing-library/jest-dom";
 
 const store: Record<string, string> = {};
