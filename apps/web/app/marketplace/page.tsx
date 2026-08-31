@@ -215,6 +215,10 @@ export default function Marketplace() {
               className="w-full accent-primary bg-slate-900 h-1.5 rounded"
               value={maxDiscount}
               onChange={(e) => setMaxDiscount(e.target.value)}
+              aria-label="Maximum discount rate"
+              aria-valuenow={parseInt(maxDiscount)}
+              aria-valuemin={50}
+              aria-valuemax={500}
             />
           </div>
         </div>
