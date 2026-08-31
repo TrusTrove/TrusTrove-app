@@ -1,5 +1,6 @@
 import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import ProfilePage from "@/app/profile/page";
 
@@ -57,5 +58,106 @@ describe("Profile registration dialog", () => {
     expect(
       screen.getByRole("button", { name: "Close registration dialog" }),
     ).toBeInTheDocument();
+  });
+
+  it("traps Tab and Shift+Tab focus within the modal", async () => {
+    const user = userEvent.setup();
+    render(<ProfilePage />);
+
+    const openButton = screen.getByRole("button", {
+      name: "Register profile",
+    });
+    await user.click(openButton);
+
+    const dialog = screen.getByRole("dialog", {
+      name: "Register Business Metadata",
+    });
+
+    // Collect all focusable elements inside the modal
+    const focusableSelector = [
+      "button:not([disabled])",
+      "input:not([disabled])",
+      "select:not([disabled])",
+      "textarea:not([disabled])",
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(",");
+    const focusableElements = Array.from(
+      dialog.querySelectorAll<HTMLElement>(focusableSelector),
+    ).filter((el) => {
+      const style = window.getComputedStyle(el);
+      return style.display !== "none" && style.visibility !== "hidden";
+    });
+
+    expect(focusableElements.length).toBeGreaterThanOrEqual(2);
+
+    // Focus should start inside the modal (useFocusTrap moves focus to first element)
+    expect(dialog).toContainElement(document.activeElement as HTMLElement);
+
+    // Tab forward through all focusable elements and beyond — should cycle back
+    for (let i = 0; i < focusableElements.length + 2; i++) {
+      await user.tab();
+      expect(dialog).toContainElement(document.activeElement as HTMLElement);
+    }
+
+    // Tab backward through all focusable elements and beyond — should cycle back
+    for (let i = 0; i < focusableElements.length + 2; i++) {
+      await user.tab({ shift: true });
+      expect(dialog).toContainElement(document.activeElement as HTMLElement);
+    }
+  });
+
+  it("restores focus to the trigger button when modal closes via Escape", async () => {
+    const user = userEvent.setup();
+    render(<ProfilePage />);
+
+    const openButton = screen.getByRole("button", {
+      name: "Register profile",
+    });
+    await user.click(openButton);
+
+    // Escape should close the modal (useFocusTrap calls onEscape)
+    await user.keyboard("{Escape}");
+
+    // The dialog should no longer be in the document
+    expect(
+      screen.queryByRole("dialog", {
+        name: "Register Business Metadata",
+      }),
+    ).not.toBeInTheDocument();
+
+    // useFocusTrap restores focus via requestAnimationFrame, so flush it
+    await new Promise((r) => requestAnimationFrame(r));
+
+    // Focus should return to the element that opened the modal
+    expect(openButton).toHaveFocus();
+  });
+
+  it("restores focus to the trigger button when modal closes via close button", async () => {
+    const user = userEvent.setup();
+    render(<ProfilePage />);
+
+    const openButton = screen.getByRole("button", {
+      name: "Register profile",
+    });
+    await user.click(openButton);
+
+    // Click the close button
+    const closeButton = screen.getByRole("button", {
+      name: "Close registration dialog",
+    });
+    await user.click(closeButton);
+
+    // The dialog should no longer be in the document
+    expect(
+      screen.queryByRole("dialog", {
+        name: "Register Business Metadata",
+      }),
+    ).not.toBeInTheDocument();
+
+    // useFocusTrap restores focus via requestAnimationFrame, so flush it
+    await new Promise((r) => requestAnimationFrame(r));
+
+    // Focus should return to the element that opened the modal
+    expect(openButton).toHaveFocus();
   });
 });
