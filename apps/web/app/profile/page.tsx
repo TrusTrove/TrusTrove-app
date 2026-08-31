@@ -20,14 +20,14 @@ import {
   UserCheck,
   FileBadge2,
   Building,
-  Mail,
   Fingerprint,
 } from "lucide-react";
 
 const registryContractID = process.env.NEXT_PUBLIC_REGISTRY_CONTRACT_ID || "";
 
 export default function ProfilePage() {
-  const { connected, address } = useWalletStore();
+  const connected = useWalletStore((s) => s.connected);
+  const address = useWalletStore((s) => s.address);
   const {
     profile,
     isProfileLoading,
@@ -47,11 +47,11 @@ export default function ProfilePage() {
   );
 
   const [regRole, setRegRole] = useState<"issuer" | "buyer">("issuer");
-  const [companyName, setCompanyName] = useState("");
+  const [companyName] = useState("");
   const [taxId, setTaxId] = useState("");
   const [country, setCountry] = useState("");
   const [website, setWebsite] = useState("");
-  const [email, setEmail] = useState("");
+  const [email] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
 
   // Transaction Modal State
@@ -339,154 +339,176 @@ export default function ProfilePage() {
       {/* Registration Modal Dialog */}
       {showRegModal && (
         <ErrorBoundary context="RegistrationModal">
-          <div className="w-full max-w-lg bg-card border border-border rounded-lg p-6 relative shadow-[0_0_50px_rgba(0,212,170,0.05)]">
-            <button
-              onClick={() => setShowRegModal(false)}
-              className="absolute top-4 right-4 text-slate-500 hover:text-white font-bold font-mono text-xs uppercase"
+          <div
+            ref={modalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="registration-dialog-title"
+            tabIndex={-1}
+            className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-[#080c10]/95 backdrop-blur-sm p-0 md:p-4"
+            onClick={(event) => {
+              if (event.target === event.currentTarget) {
+                setShowRegModal(false);
+              }
+            }}
+          >
+            <div
+              className="w-full max-w-lg max-h-[92vh] md:max-h-[85vh] overflow-y-auto overscroll-contain bg-card border md:border-border rounded-t-2xl md:rounded-lg p-6 relative shadow-[0_0_50px_rgba(0,212,170,0.05)]"
+              onClick={(event) => event.stopPropagation()}
             >
-              [Close]
-            </button>
+              <button
+                onClick={() => setShowRegModal(false)}
+                aria-label="Close registration dialog"
+                className="absolute top-3 right-3 min-h-[44px] px-2 text-slate-500 hover:text-white font-bold font-mono text-xs uppercase"
+              >
+                [Close]
+              </button>
 
-            <div className="mb-6 border-b border-border/40 pb-3">
-              <h2 className="text-sm font-bold font-mono tracking-wider uppercase text-white flex items-center gap-1.5">
-                <Building2 className="w-4 h-4 text-primary" />
-                Register Business Metadata
-              </h2>
-              <p className="text-[10px] text-slate-500 font-mono mt-0.5">
-                Input your company credentials. This metadata maps to your
-                wallet address on-chain.
-              </p>
-            </div>
-
-            <form
-              onSubmit={handleRegisterSubmit}
-              className="space-y-4 font-mono text-xs"
-            >
-              {/* Role Toggle Selector */}
-              <div className="space-y-2">
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                  Select On-Chain Business Role
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setRegRole("issuer")}
-                    className={`py-2 px-3 border rounded text-center transition-all ${
-                      regRole === "issuer"
-                        ? "border-primary bg-primary/5 text-primary font-bold"
-                        : "border-border bg-transparent text-slate-400 hover:text-white hover:bg-slate-900/40"
-                    }`}
-                  >
-                    SME / Issuer
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRegRole("buyer")}
-                    className={`py-2 px-3 border rounded text-center transition-all ${
-                      regRole === "buyer"
-                        ? "border-primary bg-primary/5 text-primary font-bold"
-                        : "border-border bg-transparent text-slate-400 hover:text-white hover:bg-slate-900/40"
-                    }`}
-                  >
-                    Obligor / Buyer
-                  </button>
-                </div>
+              <div className="mb-6 border-b border-border/40 pb-3">
+                <h2
+                  id="registration-dialog-title"
+                  className="text-sm font-bold font-mono tracking-wider uppercase text-white flex items-center gap-1.5 pr-16"
+                >
+                  <Building2 className="w-4 h-4 text-primary" />
+                  Register Business Metadata
+                </h2>
+                <p className="text-[10px] text-slate-500 font-mono mt-0.5">
+                  Input your company credentials. This metadata maps to your
+                  wallet address on-chain.
+                </p>
               </div>
 
-              {/* Tax ID & Country */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
+              <form
+                onSubmit={handleRegisterSubmit}
+                className="space-y-4 font-mono text-xs"
+              >
+                {/* Role Toggle Selector */}
+                <div className="space-y-2">
                   <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                    Tax ID / Registration No.
+                    Select On-Chain Business Role
                   </label>
-                  <div className="relative">
-                    <FileText className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. EU123456789"
-                      className="w-full bg-[#080c10] border border-border rounded pl-10 pr-3 py-2 text-white placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                      value={taxId}
-                      onChange={(e) => setTaxId(e.target.value)}
-                    />
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setRegRole("issuer")}
+                      className={`py-2 px-3 border rounded text-center transition-all ${
+                        regRole === "issuer"
+                          ? "border-primary bg-primary/5 text-primary font-bold"
+                          : "border-border bg-transparent text-slate-400 hover:text-white hover:bg-slate-900/40"
+                      }`}
+                    >
+                      SME / Issuer
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRegRole("buyer")}
+                      className={`py-2 px-3 border rounded text-center transition-all ${
+                        regRole === "buyer"
+                          ? "border-primary bg-primary/5 text-primary font-bold"
+                          : "border-border bg-transparent text-slate-400 hover:text-white hover:bg-slate-900/40"
+                      }`}
+                    >
+                      Obligor / Buyer
+                    </button>
                   </div>
                 </div>
 
+                {/* Tax ID & Country */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      Tax ID / Registration No.
+                    </label>
+                    <div className="relative">
+                      <FileText className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. EU123456789"
+                        className="w-full bg-[#080c10] border border-border rounded pl-10 pr-3 py-2 text-white placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                        value={taxId}
+                        onChange={(e) => setTaxId(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      Country of Incorporation
+                    </label>
+                    <div className="relative">
+                      <Globe className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Germany"
+                        className="w-full bg-[#080c10] border border-border rounded pl-10 pr-3 py-2 text-white placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                        value={country}
+                        onChange={(e) => setCountry(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Website URL */}
                 <div className="space-y-1">
                   <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                    Country of Incorporation
+                    Corporate Website URL (Optional)
                   </label>
                   <div className="relative">
                     <Globe className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
                     <input
-                      type="text"
-                      required
-                      placeholder="e.g. Germany"
+                      type="url"
+                      placeholder="e.g. https://acme.corp"
                       className="w-full bg-[#080c10] border border-border rounded pl-10 pr-3 py-2 text-white placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                      value={country}
-                      onChange={(e) => setCountry(e.target.value)}
+                      value={website}
+                      onChange={(e) => setWebsite(e.target.value)}
                     />
                   </div>
                 </div>
-              </div>
 
-              {/* Website URL */}
-              <div className="space-y-1">
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                  Corporate Website URL (Optional)
-                </label>
-                <div className="relative">
-                  <Globe className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
-                  <input
-                    type="url"
-                    placeholder="e.g. https://acme.corp"
-                    className="w-full bg-[#080c10] border border-border rounded pl-10 pr-3 py-2 text-white placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                    value={website}
-                    onChange={(e) => setWebsite(e.target.value)}
-                  />
-                </div>
-              </div>
+                {/* Warnings and errors */}
+                {(localError || registerError) && (
+                  <div className="p-3 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 text-[11px] flex items-start gap-2">
+                    <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>
+                      {localError ||
+                        (registerError as any)?.message ||
+                        "Failed to submit registration"}
+                    </span>
+                  </div>
+                )}
 
-              {/* Warnings and errors */}
-              {(localError || registerError) && (
-                <div className="p-3 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 text-[11px] flex items-start gap-2">
-                  <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
+                <div className="bg-[#080c10] border border-amber-500/20 p-3 rounded text-[10px] text-amber-500 leading-normal flex items-start gap-1.5">
+                  <Lock className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                   <span>
-                    {localError ||
-                      (registerError as any)?.message ||
-                      "Failed to submit registration"}
+                    Signing this registration requires Freighter authorization.
+                    You will submit a Soroban write transaction, which
+                    whitelists your wallet address and locks your business
+                    credentials.
                   </span>
                 </div>
-              )}
 
-              <div className="bg-[#080c10] border border-amber-500/20 p-3 rounded text-[10px] text-amber-500 leading-normal flex items-start gap-1.5">
-                <Lock className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                <span>
-                  Signing this registration requires Freighter authorization.
-                  You will submit a Soroban write transaction, which whitelists
-                  your wallet address and locks your business credentials.
-                </span>
-              </div>
-
-              {/* Buttons */}
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowRegModal(false)}
-                  className="flex-1 border border-border bg-transparent hover:bg-slate-900 text-slate-400 font-bold uppercase py-2.5 rounded"
-                  disabled={isRegistering}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 bg-primary hover:bg-primary-hover text-black font-bold uppercase py-2.5 rounded shadow-[0_0_15px_rgba(0,212,170,0.15)] flex items-center justify-center gap-1.5"
-                  disabled={isRegistering}
-                >
-                  {isRegistering ? "Signing..." : "Register Profile"}
-                </button>
-              </div>
-            </form>
+                {/* Buttons */}
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowRegModal(false)}
+                    className="flex-1 border border-border bg-transparent hover:bg-slate-900 text-slate-400 font-bold uppercase py-2.5 rounded"
+                    disabled={isRegistering}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 bg-primary hover:bg-primary-hover text-black font-bold uppercase py-2.5 rounded shadow-[0_0_15px_rgba(0,212,170,0.15)] flex items-center justify-center gap-1.5"
+                    disabled={isRegistering}
+                  >
+                    {isRegistering ? "Signing..." : "Register Profile"}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </ErrorBoundary>
       )}

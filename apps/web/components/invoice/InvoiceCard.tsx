@@ -1,9 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useId, useState } from "react";
 import { Invoice } from "@/types";
 import { InvoiceStatus } from "./InvoiceStatus";
-import { useInvoices } from "@/hooks/useInvoices";
+import { VerificationBadge } from "./VerificationBadge";
+import type { VerificationState } from "./VerificationBadge";
+import { useInvoiceActions } from "@/hooks/useInvoices";
 import { Button } from "@/components/ui/button";
 import { useWalletStore } from "@/store/wallet";
 import { useProfile } from "@/hooks/useProfile";
@@ -34,7 +36,7 @@ export const InvoiceCard = React.memo(function InvoiceCard({
   onSelect,
   isSelected,
 }: InvoiceCardProps) {
-  const { address } = useWalletStore();
+  const address = useWalletStore((s) => s.address);
   const { isVerified } = useProfile();
   const {
     listInvoice,
@@ -43,7 +45,7 @@ export const InvoiceCard = React.memo(function InvoiceCard({
     confirmDelivery,
     repayInvoice,
     defaultInvoice,
-  } = useInvoices();
+  } = useInvoiceActions();
   const { request: requestConfirmation } = useConfirmDialogStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +53,7 @@ export const InvoiceCard = React.memo(function InvoiceCard({
   const [copiedBuyer, setCopiedBuyer] = useState(false);
   const [discountBpsInput, setDiscountBpsInput] = useState("200"); // default 2%
   const [showListForm, setShowListForm] = useState(false);
+  const discountBpsId = useId();
 
   const truncateAddr = (addr: string) => {
     if (!addr) return "";
@@ -80,23 +83,23 @@ export const InvoiceCard = React.memo(function InvoiceCard({
       }
       await listInvoice({ invoiceId: invoice.id, discountBps: bps });
       setShowListForm(false);
-    } catch (err: any) {
-      setError(err.message || "Failed to list invoice");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to list invoice");
     } finally {
       setLoading(false);
     }
   };
 
   const handleAction = async (
-    actionFn: () => Promise<any>,
+    actionFn: () => Promise<boolean>,
     errorMsg: string,
   ) => {
     setLoading(true);
     setError(null);
     try {
       await actionFn();
-    } catch (err: any) {
-      setError(err.message || errorMsg);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : errorMsg);
     } finally {
       setLoading(false);
     }
@@ -109,6 +112,12 @@ export const InvoiceCard = React.memo(function InvoiceCard({
   const isOverdue = secondsRemaining < 0;
 
   const showActions = !!address;
+
+  // Derive per-invoice verification state from attestation fields
+  const verificationState: VerificationState =
+    invoice.riskScoreBps != null ? "verified" : "unverified";
+  // "failed" is reserved for a future explicit failure signal from the indexer;
+  // it is intentionally not wired to fake data here.
 
   // Render actions depending on state
   return (
@@ -145,7 +154,13 @@ export const InvoiceCard = React.memo(function InvoiceCard({
             Invoice obligation
           </h3>
         </div>
-        <InvoiceStatus status={invoice.status} />
+        <div className="flex items-center gap-2">
+          <VerificationBadge
+            state={verificationState}
+            riskScoreBps={invoice.riskScoreBps}
+          />
+          <InvoiceStatus status={invoice.status} />
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 mb-4">
@@ -283,10 +298,14 @@ export const InvoiceCard = React.memo(function InvoiceCard({
           {showListForm && (
             <div className="bg-[#080c10] p-3 border border-border rounded space-y-3">
               <div>
-                <label className="block text-[10px] font-bold font-mono text-slate-500 uppercase tracking-wider mb-1">
+                <label
+                  htmlFor={discountBpsId}
+                  className="block text-[10px] font-bold font-mono text-slate-500 uppercase tracking-wider mb-1"
+                >
                   Discount Basis Points (e.g. 200 = 2.00%)
                 </label>
                 <input
+                  id={discountBpsId}
                   type="number"
                   className="w-full bg-slate-900 border border-border rounded px-3 py-1.5 text-white font-mono text-xs focus:outline-none focus:border-primary"
                   value={discountBpsInput}

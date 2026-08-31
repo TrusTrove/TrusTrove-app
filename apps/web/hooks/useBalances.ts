@@ -59,8 +59,26 @@ async function fetchBalancesFromHorizon(
   }
 }
 
+/**
+ * Custom hook for fetching XLM and USDC balances from the Stellar Horizon API.
+ *
+ * It automatically polls for updates every 30 seconds while the wallet is connected.
+ *
+ * @returns An object containing:
+ *   - `balances` — An object with `usdc` and `xlm` string balances, or `null` for each if not found/connected.
+ *   - `loading` — `true` while the balances are being fetched.
+ *   - `error` — A string error message if the fetch fails, or `null` if none.
+ *   - `refetch` — Function to manually refresh the balances.
+ *
+ * @example
+ * const { balances, loading, error, refetch } = useBalances();
+ * if (!loading) {
+ *   console.log("XLM:", balances.xlm, "USDC:", balances.usdc);
+ * }
+ */
 export function useBalances() {
-  const { address, connected } = useWalletStore();
+  const address = useWalletStore((s) => s.address);
+  const connected = useWalletStore((s) => s.connected);
 
   const query = useQuery({
     queryKey: ["balances", address, connected],

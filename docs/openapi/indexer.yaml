@@ -142,7 +142,7 @@ paths:
           required: false
           schema:
             type: string
-            enum: [pending, funded, shipped, delivered, repaid, defaulted]
+            enum: [Created, Listed, Funded, Active, Confirmed, Repaid, Defaulted]
         - name: issuer
           in: query
           required: false
@@ -266,6 +266,22 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /pool/snapshots:
+    get:
+      tags: [Pool]
+      summary: Historical pool snapshots
+      description: Returns historical liquidity pool snapshots used for charts and trend analysis.
+      security: []
+      responses:
+        "200":
+          description: Pool snapshots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PoolSnapshot"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -384,6 +400,7 @@ components:
           format: int64
         status:
           type: string
+          enum: [Created, Listed, Funded, Active, Confirmed, Repaid, Defaulted]
         created_at:
           type: integer
           format: int64
@@ -453,3 +470,24 @@ components:
           type: string
         deposit_count:
           type: integer
+
+    PoolSnapshot:
+      type: object
+      properties:
+        total_deposits:
+          type: string
+        total_funded:
+          type: string
+        available_liquidity:
+          type: string
+        utilization_rate_bps:
+          type: integer
+        total_yield_distributed:
+          type: string
+        active_invoice_count:
+          type: integer
+        total_shares:
+          type: string
+        updated_at:
+          type: string
+          format: date-time

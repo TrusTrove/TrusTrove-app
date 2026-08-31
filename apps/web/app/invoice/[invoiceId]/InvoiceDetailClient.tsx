@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PageLayout } from "@/components/shared/PageLayout";
-import { useInvoice, useInvoices } from "@/hooks/useInvoices";
+import { useInvoice, useInvoiceActions } from "@/hooks/useInvoices";
 import { useWalletStore } from "@/store/wallet";
 import { InvoiceStatus } from "@/components/invoice/InvoiceStatus";
 import { InvoiceStatusTimeline } from "@/components/invoice/InvoiceStatusTimeline";
@@ -24,6 +24,7 @@ import {
   Share2,
 } from "lucide-react";
 import { formatAmount } from "@/lib/assets";
+import { useConfirmDialogStore } from "@/store/confirmDialog";
 
 interface InvoiceDetailClientProps {
   invoiceId: string;
@@ -51,11 +52,13 @@ export default function InvoiceDetailClient({
   invoiceId,
 }: InvoiceDetailClientProps) {
   const router = useRouter();
-  const { address, connected, role } = useWalletStore();
+  const connected = useWalletStore((s) => s.connected);
+  const role = useWalletStore((s) => s.role);
 
   const { invoice, isLoading, refetch } = useInvoice(invoiceId);
   const { shipInvoice, confirmDelivery, repayInvoice, defaultInvoice } =
-    useInvoices();
+    useInvoiceActions();
+  const { request: requestConfirmation } = useConfirmDialogStore();
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,11 +78,6 @@ export default function InvoiceDetailClient({
       setInvoiceUrl(window.location.href);
     }
   }, []);
-
-  const formatAddress = (addr: string) => {
-    if (!addr) return "";
-    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-  };
 
   const copyToClipboard = async (
     text: string,
@@ -439,11 +437,16 @@ export default function InvoiceDetailClient({
                     className="w-full"
                     disabled={submitting}
                     onClick={() =>
-                      handleAction(
-                        () => shipInvoice({ invoiceId: invoice.id }),
-                        "Marking goods as shipped...",
-                        "Unable to mark goods as shipped.",
-                      )
+                      requestConfirmation({
+                        label: "Mark Goods Shipped",
+                        invoiceId: invoice.id,
+                        fn: () =>
+                          handleAction(
+                            () => shipInvoice({ invoiceId: invoice.id }),
+                            "Marking goods as shipped...",
+                            "Unable to mark goods as shipped.",
+                          ),
+                      })
                     }
                   >
                     MARK GOODS SHIPPED
@@ -454,11 +457,16 @@ export default function InvoiceDetailClient({
                     className="w-full"
                     disabled={submitting}
                     onClick={() =>
-                      handleAction(
-                        () => confirmDelivery({ invoiceId: invoice.id }),
-                        "Confirming delivery...",
-                        "Unable to confirm delivery.",
-                      )
+                      requestConfirmation({
+                        label: "Confirm Delivery",
+                        invoiceId: invoice.id,
+                        fn: () =>
+                          handleAction(
+                            () => confirmDelivery({ invoiceId: invoice.id }),
+                            "Confirming delivery...",
+                            "Unable to confirm delivery.",
+                          ),
+                      })
                     }
                   >
                     CONFIRM DELIVERY
@@ -469,11 +477,16 @@ export default function InvoiceDetailClient({
                     className="w-full"
                     disabled={submitting}
                     onClick={() =>
-                      handleAction(
-                        () => repayInvoice({ invoiceId: invoice.id }),
-                        "Repaying invoice...",
-                        "Unable to repay invoice.",
-                      )
+                      requestConfirmation({
+                        label: "Repay Invoice",
+                        invoiceId: invoice.id,
+                        fn: () =>
+                          handleAction(
+                            () => repayInvoice({ invoiceId: invoice.id }),
+                            "Repaying invoice...",
+                            "Unable to repay invoice.",
+                          ),
+                      })
                     }
                   >
                     REPAY INVOICE
@@ -484,11 +497,16 @@ export default function InvoiceDetailClient({
                     className="w-full"
                     disabled={submitting}
                     onClick={() =>
-                      handleAction(
-                        () => defaultInvoice({ invoiceId: invoice.id }),
-                        "Defaulting invoice...",
-                        "Unable to default invoice.",
-                      )
+                      requestConfirmation({
+                        label: "Default Invoice",
+                        invoiceId: invoice.id,
+                        fn: () =>
+                          handleAction(
+                            () => defaultInvoice({ invoiceId: invoice.id }),
+                            "Defaulting invoice...",
+                            "Unable to default invoice.",
+                          ),
+                      })
                     }
                   >
                     DEFAULT INVOICE

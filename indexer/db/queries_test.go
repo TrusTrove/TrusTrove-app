@@ -228,3 +228,71 @@ func TestLocateMigrationDir(t *testing.T) {
 		}
 	}
 }
+
+func TestUpdateInvoiceAttestation(t *testing.T) {
+	skipIfNoDB(t)
+
+	ctx := context.Background()
+	id := fmt.Sprintf("attest-test%d", time.Now().UnixNano())
+	inv := &DbInvoice{
+		ID:           id,
+		Issuer:       "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+		Buyer:        "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN",
+		FaceValue:    "1000000000",
+		DiscountBps:  0,
+		FundedAmount: "0",
+		DueDate:      time.Now().Add(30 * 24 * time.Hour).Unix(),
+		Status:       "Created",
+		CreatedAt:    time.Now().Unix(),
+	}
+
+	if err := InsertInvoice(ctx, inv); err != nil {
+		t.Fatalf("InsertInvoice: %v", err)
+	}
+	t.Cleanup(func() {
+		if Pool != nil {
+			Pool.Exec(ctx, "DELETE FROM invoices WHERE id = $1", id)
+		}
+	})
+
+	// Attestation fields should start as nil
+	got, err := GetInvoiceByID(ctx, id)
+	if err != nil || got == nil {
+		t.Fatalf("GetInvoiceByID: err=%v, got=%v", err, got)
+	}
+	if got.AttestationAgentID != nil {
+		t.Errorf("AttestationAgentID: expected nil, got %v", *got.AttestationAgentID)
+	}
+	if got.RiskScoreBps != nil {
+		t.Errorf("RiskScoreBps: expected nil, got %v", *got.RiskScoreBps)
+	}
+
+	// Update attestation
+	agentID := "agent_underwrite"
+	evidenceHash := "abc123"
+	riskScoreBps := 3500
+	attestedAt := time.Now().Unix()
+
+	err = UpdateInvoiceAttestation(ctx, id, agentID, evidenceHash, riskScoreBps, attestedAt)
+	if err != nil {
+		t.Fatalf("UpdateInvoiceAttestation: %v", err)
+	}
+
+	// Verify attestation fields are populated
+	got, err = GetInvoiceByID(ctx, id)
+	if err != nil || got == nil {
+		t.Fatalf("GetInvoiceByID after attestation: err=%v, got=%v", err, got)
+	}
+	if got.AttestationAgentID == nil || *got.AttestationAgentID != agentID {
+		t.Errorf("AttestationAgentID: got %v, want %q", got.AttestationAgentID, agentID)
+	}
+	if got.RiskScoreBps == nil || *got.RiskScoreBps != riskScoreBps {
+		t.Errorf("RiskScoreBps: got %v, want %d", got.RiskScoreBps, riskScoreBps)
+	}
+	if got.EvidenceHash == nil || *got.EvidenceHash != evidenceHash {
+		t.Errorf("EvidenceHash: got %v, want %q", got.EvidenceHash, evidenceHash)
+	}
+	if got.AttestedAt == nil || *got.AttestedAt != attestedAt {
+		t.Errorf("AttestedAt: got %v, want %d", got.AttestedAt, attestedAt)
+	}
+}

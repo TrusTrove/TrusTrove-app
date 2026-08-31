@@ -8,60 +8,46 @@ import {
   EventLog,
   PoolSnapshot,
 } from "@/types";
-class ApiClient {
-  private baseUrl: string;
-  private token?: string;
-
-  constructor(baseUrl: string) {
-    this.baseUrl = baseUrl;
-  }
-
-  setToken(token: string): void {
-    this.token = token;
-  }
-
-  async fetch<T>(path: string, options: RequestInit = {}): Promise<T> {
-    const headers = new Headers(options.headers || {});
-
-    if (this.token) {
-      headers.set("Authorization", `Bearer ${this.token}`);
-    }
-    if (
-      !headers.has("Content-Type") &&
-      (options.method === "POST" || options.method === "PUT")
-    ) {
-      headers.set("Content-Type", "application/json");
-    }
-
-    const res = await fetch(`${this.baseUrl}${path}`, {
-      ...options,
-      headers,
-    });
-
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(text || `HTTP error! status: ${res.status}`);
-    }
-
-    return res.json() as Promise<T>;
-  }
-}
 
 const getApiUrl = () => {
   return process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
 };
 
-const apiClient = new ApiClient(getApiUrl());
+export const apiClient = {
+  token: undefined as string | undefined,
+  setToken(token: string | undefined): void {
+    this.token = token;
+  },
+  async fetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+    return apiFetch<T>(path, options);
+  },
+};
 
 function initApiClientWithToken(): void {
   const token = useWalletStore.getState().token;
-  if (token) {
-    apiClient.setToken(token);
-  }
+  apiClient.setToken(token ?? undefined);
 }
 
-export { ApiClient, apiClient, initApiClientWithToken };
+export { initApiClientWithToken };
 
+/**
+ * Low-level helper that performs an authenticated `fetch` against the TrusTrove
+ * API. It injects the current wallet token as a Bearer header, sets a JSON
+ * `Content-Type` for POST/PUT requests, and normalizes error responses
+ * (including friendly messages for 503/504 outages).
+ *
+ * @param path - The API path (e.g. `/invoices/123`). Prepended with the base URL.
+ * @param options - Standard `fetch` `RequestInit` (method, body, headers, etc.).
+ * @returns A promise resolving to the parsed JSON body, typed as `T`.
+ *
+ * @throws {Error} When the response is not OK. For 503/504 responses the
+ *   message is "Service Temporarily Unavailable. Please try again later.".
+ *
+ * @example
+ * ```ts
+ * const stats = await apiFetch<ProtocolStats>("/stats");
+ * ```
+ */
 export async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
@@ -91,110 +77,181 @@ export async function apiFetch<T>(
         text || "Service Temporarily Unavailable. Please try again later.",
       );
     }
-    throw new Error(text || `HTTP error! status: ${res.status}`);
+    let errorMessage = text;
+    try {
+      const json = JSON.parse(text);
+      if (json && typeof json === "object") {
+        if ("error" in json && typeof json.error === "string") {
+          errorMessage = json.error;
+        } else if ("message" in json && typeof json.message === "string") {
+          errorMessage = json.message;
+        }
+      }
+    } catch {
+      // Not JSON
+    }
+    throw new Error(errorMessage || `HTTP error! status: ${res.status}`);
   }
 
   return res.json() as Promise<T>;
 }
 
-export function parseRawInvoice(raw: any): Invoice {
-  const invoice: Invoice = {
-    id: raw.id,
-    issuer: raw.issuer,
-    buyer: raw.buyer,
-    faceValue: BigInt(raw.face_value || 0),
-    asset: (raw.asset || "USDC") as AssetType,
-    discountBps: Number(raw.discount_bps || 0),
-    fundedAmount: BigInt(raw.funded_amount || 0),
-    dueDate: Number(raw.due_date || 0),
-    status: raw.status,
-    createdAt: Number(raw.created_at || 0),
-    fundedAt: raw.funded_at ? Number(raw.funded_at) : null,
-    shippedAt: raw.shipped_at ? Number(raw.shipped_at) : null,
-    issuerConfirmed: !!raw.issuer_confirmed,
-    buyerConfirmed: !!raw.buyer_confirmed,
-    repaidAt: raw.repaid_at ? Number(raw.repaid_at) : null,
-  };
-
-  return Object.assign(invoice, {
-    listedAt: raw.listed_at ? Number(raw.listed_at) : null,
-    issuerConfirmedAt: raw.issuer_confirmed_at
-      ? Number(raw.issuer_confirmed_at)
-      : null,
-    buyerConfirmedAt: raw.buyer_confirmed_at
-      ? Number(raw.buyer_confirmed_at)
-      : null,
-    defaultedAt: raw.defaulted_at ? Number(raw.defaulted_at) : null,
-    transactionHashes: raw.transaction_hashes,
-    txHashes: raw.tx_hashes,
-    createdTxHash: raw.created_tx_hash,
-    listedTxHash: raw.listed_tx_hash,
-    fundedTxHash: raw.funded_tx_hash,
-    shippedTxHash: raw.shipped_tx_hash,
-    issuerConfirmedTxHash: raw.issuer_confirmed_tx_hash,
-    buyerConfirmedTxHash: raw.buyer_confirmed_tx_hash,
-    repaidTxHash: raw.repaid_tx_hash,
-    defaultedTxHash: raw.defaulted_tx_hash,
-  });
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export function parseRawPoolStats(raw: any): PoolStats {
+function toBigInt(val: unknown): bigint {
+  if (typeof val === "bigint") return val;
+  if (typeof val === "number") return BigInt(val);
+  if (typeof val === "string") return BigInt(val);
+  return 0n;
+}
+
+function toNumber(val: unknown): number {
+  if (typeof val === "number") return val;
+  if (typeof val === "bigint") return Number(val);
+  if (typeof val === "string") return Number(val);
+  return 0;
+}
+
+/**
+ * Normalizes a raw pool stats payload from the API into a typed `PoolStats`.
+ * Missing or invalid fields fall back to safe defaults (`0n`/`0`).
+ *
+ * @param raw - The untyped response object returned by the API.
+ * @returns A `PoolStats` with:
+ *   - `totalDeposits` — `bigint` total USDC deposited into the pool (stroops).
+ *   - `totalFunded` — `bigint` total USDC used to fund invoices (stroops).
+ *   - `availableLiquidity` — `bigint` USDC available for new funding (stroops).
+ *   - `utilizationRateBps` — `number` utilization as basis points (10000 = 100%).
+ *   - `totalYieldDistributed` — `bigint` cumulative yield paid to LPs (stroops).
+ *   - `activeInvoiceCount` — `number` count of invoices currently being funded.
+ *   - `totalShares` — `bigint` total LP shares outstanding.
+ */
+export function parseRawPoolStats(raw: unknown): PoolStats {
+  const r = isRecord(raw) ? raw : {};
   return {
-    totalDeposits: BigInt(raw.total_deposits || 0),
-    totalFunded: BigInt(raw.total_funded || 0),
-    availableLiquidity: BigInt(raw.available_liquidity || 0),
-    utilizationRateBps: Number(raw.utilization_rate_bps || 0),
-    totalYieldDistributed: BigInt(raw.total_yield_distributed || 0),
-    activeInvoiceCount: Number(raw.active_invoice_count || 0),
-    totalShares: BigInt(raw.total_shares || 0),
+    totalDeposits: toBigInt(r.total_deposits),
+    totalFunded: toBigInt(r.total_funded),
+    availableLiquidity: toBigInt(r.available_liquidity),
+    utilizationRateBps: toNumber(r.utilization_rate_bps),
+    totalYieldDistributed: toBigInt(r.total_yield_distributed),
+    activeInvoiceCount: toNumber(r.active_invoice_count),
+    totalShares: toBigInt(r.total_shares),
   };
 }
 
-export function parseRawLPPosition(raw: any): LPPosition {
+/**
+ * Normalizes a raw LP position payload from the API into a typed `LPPosition`.
+ * Missing or invalid fields fall back to safe defaults (`0n`/`0`).
+ *
+ * @param raw - The untyped response object returned by the API.
+ * @returns An `LPPosition` with:
+ *   - `shares` — `bigint` LP shares held by the address (stroops).
+ *   - `usdcValue` — `bigint` current USDC value of the position (stroops).
+ *   - `yieldEarned` — `bigint` cumulative yield earned (stroops).
+ *   - `depositCount` — `number` number of deposits made by the address.
+ */
+export function parseRawLPPosition(raw: unknown): LPPosition {
+  const r = isRecord(raw) ? raw : {};
   return {
-    shares: BigInt(raw.shares || 0),
-    usdcValue: BigInt(raw.usdc_value || 0),
-    yieldEarned: BigInt(raw.yield_earned || 0),
-    depositCount: Number(raw.deposit_count || 0),
+    shares: toBigInt(r.shares),
+    usdcValue: toBigInt(r.usdc_value),
+    yieldEarned: toBigInt(r.yield_earned),
+    depositCount: toNumber(r.deposit_count),
   };
 }
 
-export function parseRawEventLog(raw: any): EventLog {
+/**
+ * Normalizes a raw event-log entry from the API into a typed `EventLog`.
+ * Missing or invalid fields fall back to safe defaults.
+ *
+ * @param raw - The untyped response object returned by the API.
+ * @returns An `EventLog` with:
+ *   - `id` — `number` numeric identifier of the event.
+ *   - `event_id` — `string` on-chain event identifier.
+ *   - `contract_id` — `string` Stellar contract that emitted the event.
+ *   - `ledger` — `number` ledger sequence at which the event was recorded.
+ *   - `ledger_closed_at` — `number` Unix timestamp when the ledger closed.
+ *   - `event_type` — `string` the kind of event (e.g. `deposit`, `repay`).
+ *   - `data` — `Record<string, unknown>` arbitrary event payload.
+ */
+export function parseRawEventLog(raw: unknown): EventLog {
+  const r = isRecord(raw) ? raw : {};
   return {
-    id: raw.id,
-    event_id: raw.event_id,
-    contract_id: raw.contract_id,
-    ledger: raw.ledger,
-    ledger_closed_at: raw.ledger_closed_at,
-    event_type: raw.event_type,
-    data: raw.data || {},
+    id: toNumber(r.id),
+    event_id: String(r.event_id ?? ""),
+    contract_id: String(r.contract_id ?? ""),
+    ledger: toNumber(r.ledger),
+    ledger_closed_at: toNumber(r.ledger_closed_at),
+    event_type: String(r.event_type ?? ""),
+    data: (r.data as Record<string, unknown>) || {},
   };
 }
 
+/**
+ * Requests a Stellar auth challenge (a presigned transaction) that the user
+ * must sign with their wallet to prove ownership of `address`.
+ *
+ * @param address - The Stellar account address requesting authentication.
+ * @returns A promise resolving to:
+ *   - `transaction` — `string` XDR of the challenge transaction to sign.
+ *   - `network_passphrase` — `string` network passphrase used to sign it.
+ *
+ * @example
+ * ```ts
+ * const { transaction, network_passphrase } = await fetchChallenge(address);
+ * const signed = await signTransaction(transaction, { networkPassphrase });
+ * ```
+ */
 export async function fetchChallenge(
   address: string,
 ): Promise<{ transaction: string; network_passphrase: string }> {
-  return apiClient.fetch<{ transaction: string; network_passphrase: string }>(
+  return apiFetch<{ transaction: string; network_passphrase: string }>(
     `/auth?address=${address}`,
   );
 }
 
+/**
+ * Submits a wallet-signed challenge transaction to obtain an auth token.
+ *
+ * @param transaction - The signed challenge transaction XDR from `fetchChallenge`.
+ * @returns A promise resolving to:
+ *   - `token` — `string` JWT bearer token to use for authenticated requests.
+ */
 export async function verifyChallenge(
   transaction: string,
 ): Promise<{ token: string }> {
-  return apiClient.fetch<{ token: string }>("/auth", {
+  return apiFetch<{ token: string }>("/auth", {
     method: "POST",
     body: JSON.stringify({ transaction }),
   });
 }
 
+/**
+ * Creates a new invoice on-chain via the API.
+ *
+ * @param buyer - The Stellar address of the invoice buyer.
+ * @param faceValue - The invoice face value as a decimal string (in asset units).
+ * @param dueDate - Unix timestamp (seconds) when the invoice is due.
+ * @param asset - The denomination asset; defaults to `"USDC"`.
+ * @returns A promise resolving to:
+ *   - `invoice_id` — `string` the new invoice's id.
+ *   - `transaction_hash` — `string` hash of the on-chain creation transaction.
+ *   - `status` — `string` initial invoice status (e.g. `"pending"`).
+ *
+ * @example
+ * ```ts
+ * const res = await createInvoice(buyer, "1000.00", dueDate);
+ * ```
+ */
 export async function createInvoice(
   buyer: string,
   faceValue: string,
   dueDate: number,
   asset: AssetType = "USDC",
 ): Promise<{ invoice_id: string; transaction_hash: string; status: string }> {
-  return apiClient.fetch<{
+  return apiFetch<{
     invoice_id: string;
     transaction_hash: string;
     status: string;
@@ -209,6 +266,22 @@ export async function createInvoice(
   });
 }
 
+/**
+ * Fetches a single invoice by its id and normalizes it into a typed `Invoice`.
+ *
+ * @param id - The invoice id to fetch.
+ * @returns A promise resolving to the `Invoice`, whose fields include:
+ *   - `id` — `string` invoice id.
+ *   - `issuer` / `buyer` — `string` Stellar addresses.
+ *   - `faceValue` — `bigint` invoice face value (stroops).
+ *   - `asset` — `AssetType` denomination asset.
+ *   - `discountBps` — `number` discount in basis points.
+ *   - `fundedAmount` — `bigint` amount funded so far (stroops).
+ *   - `dueDate` — `number` Unix timestamp of the due date.
+ *   - `status` — `InvoiceStatus` lifecycle status.
+ *   - `createdAt` / `fundedAt` / `shippedAt` / `repaidAt` — `number | null` timestamps.
+ *   - `issuerConfirmed` / `buyerConfirmed` — `boolean` confirmation flags.
+ */
 export async function getInvoiceByID(id: string): Promise<Invoice> {
   const raw = await apiFetch<any>(`/invoices/${id}`);
   return parseInvoiceResponse(raw);
@@ -222,6 +295,26 @@ export interface PaginatedInvoices {
   totalPages: number;
 }
 
+/**
+ * Fetches a paginated/filtered list of invoices and normalizes each entry.
+ *
+ * @param filters - Optional query filters:
+ *   - `status` — `string` filter by `InvoiceStatus`.
+ *   - `issuer` — `string` filter by issuer Stellar address.
+ *   - `page` — `number` 1-based page index.
+ *   - `limit` — `number` page size.
+ * @returns A promise resolving to a `PaginatedInvoices`:
+ *   - `data` — `Invoice[]` the normalized invoices for this page.
+ *   - `total` — `number` total matching invoices across all pages.
+ *   - `page` — `number` the current page index.
+ *   - `limit` — `number` the page size.
+ *   - `totalPages` — `number` total number of pages available.
+ *
+ * @example
+ * ```ts
+ * const { data, totalPages } = await getInvoices({ status: "funded", page: 1 });
+ * ```
+ */
 export async function getInvoices(filters?: {
   status?: string;
   issuer?: string;
@@ -235,7 +328,7 @@ export async function getInvoices(filters?: {
   if (filters?.limit != null) params.append("limit", String(filters.limit));
   const query = params.size > 0 ? `?${params.toString()}` : "";
 
-  const raw = await apiClient.fetch<{
+  const raw = await apiFetch<{
     data: any[];
     total: number;
     page: number;
@@ -252,24 +345,56 @@ export async function getInvoices(filters?: {
   };
 }
 
+/**
+ * Fetches aggregate pool statistics for the liquidity pool.
+ *
+ * @returns A promise resolving to a `PoolStats` (see `parseRawPoolStats` for
+ *   the field descriptions: `totalDeposits`, `totalFunded`,
+ *   `availableLiquidity`, `utilizationRateBps`, `totalYieldDistributed`,
+ *   `activeInvoiceCount`, `totalShares`).
+ */
 export async function getPoolStats(): Promise<PoolStats> {
-  const raw = await apiClient.fetch<any>("/pool/stats");
+  const raw = await apiFetch<any>("/pool/stats");
   return parseRawPoolStats(raw);
 }
 
+/**
+ * Fetches the liquidity-provider position for a given address.
+ *
+ * @param address - The Stellar address whose LP position to fetch.
+ * @returns A promise resolving to an `LPPosition` (see `parseRawLPPosition`
+ *   for the field descriptions: `shares`, `usdcValue`, `yieldEarned`,
+ *   `depositCount`).
+ */
 export async function getLPPosition(address: string): Promise<LPPosition> {
-  const raw = await apiClient.fetch<any>(`/pool/position/${address}`);
+  const raw = await apiFetch<any>(`/pool/position/${address}`);
   return parseRawLPPosition(raw);
 }
 
+/**
+ * Fetches recent on-chain events, most recent first.
+ *
+ * @param limit - Optional maximum number of events to return.
+ * @returns A promise resolving to an `EventLog[]`; each entry is described by
+ *   `parseRawEventLog` (`id`, `event_id`, `contract_id`, `ledger`,
+ *   `ledger_closed_at`, `event_type`, `data`).
+ */
 export async function getRecentEvents(limit?: number): Promise<EventLog[]> {
   const query = limit ? `?limit=${limit}` : "";
-  const rawList = await apiClient.fetch<any[]>(`/events${query}`);
+  const rawList = await apiFetch<any[]>(`/events${query}`);
   return rawList.map(parseRawEventLog);
 }
 
+/**
+ * Fetches historical pool snapshots used for charts and trend analysis.
+ *
+ * @returns A promise resolving to a `PoolSnapshot[]`, each with:
+ *   - `timestamp` — `number` Unix timestamp of the snapshot.
+ *   - `utilizationRateBps` — `number` utilization at that time (basis points).
+ *   - `totalYieldDistributed` — `string` cumulative yield up to that time.
+ */
 export async function getPoolSnapshots(): Promise<PoolSnapshot[]> {
-  return apiClient.fetch<PoolSnapshot[]>("/pool/snapshots");
+  return apiFetch<PoolSnapshot[]>("/pool/snapshots");
 }
 
 export interface ProtocolStats {
@@ -283,6 +408,19 @@ export interface ProtocolStats {
   registered_issuers: number;
 }
 
+/**
+ * Fetches high-level protocol-wide statistics.
+ *
+ * @returns A promise resolving to a `ProtocolStats` with:
+ *   - `total_usdc_financed` — `string` total USDC financed (decimal string).
+ *   - `active_invoice_count` — `number` invoices currently being funded.
+ *   - `total_invoices` — `number` invoices created since genesis.
+ *   - `total_repaid` — `number` invoices fully repaid.
+ *   - `total_defaulted` — `number` invoices defaulted.
+ *   - `average_yield_bps` — `number` average realized yield (basis points).
+ *   - `pool_utilization_bps` — `number` current pool utilization (basis points).
+ *   - `registered_issuers` — `number` count of registered issuers.
+ */
 export async function getProtocolStats(): Promise<ProtocolStats> {
-  return apiClient.fetch<ProtocolStats>("/stats");
+  return apiFetch<ProtocolStats>("/stats");
 }

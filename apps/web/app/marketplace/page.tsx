@@ -6,7 +6,7 @@ import { PageLayout } from "@/components/shared/PageLayout";
 import { InvoiceTable } from "@/components/invoice/InvoiceTable";
 import { InvoiceCard } from "@/components/invoice/InvoiceCard";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
-import { useInvoices } from "@/hooks/useInvoices";
+import { useInvoiceList } from "@/hooks/useInvoices";
 import { usePool } from "@/hooks/usePool";
 import { useWalletStore } from "@/store/wallet";
 import { useProfile } from "@/hooks/useProfile";
@@ -15,7 +15,8 @@ import { formatAmount } from "@/lib/assets";
 import { ShieldAlert } from "lucide-react";
 
 export default function Marketplace() {
-  const { connected, role } = useWalletStore();
+  const connected = useWalletStore((s) => s.connected);
+  const role = useWalletStore((s) => s.role);
   const { isVerified } = useProfile();
   const { stats, isStatsLoading } = usePool();
   const [statusFilter, setStatusFilter] = useState<string>("Listed");
@@ -27,7 +28,7 @@ export default function Marketplace() {
   const [maxAmount, setMaxAmount] = useState("");
   const [maxDiscount, setMaxDiscount] = useState("500"); // 500 bps max
 
-  const { invoices, isLoading, total, totalPages } = useInvoices({
+  const { invoices, isLoading, total, totalPages } = useInvoiceList({
     status: statusFilter === "ALL" ? undefined : statusFilter,
     page: invoicePage,
     limit: invoiceLimit,
@@ -172,10 +173,14 @@ export default function Marketplace() {
           </div>
 
           <div className="space-y-1">
-            <span className="text-[10px] text-slate-500 font-bold uppercase">
+            <label
+              htmlFor="marketplace-min-value"
+              className="text-[10px] text-slate-500 font-bold uppercase"
+            >
               Min Value
-            </span>
+            </label>
             <input
+              id="marketplace-min-value"
               type="number"
               placeholder="e.g. 5000"
               className="w-full bg-[#080c10] border border-border rounded px-3 py-1.5 text-white focus:outline-none focus:border-primary"
@@ -185,10 +190,14 @@ export default function Marketplace() {
           </div>
 
           <div className="space-y-1">
-            <span className="text-[10px] text-slate-500 font-bold uppercase">
+            <label
+              htmlFor="marketplace-max-value"
+              className="text-[10px] text-slate-500 font-bold uppercase"
+            >
               Max Value
-            </span>
+            </label>
             <input
+              id="marketplace-max-value"
               type="number"
               placeholder="e.g. 50000"
               className="w-full bg-[#080c10] border border-border rounded px-3 py-1.5 text-white focus:outline-none focus:border-primary"
@@ -214,6 +223,10 @@ export default function Marketplace() {
               className="w-full accent-primary bg-slate-900 h-1.5 rounded"
               value={maxDiscount}
               onChange={(e) => setMaxDiscount(e.target.value)}
+              aria-label="Maximum discount rate"
+              aria-valuenow={parseInt(maxDiscount)}
+              aria-valuemin={50}
+              aria-valuemax={500}
             />
           </div>
         </div>

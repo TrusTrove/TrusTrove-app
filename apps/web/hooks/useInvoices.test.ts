@@ -1,6 +1,6 @@
 import { renderHook, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { useInvoices, useInvoice } from "./useInvoices";
+import { useInvoiceList, useInvoiceActions, useInvoice } from "./useInvoices";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getInvoices, getInvoiceByID, createInvoice } from "@/lib/api";
 import { InvoiceClient, PoolClient } from "@trusttrove/sdk";
@@ -84,7 +84,7 @@ describe("useInvoices", () => {
   });
 
   it("returns paginated invoices", () => {
-    const { result } = renderHook(() => useInvoices());
+    const { result } = renderHook(() => useInvoiceList());
     expect(result.current.invoices).toHaveLength(1);
     expect(result.current.total).toBe(1);
     expect(result.current.isLoading).toBe(false);
@@ -99,7 +99,7 @@ describe("useInvoices", () => {
       refetch: vi.fn(),
     } as any);
 
-    const { result } = renderHook(() => useInvoices());
+    const { result } = renderHook(() => useInvoiceList());
     expect(result.current.invoices).toEqual([]);
     expect(result.current.total).toBe(0);
   });
@@ -112,7 +112,7 @@ describe("useInvoices", () => {
       refetch: vi.fn(),
     } as any);
 
-    const { result } = renderHook(() => useInvoices());
+    const { result } = renderHook(() => useInvoiceList());
     expect(result.current.isLoading).toBe(true);
   });
 
@@ -124,14 +124,14 @@ describe("useInvoices", () => {
       refetch: vi.fn(),
     } as any);
 
-    const { result } = renderHook(() => useInvoices());
+    const { result } = renderHook(() => useInvoiceList());
     expect(result.current.error).toEqual(new Error("Fetch failed"));
   });
 
   it("createInvoice works and invalidates query", async () => {
     vi.mocked(createInvoice).mockResolvedValue({ invoice_id: "new_1" } as any);
 
-    const { result } = renderHook(() => useInvoices());
+    const { result } = renderHook(() => useInvoiceActions());
 
     await act(async () => {
       await result.current.createInvoice({
@@ -156,7 +156,7 @@ describe("useInvoices", () => {
   it("createInvoice handles failure", async () => {
     vi.mocked(createInvoice).mockRejectedValue(new Error("Creation failed"));
 
-    const { result } = renderHook(() => useInvoices());
+    const { result } = renderHook(() => useInvoiceActions());
 
     await expect(
       act(async () => {
@@ -181,7 +181,7 @@ describe("useInvoices", () => {
       return { listForFinancing: mockList };
     } as any);
 
-    const { result } = renderHook(() => useInvoices());
+    const { result } = renderHook(() => useInvoiceActions());
 
     await act(async () => {
       await result.current.listInvoice({ invoiceId: "inv1", discountBps: 200 });
@@ -194,7 +194,7 @@ describe("useInvoices", () => {
   });
 
   it("listInvoice fails if no wallet", async () => {
-    const { result } = renderHook(() => useInvoices());
+    const { result } = renderHook(() => useInvoiceActions());
 
     await expect(
       act(async () => {
@@ -218,7 +218,7 @@ describe("useInvoices", () => {
       return { fundInvoice: mockFund };
     } as any);
 
-    const { result } = renderHook(() => useInvoices());
+    const { result } = renderHook(() => useInvoiceActions());
 
     await act(async () => {
       await result.current.fundInvoice({ invoiceId: "inv1" });
@@ -237,7 +237,7 @@ describe("useInvoices", () => {
   });
 
   it("fundInvoice fails if no wallet", async () => {
-    const { result } = renderHook(() => useInvoices());
+    const { result } = renderHook(() => useInvoiceActions());
 
     await expect(
       act(async () => {
@@ -259,7 +259,7 @@ describe("useInvoices", () => {
       };
     } as any);
 
-    const { result } = renderHook(() => useInvoices());
+    const { result } = renderHook(() => useInvoiceActions());
 
     await expect(
       act(async () => {
@@ -280,7 +280,7 @@ describe("useInvoices", () => {
       return { markShipped: mockShip };
     } as any);
 
-    const { result } = renderHook(() => useInvoices());
+    const { result } = renderHook(() => useInvoiceActions());
 
     await act(async () => {
       await result.current.shipInvoice({ invoiceId: "inv1" });
@@ -301,7 +301,7 @@ describe("useInvoices", () => {
       };
     } as any);
 
-    const { result } = renderHook(() => useInvoices());
+    const { result } = renderHook(() => useInvoiceActions());
 
     await expect(
       act(async () => {
@@ -323,7 +323,7 @@ describe("useInvoices", () => {
       return { confirmDelivery: mockConfirm };
     } as any);
 
-    const { result } = renderHook(() => useInvoices());
+    const { result } = renderHook(() => useInvoiceActions());
 
     await act(async () => {
       await result.current.confirmDelivery({ invoiceId: "inv1" });
@@ -343,7 +343,7 @@ describe("useInvoices", () => {
       return { get: mockGet, repay: mockRepay };
     } as any);
 
-    const { result } = renderHook(() => useInvoices());
+    const { result } = renderHook(() => useInvoiceActions());
 
     await act(async () => {
       await result.current.repayInvoice({ invoiceId: "inv1" });
@@ -363,7 +363,7 @@ describe("useInvoices", () => {
   });
 
   it("repayInvoice fails if no wallet", async () => {
-    const { result } = renderHook(() => useInvoices());
+    const { result } = renderHook(() => useInvoiceActions());
 
     await expect(
       act(async () => {
@@ -384,7 +384,7 @@ describe("useInvoices", () => {
       return { triggerDefault: mockDefault };
     } as any);
 
-    const { result } = renderHook(() => useInvoices());
+    const { result } = renderHook(() => useInvoiceActions());
 
     await act(async () => {
       await result.current.defaultInvoice({ invoiceId: "inv1" });
@@ -403,7 +403,7 @@ describe("useInvoices", () => {
   });
 
   it("defaultInvoice fails if no wallet", async () => {
-    const { result } = renderHook(() => useInvoices());
+    const { result } = renderHook(() => useInvoiceActions());
 
     await expect(
       act(async () => {
@@ -425,7 +425,7 @@ describe("useInvoices", () => {
       };
     } as any);
 
-    const { result } = renderHook(() => useInvoices());
+    const { result } = renderHook(() => useInvoiceActions());
 
     await expect(
       act(async () => {

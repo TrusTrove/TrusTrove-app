@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "sonner";
 import { ConfirmationDialog } from "@/components/shared/ConfirmationDialog";
@@ -17,6 +17,12 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         },
       }),
   );
+
+  useEffect(() => {
+    (
+      window as Window & { __reactQueryClient?: QueryClient }
+    ).__reactQueryClient = queryClient;
+  }, [queryClient]);
 
   return (
     <QueryClientProvider client={queryClient}>

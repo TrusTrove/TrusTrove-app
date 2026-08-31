@@ -40,10 +40,23 @@ export const useWalletStore = create<WalletState>()(
     {
       name: "wallet-storage",
       partialize: (state) => ({
-        address: state.address,
-        network: state.network,
         role: state.role,
       }),
+      // A browser reload does not prove that Freighter is still connected.
+      // Restore preferences only, and discard legacy persisted session fields so
+      // consumers never query with an address while the UI is disconnected.
+      merge: (persistedState, currentState) => {
+        const persisted = persistedState as Partial<WalletState> | undefined;
+
+        return {
+          ...currentState,
+          address: null,
+          connected: false,
+          network: null,
+          token: null,
+          role: persisted?.role ?? currentState.role,
+        };
+      },
     },
   ),
 );

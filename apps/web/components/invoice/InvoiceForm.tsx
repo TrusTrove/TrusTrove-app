@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { useInvoices } from "@/hooks/useInvoices";
+import { useInvoiceActions } from "@/hooks/useInvoices";
 import { Button } from "@/components/ui/button";
 import { ShieldAlert, PlusCircle } from "lucide-react";
 import type { AssetType } from "@/types";
 import { ASSET_OPTIONS } from "@/lib/assets";
 import { AmountInput } from "@/components/shared/AmountInput";
 import { useWalletStore } from "@/store/wallet";
+import { DatePicker } from "@/components/ui/date-picker";
 
 const invoiceContractID = process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID || "";
 
@@ -43,8 +44,8 @@ async function cancelCreatedInvoice(invoiceId: string) {
 }
 
 export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
-  const { createInvoice, isCreating, listInvoice } = useInvoices();
-  const { address } = useWalletStore();
+  const { createInvoice, isCreating, listInvoice } = useInvoiceActions();
+  const address = useWalletStore((s) => s.address);
 
   const [buyer, setBuyer] = useState("");
   const [faceValue, setFaceValue] = useState("");
@@ -98,6 +99,19 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
     today.setHours(0, 0, 0, 0);
     if (selectedDate.getTime() <= today.getTime()) {
       setError("Due date must be in the future");
+      return;
+    }
+
+    const minDate = new Date(today);
+    minDate.setDate(minDate.getDate() + 7);
+    const maxDate = new Date(today);
+    maxDate.setDate(maxDate.getDate() + 365);
+    if (selectedDate.getTime() < minDate.getTime()) {
+      setError("Due date must be at least 7 days from today");
+      return;
+    }
+    if (selectedDate.getTime() > maxDate.getTime()) {
+      setError("Due date must be within 365 days from today");
       return;
     }
 
@@ -285,15 +299,10 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
               <label className="block text-[10px] font-bold font-mono text-slate-500 uppercase tracking-wider">
                 Due Date
               </label>
-              <input
-                type="date"
-                min={
-                  new Date(Date.now() + 86400000).toISOString().split("T")[0]
-                }
+              <DatePicker
                 value={dueDate}
-                onChange={(event) => setDueDate(event.target.value)}
-                className="w-full bg-[#080c10] border border-border rounded px-3 py-2.5 text-white text-xs font-mono min-h-[44px]"
-                required
+                onChange={setDueDate}
+                minDate={new Date()}
               />
               <span className="text-[10px] font-mono text-slate-500 block mt-1">
                 Select invoice maturity date

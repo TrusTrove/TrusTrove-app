@@ -4,6 +4,12 @@ import {
   getPublicKey,
 } from "@stellar/freighter-api";
 
+/**
+ * Machine-readable failure codes for Freighter interactions:
+ * - `"user_rejected"` — the user denied the access request.
+ * - `"not_installed"` — the Freighter extension is unavailable.
+ * - `"unknown"` — any other unexpected failure.
+ */
 export type FreighterErrorCode = "user_rejected" | "not_installed" | "unknown";
 
 interface FreighterConnectedResponse {
@@ -15,6 +21,10 @@ interface FreighterAccessResponse {
   error?: string;
 }
 
+/**
+ * Error thrown by the Freighter helpers, carrying a machine-readable
+ * `code` in addition to the standard error `message`.
+ */
 export class FreighterError extends Error {
   readonly code: FreighterErrorCode;
   constructor(code: FreighterErrorCode, message: string) {
@@ -48,6 +58,25 @@ function mapFreighterError(err: unknown): FreighterError {
   return new FreighterError(code, message);
 }
 
+/**
+ * Checks whether the Freighter wallet extension is installed and
+ * connected in the browser.
+ *
+ * Handles both the legacy boolean response and the newer
+ * `{ isConnected }` response shape. Never throws — failures are logged
+ * and reported as `false`.
+ *
+ * @returns `true` when Freighter reports a connection, `false` otherwise
+ *   (including when the extension is absent or the check itself fails).
+ *
+ * @example
+ * ```ts
+ * const installed = await isFreighterInstalled();
+ * if (!installed) {
+ *   // Prompt the user to install Freighter.
+ * }
+ * ```
+ */
 export async function isFreighterInstalled(): Promise<boolean> {
   try {
     const res = await isConnected();
@@ -64,6 +93,28 @@ export async function isFreighterInstalled(): Promise<boolean> {
   }
 }
 
+/**
+ * Connects to the Freighter wallet and requests account access from the
+ * user, showing the Freighter approval popup.
+ *
+ * @returns The connected Stellar public key (address) as a string.
+ *
+ * @throws `FreighterError` with code `"not_installed"` when Freighter is
+ *   missing, `"user_rejected"` when the user denies the request, or
+ *   `"unknown"` for any other failure.
+ *
+ * @example
+ * ```ts
+ * try {
+ *   const address = await connectFreighter();
+ *   useWalletStore.getState().connect(address, "testnet");
+ * } catch (err) {
+ *   if (err instanceof FreighterError && err.code === "user_rejected") {
+ *     // The user cancelled the connection request.
+ *   }
+ * }
+ * ```
+ */
 export async function connectFreighter(): Promise<string> {
   const installed = await isFreighterInstalled();
   if (!installed) {
@@ -94,6 +145,15 @@ export async function connectFreighter(): Promise<string> {
   }
 }
 
+/**
+ * Retrieves the public key of the account currently selected in Freighter
+ * without prompting for a new access approval.
+ *
+ * @returns The Stellar public key of the selected Freighter account.
+ *
+ * @throws `FreighterError` with code `"not_installed"` when Freighter is
+ *   missing, or `"unknown"` when no public key can be returned.
+ */
 export async function getFreighterPublicKey(): Promise<string> {
   const installed = await isFreighterInstalled();
   if (!installed) {

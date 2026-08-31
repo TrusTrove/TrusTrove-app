@@ -72,6 +72,13 @@ const signTransactionCompat = signTransactionFn as (
 
 const MAX_TRANSACTION_POLL_ATTEMPTS = 30;
 
+export interface SimulationResult {
+  estimatedFeeXlm: string;
+  functionName: string;
+  expectedResult: unknown;
+  footprintSize: number;
+}
+
 export class TransactionTimeoutError extends Error {
   readonly txHash: string;
 

@@ -4,6 +4,16 @@ import { Profile } from "../types/index.js";
 import { parseProfile } from "../types/schemas.js";
 
 export class RegistryClient extends BaseContractClient {
+  /**
+   * Initializes the registry contract with its admin address.
+   * Side effect: stores the admin address on-chain. Can only be called once —
+   * a second call panics.
+   *
+   * @param adminAddress - The Stellar address to set as the contract admin.
+   * @param signerPublicKey - The Stellar public key that will sign the transaction. Must be the deployer/admin.
+   * @returns The transaction hash of the on-chain submission.
+   * @throws If the contract is already initialized, the transaction simulation fails, or on-chain submission errors.
+   */
   async initialize(
     adminAddress: string,
     signerPublicKey: string,
@@ -12,6 +22,16 @@ export class RegistryClient extends BaseContractClient {
     return this.writeContract("initialize", args, signerPublicKey);
   }
 
+  /**
+   * Registers an issuer on-chain as a verified invoice issuer.
+   * Side effects: stores a `Profile` with `role: Issuer` and `verified: true`, and emits an `issuer_registered` event.
+   *
+   * @param address - The Stellar address to register as an issuer. Must match `signerPublicKey`.
+   * @param metadata - Arbitrary key-value metadata stored alongside the issuer profile.
+   * @param signerPublicKey - The Stellar public key that will sign the transaction. `address.require_auth()` is enforced on-chain.
+   * @returns The transaction hash of the on-chain submission.
+   * @throws If the address is already registered (`AlreadyRegistered`), the transaction simulation fails, or on-chain submission errors.
+   */
   async registerIssuer(
     address: string,
     metadata: Record<string, string>,

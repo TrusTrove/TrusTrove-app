@@ -9,7 +9,7 @@ export const test = base.extend({
         isAllowed: () => Promise.resolve(true),
         setAllowed: () => Promise.resolve(),
         requestAccess: () => Promise.resolve(""),
-        signTransaction: (xdr: string) => Promise.resolve("signed-xdr-mock"),
+        signTransaction: (xdr: string) => Promise.resolve(xdr),
         signAuthEntry: () => Promise.resolve("signed-auth-mock"),
         getPublicKey: () =>
           Promise.resolve(

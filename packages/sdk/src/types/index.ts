@@ -33,6 +33,11 @@ export interface Invoice {
   buyerConfirmed: boolean;
   buyerConfirmedAt?: number | null;
   repaidAt: number | null;
+  /** Nullable attestation fields from the indexer (set once Underwrite verifies the invoice). */
+  attestationAgentId?: string | null;
+  riskScoreBps?: number | null;
+  evidenceHash?: string | null;
+  attestedAt?: number | null;
 }
 
 export interface PoolStats {
@@ -50,4 +55,15 @@ export interface LPPosition {
   usdcValue: bigint;
   yieldEarned: bigint;
   depositCount: number;
+}
+
+export interface Agent {
+  /** The agent's on-chain identifier (Symbol). */
+  agentId: string;
+  /** The Stellar public key registered for this agent. */
+  pubkey: string;
+  /** Whether the agent is currently active and authorized to attest. */
+  active: boolean;
+  /** Unix timestamp (seconds) when the agent was registered. */
+  registeredAt: number;
 }

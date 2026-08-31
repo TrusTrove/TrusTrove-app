@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Profile, Invoice, PoolStats, LPPosition } from "./index.js";
+import { Profile, Invoice, PoolStats, LPPosition, Agent } from "./index.js";
 
 // Coercion preprocessing utilities
 const bigintSchema = z.preprocess((val) => {
@@ -111,6 +111,10 @@ export const invoiceSchema = z.object({
   buyerConfirmed: booleanSchema,
   buyerConfirmedAt: nullableNumberSchema.optional(),
   repaidAt: nullableNumberSchema,
+  attestationAgentId: z.string().nullable().optional(),
+  riskScoreBps: z.number().nullable().optional(),
+  evidenceHash: z.string().nullable().optional(),
+  attestedAt: nullableNumberSchema.optional(),
 });
 
 export function parseInvoice(native: unknown): Invoice {
@@ -145,4 +149,19 @@ export const lpPositionSchema = z.object({
 export function parseLPPosition(native: unknown): LPPosition {
   const normalized = normalize(native);
   return lpPositionSchema.parse(normalized);
+}
+
+// Agent Schema
+export const agentSchema = z.object({
+  agentId: z.string().min(1, "Agent ID is required"),
+  pubkey: z
+    .string()
+    .regex(/^[GC][A-Z2-7]{55}$/, "Invalid Stellar address format"),
+  active: booleanSchema,
+  registeredAt: numberSchema,
+});
+
+export function parseAgent(native: unknown): Agent {
+  const normalized = normalize(native);
+  return agentSchema.parse(normalized);
 }

@@ -95,3 +95,106 @@ Protocol-level aggregated statistics for the landing page.
   "pool_utilization_bps": 7500
 }
 ```
+
+## GET /auth
+
+Requests a SEP-10 authentication challenge for a Stellar account. No JWT required.
+
+**Query parameters:**
+
+- `account` — the Stellar public key to authenticate (required)
+
+**Response:**
+
+```json
+{
+  "transaction": "AAAAAgAAA...",
+  "network_passphrase": "Test SDF Network ; September 2015"
+}
+```
+
+## POST /auth
+
+Exchanges a signed SEP-10 challenge transaction for a JWT. No JWT required.
+
+**Request body:**
+
+```json
+{
+  "transaction": "AAAAAgAAA...signed..."
+}
+```
+
+**Response:**
+
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "expires_in": 86400
+}
+```
+
+## POST /invoices
+
+Creates an off-chain/indexed invoice record. **Requires JWT** (`Authorization: Bearer <jwt>`).
+
+**Request body:**
+
+```json
+{
+  "buyer": "GBUYERAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+  "face_value": "1000.00",
+  "due_date": 1735689600,
+  "asset": "USDC"
+}
+```
+
+**Response (201):**
+
+```json
+{
+  "invoice_id": "a3f8c1d27e904b6a8d5f0139c2e7ab64f0d8c3b19a6e52f7b4c0d91e8a2735bc",
+  "transaction_hash": "abc123...",
+  "status": "SUCCESS"
+}
+```
+
+## GET /events
+
+Returns the most recent indexed Soroban events. No JWT required.
+
+**Query parameters:**
+
+- `limit` — number of events to return (default: 20)
+
+**Response:**
+
+```json
+[
+  {
+    "id": 1,
+    "event_id": "abc123...",
+    "contract_id": "CABC...",
+    "ledger": 12345,
+    "ledger_closed_at": 1748000000,
+    "event_type": "invoice_created",
+    "data": {}
+  }
+]
+```
+
+## GET /pool/snapshots
+
+Returns historical pool snapshots used for charts and trend analysis. No JWT required.
+
+**Response:**
+
+```json
+[
+  {
+    "timestamp": 1748000000,
+    "utilizationRateBps": 7500,
+    "totalYieldDistributed": "15000000000000"
+  }
+]
+```

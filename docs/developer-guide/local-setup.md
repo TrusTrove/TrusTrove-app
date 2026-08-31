@@ -34,22 +34,19 @@ docker-compose up -d
 
 ### 4. Run indexer database migrations
 
-Migrations are stored in `indexer/db/migrations`. Forward migrations use the existing `NNN_name.sql` convention, and each forward migration has a matching `NNN_name.down.sql` rollback script.
+Database migrations are run automatically when the indexer starts. No manual migration steps are needed.
 
-Apply the initial schema with:
+Migrations are stored in `indexer/db/migrations` and follow a forward-only convention (files named `NNN_name.sql`). The indexer tracks applied migrations in a `schema_migrations` table and only applies migrations that have not yet been run.
 
-```bash
-cd indexer
-psql "$DATABASE_URL" -f db/migrations/001_initial.sql
-```
-
-To roll back the initial schema, run the matching down migration. This is destructive and removes the tables created by the initial migration:
+If you need to roll back database changes (e.g., to reset your local development database):
 
 ```bash
-psql "$DATABASE_URL" -f db/migrations/001_initial.down.sql
+# Destroy and recreate the database container
+docker-compose down -v
+docker-compose up -d
 ```
 
-Always review a down migration before running it against a shared or production database.
+This approach is recommended over manual SQL operations, as it ensures a clean slate without risk of partial state.
 
 ### 5. Start the indexer
 
@@ -68,18 +65,29 @@ Open [http://localhost:3000](http://localhost:3000), connect Freighter on testne
 
 ## Database migrations
 
-Indexer migrations are stored in `indexer/db/migrations`. Each migration has a forward file and a matching rollback file using the `NNN_name.sql` and `NNN_name.down.sql` naming convention. The initial migration is `001_initial.sql`, with rollback migration `001_initial.down.sql`.
+Indexer migrations are stored in `indexer/db/migrations` and use a forward-only migration system. Migration files are named using the `NNN_name.sql` convention (e.g., `001_initial.sql`, `002_add_indexes.sql`).
 
-Apply the initial schema with:
+The indexer automatically applies pending migrations on startup by:
+
+1. Reading migration files from the `indexer/db/migrations` directory
+2. Tracking applied migrations in a `schema_migrations` table
+3. Executing only migrations that have not yet been applied
+
+### Rolling back database changes
+
+The indexer uses a forward-only migration system with no down-migration scripts. To roll back changes or reset your local database:
 
 ```bash
-psql "$DATABASE_URL" -f indexer/db/migrations/001_initial.sql
+# Destroy and recreate the database container (cleans everything)
+docker-compose down -v
+docker-compose up -d
+
+# The indexer will re-apply all migrations on next startup
 ```
 
-To roll back the initial schema, run the matching down migration:
+This is the recommended approach for local development. For manual intervention on a running database, you can:
 
-```bash
-psql "$DATABASE_URL" -f indexer/db/migrations/001_initial.down.sql
-```
+- Connect to the database and drop/recreate objects as needed
+- Run custom SQL against `$DATABASE_URL` using `psql`
 
-Run rollback migrations only when you intend to remove the objects created by the corresponding forward migration. Back up production data before rolling back a migration.
+For production databases, always back up data before making any manual changes.

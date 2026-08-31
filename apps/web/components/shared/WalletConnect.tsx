@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import * as freighterApi from "@stellar/freighter-api";
 import { useWallet } from "@/hooks/useWallet";
 import { Button } from "@/components/ui/button";
 import { isFreighterInstalled } from "@/lib/freighter";
@@ -36,7 +35,7 @@ export function WalletConnect() {
     errorCode,
   } = useWallet();
 
-  const { network } = useWalletStore();
+  const network = useWalletStore((s) => s.network);
   const [installed, setInstalled] = useState<boolean | null>(null);
   const [copied, setCopied] = useState(false);
   const [switchingNetwork, setSwitchingNetwork] = useState(false);

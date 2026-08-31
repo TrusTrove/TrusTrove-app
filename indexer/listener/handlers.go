@@ -285,6 +285,47 @@ func (l *EventListener) handleInvoiceDefaulted(ctx context.Context, event Soroba
 	return nil
 }
 
+func (l *EventListener) handleAttestationSubmitted(ctx context.Context, event SorobanEvent, ledgerClosedAt int64) error {
+	// Topic format: ["AttestationSubmitted" / "submit_attestation", invoice_id_bytes, agent_id_symbol]
+	// Value: risk_score (u32)
+	if len(event.Topic) < 2 {
+		return fmt.Errorf("invalid topic length for attestation event")
+	}
+
+	var idVal xdr.ScVal
+	err := xdr.SafeUnmarshalBase64(event.Topic[1], &idVal)
+	if err != nil {
+		return fmt.Errorf("parse topic invoice_id: %w", err)
+	}
+	invoiceID := xdrutil.ParseBytes(idVal)
+
+	// Parse agent_id from topic[2] if present
+	agentID := ""
+	if len(event.Topic) >= 3 {
+		var agentVal xdr.ScVal
+		err = xdr.SafeUnmarshalBase64(event.Topic[2], &agentVal)
+		if err == nil && agentVal.Sym != nil {
+			agentID = string(*agentVal.Sym)
+		}
+	}
+
+	// Parse risk_score from value
+	riskScoreBps := 0
+	var val xdr.ScVal
+	err = xdr.SafeUnmarshalBase64(event.Value, &val)
+	if err == nil {
+		riskScoreBps = int(xdrutil.ParseU32(val))
+	}
+
+	err = db.UpdateInvoiceAttestation(ctx, invoiceID, agentID, "", riskScoreBps, ledgerClosedAt)
+	if err != nil {
+		return err
+	}
+
+	slog.Info("Indexed event: AttestationSubmitted", "id", invoiceID, "agentID", agentID, "riskScoreBps", riskScoreBps)
+	return nil
+}
+
 func (l *EventListener) handleEvent(ctx context.Context, event SorobanEvent) error {
 	if len(event.Topic) == 0 {
 		return fmt.Errorf("event topic is empty")
@@ -331,6 +372,8 @@ func (l *EventListener) handleEvent(ctx context.Context, event SorobanEvent) err
 		err = l.handleInvoiceRepaid(ctx, event, serverKP, ledgerClosedAt)
 	case "trigger_default", "InvoiceDefaulted":
 		err = l.handleInvoiceDefaulted(ctx, event, serverKP)
+	case "submit_attestation", "AttestationSubmitted":
+		err = l.handleAttestationSubmitted(ctx, event, ledgerClosedAt)
 	default:
 		slog.Debug("Skipping unhandled contract event", "name", eventName)
 		return nil
