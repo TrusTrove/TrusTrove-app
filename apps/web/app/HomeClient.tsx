@@ -1,13 +1,71 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { TopStatusBar } from "@/components/shared/TopStatusBar";
 import { Navbar } from "@/components/shared/Navbar";
 import { InvoiceFeed } from "@/components/shared/InvoiceFeed";
-import { LpYieldCalculator } from "@/components/shared/LpYieldCalculator";
-import { DiscountCalculator } from "@/components/shared/DiscountCalculator";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { SkeletonShimmer } from "@/components/shared/SkeletonLoader";
+
+const LpYieldCalculator = dynamic(
+  () =>
+    import("@/components/shared/LpYieldCalculator").then(
+      (m) => m.LpYieldCalculator,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="bg-[#0d131a] border border-border rounded-lg p-5 space-y-5 shadow-[0_0_30px_rgba(0,212,170,0.02)]">
+        <SkeletonShimmer className="h-4 w-32" />
+        <div className="space-y-4">
+          <SkeletonShimmer className="h-10 w-full" />
+          <div className="space-y-2">
+            <SkeletonShimmer className="h-3 w-24" />
+            <SkeletonShimmer className="h-6 w-full" />
+          </div>
+        </div>
+        <div className="bg-[#080c10] border border-border/60 rounded p-4 space-y-3">
+          <SkeletonShimmer className="h-3 w-40" />
+          <SkeletonShimmer className="h-8 w-20" />
+          <SkeletonShimmer className="h-3 w-32" />
+          <SkeletonShimmer className="h-5 w-24" />
+        </div>
+      </div>
+    ),
+  },
+);
+
+const DiscountCalculator = dynamic(
+  () =>
+    import("@/components/shared/DiscountCalculator").then(
+      (m) => m.DiscountCalculator,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="bg-card border border-border rounded-lg overflow-hidden">
+        <div className="flex border-b border-border bg-[#080c10]/60">
+          <SkeletonShimmer className="flex-1 h-12" />
+          <SkeletonShimmer className="flex-1 h-12" />
+        </div>
+        <div className="p-6 space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="space-y-6">
+              <SkeletonShimmer className="h-4 w-48" />
+              <SkeletonShimmer className="h-20 w-full" />
+              <SkeletonShimmer className="h-20 w-full" />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <SkeletonShimmer className="h-40 w-full" />
+              <SkeletonShimmer className="h-40 w-full" />
+            </div>
+          </div>
+        </div>
+      </div>
+    ),
+  },
+);
 import { usePool } from "@/hooks/usePool";
 import { useStats } from "@/hooks/useStats";
 import {
