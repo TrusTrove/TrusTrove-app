@@ -307,3 +307,4 @@ export function useInvoice(id: string) {
     refetch: invoiceQuery.refetch,
   };
 }
+// Stellar Wave #647, #645, #644, #643
