@@ -1,134 +1,116 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { ReactNode } from 'react';
+import { describe, it, expect } from 'vitest';
+import { renderHook } from '@testing-library/react';
 
-import { usePoolChartData } from './usePoolChartData';
-import type { PoolChartData } from './usePoolChartData';
+import { usePoolChartData, type ChartDataItem } from './usePoolChartData';
 
-// Import the real module so vitest can hoist the mock
-import { getPoolStats } from '@/lib/api';
-
-vi.mock('@/lib/api');
-
-const mockGetPoolStats = vi.mocked(getPoolStats);
-
-function createWrapper() {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-    },
-  });
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
-  };
-}
-
-function makeStats(overrides: Record<string, unknown> = {}) {
-  return {
-    totalDeposits: 1_000_000n,
-    totalFunded: 500_000n,
-    availableLiquidity: 600_000n,
-    utilizationRateBps: 4000,
-    totalYieldDistributed: 50_000n,
-    activeInvoiceCount: 12,
-    ...overrides,
-  };
+function makeData(values: { label: string; value: number }[]): ChartDataItem[] {
+  return values;
 }
 
 describe('usePoolChartData', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   /**
-   * Happy path – the hook fetches stats and formats them into two chart series.
+   * Happy path – given a valid data array the hook produces SVG line/area
+   * paths and a correctly-mapped array of canvas-space points.
    */
-  it('returns formatted chart data on successful fetch', async () => {
-    mockGetPoolStats.mockResolvedValueOnce(makeStats());
+  it('returns formatted chart layout on valid data', () => {
+    const data = makeData([
+      { label: 'Available', value: 600_000 },
+      { label: 'Utilised', value: 400_000 },
+    ]);
 
-    const { result } = renderHook(() => usePoolChartData(), {
-      wrapper: createWrapper(),
-    });
-
-    // Initially loading, no data
-    expect(result.current.isLoading).toBe(true);
-    expect(result.current.chartData).toBeNull();
-    expect(result.current.error).toBeNull();
-
-    await waitFor(() => {
-      expect(result.current.isLoading).toBe(false);
-    });
-
-    const chartData = result.current.chartData as PoolChartData;
-    expect(chartData).not.toBeNull();
-
-    // Overview series
-    expect(chartData.overview).toHaveLength(2);
-    expect(chartData.overview[0]).toEqual({ label: 'Total Deposits', value: 1_000_000 });
-    expect(chartData.overview[1]).toEqual({ label: 'Total Funded', value: 500_000 });
-
-    // Liquidity series
-    expect(chartData.liquidity).toHaveLength(2);
-    expect(chartData.liquidity[0]).toEqual({ label: 'Available', value: 600_000 });
-    expect(chartData.liquidity[1]).toEqual({ label: 'Utilised', value: 400_000 });
-
-    expect(result.current.error).toBeNull();
-  });
-
-  /**
-   * Edge case – all stats are zero (brand-new pool with no activity).
-   * The hook should still produce a valid data shape without crashing.
-   */
-  it('handles zero / empty pool stats gracefully', async () => {
-    mockGetPoolStats.mockResolvedValueOnce(
-      makeStats({
-        totalDeposits: 0n,
-        totalFunded: 0n,
-        availableLiquidity: 0n,
-      })
+    const { result } = renderHook(() =>
+      usePoolChartData({ data, width: 500, height: 200 }),
     );
 
-    const { result } = renderHook(() => usePoolChartData(), {
-      wrapper: createWrapper(),
-    });
+    // Line and area paths should be non-empty SVG strings
+    expect(result.current.linePath).toContain('M ');
+    expect(result.current.areaPath).toContain('M ');
+    expect(result.current.areaPath).toContain('Z');
 
-    await waitFor(() => {
-      expect(result.current.isLoading).toBe(false);
-    });
+    // Points array should match input length
+    expect(result.current.points).toHaveLength(2);
 
-    const chartData = result.current.chartData as PoolChartData;
-    expect(chartData).not.toBeNull();
+    // First point should be at left padding (x = 20), mapped to higher Y (larger value)
+    expect(result.current.points[0].x).toBe(20); // padding
+    expect(result.current.points[0].label).toBe('Available');
+    expect(result.current.points[0].value).toBe(600_000);
 
-    // All values should be zero but still present
-    for (const point of chartData.overview) {
-      expect(point.value).toBe(0);
-    }
-    for (const point of chartData.liquidity) {
-      expect(point.value).toBe(0);
-    }
-    expect(result.current.error).toBeNull();
+    // Second point should be at right side
+    expect(result.current.points[1].label).toBe('Utilised');
+    expect(result.current.points[1].value).toBe(400_000);
   });
 
   /**
-   * Error path – the API call fails. The hook should surface the error
-   * and leave `chartData` as null.
+   * Edge case – empty data produces empty paths and no points.
    */
-  it('exposes the error when the API call fails', async () => {
-    const apiError = new Error('Network timeout');
-    mockGetPoolStats.mockRejectedValueOnce(apiError);
+  it('returns empty layout for empty data', () => {
+    const { result } = renderHook(() =>
+      usePoolChartData({ data: [], width: 500, height: 200 }),
+    );
 
-    const { result } = renderHook(() => usePoolChartData(), {
-      wrapper: createWrapper(),
-    });
+    expect(result.current.linePath).toBe('');
+    expect(result.current.areaPath).toBe('');
+    expect(result.current.points).toHaveLength(0);
+  });
 
-    await waitFor(() => {
-      expect(result.current.isLoading).toBe(false);
-    });
+  /**
+   * Edge case – all values are zero (brand-new pool).
+   * The hook should still produce valid SVG paths without crashing.
+   */
+  it('handles zero values gracefully', () => {
+    const data = makeData([
+      { label: 'Deposits', value: 0 },
+      { label: 'Funded', value: 0 },
+    ]);
 
-    expect(result.current.chartData).toBeNull();
-    expect(result.current.error).toEqual(apiError);
+    const { result } = renderHook(() =>
+      usePoolChartData({ data, width: 500, height: 200 }),
+    );
+
+    expect(result.current.linePath).toContain('M ');
+    expect(result.current.areaPath).toContain('Z');
+    expect(result.current.points).toHaveLength(2);
+
+    for (const point of result.current.points) {
+      expect(point.value).toBe(0);
+    }
+  });
+
+  /**
+   * Uses default dimensions when width/height/padding are omitted.
+   */
+  it('applies default dimensions when not provided', () => {
+    const data = makeData([
+      { label: 'A', value: 10 },
+      { label: 'B', value: 20 },
+      { label: 'C', value: 15 },
+    ]);
+
+    const { result } = renderHook(() => usePoolChartData({ data }));
+
+    expect(result.current.points).toHaveLength(3);
+
+    // With defaults: width=500, height=200, padding=20
+    // First point x = padding = 20
+    expect(result.current.points[0].x).toBe(20);
+    // Last point x = padding + chartWidth = 20 + (500 - 40) = 480
+    expect(result.current.points[2].x).toBe(480);
+  });
+
+  /**
+   * Error path – single data point should not crash
+   * (division by zero in index / (length - 1)).
+   */
+  it('handles a single data point', () => {
+    const data = makeData([{ label: 'Only', value: 42 }]);
+
+    const { result } = renderHook(() =>
+      usePoolChartData({ data, width: 500, height: 200 }),
+    );
+
+    expect(result.current.points).toHaveLength(1);
+    expect(result.current.points[0].value).toBe(42);
+    // Single point path is just a move command, no line
+    expect(result.current.linePath).toContain('M ');
   });
 });
