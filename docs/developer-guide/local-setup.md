@@ -68,6 +68,7 @@ Open [http://localhost:3000](http://localhost:3000), connect Freighter on testne
 Indexer migrations are stored in `indexer/db/migrations` and use a forward-only migration system. Migration files are named using the `NNN_name.sql` convention (e.g., `001_initial.sql`, `002_add_indexes.sql`).
 
 The indexer automatically applies pending migrations on startup by:
+
 1. Reading migration files from the `indexer/db/migrations` directory
 2. Tracking applied migrations in a `schema_migrations` table
 3. Executing only migrations that have not yet been applied
@@ -85,6 +86,7 @@ docker-compose up -d
 ```
 
 This is the recommended approach for local development. For manual intervention on a running database, you can:
+
 - Connect to the database and drop/recreate objects as needed
 - Run custom SQL against `$DATABASE_URL` using `psql`
 

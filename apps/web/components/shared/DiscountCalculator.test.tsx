@@ -59,7 +59,7 @@ describe("DiscountCalculator", () => {
     });
 
     fireEvent.change(faceValue, { target: { value: "100000" } });
-    
+
     // With default 2% discount: 100000 - (100000 * 0.02) = 98000
     expect(faceValue).toHaveValue("100000");
     expect(container).toHaveTextContent("100,000 USDC");
@@ -72,7 +72,7 @@ describe("DiscountCalculator", () => {
     });
 
     fireEvent.change(discountRate, { target: { value: "5.0" } });
-    
+
     // With 5% discount on 50000: 50000 - (50000 * 0.05) = 47500
     expect(parseFloat(discountRate.getAttribute("value")!)).toBeCloseTo(5.0, 1);
     expect(container).toHaveTextContent("50,000 USDC");
@@ -85,7 +85,7 @@ describe("DiscountCalculator", () => {
     });
 
     fireEvent.change(discountRate, { target: { value: "0.5" } });
-    
+
     expect(discountRate).toHaveValue("0.5");
     expect(container).not.toHaveTextContent("NaN");
   });
@@ -101,7 +101,7 @@ describe("DiscountCalculator", () => {
 
     fireEvent.change(faceValue, { target: { value: "75000" } });
     fireEvent.change(discountRate, { target: { value: "3.5" } });
-    
+
     // Verify inputs were updated and component didn't throw
     expect(faceValue).toHaveValue("75000");
     expect(discountRate).toHaveValue("3.5");
