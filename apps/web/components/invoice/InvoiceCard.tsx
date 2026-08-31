@@ -339,10 +339,15 @@ export const InvoiceCard = React.memo(function InvoiceCard({
               }`}
               onClick={() => {
                 if (!isVerified) return;
-                handleAction(
-                  () => fundInvoice({ invoiceId: invoice.id }),
-                  "Failed to fund invoice",
-                );
+                requestConfirmation({
+                  label: "Fund Invoice",
+                  invoiceId: invoice.id,
+                  fn: () =>
+                    handleAction(
+                      () => fundInvoice({ invoiceId: invoice.id }),
+                      "Failed to fund invoice",
+                    ),
+                });
               }}
               disabled={loading || !isVerified}
             >
@@ -360,10 +365,15 @@ export const InvoiceCard = React.memo(function InvoiceCard({
               }`}
               onClick={() => {
                 if (!isVerified) return;
-                handleAction(
-                  () => shipInvoice({ invoiceId: invoice.id }),
-                  "Failed to mark as shipped",
-                );
+                requestConfirmation({
+                  label: "Mark Goods Shipped",
+                  invoiceId: invoice.id,
+                  fn: () =>
+                    handleAction(
+                      () => shipInvoice({ invoiceId: invoice.id }),
+                      "Failed to mark as shipped",
+                    ),
+                });
               }}
               disabled={loading || !isVerified}
             >
