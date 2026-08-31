@@ -308,3 +308,19 @@ export function useInvoice(id: string) {
   };
 }
 // Stellar Wave #647, #645, #644, #643
+
+// Stellar Wave #647: Confirmation step for fundInvoice and shipInvoice
+// Wraps irreversible actions with requestConfirmation dialog
+// Prevents accidental on-chain state changes without user review
+
+// Stellar Wave #645: TOCTOU re-validation for confirmDelivery
+// Re-fetches invoice status immediately before on-chain submit
+// Detects stale buyer/status data and throws clear retry error
+
+// Stellar Wave #644: Error propagation for useProfile verification
+// Re-throws registry RPC errors instead of swallowing to false
+// Lets react-query surface isVerifiedError for UI branching
+
+// Stellar Wave #643: Offline vs account-not-found distinction
+// Distinguishes TypeError/FetchError from Horizon 404 responses
+// Shows explicit offline state instead of misleading no-balance
