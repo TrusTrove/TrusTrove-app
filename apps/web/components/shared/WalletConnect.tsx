@@ -14,14 +14,11 @@ import {
   Check,
   ExternalLink,
 } from "lucide-react";
+import { truncateAddress } from "@/lib/format";
+import { getErrorMessage } from "@/lib/errors";
 
 interface FreighterNetworkApi {
   setNetwork?: (network: string) => Promise<unknown>;
-}
-
-function getErrorMessage(error: unknown) {
-  if (error instanceof Error) return error.message;
-  return "Freighter could not switch networks";
 }
 
 export function WalletConnect() {
@@ -84,10 +81,6 @@ export function WalletConnect() {
     } finally {
       setSwitchingNetwork(false);
     }
-  };
-
-  const formatAddress = (addr: string) => {
-    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
   };
 
   // If Freighter is not installed
@@ -165,7 +158,7 @@ export function WalletConnect() {
           <div className="flex items-center gap-2 bg-neutral-900 border border-border rounded-lg pl-3 pr-1 py-1 transition-all duration-200">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             <span className="text-xs font-semibold font-mono text-slate-300">
-              {formatAddress(address)}
+              {truncateAddress(address)}
             </span>
 
             <button

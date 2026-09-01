@@ -25,27 +25,11 @@ import {
 } from "lucide-react";
 import { formatAmount } from "@/lib/assets";
 import { useConfirmDialogStore } from "@/store/confirmDialog";
+import { truncateAddress } from "@/lib/format";
+import { getErrorMessage } from "@/lib/errors";
 
 interface InvoiceDetailClientProps {
   invoiceId: string;
-}
-
-function getErrorMessage(error: unknown, fallback: string): string {
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "message" in error &&
-    typeof error.message === "string" &&
-    error.message.length > 0
-  ) {
-    return error.message;
-  }
-
-  return fallback;
 }
 
 export default function InvoiceDetailClient({
@@ -205,7 +189,7 @@ export default function InvoiceDetailClient({
           </Link>
           <ChevronRight className="w-3.5 h-3.5 text-slate-700" />
           <span className="text-slate-400">
-            Invoice #{invoice.id.slice(0, 6)}...
+            Invoice #{truncateAddress(invoice.id)}
           </span>
         </div>
 

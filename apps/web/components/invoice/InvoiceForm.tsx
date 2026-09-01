@@ -9,6 +9,7 @@ import { ASSET_OPTIONS } from "@/lib/assets";
 import { AmountInput } from "@/components/shared/AmountInput";
 import { useWalletStore } from "@/store/wallet";
 import { DatePicker } from "@/components/ui/date-picker";
+import { getErrorMessage } from "@/lib/errors";
 
 const invoiceContractID = process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID || "";
 
@@ -17,10 +18,6 @@ const getTrustroveSdk = () => import("@trusttrove/sdk");
 
 interface InvoiceFormProps {
   onSuccess?: () => void;
-}
-
-function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Transaction failed";
 }
 
 /**

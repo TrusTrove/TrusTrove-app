@@ -7,6 +7,7 @@ import { formatAmount } from "@/lib/assets";
 import { Invoice } from "@/types";
 import { Button } from "@/components/ui/button";
 import { InvoiceStatus } from "./InvoiceStatus";
+import { truncateAddress } from "@/lib/format";
 import {
   ChevronLeft,
   ChevronRight,
@@ -44,11 +45,6 @@ interface InvoiceTableProps {
 
 const DEFAULT_PAGE_SIZES = [10, 20, 50, 100];
 const ROW_HEIGHT = 72;
-
-function truncateAddr(addr: string) {
-  if (!addr) return "";
-  return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-}
 
 function clampPage(page: number, totalPages: number) {
   return Math.min(Math.max(page, 1), Math.max(totalPages, 1));
@@ -344,10 +340,10 @@ export function InvoiceTable({
                         }}
                       >
                         <div className="font-bold text-primary">
-                          {truncateAddr(invoice.id)}
+                          {truncateAddress(invoice.id)}
                         </div>
                         <div className="text-slate-400">
-                          {truncateAddr(invoice.buyer)}
+                          {truncateAddress(invoice.buyer)}
                         </div>
                         <div className="font-bold text-white">
                           {formatAmount(invoice.faceValue, invoice.asset)}

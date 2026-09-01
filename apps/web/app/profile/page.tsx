@@ -22,6 +22,7 @@ import {
   Building,
   Fingerprint,
 } from "lucide-react";
+import { truncateAddress } from "@/lib/format";
 
 const registryContractID = process.env.NEXT_PUBLIC_REGISTRY_CONTRACT_ID || "";
 
@@ -104,10 +105,6 @@ export default function ProfilePage() {
       setLocalError(err.message || "Registration transaction failed");
       setShowPending(false);
     }
-  };
-
-  const formatAddress = (addr: string) => {
-    return `${addr.slice(0, 10)}...${addr.slice(-10)}`;
   };
 
   if (!connected) {
@@ -280,7 +277,7 @@ export default function ProfilePage() {
                       <p className="text-xs text-slate-400 leading-relaxed max-w-xl">
                         Your connected address{" "}
                         <strong className="text-white font-mono">
-                          {address && formatAddress(address)}
+                          {address && truncateAddress(address)}
                         </strong>{" "}
                         is not registered. You cannot create invoices, deploy
                         liquidity, or interact with pool escrows until you

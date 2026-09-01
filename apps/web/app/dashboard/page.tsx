@@ -20,6 +20,7 @@ import { Layers, Plus, CheckCircle2, Circle, Lock } from "lucide-react";
 import { Invoice } from "@/types";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatAmount } from "@/lib/assets";
+import { truncateAddress } from "@/lib/format";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 
 const InvoiceForm = dynamic(
@@ -67,10 +68,6 @@ export default function SMEDashboard() {
       i.status === "Active" ||
       i.status === "Confirmed",
   ).length;
-
-  const formatAddress = (addr: string) => {
-    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-  };
 
   const handlePageChange = (page: number) => {
     setInvoicePage(page);
@@ -176,7 +173,7 @@ export default function SMEDashboard() {
               SME Financing Dashboard
             </h1>
             <p className="text-slate-500 text-xs font-mono mt-1">
-              OPERATOR: {address && formatAddress(address)} | ROLE:{" "}
+              OPERATOR: {address && truncateAddress(address)} | ROLE:{" "}
               {role.toUpperCase()}
             </p>
           </div>
