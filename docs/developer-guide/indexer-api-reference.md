@@ -102,7 +102,7 @@ Requests a SEP-10 authentication challenge for a Stellar account. No JWT require
 
 **Query parameters:**
 
-- `account` — the Stellar public key to authenticate (required)
+- `address` — the Stellar public key to authenticate (required)
 
 **Response:**
 
