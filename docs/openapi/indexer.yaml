@@ -114,22 +114,15 @@ paths:
       security: []
       parameters:
         - $ref: "#/components/parameters/Limit"
-        - $ref: "#/components/parameters/Cursor"
       responses:
         "200":
           description: Indexed events
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  events:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Event"
-                  next_cursor:
-                    type: string
-                    nullable: true
+                type: array
+                items:
+                  $ref: "#/components/schemas/Event"
 
   /invoices:
     get:
@@ -149,22 +142,20 @@ paths:
           schema:
             type: string
         - $ref: "#/components/parameters/Limit"
-        - $ref: "#/components/parameters/Cursor"
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
       responses:
         "200":
           description: Invoice list
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  invoices:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Invoice"
-                  next_cursor:
-                    type: string
-                    nullable: true
+                $ref: "#/components/schemas/PaginatedInvoices"
     post:
       tags: [Invoices]
       summary: Create invoice
@@ -299,13 +290,6 @@ components:
         minimum: 1
         maximum: 100
         default: 20
-    Cursor:
-      name: cursor
-      in: query
-      required: false
-      schema:
-        type: string
-
   responses:
     BadRequest:
       description: Bad request
@@ -405,6 +389,23 @@ components:
           type: integer
           format: int64
       required: [id, issuer, buyer, face_value, due_date, status]
+
+    PaginatedInvoices:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Invoice"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+        totalPages:
+          type: integer
+      required: [data, total, page, limit, totalPages]
 
     Event:
       type: object
