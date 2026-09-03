@@ -9,6 +9,7 @@ import (
 	"trusttrove/indexer/api"
 	"trusttrove/indexer/config"
 	"trusttrove/indexer/db"
+	"trusttrove/indexer/soroban"
 
 	"github.com/stellar/go-stellar-sdk/keypair"
 )
@@ -94,7 +95,7 @@ func NewEventListener(cfg *config.Config, health *api.ListenerHealth) *EventList
 
 func (l *EventListener) getLatestLedgerSequence(ctx context.Context) (int32, error) {
 	var res GetLatestLedgerResult
-	if err := api.CallSorobanRPC(ctx, l.cfg.SorobanRPCURL, "getLatestLedger", nil, &res); err != nil {
+	if err := soroban.CallSorobanRPC(ctx, l.cfg.SorobanRPCURL, "getLatestLedger", nil, &res); err != nil {
 		return 0, fmt.Errorf("call getLatestLedger: %w", err)
 	}
 	return res.Sequence, nil
@@ -211,7 +212,7 @@ func (l *EventListener) pollEvents(ctx context.Context, startLedger int32) (int3
 			Pagination:  &PaginationParams{Limit: 100, Cursor: cursor},
 		}
 		var res GetEventsResult
-		if err := api.CallSorobanRPC(ctx, l.cfg.SorobanRPCURL, "getEvents", params, &res); err != nil {
+		if err := soroban.CallSorobanRPC(ctx, l.cfg.SorobanRPCURL, "getEvents", params, &res); err != nil {
 			return startLedger, fmt.Errorf("call getEvents (startLedger=%d, cursor=%s): %w", startLedger, cursor, err)
 		}
 		if res.LatestLedger != 0 {
