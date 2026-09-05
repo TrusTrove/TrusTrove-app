@@ -111,6 +111,7 @@ export const invoiceSchema = z.object({
   buyerConfirmed: booleanSchema,
   buyerConfirmedAt: nullableNumberSchema.optional(),
   repaidAt: nullableNumberSchema,
+  defaultedAt: nullableNumberSchema.optional(),
   attestationAgentId: z.string().nullable().optional(),
   riskScoreBps: z.number().nullable().optional(),
   evidenceHash: z.string().nullable().optional(),
