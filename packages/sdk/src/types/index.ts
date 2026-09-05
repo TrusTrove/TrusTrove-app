@@ -33,6 +33,8 @@ export interface Invoice {
   buyerConfirmed: boolean;
   buyerConfirmedAt?: number | null;
   repaidAt: number | null;
+  /** Timestamp when the invoice was marked as defaulted, if applicable. */
+  defaultedAt?: number | null;
   /** Nullable attestation fields from the indexer (set once Underwrite verifies the invoice). */
   attestationAgentId?: string | null;
   riskScoreBps?: number | null;

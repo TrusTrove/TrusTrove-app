@@ -31,7 +31,13 @@ export function usePool() {
   const { ensureAllowance } = useTokenAllowance();
   const { error: appError, handleError, clearError } = useAppError();
 
-  const poolClient = useMemo(() => new PoolClient(poolContractID), []);
+  const poolClient = useMemo(() => {
+    try {
+      return new PoolClient(poolContractID);
+    } catch {
+      return null;
+    }
+  }, []);
 
   const statsQuery = useQuery({
     queryKey: ["poolStats"],
@@ -57,6 +63,7 @@ export function usePool() {
         await ensureAllowance(poolContractID, amount);
       }
 
+      if (!poolClient) throw new Error("Pool client not available");
       return poolClient.deposit(address, amount, address);
     },
     onSuccess: (txHash: string) => {
@@ -76,6 +83,7 @@ export function usePool() {
       if (!address) {
         throw new Error("Wallet not connected");
       }
+      if (!poolClient) throw new Error("Pool client not available");
       return poolClient.withdraw(address, shares, address);
     },
     onSuccess: (txHash: string) => {
