@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import { Sparkles } from "lucide-react";
 import { AnimatedValue } from "./DiscountCalculator";
 
@@ -8,6 +8,10 @@ export function SmeCalculator() {
   const [faceValue, setFaceValue] = useState<number>(50000);
   const [paymentTerms, setPaymentTerms] = useState<number>(60);
   const [discountRate, setDiscountRate] = useState<number>(2.0);
+
+  const handleFaceValueChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setFaceValue(parseInt(e.target.value));
+  }, []);
 
   const discountPaid = faceValue * (discountRate / 100);
   const fundedAmount = faceValue - discountPaid;

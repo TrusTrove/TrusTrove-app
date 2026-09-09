@@ -3,11 +3,14 @@ package api
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/golang-jwt/jwt/v5"
@@ -93,6 +96,35 @@ func CORSMiddleware(allowedOrigins []string) func(http.Handler) http.Handler {
 				w.WriteHeader(http.StatusNoContent)
 				return
 			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// RecoveryMiddleware recovers panics in downstream handlers, reports them to
+// Sentry (a no-op if SENTRY_DSN is unset), logs the panic and stack trace
+// through the app's structured slog logger, and returns a 500 to the client
+// instead of letting chi's default Recoverer print an unstructured stack
+// trace straight to stdout.
+func RecoveryMiddleware() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			defer func() {
+				if rvr := recover(); rvr != nil {
+					sentry.CurrentHub().Recover(rvr)
+
+					slog.Error("panic recovered in HTTP handler",
+						"error", fmt.Sprintf("%v", rvr),
+						"stack", string(debug.Stack()),
+						"method", r.Method,
+						"path", r.URL.Path,
+					)
+
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusInternalServerError)
+					w.Write([]byte(`{"error": "internal server error"}`))
+				}
+			}()
 			next.ServeHTTP(w, r)
 		})
 	}
@@ -243,7 +275,7 @@ func NewRouter(h *APIHandler) *chi.Mux {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
+	r.Use(RecoveryMiddleware())
 	r.Use(CORSMiddleware(h.cfg.CORSAllowedOrigins))
 	r.Use(SecurityHeadersMiddleware())
 

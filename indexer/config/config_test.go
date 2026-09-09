@@ -29,6 +29,7 @@ var configEnvNames = []string{
 	"ALLOWED_ORIGINS",
 	"CORS_ALLOWED_ORIGINS",
 	"RATE_LIMIT_RPS",
+	"SENTRY_DSN",
 }
 
 func setConfigEnv(t *testing.T, values map[string]string) {
@@ -73,6 +74,7 @@ func TestLoadConfig(t *testing.T) {
 				env["API_PORT"] = "9000"
 				env["ALLOWED_ORIGINS"] = " https://app.example,https://admin.example, "
 				env["RATE_LIMIT_RPS"] = "25"
+				env["SENTRY_DSN"] = " https://examplePublicKey@o0.ingest.sentry.io/0 "
 				return env
 			}(),
 			check: func(t *testing.T, cfg *Config) {
@@ -88,6 +90,9 @@ func TestLoadConfig(t *testing.T) {
 				wantOrigins := []string{"https://app.example", "https://admin.example"}
 				if strings.Join(cfg.CORSAllowedOrigins, ",") != strings.Join(wantOrigins, ",") {
 					t.Errorf("origins = %v, want %v", cfg.CORSAllowedOrigins, wantOrigins)
+				}
+				if cfg.SentryDSN != "https://examplePublicKey@o0.ingest.sentry.io/0" {
+					t.Errorf("SentryDSN = %q, want trimmed configured DSN", cfg.SentryDSN)
 				}
 			},
 		},
@@ -106,6 +111,9 @@ func TestLoadConfig(t *testing.T) {
 				}
 				if len(cfg.CORSAllowedOrigins) != 1 || cfg.CORSAllowedOrigins[0] != "http://localhost:3000" {
 					t.Errorf("default origins = %v, want localhost origin", cfg.CORSAllowedOrigins)
+				}
+				if cfg.SentryDSN != "" {
+					t.Errorf("SentryDSN = %q, want empty when unset", cfg.SentryDSN)
 				}
 			},
 		},

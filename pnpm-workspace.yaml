@@ -5,3 +5,31 @@ packages:
 allowBuilds:
   esbuild: false
   unrs-resolver: true
+
+# Advisories ignored by `pnpm audit` (and therefore by the CI audit gate).
+# Both groups are already-triaged and need a major-version bump to fix, not
+# a version override — remove the relevant entries once that upgrade lands.
+auditConfig:
+  ignoreGhsas:
+    # next: 14.2.35 -> 15.5.24+ (RCE, DoS, SSRF, middleware bypass — a real
+    # Next.js major-version upgrade with its own migration/testing pass)
+    - GHSA-p293-qw3h-jr36
+    - GHSA-2xp9-vwfh-vxw4
+    - GHSA-h25m-26qc-wcjf
+    - GHSA-q4gf-8mx6-v5v3
+    - GHSA-8h8q-6873-q5fj
+    - GHSA-c4j6-fc7j-m34r
+    - GHSA-36qx-fr4f-26g5
+    - GHSA-m99w-x7hq-7vfj
+    - GHSA-89xv-2m56-2m9x
+    - GHSA-p9j2-gv94-2wf4
+    # toml: pulled in by @stellar/stellar-sdk, needs its 3.x -> 4.x major
+    # (uncontrolled recursion / prototype pollution parsing TOML)
+    - GHSA-82x6-q7mm-w9cf
+    - GHSA-v5mp-jgw5-2x6j
+
+overrides:
+  postcss: ">=8.5.18 <9"
+  nanoid: ">=3.3.18 <4"
+  js-yaml: ">=4.3.2 <5"
+  glob: ">=12.0.0 <13"

@@ -52,6 +52,8 @@ func TestLoadAppliedMigrations_NilPoolPanics(t *testing.T) {
 	// Calling loadAppliedMigrations with a nil Pool panics because
 	// pgxpool.Query dereferences the pool pointer. Verify this is the
 	// case so we document the behaviour.
+	origPool := Pool
+	defer func() { Pool = origPool }()
 	Pool = nil
 	defer func() {
 		if r := recover(); r == nil {
@@ -63,6 +65,8 @@ func TestLoadAppliedMigrations_NilPoolPanics(t *testing.T) {
 
 func TestEnsureSchemaMigrationsTable_NilPoolPanics(t *testing.T) {
 	// Same as above: nil Pool causes a nil-pointer dereference.
+	origPool := Pool
+	defer func() { Pool = origPool }()
 	Pool = nil
 	defer func() {
 		if r := recover(); r == nil {
@@ -74,6 +78,8 @@ func TestEnsureSchemaMigrationsTable_NilPoolPanics(t *testing.T) {
 
 func TestRollbackOnError_PanicsWithNilTx(t *testing.T) {
 	// rollbackOnError dereferences tx, so a nil tx panics. Document it.
+	origPool := Pool
+	defer func() { Pool = origPool }()
 	Pool = nil
 	defer func() {
 		if r := recover(); r == nil {
@@ -289,6 +295,8 @@ func TestRunMigration_EmptyMigrationsDir_NilPoolPanics(t *testing.T) {
 	emptyDir := t.TempDir()
 	os.Setenv("INDEXER_MIGRATIONS_DIR", emptyDir)
 
+	origPool := Pool
+	defer func() { Pool = origPool }()
 	Pool = nil
 	defer func() {
 		if r := recover(); r == nil {

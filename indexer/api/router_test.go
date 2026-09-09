@@ -12,6 +12,47 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+func TestRecoveryMiddleware_RecoversPanicAndReturns500(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		panic("boom")
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/panics", nil)
+	rr := httptest.NewRecorder()
+
+	handler := RecoveryMiddleware()(next)
+
+	// The middleware must recover the panic itself; if it doesn't, this
+	// test's own goroutine would crash rather than reporting a failure.
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, rr.Code)
+	}
+	if ct := rr.Header().Get("Content-Type"); ct != "application/json" {
+		t.Errorf("expected Content-Type application/json, got %q", ct)
+	}
+	if !strings.Contains(rr.Body.String(), "internal server error") {
+		t.Errorf("expected error body, got %q", rr.Body.String())
+	}
+}
+
+func TestRecoveryMiddleware_PassesThroughWhenNoPanic(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusTeapot)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/ok", nil)
+	rr := httptest.NewRecorder()
+
+	handler := RecoveryMiddleware()(next)
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusTeapot {
+		t.Fatalf("expected status %d, got %d", http.StatusTeapot, rr.Code)
+	}
+}
+
 func TestCORSMiddleware_AllowsConfiguredOrigin(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusTeapot)

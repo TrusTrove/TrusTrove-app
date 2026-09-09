@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/getsentry/sentry-go"
+
 	"trusttrove/indexer/api"
 	"trusttrove/indexer/config"
 	"trusttrove/indexer/db"
@@ -43,6 +45,22 @@ func main() {
 		slog.Info("Server seed: generated (fallback for development)")
 	} else {
 		slog.Info("Server seed: sourced from environment variable")
+	}
+
+	// Initialize error tracking. With no SENTRY_DSN configured this is a
+	// documented no-op: the SDK still initializes but simply discards events.
+	if err := sentry.Init(sentry.ClientOptions{
+		Dsn:              cfg.SentryDSN,
+		Environment:      os.Getenv("APP_ENV"),
+		AttachStacktrace: true,
+	}); err != nil {
+		slog.Error("Failed to initialize Sentry", "error", err)
+	}
+	defer sentry.Flush(2 * time.Second)
+	if cfg.SentryDSN != "" {
+		slog.Info("Sentry error tracking enabled")
+	} else {
+		slog.Info("Sentry error tracking disabled (SENTRY_DSN not set)")
 	}
 
 	// 2. Initialize DB Connection Pool

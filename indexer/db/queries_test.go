@@ -229,6 +229,376 @@ func TestLocateMigrationDir(t *testing.T) {
 	}
 }
 
+func newTestInvoice(id string) *DbInvoice {
+	return &DbInvoice{
+		ID:           id,
+		Issuer:       "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+		Buyer:        "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN",
+		FaceValue:    "1000000000",
+		DiscountBps:  0,
+		FundedAmount: "0",
+		DueDate:      time.Now().Add(30 * 24 * time.Hour).Unix(),
+		Status:       "Created",
+		CreatedAt:    time.Now().Unix(),
+	}
+}
+
+func TestUpdateInvoiceListed(t *testing.T) {
+	skipIfNoDB(t)
+
+	ctx := context.Background()
+	id := fmt.Sprintf("listed-test%d", time.Now().UnixNano())
+	if err := InsertInvoice(ctx, newTestInvoice(id)); err != nil {
+		t.Fatalf("InsertInvoice: %v", err)
+	}
+	t.Cleanup(func() {
+		if Pool != nil {
+			Pool.Exec(ctx, "DELETE FROM invoices WHERE id = $1", id)
+		}
+	})
+
+	if err := UpdateInvoiceListed(ctx, id, "Listed", 250); err != nil {
+		t.Fatalf("UpdateInvoiceListed: %v", err)
+	}
+
+	got, err := GetInvoiceByID(ctx, id)
+	if err != nil || got == nil {
+		t.Fatalf("GetInvoiceByID: err=%v, got=%v", err, got)
+	}
+	if got.Status != "Listed" {
+		t.Errorf("Status: got %q, want %q", got.Status, "Listed")
+	}
+	if got.DiscountBps != 250 {
+		t.Errorf("DiscountBps: got %d, want %d", got.DiscountBps, 250)
+	}
+}
+
+func TestUpdateInvoiceFunded(t *testing.T) {
+	skipIfNoDB(t)
+
+	ctx := context.Background()
+	id := fmt.Sprintf("funded-test%d", time.Now().UnixNano())
+	if err := InsertInvoice(ctx, newTestInvoice(id)); err != nil {
+		t.Fatalf("InsertInvoice: %v", err)
+	}
+	t.Cleanup(func() {
+		if Pool != nil {
+			Pool.Exec(ctx, "DELETE FROM invoices WHERE id = $1", id)
+		}
+	})
+
+	fundedAt := time.Now().Unix()
+	if err := UpdateInvoiceFunded(ctx, id, "Funded", "950000000", fundedAt); err != nil {
+		t.Fatalf("UpdateInvoiceFunded: %v", err)
+	}
+
+	got, err := GetInvoiceByID(ctx, id)
+	if err != nil || got == nil {
+		t.Fatalf("GetInvoiceByID: err=%v, got=%v", err, got)
+	}
+	if got.Status != "Funded" {
+		t.Errorf("Status: got %q, want %q", got.Status, "Funded")
+	}
+	if got.FundedAmount != "950000000" {
+		t.Errorf("FundedAmount: got %q, want %q", got.FundedAmount, "950000000")
+	}
+	if got.FundedAt == nil || *got.FundedAt != fundedAt {
+		t.Errorf("FundedAt: got %v, want %d", got.FundedAt, fundedAt)
+	}
+}
+
+func TestUpdateInvoiceShipped(t *testing.T) {
+	skipIfNoDB(t)
+
+	ctx := context.Background()
+	id := fmt.Sprintf("shipped-test%d", time.Now().UnixNano())
+	if err := InsertInvoice(ctx, newTestInvoice(id)); err != nil {
+		t.Fatalf("InsertInvoice: %v", err)
+	}
+	t.Cleanup(func() {
+		if Pool != nil {
+			Pool.Exec(ctx, "DELETE FROM invoices WHERE id = $1", id)
+		}
+	})
+
+	shippedAt := time.Now().Unix()
+	if err := UpdateInvoiceShipped(ctx, id, "Shipped", shippedAt); err != nil {
+		t.Fatalf("UpdateInvoiceShipped: %v", err)
+	}
+
+	got, err := GetInvoiceByID(ctx, id)
+	if err != nil || got == nil {
+		t.Fatalf("GetInvoiceByID: err=%v, got=%v", err, got)
+	}
+	if got.Status != "Shipped" {
+		t.Errorf("Status: got %q, want %q", got.Status, "Shipped")
+	}
+	if got.ShippedAt == nil || *got.ShippedAt != shippedAt {
+		t.Errorf("ShippedAt: got %v, want %d", got.ShippedAt, shippedAt)
+	}
+	if !got.IssuerConfirmed {
+		t.Error("IssuerConfirmed: got false, want true")
+	}
+}
+
+func TestUpdateInvoiceDeliveryConfirmed(t *testing.T) {
+	skipIfNoDB(t)
+
+	ctx := context.Background()
+	id := fmt.Sprintf("delivered-test%d", time.Now().UnixNano())
+	if err := InsertInvoice(ctx, newTestInvoice(id)); err != nil {
+		t.Fatalf("InsertInvoice: %v", err)
+	}
+	t.Cleanup(func() {
+		if Pool != nil {
+			Pool.Exec(ctx, "DELETE FROM invoices WHERE id = $1", id)
+		}
+	})
+
+	confirmedAt := time.Now().Unix()
+	if err := UpdateInvoiceDeliveryConfirmed(ctx, id, "Confirmed", confirmedAt); err != nil {
+		t.Fatalf("UpdateInvoiceDeliveryConfirmed: %v", err)
+	}
+
+	got, err := GetInvoiceByID(ctx, id)
+	if err != nil || got == nil {
+		t.Fatalf("GetInvoiceByID: err=%v, got=%v", err, got)
+	}
+	if got.Status != "Confirmed" {
+		t.Errorf("Status: got %q, want %q", got.Status, "Confirmed")
+	}
+	if !got.BuyerConfirmed {
+		t.Error("BuyerConfirmed: got false, want true")
+	}
+	if got.BuyerConfirmedAt == nil || *got.BuyerConfirmedAt != confirmedAt {
+		t.Errorf("BuyerConfirmedAt: got %v, want %d", got.BuyerConfirmedAt, confirmedAt)
+	}
+}
+
+func TestUpdateInvoiceRepaid(t *testing.T) {
+	skipIfNoDB(t)
+
+	ctx := context.Background()
+	id := fmt.Sprintf("repaid-test%d", time.Now().UnixNano())
+	if err := InsertInvoice(ctx, newTestInvoice(id)); err != nil {
+		t.Fatalf("InsertInvoice: %v", err)
+	}
+	t.Cleanup(func() {
+		if Pool != nil {
+			Pool.Exec(ctx, "DELETE FROM invoices WHERE id = $1", id)
+		}
+	})
+
+	repaidAt := time.Now().Unix()
+	if err := UpdateInvoiceRepaid(ctx, id, "Repaid", repaidAt); err != nil {
+		t.Fatalf("UpdateInvoiceRepaid: %v", err)
+	}
+
+	got, err := GetInvoiceByID(ctx, id)
+	if err != nil || got == nil {
+		t.Fatalf("GetInvoiceByID: err=%v, got=%v", err, got)
+	}
+	if got.Status != "Repaid" {
+		t.Errorf("Status: got %q, want %q", got.Status, "Repaid")
+	}
+	if got.RepaidAt == nil || *got.RepaidAt != repaidAt {
+		t.Errorf("RepaidAt: got %v, want %d", got.RepaidAt, repaidAt)
+	}
+}
+
+func TestUpdateInvoiceStatus(t *testing.T) {
+	skipIfNoDB(t)
+
+	ctx := context.Background()
+	id := fmt.Sprintf("status-test%d", time.Now().UnixNano())
+	if err := InsertInvoice(ctx, newTestInvoice(id)); err != nil {
+		t.Fatalf("InsertInvoice: %v", err)
+	}
+	t.Cleanup(func() {
+		if Pool != nil {
+			Pool.Exec(ctx, "DELETE FROM invoices WHERE id = $1", id)
+		}
+	})
+
+	if err := UpdateInvoiceStatus(ctx, id, "Defaulted"); err != nil {
+		t.Fatalf("UpdateInvoiceStatus: %v", err)
+	}
+
+	got, err := GetInvoiceByID(ctx, id)
+	if err != nil || got == nil {
+		t.Fatalf("GetInvoiceByID: err=%v, got=%v", err, got)
+	}
+	if got.Status != "Defaulted" {
+		t.Errorf("Status: got %q, want %q", got.Status, "Defaulted")
+	}
+}
+
+func TestUpdatePoolStats(t *testing.T) {
+	skipIfNoDB(t)
+
+	ctx := context.Background()
+	original, err := GetPoolStats(ctx)
+	if err != nil {
+		t.Fatalf("GetPoolStats (baseline): %v", err)
+	}
+	t.Cleanup(func() {
+		if Pool == nil || original == nil {
+			return
+		}
+		_ = UpdatePoolStats(ctx, original)
+	})
+
+	newStats := &DbPoolStats{
+		TotalDeposits:         "5000000000",
+		TotalFunded:           "3000000000",
+		AvailableLiquidity:    "2000000000",
+		UtilizationRateBps:    6000,
+		TotalYieldDistributed: "15000000",
+		ActiveInvoiceCount:    4,
+		TotalShares:           "5000000000",
+	}
+	if err := UpdatePoolStats(ctx, newStats); err != nil {
+		t.Fatalf("UpdatePoolStats: %v", err)
+	}
+
+	got, err := GetPoolStats(ctx)
+	if err != nil {
+		t.Fatalf("GetPoolStats: %v", err)
+	}
+	if got == nil {
+		t.Fatal("GetPoolStats: returned nil after update")
+	}
+	if got.TotalDeposits != newStats.TotalDeposits {
+		t.Errorf("TotalDeposits: got %q, want %q", got.TotalDeposits, newStats.TotalDeposits)
+	}
+	if got.UtilizationRateBps != newStats.UtilizationRateBps {
+		t.Errorf("UtilizationRateBps: got %d, want %d", got.UtilizationRateBps, newStats.UtilizationRateBps)
+	}
+	if got.ActiveInvoiceCount != newStats.ActiveInvoiceCount {
+		t.Errorf("ActiveInvoiceCount: got %d, want %d", got.ActiveInvoiceCount, newStats.ActiveInvoiceCount)
+	}
+}
+
+func TestLogEventAndProcessedLookups(t *testing.T) {
+	skipIfNoDB(t)
+
+	ctx := context.Background()
+	eventID := fmt.Sprintf("event-test-%d", time.Now().UnixNano())
+	contractID := "CABGWVIZFF62FG67ZGFEP67NEEY4WYTMFURDMFTKKNRDAFPKPOJDTN4C"
+	ledger := int32(123456)
+	payload := map[string]string{"kind": "test"}
+
+	if err := LogEvent(ctx, eventID, contractID, ledger, time.Now().Unix(), "invoice_listed", payload); err != nil {
+		t.Fatalf("LogEvent: %v", err)
+	}
+	t.Cleanup(func() {
+		if Pool != nil {
+			Pool.Exec(ctx, "DELETE FROM events_log WHERE event_id = $1", eventID)
+		}
+	})
+
+	// LogEvent must be idempotent on conflict (ON CONFLICT DO NOTHING).
+	if err := LogEvent(ctx, eventID, contractID, ledger, time.Now().Unix(), "invoice_listed", payload); err != nil {
+		t.Fatalf("LogEvent (duplicate): %v", err)
+	}
+
+	processed, err := IsEventProcessed(ctx, eventID)
+	if err != nil {
+		t.Fatalf("IsEventProcessed: %v", err)
+	}
+	if !processed {
+		t.Error("IsEventProcessed: got false, want true")
+	}
+
+	unknownProcessed, err := IsEventProcessed(ctx, "does-not-exist-"+eventID)
+	if err != nil {
+		t.Fatalf("IsEventProcessed (unknown): %v", err)
+	}
+	if unknownProcessed {
+		t.Error("IsEventProcessed (unknown): got true, want false")
+	}
+
+	statuses, err := AreEventsProcessed(ctx, []string{eventID, "does-not-exist-" + eventID})
+	if err != nil {
+		t.Fatalf("AreEventsProcessed: %v", err)
+	}
+	if !statuses[eventID] {
+		t.Errorf("AreEventsProcessed: expected %q to be processed", eventID)
+	}
+
+	empty, err := AreEventsProcessed(ctx, nil)
+	if err != nil {
+		t.Fatalf("AreEventsProcessed (empty ids): %v", err)
+	}
+	if len(empty) != 0 {
+		t.Errorf("AreEventsProcessed (empty ids): got %d entries, want 0", len(empty))
+	}
+
+	events, err := GetRecentEvents(ctx, 10)
+	if err != nil {
+		t.Fatalf("GetRecentEvents: %v", err)
+	}
+	found := false
+	for _, ev := range events {
+		if ev.EventID == eventID {
+			found = true
+			if ev.ContractID != contractID {
+				t.Errorf("GetRecentEvents: got ContractID %q, want %q", ev.ContractID, contractID)
+			}
+		}
+	}
+	if !found {
+		t.Errorf("GetRecentEvents: expected event %q in results", eventID)
+	}
+
+	latest, err := GetLatestProcessedLedger(ctx)
+	if err != nil {
+		t.Fatalf("GetLatestProcessedLedger: %v", err)
+	}
+	if latest < ledger {
+		t.Errorf("GetLatestProcessedLedger: got %d, want >= %d", latest, ledger)
+	}
+}
+
+func TestCheckpoint(t *testing.T) {
+	skipIfNoDB(t)
+
+	ctx := context.Background()
+	original, err := GetCheckpoint(ctx)
+	if err != nil {
+		t.Fatalf("GetCheckpoint (baseline): %v", err)
+	}
+	t.Cleanup(func() {
+		if Pool != nil {
+			_ = UpsertCheckpoint(ctx, original)
+		}
+	})
+
+	if err := UpsertCheckpoint(ctx, 42); err != nil {
+		t.Fatalf("UpsertCheckpoint (insert): %v", err)
+	}
+	got, err := GetCheckpoint(ctx)
+	if err != nil {
+		t.Fatalf("GetCheckpoint: %v", err)
+	}
+	if got != 42 {
+		t.Errorf("GetCheckpoint: got %d, want 42", got)
+	}
+
+	// UpsertCheckpoint must update the existing row rather than erroring on
+	// conflict.
+	if err := UpsertCheckpoint(ctx, 99); err != nil {
+		t.Fatalf("UpsertCheckpoint (update): %v", err)
+	}
+	got, err = GetCheckpoint(ctx)
+	if err != nil {
+		t.Fatalf("GetCheckpoint after update: %v", err)
+	}
+	if got != 99 {
+		t.Errorf("GetCheckpoint after update: got %d, want 99", got)
+	}
+}
+
 func TestUpdateInvoiceAttestation(t *testing.T) {
 	skipIfNoDB(t)
 

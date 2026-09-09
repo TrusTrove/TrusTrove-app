@@ -4,7 +4,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PageLayout } from "@/components/shared/PageLayout";
-import { useInvoice, useInvoiceActions } from "@/hooks/useInvoices";
+import { useInvoice } from "@/hooks/useInvoices";
+import { useInvoiceDetailActions } from "@/hooks/useInvoiceDetailActions";
 import { useWalletStore } from "@/store/wallet";
 import { InvoiceStatus } from "@/components/invoice/InvoiceStatus";
 import { InvoiceStatusTimeline } from "@/components/invoice/InvoiceStatusTimeline";
@@ -24,9 +25,7 @@ import {
   Share2,
 } from "lucide-react";
 import { formatAmount } from "@/lib/assets";
-import { useConfirmDialogStore } from "@/store/confirmDialog";
 import { truncateAddress } from "@/lib/format";
-import { getErrorMessage } from "@/lib/errors";
 
 interface InvoiceDetailClientProps {
   invoiceId: string;
@@ -40,22 +39,24 @@ export default function InvoiceDetailClient({
   const role = useWalletStore((s) => s.role);
 
   const { invoice, isLoading, refetch } = useInvoice(invoiceId);
-  const { shipInvoice, confirmDelivery, repayInvoice, defaultInvoice } =
-    useInvoiceActions();
-  const { request: requestConfirmation } = useConfirmDialogStore();
-
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    submitting,
+    error,
+    showPending,
+    pendingHash,
+    pendingText,
+    setShowPending,
+    ship,
+    confirm,
+    repay,
+    markDefault,
+  } = useInvoiceDetailActions(invoiceId, refetch);
 
   const [copiedId, setCopiedId] = useState(false);
   const [copiedIssuer, setCopiedIssuer] = useState(false);
   const [copiedBuyer, setCopiedBuyer] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [invoiceUrl, setInvoiceUrl] = useState("");
-
-  const [showPending, setShowPending] = useState(false);
-  const [pendingHash, setPendingHash] = useState<string | null>(null);
-  const [pendingText, setPendingText] = useState("Waiting for confirmation...");
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -85,31 +86,6 @@ export default function InvoiceDetailClient({
         setCopiedLink(true);
         setTimeout(() => setCopiedLink(false), 2000);
         break;
-    }
-  };
-
-  const handleAction = async (
-    actionFn: () => Promise<unknown>,
-    text: string,
-    errorMsg: string,
-  ) => {
-    setSubmitting(true);
-    setError(null);
-    setPendingText(text);
-    setPendingHash(null);
-    setShowPending(true);
-
-    try {
-      const res = await actionFn();
-      if (typeof res === "string") {
-        setPendingHash(res);
-      }
-      await refetch();
-    } catch (err: unknown) {
-      setError(getErrorMessage(err, errorMsg));
-      setShowPending(false);
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -420,18 +396,7 @@ export default function InvoiceDetailClient({
                   <Button
                     className="w-full"
                     disabled={submitting}
-                    onClick={() =>
-                      requestConfirmation({
-                        label: "Mark Goods Shipped",
-                        invoiceId: invoice.id,
-                        fn: () =>
-                          handleAction(
-                            () => shipInvoice({ invoiceId: invoice.id }),
-                            "Marking goods as shipped...",
-                            "Unable to mark goods as shipped.",
-                          ),
-                      })
-                    }
+                    onClick={ship}
                   >
                     MARK GOODS SHIPPED
                   </Button>
@@ -440,18 +405,7 @@ export default function InvoiceDetailClient({
                   <Button
                     className="w-full"
                     disabled={submitting}
-                    onClick={() =>
-                      requestConfirmation({
-                        label: "Confirm Delivery",
-                        invoiceId: invoice.id,
-                        fn: () =>
-                          handleAction(
-                            () => confirmDelivery({ invoiceId: invoice.id }),
-                            "Confirming delivery...",
-                            "Unable to confirm delivery.",
-                          ),
-                      })
-                    }
+                    onClick={confirm}
                   >
                     CONFIRM DELIVERY
                   </Button>
@@ -460,18 +414,7 @@ export default function InvoiceDetailClient({
                   <Button
                     className="w-full"
                     disabled={submitting}
-                    onClick={() =>
-                      requestConfirmation({
-                        label: "Repay Invoice",
-                        invoiceId: invoice.id,
-                        fn: () =>
-                          handleAction(
-                            () => repayInvoice({ invoiceId: invoice.id }),
-                            "Repaying invoice...",
-                            "Unable to repay invoice.",
-                          ),
-                      })
-                    }
+                    onClick={repay}
                   >
                     REPAY INVOICE
                   </Button>
@@ -480,18 +423,7 @@ export default function InvoiceDetailClient({
                   <Button
                     className="w-full"
                     disabled={submitting}
-                    onClick={() =>
-                      requestConfirmation({
-                        label: "Default Invoice",
-                        invoiceId: invoice.id,
-                        fn: () =>
-                          handleAction(
-                            () => defaultInvoice({ invoiceId: invoice.id }),
-                            "Defaulting invoice...",
-                            "Unable to default invoice.",
-                          ),
-                      })
-                    }
+                    onClick={markDefault}
                   >
                     DEFAULT INVOICE
                   </Button>

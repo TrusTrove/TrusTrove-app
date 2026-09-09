@@ -37,11 +37,31 @@ func InitDB(ctx context.Context, databaseURL string) error {
 	return nil
 }
 
+// migrationLockID is an arbitrary, fixed key for a Postgres advisory lock
+// that serializes migration application across concurrent callers (e.g.
+// multiple indexer replicas starting up at once, or — as surfaced by CI —
+// multiple Go test binaries that each call InitDB against the same
+// database). Without it, two callers can both see a migration as
+// not-yet-applied and race to run the same ALTER TABLE/CREATE TABLE,
+// producing an "already exists" error instead of one waiting for the other.
+const migrationLockID = 847362910123
+
 func RunMigration(ctx context.Context) error {
 	migrationDir, err := locateMigrationDir()
 	if err != nil {
 		return err
 	}
+
+	lockConn, err := Pool.Acquire(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to acquire connection for migration lock: %w", err)
+	}
+	defer lockConn.Release()
+
+	if _, err := lockConn.Exec(ctx, "SELECT pg_advisory_lock($1)", migrationLockID); err != nil {
+		return fmt.Errorf("failed to acquire migration advisory lock: %w", err)
+	}
+	defer lockConn.Exec(ctx, "SELECT pg_advisory_unlock($1)", migrationLockID)
 
 	if err := ensureSchemaMigrationsTable(ctx); err != nil {
 		return fmt.Errorf("failed to ensure schema_migrations table: %w", err)

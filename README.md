@@ -72,7 +72,7 @@ Yield distributes to LP shares
 | Wallet          | Freighter browser extension                                                               |
 | Payments        | USDC on Stellar                                                                           |
 | SDK             | Custom TypeScript contract client wrappers                                                |
-| Indexer         | Go 1.22, chi router, pgx v5                                                               |
+| Indexer         | Go 1.25, chi router, pgx v5                                                               |
 | Database        | PostgreSQL 15                                                                             |
 | Hosting         | Vercel (frontend), Render (indexer + database)                                            |
 
@@ -105,7 +105,7 @@ Yield distributes to LP shares
 
 - Node.js 20+
 - pnpm 9+
-- Go 1.22+
+- Go 1.25+
 - Docker
 - [Freighter](https://freighter.app) browser extension
 
@@ -145,6 +145,25 @@ pnpm --filter web dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000), connect Freighter on testnet, and get testnet USDC from [demo.stellar.org](https://demo.stellar.org).
+
+---
+
+## Build & Test
+
+Run these from the repository root after `pnpm install`. CI runs the same commands on every push and pull request against `main` (see [`.github/workflows/ci.yml`](./.github/workflows/ci.yml)).
+
+```bash
+# Build the SDK and the web app
+pnpm build
+
+# Run the SDK and web app unit test suites
+pnpm test
+
+# Run the Go indexer's test suite
+cd indexer && go test ./...
+```
+
+Building the web app reads `NEXT_PUBLIC_*` variables from `.env.local` (see step 2 above) — without it, `pnpm build` still succeeds but the app logs `Missing required environment variables` warnings.
 
 ---
 

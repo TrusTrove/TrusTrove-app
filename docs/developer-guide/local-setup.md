@@ -6,7 +6,7 @@ Follow these steps to set up the TrusTrove repository locally.
 
 - Node.js 20+
 - pnpm 9+
-- Go 1.22+
+- Go 1.25+
 - Docker
 - Freighter browser extension installed
 
@@ -62,6 +62,14 @@ pnpm --filter web dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000), connect Freighter on testnet, and get testnet USDC from [demo.stellar.org](https://demo.stellar.org).
+
+### 7. Build and test
+
+```bash
+pnpm build             # SDK + web app
+pnpm test               # SDK + web app unit tests
+cd indexer && go test ./...   # Go indexer unit tests
+```
 
 ## Database migrations
 
