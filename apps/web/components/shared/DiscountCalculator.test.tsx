@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { DiscountCalculator } from "./DiscountCalculator";
 
 describe("DiscountCalculator", () => {
-  it("renders the default SME financing calculation", () => {
+  it("renders the default SME financing calculator", () => {
     const { container } = render(<DiscountCalculator />);
 
     expect(
