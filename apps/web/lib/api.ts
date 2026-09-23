@@ -9,6 +9,76 @@ import {
   PoolSnapshot,
 } from "@/types";
 
+/**
+ * Raw snake_case wire shapes returned by the indexer API. These mirror the
+ * documented payloads in docs/developer-guide/indexer-api-reference.md so the
+ * network boundaries in `apiFetch` are typed instead of `any`. Fields that
+ * only appear for later lifecycle stages are optional; the normalization
+ * helpers below tolerate their absence.
+ */
+
+/** Wire shape for `GET /invoices` and `GET /invoices/:id`. */
+interface RawInvoice {
+  id: string;
+  issuer: string;
+  buyer: string;
+  face_value: string;
+  funded_amount?: string;
+  discount_bps?: number;
+  due_date?: number;
+  status?: string;
+  created_at?: number;
+  funded_at?: number | null;
+  shipped_at?: number | null;
+  repaid_at?: number | null;
+  listed_at?: number | null;
+  issuer_confirmed_at?: number | null;
+  buyer_confirmed_at?: number | null;
+  defaulted_at?: number | null;
+  issuer_confirmed?: boolean;
+  buyer_confirmed?: boolean;
+  transaction_hashes?: unknown;
+  tx_hashes?: unknown;
+  created_tx_hash?: unknown;
+  listed_tx_hash?: unknown;
+  funded_tx_hash?: unknown;
+  shipped_tx_hash?: unknown;
+  issuer_confirmed_tx_hash?: unknown;
+  buyer_confirmed_tx_hash?: unknown;
+  repaid_tx_hash?: unknown;
+  defaulted_tx_hash?: unknown;
+}
+
+/** Wire shape for `GET /pool/stats`. */
+interface RawPoolStats {
+  total_deposits: string;
+  total_funded: string;
+  available_liquidity: string;
+  utilization_rate_bps: number;
+  total_yield_distributed: string;
+  active_invoice_count: number;
+  total_shares?: string;
+}
+
+/** Wire shape for `GET /pool/position/:address`. */
+interface RawLPPosition {
+  shares: string;
+  usdc_value: string;
+  yield_earned: string;
+  deposit_count: number;
+}
+
+/** Wire shape for `GET /events`. */
+interface RawEventLog {
+  id: number;
+  event_id: string;
+  contract_id: string;
+  ledger: number;
+  ledger_closed_at: number;
+  event_type: string;
+  data: Record<string, unknown>;
+}
+
 const getApiUrl = () => {
   return process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
 };
@@ -283,7 +353,7 @@ export async function createInvoice(
  *   - `issuerConfirmed` / `buyerConfirmed` — `boolean` confirmation flags.
  */
 export async function getInvoiceByID(id: string): Promise<Invoice> {
-  const raw = await apiFetch<any>(`/invoices/${id}`);
+  const raw = await apiFetch<RawInvoice>(`/invoices/${id}`);
   return parseInvoiceResponse(raw);
 }
 
@@ -329,7 +399,7 @@ export async function getInvoices(filters?: {
   const query = params.size > 0 ? `?${params.toString()}` : "";
 
   const raw = await apiFetch<{
-    data: any[];
+    data: RawInvoice[];
     total: number;
     page: number;
     limit: number;
@@ -354,7 +424,7 @@ export async function getInvoices(filters?: {
  *   `activeInvoiceCount`, `totalShares`).
  */
 export async function getPoolStats(): Promise<PoolStats> {
-  const raw = await apiFetch<any>("/pool/stats");
+  const raw = await apiFetch<RawPoolStats>("/pool/stats");
   return parseRawPoolStats(raw);
 }
 
@@ -367,7 +437,7 @@ export async function getPoolStats(): Promise<PoolStats> {
  *   `depositCount`).
  */
 export async function getLPPosition(address: string): Promise<LPPosition> {
-  const raw = await apiFetch<any>(`/pool/position/${address}`);
+  const raw = await apiFetch<RawLPPosition>(`/pool/position/${address}`);
   return parseRawLPPosition(raw);
 }
 
@@ -381,7 +451,7 @@ export async function getLPPosition(address: string): Promise<LPPosition> {
  */
 export async function getRecentEvents(limit?: number): Promise<EventLog[]> {
   const query = limit ? `?limit=${limit}` : "";
-  const rawList = await apiFetch<any[]>(`/events${query}`);
+  const rawList = await apiFetch<RawEventLog[]>(`/events${query}`);
   return rawList.map(parseRawEventLog);
 }
 
