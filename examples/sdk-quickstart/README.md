@@ -51,18 +51,18 @@ Everything has a sensible testnet default, so you can run the example with no
 configuration at all. To point at a different deployment, set any of the
 following before running:
 
-| Variable                    | Default                                                        | Purpose                          |
-| --------------------------- | -------------------------------------------------------------- | -------------------------------- |
-| `HORIZON_URL`               | `https://horizon-testnet.stellar.org`                          | Horizon endpoint                 |
-| `SOROBAN_RPC_URL`           | `https://soroban-testnet.stellar.org`                          | Soroban RPC endpoint             |
-| `NETWORK_PASSPHRASE`        | `Test SDF Network ; September 2015`                            | Network passphrase               |
-| `REGISTRY_CONTRACT_ID`      | `CABGWVIZFF62FG67ZGFEP67NEEY4WYTMFURDMFTKKNRDAFPKPOJDTN4C`     | Registry contract                |
-| `INVOICE_CONTRACT_ID`       | `CA4O3MR7LWHRSUDBNU6FY6UDFFYBN7TGBZXBDZB4OYYXFYXIFJ6RJF6B`     | Invoice contract                 |
-| `POOL_CONTRACT_ID`          | `CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS`     | Pool contract                    |
-| `ESCROW_CONTRACT_ID`        | `CAJWGUKDTTC3SKN4RAAY72J4DVIIYSCFHX6GIMNTT22ABMISJK4GBCEH`     | Escrow contract                  |
-| `AGENT_REGISTRY_CONTRACT_ID`| *(empty)*                                                     | Agent registry (Until deployed)  |
-| `SIGNER_PUBLIC_KEY`         | a generated testnet keypair public key (see `src/index.ts`)     | Public key used for read-call simulations |
-| `FRIENDBOT_URL`             | `https://friendbot.stellar.org`                                 | Fundbot endpoint used to fund the default sample account |
+| Variable                     | Default                                                     | Purpose                                                  |
+| ---------------------------- | ----------------------------------------------------------- | -------------------------------------------------------- |
+| `HORIZON_URL`                | `https://horizon-testnet.stellar.org`                       | Horizon endpoint                                         |
+| `SOROBAN_RPC_URL`            | `https://soroban-testnet.stellar.org`                       | Soroban RPC endpoint                                     |
+| `NETWORK_PASSPHRASE`         | `Test SDF Network ; September 2015`                         | Network passphrase                                       |
+| `REGISTRY_CONTRACT_ID`       | `CABGWVIZFF62FG67ZGFEP67NEEY4WYTMFURDMFTKKNRDAFPKPOJDTN4C`  | Registry contract                                        |
+| `INVOICE_CONTRACT_ID`        | `CA4O3MR7LWHRSUDBNU6FY6UDFFYBN7TGBZXBDZB4OYYXFYXIFJ6RJF6B`  | Invoice contract                                         |
+| `POOL_CONTRACT_ID`           | `CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS`  | Pool contract                                            |
+| `ESCROW_CONTRACT_ID`         | `CAJWGUKDTTC3SKN4RAAY72J4DVIIYSCFHX6GIMNTT22ABMISJK4GBCEH`  | Escrow contract                                          |
+| `AGENT_REGISTRY_CONTRACT_ID` | _(empty)_                                                   | Agent registry (Until deployed)                          |
+| `SIGNER_PUBLIC_KEY`          | a generated testnet keypair public key (see `src/index.ts`) | Public key used for read-call simulations                |
+| `FRIENDBOT_URL`              | `https://friendbot.stellar.org`                             | Fundbot endpoint used to fund the default sample account |
 
 Example:
 

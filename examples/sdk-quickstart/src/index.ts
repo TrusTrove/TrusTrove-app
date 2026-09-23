@@ -34,7 +34,8 @@ const SIGNER_PUBLIC_KEY =
   process.env.SIGNER_PUBLIC_KEY ??
   "GD4D4DIAFNEYB3NBC7T5WQEZQUXRWNQAWJXGWLNVVC6WUWNMIQLB5BGR";
 
-const FRIENDBOT_URL = process.env.FRIENDBOT_URL ?? "https://friendbot.stellar.org";
+const FRIENDBOT_URL =
+  process.env.FRIENDBOT_URL ?? "https://friendbot.stellar.org";
 
 configureSDK({
   horizonUrl: HORIZON_URL,
@@ -72,7 +73,10 @@ async function main(): Promise<void> {
   const invoice = new InvoiceClient(INVOICE_CONTRACT_ID);
 
   // Check whether the sample address is a verified registry member.
-  const verified = await registry.isVerified(SIGNER_PUBLIC_KEY, SIGNER_PUBLIC_KEY);
+  const verified = await registry.isVerified(
+    SIGNER_PUBLIC_KEY,
+    SIGNER_PUBLIC_KEY,
+  );
   console.log(`isVerified(${SIGNER_PUBLIC_KEY}) =>`, verified);
 
   // Read current liquidity pool statistics.

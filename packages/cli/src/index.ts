@@ -17,7 +17,9 @@ const program = new Command();
 
 program
   .name("trusttrove")
-  .description("CLI for interacting with TrusTrove Soroban contracts on Stellar")
+  .description(
+    "CLI for interacting with TrusTrove Soroban contracts on Stellar",
+  )
   .version(readVersion(), "-v, --version", "output the current version");
 
 program.addHelpText(
