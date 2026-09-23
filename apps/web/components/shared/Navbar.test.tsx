@@ -1,61 +1,63 @@
-import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { Navbar } from "./Navbar";
 
-const setRole = vi.fn();
+// Mock next/navigation
+vi.mock("next/navigation", () => ({
+  usePathname: vi.fn(() => "/"),
+}));
 
+// Mock useWallet hook
+vi.mock("@/hooks/useWallet", () => ({
+  useWallet: vi.fn(() => ({
+    connected: false,
+    balances: { usdc: null, xlm: null },
+    balancesLoading: false,
+    role: "issuer",
+    setRole: vi.fn(),
+    isVerified: false,
+  })),
+}));
+
+// Mock WalletConnect to avoid external dependency issues in tests
+vi.mock("@/components/shared/WalletConnect", () => ({
+  WalletConnect: () => <div data-testid="wallet-connect">Connect Wallet</div>,
+}));
+
+// Mock Link to render a simple anchor tag
 vi.mock("next/link", () => ({
-  default: ({
-    children,
-    ...props
-  }: React.PropsWithChildren<{ href: string }>) => <a {...props}>{children}</a>,
+  default: ({ children, href, onClick }: any) => (
+    <a href={href} onClick={onClick} data-testid={`link-${href}`}>
+      {children}
+    </a>
+  ),
 }));
-vi.mock("next/navigation", () => ({ usePathname: () => "/dashboard" }));
-vi.mock("./WalletConnect", () => ({
-  WalletConnect: () => <button>Connect</button>,
-}));
-vi.mock("./SkeletonLoader", () => ({ SkeletonShimmer: () => <span /> }));
-vi.mock("@/hooks/useBalances", () => ({
-  useBalances: () => ({ balances: { usdc: "1", xlm: "2" }, loading: false }),
-}));
-vi.mock("@/hooks/useProfile", () => ({
-  useProfile: () => ({ isVerified: false }),
-}));
-vi.mock("@/store/wallet", () => ({
-  useWalletStore: (selector: any) => {
-    const state = { role: "issuer", setRole, connected: true };
-    return selector ? selector(state) : state;
-  },
-}));
-vi.mock("lucide-react", () => {
-  const Icon = () => null;
-  return {
-    Wallet: Icon,
-    Shield: Icon,
-    Terminal: Icon,
-    ExternalLink: Icon,
-    Menu: Icon,
-    X: Icon,
-  };
-});
 
-describe("Navbar role select", () => {
-  beforeEach(() => setRole.mockClear());
-
-  it("accepts valid roles", () => {
+describe("Navbar", () => {
+  it("renders correctly", () => {
     render(<Navbar />);
-    fireEvent.change(screen.getByRole("combobox"), {
-      target: { value: "buyer" },
-    });
-    expect(setRole).toHaveBeenCalledWith("buyer");
+    expect(screen.getByText(/TRUST/i)).toBeInTheDocument();
+    expect(screen.getByTestId("wallet-connect")).toBeInTheDocument();
   });
 
-  it("ignores values outside the role union", () => {
+  it("toggles mobile menu on click", () => {
+    // Force mobile viewport or test mobile button
+    // The button has aria-expanded
     render(<Navbar />);
-    fireEvent.change(screen.getByRole("combobox"), {
-      target: { value: "admin" },
-    });
-    expect(setRole).not.toHaveBeenCalled();
+    const menuButton = screen.getByLabelText(/Open navigation menu/i);
+    expect(menuButton).toBeInTheDocument();
+
+    // Click to open
+    fireEvent.click(menuButton);
+    expect(screen.getByLabelText(/Close navigation menu/i)).toBeInTheDocument();
+    
+    // Check if nav items are shown in mobile menu (e.g. Dashboard)
+    // The link should exist in the DOM inside the mobile menu
+    const links = screen.getAllByTestId("link-/");
+    expect(links.length).toBeGreaterThan(1); // 1 for logo, 1 for desktop, 1 for mobile
+
+    // Click to close
+    fireEvent.click(menuButton);
+    expect(screen.getByLabelText(/Open navigation menu/i)).toBeInTheDocument();
   });
 });

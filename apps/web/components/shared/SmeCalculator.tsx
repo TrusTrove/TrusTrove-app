@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import { Sparkles } from "lucide-react";
 import { AnimatedValue } from "./DiscountCalculator";
 
@@ -10,7 +10,7 @@ export function SmeCalculator() {
   const [discountRate, setDiscountRate] = useState<number>(2.0);
 
   const discountPaid = faceValue * (discountRate / 100);
-  const fundedAmount = faceValue - discountPaid;
+  const fundedAmount = useMemo(() => faceValue - discountPaid, [faceValue, discountPaid]);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -36,7 +36,7 @@ export function SmeCalculator() {
             max="500000"
             step="1000"
             value={faceValue}
-            onChange={(e) => setFaceValue(parseInt(e.target.value))}
+            onChange={handleFaceValueChange}
             className="w-full accent-primary bg-slate-900 h-1.5 rounded"
             aria-label="Invoice Face Value"
             aria-valuenow={faceValue}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import { TrendingUp } from "lucide-react";
 import { AnimatedValue } from "./DiscountCalculator";
 
@@ -10,9 +10,13 @@ export function LpCalculator() {
   const [lpAvgDiscount, setLpAvgDiscount] = useState<number>(2.0);
   const [lpAvgMaturity, setLpAvgMaturity] = useState<number>(60);
 
-  const lpProjectedApy =
-    (lpUtilization / 100) * (lpAvgDiscount / 100) * (365 / lpAvgMaturity) * 100;
-  const lpAnnualEarnings = lpDeposit * (lpProjectedApy / 100);
+  const handleLpDepositChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => setLpDeposit(parseInt(e.target.value)), []);
+  const handleLpUtilizationChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => setLpUtilization(parseInt(e.target.value)), []);
+  const handleLpAvgDiscountChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => setLpAvgDiscount(parseFloat(e.target.value)), []);
+  const handleLpAvgMaturityChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => setLpAvgMaturity(parseInt(e.target.value)), []);
+
+  const lpProjectedApy = useMemo(() => (lpUtilization / 100) * (lpAvgDiscount / 100) * (365 / lpAvgMaturity) * 100, [lpUtilization, lpAvgDiscount, lpAvgMaturity]);
+  const lpAnnualEarnings = useMemo(() => lpDeposit * (lpProjectedApy / 100), [lpDeposit, lpProjectedApy]);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -38,7 +42,7 @@ export function LpCalculator() {
             max="100000"
             step="500"
             value={lpDeposit}
-            onChange={(e) => setLpDeposit(parseInt(e.target.value))}
+            onChange={handleLpDepositChange}
             className="w-full accent-primary bg-slate-900 h-1.5 rounded"
             aria-label="Total USDC Deposit"
             aria-valuenow={lpDeposit}
@@ -64,7 +68,7 @@ export function LpCalculator() {
             max="100"
             step="5"
             value={lpUtilization}
-            onChange={(e) => setLpUtilization(parseInt(e.target.value))}
+            onChange={handleLpUtilizationChange}
             className="w-full accent-primary bg-slate-900 h-1.5 rounded"
             aria-label="Target Pool Utilization"
             aria-valuenow={lpUtilization}
@@ -93,7 +97,7 @@ export function LpCalculator() {
             max="5.0"
             step="0.1"
             value={lpAvgDiscount}
-            onChange={(e) => setLpAvgDiscount(parseFloat(e.target.value))}
+            onChange={handleLpAvgDiscountChange}
             className="w-full accent-primary bg-slate-900 h-1.5 rounded"
             aria-label="Avg Invoice Discount Bps"
             aria-valuenow={lpAvgDiscount}
@@ -119,7 +123,7 @@ export function LpCalculator() {
             max="90"
             step="5"
             value={lpAvgMaturity}
-            onChange={(e) => setLpAvgMaturity(parseInt(e.target.value))}
+            onChange={handleLpAvgMaturityChange}
             className="w-full accent-primary bg-slate-900 h-1.5 rounded"
             aria-label="Avg Days to Maturity"
             aria-valuenow={lpAvgMaturity}
