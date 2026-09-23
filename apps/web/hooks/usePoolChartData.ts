@@ -49,6 +49,20 @@ export function usePoolChartData({
     const maxVal = Math.max(...values);
     const valRange = maxVal - minVal === 0 ? 1 : maxVal - minVal;
 
+    // When there is only one data point, place it at the center of the chart
+    // to avoid division by zero (index / (data.length - 1)).
+    if (data.length === 1) {
+      const x = padding + chartWidth / 2;
+      const y =
+        padding +
+        chartHeight -
+        ((data[0].value - minVal) / valRange) * chartHeight;
+      const points = [{ x, y, label: data[0].label, value: data[0].value }];
+      const linePath = `M ${x} ${y}`;
+      const areaPath = `${linePath} L ${x} ${height - padding} L ${x} ${height - padding} Z`;
+      return { linePath, areaPath, points };
+    }
+
     // Map raw data entries into X, Y canvas space coordinate arrays
     const points = data.map((item, index) => {
       const x = padding + (index / (data.length - 1)) * chartWidth;
