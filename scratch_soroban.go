@@ -236,7 +236,7 @@ func (l *EventListener) FetchAndProcessRange(ctx context.Context, startLedger, e
 	filters := []EventFilter{{Type: "contract", ContractIDs: contractIDs}}
 	cursor := ""
 	var latestLedgerSeq int32
-
+	
 	for {
 		params := GetEventsParams{
 			StartLedger: startLedger,
@@ -278,7 +278,7 @@ func (l *EventListener) FetchAndProcessRange(ctx context.Context, startLedger, e
 			}
 			eventsProcessed.Inc()
 		}
-
+		
 		if endLedger > 0 && len(res.Events) > 0 && res.Events[len(res.Events)-1].Ledger > endLedger {
 			break
 		}

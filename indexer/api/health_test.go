@@ -121,3 +121,22 @@ func TestDefaultDBHealthChecker_NilPoolReturnsError(t *testing.T) {
 		t.Fatal("expected error when db.Pool is not initialized, got nil")
 	}
 }
+
+func TestListenerHealth_LedgerLag(t *testing.T) {
+	h := NewListenerHealth()
+	
+	if lag := h.GetLedgerLag(); lag != 0 {
+		t.Fatalf("expected initial lag to be 0, got %d", lag)
+	}
+
+	h.UpdateLedgers(100, 110)
+	if lag := h.GetLedgerLag(); lag != 10 {
+		t.Fatalf("expected lag to be 10, got %d", lag)
+	}
+
+	h.UpdateLedgers(115, 110)
+	// Tip doesn't go backwards, but processed does update
+	if lag := h.GetLedgerLag(); lag != 0 {
+		t.Fatalf("expected lag to be 0 when processed >= tip, got %d", lag)
+	}
+}

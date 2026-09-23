@@ -99,6 +99,7 @@ func TestHealthEndpoint_Returns200WhenListenerAndDBAreHealthy(t *testing.T) {
 	h := newTestHandler(t)
 	h.dbHealthChecker = func(context.Context) error { return nil }
 	h.listenerHealth = NewListenerHealth()
+	h.dbHealthChecker = func(ctx context.Context) error { return nil }
 	h.listenerHealth.MarkStarted()
 
 	router := NewRouter(h)
@@ -387,5 +388,46 @@ func TestPerClientRateLimiter_TokenRefill(t *testing.T) {
 	// Should be allowed again after refill
 	if !rl.allow(clientKey) {
 		t.Error("should be allowed after token refill")
+	}
+}
+
+func TestRouter_MetricsEndpoint(t *testing.T) {
+	h := readonlyTestHandler(t)
+	r := NewRouter(h)
+	
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	rr := httptest.NewRecorder()
+	
+	r.ServeHTTP(rr, req)
+	
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for /metrics, got %d", rr.Code)
+	}
+	
+	if !strings.Contains(rr.Body.String(), "trusttrove_indexer_http_requests_total") {
+		t.Errorf("expected metrics to contain trusttrove_indexer_http_requests_total")
+	}
+}
+
+func TestRouter_HealthLedgerLag(t *testing.T) {
+	h := readonlyTestHandler(t)
+	h.listenerHealth = NewListenerHealth()
+	h.dbHealthChecker = func(ctx context.Context) error { return nil }
+	h.listenerHealth.MarkStarted()
+	h.listenerHealth.UpdateLedgers(100, 150) // lag of 50
+	
+	r := NewRouter(h)
+	
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	rr := httptest.NewRecorder()
+	
+	r.ServeHTTP(rr, req)
+	
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for /health, got %d", rr.Code)
+	}
+	
+	if !strings.Contains(rr.Body.String(), "\"ledgerLag\": 50") {
+		t.Errorf("expected health to contain ledgerLag: 50, got %s", rr.Body.String())
 	}
 }

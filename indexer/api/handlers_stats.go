@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -17,62 +18,38 @@ import (
 
 // GET /stats
 func (h *APIHandler) HandleGetStats(w http.ResponseWriter, r *http.Request) {
-	// Try to read the cache with a read lock
-	h.statsMu.RLock()
-	if h.statsData != nil && time.Since(h.statsCached) < 30*time.Second {
-		data := h.statsData
-		h.statsMu.RUnlock()
-		writeJSON(w, http.StatusOK, data)
-		return
-	}
-	h.statsMu.RUnlock()
-
-	// Cache is missing or expired, we need to update it.
-	// Take a write lock (but first we must release the read lock, which we did above).
-	h.statsMu.Lock()
-	// Double-check the cache after acquiring the write lock.
-	if h.statsData != nil && time.Since(h.statsCached) < 30*time.Second {
-		data := h.statsData
-		h.statsMu.Unlock()
-		writeJSON(w, http.StatusOK, data)
-		return
-	}
-
-	// Cache is still invalid, fetch from DB and update.
-	stats, err := h.getProtocolStatsFn(r.Context())
+	stats, err := h.statsCache.GetOrUpdate(r.Context(), h.getProtocolStatsFn)
 	if err != nil {
-		h.statsMu.Unlock()
 		http.Error(w, fmt.Sprintf("failed to retrieve protocol stats: %s", err.Error()), http.StatusInternalServerError)
 		return
 	}
-
-	h.statsData = stats
-	h.statsCached = time.Now()
-	h.statsMu.Unlock()
-
 	writeJSON(w, http.StatusOK, stats)
 }
 
 // GET /pool/stats
 func (h *APIHandler) HandleGetPoolStats(w http.ResponseWriter, r *http.Request) {
-	stats, err := h.getPoolStatsFn(r.Context())
+	stats, err := h.poolStatsCache.GetOrUpdate(r.Context(), func(ctx context.Context) (*db.DbPoolStats, error) {
+		s, err := h.getPoolStatsFn(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if s == nil {
+			s = &db.DbPoolStats{
+				TotalDeposits:         "0",
+				TotalFunded:           "0",
+				AvailableLiquidity:    "0",
+				UtilizationRateBps:    0,
+				TotalYieldDistributed: "0",
+				ActiveInvoiceCount:    0,
+				UpdatedAt:             time.Now(),
+			}
+		}
+		return s, nil
+	})
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to retrieve pool statistics: %s", err.Error()), http.StatusInternalServerError)
 		return
 	}
-
-	if stats == nil {
-		stats = &db.DbPoolStats{
-			TotalDeposits:         "0",
-			TotalFunded:           "0",
-			AvailableLiquidity:    "0",
-			UtilizationRateBps:    0,
-			TotalYieldDistributed: "0",
-			ActiveInvoiceCount:    0,
-			UpdatedAt:             time.Now(),
-		}
-	}
-
 	writeJSON(w, http.StatusOK, stats)
 }
 
@@ -80,20 +57,44 @@ func (h *APIHandler) HandleGetPoolStats(w http.ResponseWriter, r *http.Request) 
 func (h *APIHandler) HandleGetEvents(w http.ResponseWriter, r *http.Request) {
 	limitStr := r.URL.Query().Get("limit")
 	limit := 20
+	isDefaultLimit := false
 	if limitStr != "" {
 		if parsed, err := strconv.Atoi(limitStr); err == nil && parsed > 0 {
 			limit = parsed
 		}
+	} else {
+		isDefaultLimit = true
 	}
 
-	events, err := h.getRecentEventsFn(r.Context(), limit)
+	var events []*db.EventLog
+	var err error
+
+	// Cache is only applied for the common no-filter/default-limit case.
+	// We don't cache per-address lookups or custom limit requests because
+	// they create unbounded cardinality in the cache keys, which would either
+	// require a more complex LRU cache or risk unbounded memory growth, and
+	// they are less frequently accessed than the global dashboard feeds.
+	if isDefaultLimit {
+		events, err = h.eventsCache.GetOrUpdate(r.Context(), func(ctx context.Context) ([]*db.EventLog, error) {
+			evs, err := h.getRecentEventsFn(ctx, 20)
+			if err != nil {
+				return nil, err
+			}
+			if evs == nil {
+				return []*db.EventLog{}, nil
+			}
+			return evs, nil
+		})
+	} else {
+		events, err = h.getRecentEventsFn(r.Context(), limit)
+		if events == nil {
+			events = []*db.EventLog{}
+		}
+	}
+
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to retrieve events: %s", err.Error()), http.StatusInternalServerError)
 		return
-	}
-
-	if events == nil {
-		events = []*db.EventLog{}
 	}
 
 	writeJSON(w, http.StatusOK, events)

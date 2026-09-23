@@ -14,6 +14,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func AuthMiddleware(jwtSecret string) func(http.Handler) http.Handler {
@@ -268,6 +271,45 @@ func RateLimitMiddleware(rl *perClientRateLimiter) func(http.Handler) http.Handl
 	}
 }
 
+var (
+	httpRequestsTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "trusttrove_indexer_http_requests_total",
+			Help: "Total number of HTTP requests.",
+		},
+		[]string{"route", "status"},
+	)
+	httpRequestDuration = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "trusttrove_indexer_http_request_duration_seconds",
+			Help:    "Histogram of response latency (seconds) of HTTP requests.",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"route", "status"},
+	)
+)
+
+func MetricsMiddleware() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
+			ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
+			next.ServeHTTP(ww, r)
+			routeCtx := chi.RouteContext(r.Context())
+			routePattern := "unknown"
+			if routeCtx != nil && routeCtx.RoutePattern() != "" {
+				routePattern = routeCtx.RoutePattern()
+			}
+			status := fmt.Sprintf("%d", ww.Status())
+			if ww.Status() == 0 {
+				status = "200"
+			}
+			httpRequestsTotal.WithLabelValues(routePattern, status).Inc()
+			httpRequestDuration.WithLabelValues(routePattern, status).Observe(time.Since(start).Seconds())
+		})
+	}
+}
+
 func NewRouter(h *APIHandler) *chi.Mux {
 	r := chi.NewRouter()
 
@@ -276,6 +318,7 @@ func NewRouter(h *APIHandler) *chi.Mux {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
 	r.Use(RecoveryMiddleware())
+	r.Use(MetricsMiddleware())
 	r.Use(CORSMiddleware(h.cfg.CORSAllowedOrigins))
 	r.Use(SecurityHeadersMiddleware())
 
@@ -284,17 +327,24 @@ func NewRouter(h *APIHandler) *chi.Mux {
 	rl := newPerClientRateLimiter(h.cfg.RateLimitRPS, h.cfg.RateLimitRPS*2, 1000)
 
 	// Health check
+	r.Get("/metrics", promhttp.Handler().ServeHTTP)
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 		defer cancel()
+		lag := int32(0)
+		if h.ListenerHealth() != nil {
+			lag = h.ListenerHealth().GetLedgerLag()
+		}
+		lagField := fmt.Sprintf(`"ledgerLag": %d`, lag)
+
 		if err := h.CheckHealth(ctx); err != nil {
 			w.WriteHeader(http.StatusServiceUnavailable)
-			w.Write([]byte(`{"status": "degraded", "error": "listener or database unavailable"}`))
+			w.Write([]byte(fmt.Sprintf(`{"status": "degraded", "error": "listener or database unavailable", %s}`, lagField)))
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status": "ok"}`))
+		w.Write([]byte(fmt.Sprintf(`{"status": "ok", %s}`, lagField)))
 	})
 
 	// Unprotected authentication routes (rate limited)

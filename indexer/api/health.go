@@ -6,15 +6,24 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"trusttrove/indexer/db"
 )
 
 // ListenerHealth tracks whether the background listener is still alive.
+var ledgerLagGauge = promauto.NewGauge(prometheus.GaugeOpts{
+	Name: "trusttrove_indexer_ledger_lag",
+	Help: "The difference between the last known chain tip and the last processed ledger.",
+})
+
 type ListenerHealth struct {
-	mu            sync.RWMutex
-	running       bool
-	stopped       bool
-	lastHeartbeat time.Time
+	mu                  sync.RWMutex
+	running             bool
+	stopped             bool
+	lastHeartbeat       time.Time
+	lastProcessedLedger int32
+	lastKnownChainTip   int32
 }
 
 func NewListenerHealth() *ListenerHealth {
@@ -45,6 +54,31 @@ func (h *ListenerHealth) MarkStopped() {
 	h.running = false
 	h.stopped = true
 	h.lastHeartbeat = time.Time{}
+}
+
+func (h *ListenerHealth) UpdateLedgers(processed, tip int32) {
+	h.mu.Lock()
+	h.lastProcessedLedger = processed
+	if tip > h.lastKnownChainTip {
+		h.lastKnownChainTip = tip
+	}
+	lag := int32(0)
+	if h.lastKnownChainTip > h.lastProcessedLedger && h.lastProcessedLedger > 0 {
+		lag = h.lastKnownChainTip - h.lastProcessedLedger
+	}
+	h.mu.Unlock()
+	ledgerLagGauge.Set(float64(lag))
+}
+
+// GetLedgerLag returns the difference between the last known chain tip and the last processed ledger.
+// Units: number of ledgers.
+func (h *ListenerHealth) GetLedgerLag() int32 {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	if h.lastKnownChainTip > h.lastProcessedLedger && h.lastProcessedLedger > 0 {
+		return h.lastKnownChainTip - h.lastProcessedLedger
+	}
+	return 0
 }
 
 func (h *ListenerHealth) IsHealthy() bool {

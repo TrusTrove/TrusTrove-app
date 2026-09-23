@@ -8,8 +8,6 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
-	"sync"
-	"time"
 
 	"trusttrove/indexer/config"
 	"trusttrove/indexer/db"
@@ -22,9 +20,9 @@ import (
 type APIHandler struct {
 	cfg             *config.Config
 	serverKP        *keypair.Full
-	statsMu         sync.RWMutex
-	statsData       *db.ProtocolStats
-	statsCached     time.Time
+	statsCache      *TTLCache[*db.ProtocolStats]
+	poolStatsCache  *TTLCache[*db.DbPoolStats]
+	eventsCache     *TTLCache[[]*db.EventLog]
 	listenerHealth  *ListenerHealth
 	dbHealthChecker func(context.Context) error
 
@@ -47,6 +45,9 @@ func NewAPIHandler(cfg *config.Config) (*APIHandler, error) {
 	return &APIHandler{
 		cfg:                cfg,
 		serverKP:           kp,
+		statsCache:         NewTTLCache[*db.ProtocolStats](DefaultCacheTTL),
+		poolStatsCache:     NewTTLCache[*db.DbPoolStats](DefaultCacheTTL),
+		eventsCache:        NewTTLCache[[]*db.EventLog](DefaultCacheTTL),
 		listenerHealth:     NewListenerHealth(),
 		dbHealthChecker:    defaultDBHealthChecker,
 		getInvoiceByIDFn:   db.GetInvoiceByID,

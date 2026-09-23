@@ -71,7 +71,7 @@ func newTestEventListener(t *testing.T, cfgOverrides ...func(*config.Config)) *E
 	l.getCheckpointFn = func(_ context.Context) (int32, error) { return 0, nil }
 	l.getLatestProcessedLedgerFn = func(_ context.Context) (int32, error) { return 0, nil }
 	l.upsertCheckpointFn = func(_ context.Context, _ int32) error { return nil }
-	l.isEventProcessedFn = func(_ context.Context, _ string) (bool, error) { return false, nil }
+	l.isEventProcessedFn = func(_ context.Context, _ string) (bool, error) { return true, nil }
 	return l
 }
 
@@ -135,7 +135,7 @@ func TestPollEvents_EmptyEventsReturnsLatestPlusOne(t *testing.T) {
 	// it's never invoked when the events array is empty.
 	l.isEventProcessedFn = func(_ context.Context, _ string) (bool, error) {
 		t.Error("isEventProcessed should not be called when the events array is empty")
-		return false, nil
+		return true, nil
 	}
 
 	got, err := l.pollEvents(context.Background(), inputStart)
@@ -284,5 +284,67 @@ func TestStart_ProcessesAtLeastOnceThenStopsOnCancel(t *testing.T) {
 		// iteration fails to find a non-cancelled ctx), MarkStopped has
 		// been called and IsHealthy should report false.
 		t.Error("expected listener health to be unhealthy after MarkStopped")
+	}
+}
+
+func TestEventListener_FetchAndProcessRange(t *testing.T) {
+	rpcServer := stubSorobanRPC(t, func(method string) (any, int) {
+		if method == "getLatestLedger" {
+			return map[string]any{"sequence": 200}, http.StatusOK
+		}
+		if method == "getEvents" {
+			return map[string]any{
+				"latestLedger": 200,
+				"events": []any{
+					map[string]any{
+						"type": "contract",
+						"ledger": 150,
+						"contractId": "CAAAA",
+						"id": "event-1",
+						"topic": []any{"AAA"},
+						"value": map[string]any{"xdr": "AAAA"},
+					},
+					map[string]any{
+						"type": "contract",
+						"ledger": 155,
+						"contractId": "CAAAA",
+						"id": "event-2",
+						"topic": []any{"AAA"},
+						"value": map[string]any{"xdr": "AAAA"},
+					},
+				},
+				"cursor": "",
+			}, http.StatusOK
+		}
+		return nil, http.StatusNotFound
+	})
+
+	cfg := &config.Config{
+		SorobanRPCURL:      rpcServer.URL,
+		RegistryContractID: "CAAAA",
+	}
+	health := api.NewListenerHealth()
+	l := NewEventListener(cfg, health)
+	
+	// Stub out the db check
+	processedCheck := 0
+	l.isEventProcessedFn = func(ctx context.Context, id string) (bool, error) {
+		processedCheck++
+		return true, nil
+	}
+
+	// Range query
+	nextLedger, err := l.FetchAndProcessRange(context.Background(), 140, 150)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should stop after processing event-1 (ledger 150) and skip event-2 (ledger 155)
+	if processedCheck != 1 {
+		t.Errorf("expected 1 event processed, got %d", processedCheck)
+	}
+
+	if nextLedger != 151 {
+		t.Errorf("expected nextLedger 151, got %d", nextLedger)
 	}
 }

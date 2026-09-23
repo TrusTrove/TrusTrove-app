@@ -416,3 +416,108 @@ func TestHandleGetStats_DBErrorReturns500(t *testing.T) {
 		t.Errorf("expected 500 on db error, got %d", rr.Code)
 	}
 }
+
+func TestHandleGetPoolStats_HappyFirstCallQueriesDB(t *testing.T) {
+	h := readonlyTestHandler(t)
+	calls := 0
+	h.getPoolStatsFn = func(_ context.Context) (*db.DbPoolStats, error) {
+		calls++
+		return &db.DbPoolStats{
+			TotalDeposits: "1000",
+		}, nil
+	}
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/pool/stats", nil)
+	h.HandleGetPoolStats(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+	if calls != 1 {
+		t.Errorf("expected 1 DB call on first request, got %d", calls)
+	}
+}
+
+func TestHandleGetPoolStats_SecondCallUsesCache(t *testing.T) {
+	h := readonlyTestHandler(t)
+	calls := 0
+	h.getPoolStatsFn = func(_ context.Context) (*db.DbPoolStats, error) {
+		calls++
+		return &db.DbPoolStats{
+			TotalDeposits: "1000",
+		}, nil
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/pool/stats", nil)
+	
+	rr1 := httptest.NewRecorder()
+	h.HandleGetPoolStats(rr1, req)
+	if rr1.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr1.Code)
+	}
+
+	rr2 := httptest.NewRecorder()
+	h.HandleGetPoolStats(rr2, req)
+	if rr2.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr2.Code)
+	}
+
+	if calls != 1 {
+		t.Errorf("expected exactly 1 DB call for cached responses, got %d", calls)
+	}
+}
+
+func TestHandleGetEvents_DefaultLimitUsesCache(t *testing.T) {
+	h := readonlyTestHandler(t)
+	calls := 0
+	h.getRecentEventsFn = func(_ context.Context, limit int) ([]*db.EventLog, error) {
+		calls++
+		return []*db.EventLog{}, nil
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/events", nil) // no limit param
+	
+	rr1 := httptest.NewRecorder()
+	h.HandleGetEvents(rr1, req)
+	if rr1.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr1.Code)
+	}
+
+	rr2 := httptest.NewRecorder()
+	h.HandleGetEvents(rr2, req)
+	if rr2.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr2.Code)
+	}
+
+	if calls != 1 {
+		t.Errorf("expected exactly 1 DB call for cached responses, got %d", calls)
+	}
+}
+
+func TestHandleGetEvents_CustomLimitBypassesCache(t *testing.T) {
+	h := readonlyTestHandler(t)
+	calls := 0
+	h.getRecentEventsFn = func(_ context.Context, limit int) ([]*db.EventLog, error) {
+		calls++
+		return []*db.EventLog{}, nil
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/events?limit=10", nil) // limit param
+	
+	rr1 := httptest.NewRecorder()
+	h.HandleGetEvents(rr1, req)
+	if rr1.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr1.Code)
+	}
+
+	rr2 := httptest.NewRecorder()
+	h.HandleGetEvents(rr2, req)
+	if rr2.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr2.Code)
+	}
+
+	if calls != 2 {
+		t.Errorf("expected exactly 2 DB calls for bypassed cache, got %d", calls)
+	}
+}
