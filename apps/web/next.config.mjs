@@ -1,6 +1,7 @@
 import { config as loadDotenv } from "dotenv";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import createNextIntlPlugin from "next-intl/plugin";
 
 // The root README's Quick Start has contributors run `cp .env.example
 // .env.local` at the repo root so the web app and the Go indexer share one
@@ -18,6 +19,10 @@ for (const file of [".env", ".env.local"]) {
 }
 
 /** @type {import('next').NextConfig} */
-const nextConfig = {};
+const nextConfig = {
+  output: "standalone",
+};
 
-export default nextConfig;
+const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
+
+export default withNextIntl(nextConfig);

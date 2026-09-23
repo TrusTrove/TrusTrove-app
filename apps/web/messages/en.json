@@ -1,0 +1,16 @@
+{
+  "Metadata": {
+    "title": "TrusTrove | Decentralized Trade Finance Operations Terminal",
+    "description": "Tokenize unpaid trade invoices as Stellar assets and receive immediate USDC funding. Yield opportunities for liquidity providers."
+  },
+  "Navbar": {
+    "dashboard": "Dashboard",
+    "invoices": "Invoices",
+    "marketplace": "Marketplace"
+  },
+  "Common": {
+    "loading": "Loading…",
+    "error": "Something went wrong",
+    "retry": "Retry"
+  }
+}

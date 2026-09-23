@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
+import { NextIntlClientProvider } from "next-intl";
 import "./globals.css";
 import Providers from "./providers";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { cn } from "@/lib/utils";
+import enMessages from "../messages/en.json";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -43,7 +45,9 @@ export default function RootLayout({
           Skip to main content
         </a>
         <Providers>
-          {children}
+          <NextIntlClientProvider locale="en" messages={enMessages}>
+            {children}
+          </NextIntlClientProvider>
           <SpeedInsights />
         </Providers>
         <Analytics />

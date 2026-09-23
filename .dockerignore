@@ -1,0 +1,29 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Build output
+.next
+out
+dist
+build
+
+# Git
+.git
+
+# Environment files — the Docker build uses build-args instead
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+
+# OS / editor cruft
+.DS_Store
+*.swp
+
+# Test / coverage output
+coverage
+playwright-report

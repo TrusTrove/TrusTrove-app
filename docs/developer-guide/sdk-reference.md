@@ -3,6 +3,17 @@
 The TypeScript SDK in `packages/sdk` wraps all Soroban contract calls.
 Import from `@trusttrove/sdk` in the monorepo or use the workspace package.
 
+## Runnable example
+
+> A complete, runnable example lives at [`examples/sdk-quickstart/`](../../examples/sdk-quickstart/).
+> It is a framework-free Node/TypeScript script that calls
+> `RegistryClient.isVerified()`, `PoolClient.getStats()` and
+> `InvoiceClient.getByStatus()` against Stellar testnet. From the repo root:
+>
+> ```bash
+> pnpm --filter sdk-quickstart start
+> ```
+
 ## Setup
 
 ```typescript
