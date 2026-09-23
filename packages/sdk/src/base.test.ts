@@ -1,7 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { BaseContractClient, TransactionTimeoutError } from "./base.js";
+import {
+  BaseContractClient,
+  SimulationError,
+  MissingReturnValueError,
+  TransactionSendError,
+  TransactionFailedError,
+  TransactionTimeoutError,
+} from "./base.js";
 import * as config from "./config.js";
-import { rpc, xdr, Networks } from "@stellar/stellar-sdk";
+import { rpc, xdr, Networks, scValToNative } from "@stellar/stellar-sdk";
 import * as freighter from "@stellar/freighter-api";
 
 vi.mock("./config.js");
@@ -13,6 +20,7 @@ vi.mock("@stellar/stellar-sdk", async (importOriginal) => {
   return {
     ...actual,
     TransactionBuilder: MockTransactionBuilder,
+    scValToNative: vi.fn((val: any) => actual.scValToNative(val)),
   };
 });
 
@@ -114,7 +122,20 @@ describe("BaseContractClient", () => {
           "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB",
           (val) => val.u32(),
         ),
-      ).rejects.toThrow("Simulation failed for test_method: Simulation failed");
+      ).rejects.toBeInstanceOf(SimulationError);
+    });
+
+    it("throws MissingReturnValueError when simulation returns no value", async () => {
+      mockServer.simulateTransaction.mockResolvedValue({ result: {} });
+
+      await expect(
+        client.testReadContract(
+          "test_method",
+          [],
+          "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB",
+          (val) => val.u32(),
+        ),
+      ).rejects.toBeInstanceOf(MissingReturnValueError);
     });
   });
 
@@ -190,6 +211,136 @@ describe("BaseContractClient", () => {
       await promise;
 
       vi.useRealTimers();
+    });
+
+    it("throws SimulationError when the write simulation fails", async () => {
+      mockServer.simulateTransaction.mockResolvedValue({
+        error: "write simulation failed",
+      });
+
+      await expect(
+        client.testWriteContract(
+          "test_method",
+          [],
+          "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB",
+        ),
+      ).rejects.toBeInstanceOf(SimulationError);
+    });
+
+    it("throws TransactionSendError when the RPC rejects the send", async () => {
+      mockServer.simulateTransaction.mockResolvedValue({
+        result: { retval: xdr.ScVal.scvVoid() },
+        transactionData: {
+          getReadOnly: () => [],
+          getReadWrite: () => [],
+        },
+        minResourceFee: "100",
+      });
+
+      mockServer.sendTransaction.mockResolvedValue({
+        status: "ERROR",
+        hash: "mock-hash",
+        errorResult: { toXDR: () => "AAAA//..." },
+      });
+
+      await expect(
+        client.testWriteContract(
+          "test_method",
+          [],
+          "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB",
+        ),
+      ).rejects.toBeInstanceOf(TransactionSendError);
+    });
+
+    it("throws TransactionFailedError when the transaction fails on-chain", async () => {
+      mockServer.simulateTransaction.mockResolvedValue({
+        result: { retval: xdr.ScVal.scvVoid() },
+        transactionData: {
+          getReadOnly: () => [],
+          getReadWrite: () => [],
+        },
+        minResourceFee: "100",
+      });
+
+      mockServer.sendTransaction.mockResolvedValue({
+        status: "PENDING",
+        hash: "mock-hash",
+      });
+
+      mockServer.getTransaction.mockResolvedValue({
+        status: rpc.Api.GetTransactionStatus.FAILED,
+      });
+
+      await expect(
+        client.testWriteContract(
+          "test_method",
+          [],
+          "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB",
+        ),
+      ).rejects.toBeInstanceOf(TransactionFailedError);
+    });
+  });
+
+  describe("simulateTransaction", () => {
+    it("returns the expected fee, footprint, and decoded result", async () => {
+      mockServer.simulateTransaction.mockResolvedValue({
+        result: { retval: xdr.ScVal.scvU32(7) },
+        transactionData: {
+          getReadOnly: () => Array.from({ length: 2 }),
+          getReadWrite: () => Array.from({ length: 1 }),
+        },
+        minResourceFee: "100",
+      });
+
+      const result = await client.simulateTransaction(
+        "test_method",
+        [],
+        "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB",
+      );
+
+      expect(result.functionName).toBe("test_method");
+      expect(result.expectedResult).toBe(7);
+      expect(result.footprintSize).toBe(3);
+      // BASE_FEE (100) + minResourceFee (100) = 200 stroops => 0.00002 XLM
+      expect(result.estimatedFeeXlm).toBe("0.0000200");
+    });
+
+    it("falls back to the raw ScVal when scValToNative cannot decode the result", async () => {
+      vi.mocked(scValToNative).mockImplementationOnce(() => {
+        throw new Error("unsupported scval");
+      });
+      const retval = xdr.ScVal.scvU32(9);
+      mockServer.simulateTransaction.mockResolvedValue({
+        result: { retval },
+        transactionData: {
+          getReadOnly: () => [],
+          getReadWrite: () => [],
+        },
+        minResourceFee: "0",
+      });
+
+      const result = await client.simulateTransaction(
+        "test_method",
+        [],
+        "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB",
+      );
+
+      expect(result.expectedResult).toBe(retval);
+      expect(result.footprintSize).toBe(0);
+    });
+
+    it("throws SimulationError when the simulation fails", async () => {
+      mockServer.simulateTransaction.mockResolvedValue({
+        error: "simulation rejected",
+      });
+
+      await expect(
+        client.simulateTransaction(
+          "test_method",
+          [],
+          "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB",
+        ),
+      ).rejects.toBeInstanceOf(SimulationError);
     });
   });
 });

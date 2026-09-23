@@ -75,6 +75,79 @@ export class TransactionTimeoutError extends Error {
   }
 }
 
+/**
+ * Thrown when a contract method simulation is rejected by the Soroban RPC
+ * before anything is signed or submitted.
+ */
+export class SimulationError extends Error {
+  /** Contract method whose simulation failed. */
+  readonly method: string;
+  /** Underlying Soroban error message, when the RPC returned one. */
+  readonly cause?: string;
+
+  constructor(method: string, message?: string) {
+    super(
+      message
+        ? `Simulation failed for ${method}: ${message}`
+        : `Simulation failed for ${method}`,
+    );
+    this.name = "SimulationError";
+    this.method = method;
+    if (message) this.cause = message;
+  }
+}
+
+/**
+ * Thrown when a simulation succeeds but returns no result value for the
+ * contract method.
+ */
+export class MissingReturnValueError extends Error {
+  /** Contract method that produced no return value. */
+  readonly method: string;
+
+  constructor(method: string) {
+    super(`No return value from simulation for ${method}`);
+    this.name = "MissingReturnValueError";
+    this.method = method;
+  }
+}
+
+/**
+ * Thrown when the signed transaction is rejected at submission time by the
+ * Soroban RPC.
+ */
+export class TransactionSendError extends Error {
+  /** Contract method whose transaction was rejected on send. */
+  readonly method: string;
+  /** Underlying Soroban error result, when the RPC returned one. */
+  readonly sorobanError?: string;
+
+  constructor(method: string, sorobanError?: string) {
+    super(
+      sorobanError
+        ? `Send failed for ${method}: ${sorobanError}`
+        : `Send failed for ${method}`,
+    );
+    this.name = "TransactionSendError";
+    this.method = method;
+    if (sorobanError) this.sorobanError = sorobanError;
+  }
+}
+
+/**
+ * Thrown when a submitted transaction is confirmed on-chain as FAILED.
+ */
+export class TransactionFailedError extends Error {
+  /** Contract method whose transaction failed on-chain. */
+  readonly method: string;
+
+  constructor(method: string) {
+    super(`Transaction failed on-chain for ${method}`);
+    this.name = "TransactionFailedError";
+    this.method = method;
+  }
+}
+
 function isNetworkError(err: unknown): boolean {
   if (err instanceof TypeError) return true;
   const msg = err instanceof Error ? err.message.toLowerCase() : "";
@@ -165,12 +238,11 @@ export class BaseContractClient {
       .build();
     const sim = await withRetry(() => server.simulateTransaction(tx));
     if (rpc.Api.isSimulationError(sim)) {
-      throw new Error(`Simulation failed for ${method}: ${sim.error}`);
+      throw new SimulationError(method, sim.error);
     }
     const resultVal = (sim as rpc.Api.SimulateTransactionSuccessResponse).result
       ?.retval;
-    if (!resultVal)
-      throw new Error(`No return value from simulation for ${method}`);
+    if (!resultVal) throw new MissingReturnValueError(method);
     return parse(resultVal);
   }
 
@@ -191,7 +263,7 @@ export class BaseContractClient {
       .build();
     const sim = await withRetry(() => server.simulateTransaction(tx));
     if (rpc.Api.isSimulationError(sim))
-      throw new Error(`Simulation failed for ${method}: ${sim.error}`);
+      throw new SimulationError(method, sim.error);
     const prepared = await withRetry(() => server.prepareTransaction(tx));
     const signed = await signTransactionCompat(prepared.toXDR(), {
       network:
@@ -205,8 +277,9 @@ export class BaseContractClient {
       ),
     );
     if (result.status === "ERROR")
-      throw new Error(
-        `Send failed for ${method}: ${result.errorResult?.toXDR()}`,
+      throw new TransactionSendError(
+        method,
+        result.errorResult?.toXDR().toString("base64"),
       );
     let response = await withRetry(() => server.getTransaction(result.hash));
     let attempts = 1;
@@ -221,7 +294,7 @@ export class BaseContractClient {
     if (response.status === rpc.Api.GetTransactionStatus.NOT_FOUND)
       throw new TransactionTimeoutError(result.hash);
     if (response.status === rpc.Api.GetTransactionStatus.FAILED)
-      throw new Error(`Transaction failed on-chain for ${method}`);
+      throw new TransactionFailedError(method);
     return result.hash;
   }
 
@@ -242,7 +315,7 @@ export class BaseContractClient {
       .build();
     const sim = await withRetry(() => server.simulateTransaction(tx));
     if (rpc.Api.isSimulationError(sim))
-      throw new Error(sim.error || "Simulation failed");
+      throw new SimulationError(method, sim.error);
     const footprintSize = sim.transactionData
       ? sim.transactionData.getReadOnly().length +
         sim.transactionData.getReadWrite().length

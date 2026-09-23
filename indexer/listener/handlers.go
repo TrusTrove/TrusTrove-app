@@ -326,6 +326,31 @@ func (l *EventListener) handleAttestationSubmitted(ctx context.Context, event So
 	slog.Info("Indexed event: AttestationSubmitted", "id", invoiceID, "agentID", agentID, "riskScoreBps", riskScoreBps)
 	return nil
 }
+func (l *EventListener) handleRegistrationEvent(ctx context.Context, event SorobanEvent, ledgerClosedAt int64, eventName string) error {
+	// Topic format: ["issuer_registered" / "buyer_registered", account_address]
+	if len(event.Topic) < 2 {
+		return fmt.Errorf("invalid topic length for registration event")
+	}
+
+	var addrVal xdr.ScVal
+	if err := xdr.SafeUnmarshalBase64(event.Topic[1], &addrVal); err != nil {
+		return fmt.Errorf("parse registration address topic: %w", err)
+	}
+	address := xdrutil.ParseAddress(addrVal)
+	if address == "" {
+		return fmt.Errorf("registration event value: topic address is not a valid address")
+	}
+
+	logData := map[string]interface{}{
+		"address": address,
+	}
+	if err := db.LogEvent(ctx, event.ID, event.ContractID, event.Ledger, ledgerClosedAt, eventName, logData); err != nil {
+		return err
+	}
+
+	slog.Info("Indexed event: registration", "event", eventName, "address", address)
+	return nil
+}
 
 func (l *EventListener) handleEvent(ctx context.Context, event SorobanEvent) error {
 	if len(event.Topic) == 0 {
@@ -375,6 +400,11 @@ func (l *EventListener) handleEvent(ctx context.Context, event SorobanEvent) err
 		err = l.handleInvoiceDefaulted(ctx, event, serverKP)
 	case "submit_attestation", "AttestationSubmitted":
 		err = l.handleAttestationSubmitted(ctx, event, ledgerClosedAt)
+	case "issuer_registered", "buyer_registered":
+		// Registry contract registrations are logged (and de-duplicated) via
+		// events_log but have no invoice fan-out, so they short-circuit the
+		// generic tail below.
+		return l.handleRegistrationEvent(ctx, event, ledgerClosedAt, eventName)
 	default:
 		slog.Debug("Skipping unhandled contract event", "name", eventName)
 		return nil

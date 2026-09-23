@@ -293,21 +293,45 @@ fromUsdc("1000.50"); // → BigInt(10005000000)
 
 ## Error Handling
 
-All SDK calls throw on failure. Common patterns:
+All SDK calls throw on failure. Failures surface as typed errors so consumers
+can branch with `instanceof` instead of string-matching `err.message`:
 
 ```typescript
+import {
+  SimulationError,
+  MissingReturnValueError,
+  TransactionSendError,
+  TransactionFailedError,
+  TransactionTimeoutError,
+} from "@trusttrove/sdk";
+
 try {
   const txHash = await invoice.create(...);
   console.log("Created:", txHash);
 } catch (err) {
-  if (err instanceof TransactionTimeoutError) {
+  if (err instanceof SimulationError) {
+    // Soroban RPC rejected the simulation for err.method
+    console.warn("Simulation failed:", err.method, err.cause);
+  } else if (err instanceof MissingReturnValueError) {
+    // Simulation succeeded but returned no value for err.method
+    console.warn("No return value:", err.method);
+  } else if (err instanceof TransactionSendError) {
+    // Signed transaction was rejected at submission (err.sorobanError if set)
+    console.warn("Send failed:", err.method, err.sorobanError);
+  } else if (err instanceof TransactionFailedError) {
+    // Transaction was accepted and confirmed as FAILED on-chain
+    console.warn("Failed on-chain:", err.method);
+  } else if (err instanceof TransactionTimeoutError) {
     // Transaction was sent but confirmation timed out
     console.warn("Timed out, tx hash:", err.txHash);
   } else {
-    // Simulation error, signing error, or network error
+    // Signing error, invalid input, or network error
     console.error(err.message);
   }
 }
 ```
 
-Import `TransactionTimeoutError` from `@trusttrove/sdk` to distinguish polling timeouts from other failures. The SDK automatically retries transient network errors up to 3 times with exponential backoff before throwing.
+Every typed error records the contract method name it was raised for, and the
+simulation- and send-related classes additionally carry the underlying Soroban
+error where the RPC returned one. The SDK automatically retries transient
+network errors up to 3 times with exponential backoff before throwing.
