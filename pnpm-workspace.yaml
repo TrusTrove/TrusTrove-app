@@ -30,6 +30,14 @@ auditConfig:
 
 overrides:
   postcss: ">=8.5.18 <9"
+  # storybook's webpack5 builder (@storybook/builder-webpack5@8) taps plugin
+  # hooks using the webpack 5.101.2 plugin API. webpack 5.101.3 changed that
+  # API, so Storybook's preview build dies with
+  # "Cannot read properties of undefined (reading 'tap')"
+  # (storybookjs/storybook#32301). Only Storybook reads the standalone webpack
+  # package — Next bundles its own — so pinning it here is scoped to the
+  # Storybook build. Drop this override once Storybook ships a fix.
+  webpack: "5.101.2"
   nanoid: ">=3.3.18 <4"
   js-yaml: ">=4.3.2 <5"
   glob: ">=12.0.0 <13"
