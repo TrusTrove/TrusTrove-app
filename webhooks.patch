@@ -1,0 +1,57 @@
+--- docs/openapi/indexer.yaml
++++ docs/openapi/indexer.yaml
+@@ -273,6 +273,59 @@
+           content:
+             application/json:
+               schema:
+                 $ref: '#/components/schemas/ErrorResponse'
++
++  /webhooks:
++    post:
++      tags: [Webhooks]
++      summary: Create webhook subscription
++      security:
++        - bearerAuth: []
++      requestBody:
++        required: true
++        content:
++          application/json:
++            schema:
++              type: object
++              properties:
++                url:
++                  type: string
++                event_types:
++                  type: array
++                  items:
++                    type: string
++      responses:
++        '201':
++          description: Webhook created
++    get:
++      tags: [Webhooks]
++      summary: List webhook subscriptions
++      security:
++        - bearerAuth: []
++      responses:
++        '200':
++          description: List of webhooks
++
++  /webhooks/{id}:
++    delete:
++      tags: [Webhooks]
++      summary: Delete webhook subscription
++      security:
++        - bearerAuth: []
++      parameters:
++        - name: id
++          in: path
++          required: true
++          schema:
++            type: integer
++      responses:
++        '204':
++          description: Webhook deleted
+ components:
+   securitySchemes:
+     bearerAuth:

@@ -31,6 +31,7 @@ export function Navbar() {
     { name: "LP Portal", href: "/lp" },
     { name: "Marketplace", href: "/marketplace" },
     { name: "Profile", href: "/profile" },
+    { name: "Help/FAQ", href: "/help" },
   ];
 
   const closeMobileMenu = () => setMobileMenuOpen(false);
