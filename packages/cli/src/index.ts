@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
 import { Command } from "commander";
+import { registerListInvoicesCommand } from "./commands/list-invoices.js";
 
 function readVersion(): string {
   try {
@@ -26,12 +27,22 @@ program.addHelpText(
   "afterAll",
   [
     "",
-    "Scope:",
-    "  This release only wires the CLI entrypoint and argument parsing.",
-    "  Real commands (list-invoices, check-pool-balance) land in follow-up",
-    "  issues built on @trusttrove/sdk.",
+    "Commands:",
+    "  list-invoices   List invoices by status or issuer (read-only call)",
+    "",
+    "Examples:",
+    "  $ trusttrove list-invoices --status Funded --public-key G...",
+    "  $ trusttrove list-invoices --issuer G... --public-key G...",
+    "",
+    "  --public-key may be replaced by TRUSTTROVE_PUBLIC_KEY, and",
+    "  --contract-id by INVOICE_CONTRACT_ID (see .env.example).",
+    "",
+    "Further commands (check-pool-balance) land in follow-up issues built",
+    "on @trusttrove/sdk.",
     "",
   ].join("\n"),
 );
+
+registerListInvoicesCommand(program);
 
 await program.parseAsync(process.argv);

@@ -131,6 +131,8 @@ The contract IDs are pre-filled with the deployed testnet addresses. Review `.en
 docker-compose up -d
 ```
 
+Prefer to run the whole stack — Postgres, the Go indexer, and the web app — in containers? See the [Docker Compose stack](./docs/developer-guide/local-setup.md#full-local-stack-with-docker-compose).
+
 ### 4. Start the indexer
 
 ```bash
@@ -156,7 +158,7 @@ Run these from the repository root after `pnpm install`. CI runs the same comman
 # Build the SDK and the web app
 pnpm build
 
-# Run the SDK and web app unit test suites
+# Run the SDK, CLI, and web app unit test suites
 pnpm test
 
 # Run the Go indexer's test suite
