@@ -283,6 +283,9 @@ func NewRouter(h *APIHandler) *chi.Mux {
 	// Max 1000 clients to bound memory usage
 	rl := newPerClientRateLimiter(h.cfg.RateLimitRPS, h.cfg.RateLimitRPS*2, 1000)
 
+	// Prometheus metrics
+	r.Get("/metrics", MetricsHandler().ServeHTTP)
+
 	// Health check
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
