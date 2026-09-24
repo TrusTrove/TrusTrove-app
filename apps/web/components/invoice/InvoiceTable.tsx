@@ -46,6 +46,9 @@ interface InvoiceTableProps {
 const DEFAULT_PAGE_SIZES = [10, 20, 50, 100];
 const ROW_HEIGHT = 72;
 
+// Shared flex proportions matching the 6-column layout.
+const COL_FLEX = ["1.15", "1.15", "1", "0.8", "0.95", "0.75"] as const;
+
 function clampPage(page: number, totalPages: number) {
   return Math.min(Math.max(page, 1), Math.max(totalPages, 1));
 }
@@ -238,7 +241,7 @@ export function InvoiceTable({
   emptyStateAction,
   pagination,
 }: InvoiceTableProps) {
-  const parentRef = useRef<HTMLDivElement | null>(null);
+  const parentRef = useRef<HTMLTableSectionElement | null>(null);
   const rowVirtualizer = useVirtualizer({
     count: invoices.length,
     getScrollElement: () => parentRef.current,
@@ -301,72 +304,87 @@ export function InvoiceTable({
       ) : (
         <>
           <div className="overflow-x-auto">
-            <div className="min-w-[920px]">
-              <div className="grid grid-cols-[1.15fr_1.15fr_1fr_0.8fr_0.95fr_0.75fr] border-b border-border/60 bg-[#080c10]/80 px-5 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                <div>Invoice ID</div>
-                <div>Buyer</div>
-                <div>Face Value</div>
-                <div>Discount</div>
-                <div>Due Date</div>
-                <div>Status</div>
-              </div>
-
-              <div ref={parentRef} className="max-h-[65vh] overflow-auto">
-                <div
-                  className="relative w-full"
-                  style={{ height: `${totalHeight}px` }}
+            {/* display:block overrides UA table layout so thead/tbody can use
+                flex rows whose column widths are kept in sync via COL_FLEX. */}
+            <table
+              className="min-w-[920px] w-full"
+              style={{ display: "block" }}
+              role="grid"
+              aria-label="Invoice Ledger"
+            >
+              <thead style={{ display: "block" }}>
+                <tr
+                  className="flex border-b border-border/60 bg-[#080c10]/80 px-5 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-500"
                 >
-                  {rowsToRender.map((virtualRow) => {
-                    const invoice = invoices[virtualRow.index];
-                    const isActive = activeId === invoice.id;
+                  <th scope="col" style={{ flex: COL_FLEX[0] }} className="text-left">Invoice ID</th>
+                  <th scope="col" style={{ flex: COL_FLEX[1] }} className="text-left">Buyer</th>
+                  <th scope="col" style={{ flex: COL_FLEX[2] }} className="text-left">Face Value</th>
+                  <th scope="col" style={{ flex: COL_FLEX[3] }} className="text-left">Discount</th>
+                  <th scope="col" style={{ flex: COL_FLEX[4] }} className="text-left">Due Date</th>
+                  <th scope="col" style={{ flex: COL_FLEX[5] }} className="text-left">Status</th>
+                </tr>
+              </thead>
 
-                    return (
-                      <button
-                        key={invoice.id}
-                        type="button"
-                        onClick={() => onSelectInvoice?.(invoice)}
-                        disabled={!onSelectInvoice}
-                        aria-pressed={isActive}
-                        className={`absolute left-0 top-0 grid w-full grid-cols-[1.15fr_1.15fr_1fr_0.8fr_0.95fr_0.75fr] items-center border-b border-border/30 px-5 text-left font-mono text-xs transition-colors ${
-                          onSelectInvoice ? "cursor-pointer" : "cursor-default"
-                        } ${
-                          isActive
-                            ? "bg-primary/5 text-primary"
-                            : "hover:bg-slate-900/50"
-                        }`}
-                        style={{
-                          height: `${ROW_HEIGHT}px`,
-                          transform: `translateY(${virtualRow.start}px)`,
-                        }}
-                      >
-                        <div className="font-bold text-primary">
-                          {truncateAddress(invoice.id)}
-                        </div>
-                        <div className="text-slate-400">
-                          {truncateAddress(invoice.buyer)}
-                        </div>
-                        <div className="font-bold text-white">
-                          {formatAmount(invoice.faceValue, invoice.asset)}
-                        </div>
-                        <div className="text-slate-300">
-                          {invoice.discountBps > 0
-                            ? `${(invoice.discountBps / 100).toFixed(2)}%`
-                            : "—"}
-                        </div>
-                        <div className="text-slate-400">
-                          {new Date(
-                            invoice.dueDate * 1000,
-                          ).toLocaleDateString()}
-                        </div>
-                        <div className="flex justify-start">
-                          <InvoiceStatus status={invoice.status} />
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
+              {/* tbody is the virtual-scroll container: height=totalHeight lets the
+                  browser know the full scrollable extent; maxHeight clips it visually. */}
+              <tbody
+                ref={parentRef}
+                style={{
+                  display: "block",
+                  position: "relative",
+                  overflowY: "auto",
+                  maxHeight: "65vh",
+                  height: `${totalHeight}px`,
+                }}
+              >
+                {rowsToRender.map((virtualRow) => {
+                  const invoice = invoices[virtualRow.index];
+                  const isActive = activeId === invoice.id;
+
+                  return (
+                    <tr
+                      key={invoice.id}
+                      aria-selected={isActive}
+                      onClick={() => onSelectInvoice?.(invoice)}
+                      className={`absolute left-0 top-0 flex w-full items-center border-b border-border/30 px-5 font-mono text-xs transition-colors ${
+                        onSelectInvoice ? "cursor-pointer" : "cursor-default"
+                      } ${
+                        isActive
+                          ? "bg-primary/5 text-primary"
+                          : "hover:bg-slate-900/50"
+                      }`}
+                      style={{
+                        height: `${ROW_HEIGHT}px`,
+                        transform: `translateY(${virtualRow.start}px)`,
+                      }}
+                    >
+                      <td style={{ flex: COL_FLEX[0] }} className="font-bold text-primary">
+                        {truncateAddress(invoice.id)}
+                      </td>
+                      <td style={{ flex: COL_FLEX[1] }} className="text-slate-400">
+                        {truncateAddress(invoice.buyer)}
+                      </td>
+                      <td style={{ flex: COL_FLEX[2] }} className="font-bold text-white">
+                        {formatAmount(invoice.faceValue, invoice.asset)}
+                      </td>
+                      <td style={{ flex: COL_FLEX[3] }} className="text-slate-300">
+                        {invoice.discountBps > 0
+                          ? `${(invoice.discountBps / 100).toFixed(2)}%`
+                          : "—"}
+                      </td>
+                      <td style={{ flex: COL_FLEX[4] }} className="text-slate-400">
+                        {new Date(
+                          invoice.dueDate * 1000,
+                        ).toLocaleDateString()}
+                      </td>
+                      <td style={{ flex: COL_FLEX[5] }} className="flex justify-start">
+                        <InvoiceStatus status={invoice.status} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
 
           {pagination && <InvoicePagination {...pagination} />}

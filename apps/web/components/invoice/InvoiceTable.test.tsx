@@ -63,4 +63,40 @@ describe("InvoiceTable", () => {
     fireEvent.click(screen.getByRole("button", { name: /Next/i }));
     expect(onPageChange).toHaveBeenCalledWith(2);
   });
+
+  // #802 — semantic table structure
+  it("renders a <table> element with role=grid and aria-label", () => {
+    render(<InvoiceTable invoices={mockInvoices as any} />);
+    const table = screen.getByRole("grid", { name: /Invoice Ledger/i });
+    expect(table.tagName).toBe("TABLE");
+  });
+
+  it("renders column headers as <th scope=col> elements", () => {
+    render(<InvoiceTable invoices={mockInvoices as any} />);
+    const headers = screen.getAllByRole("columnheader");
+    expect(headers).toHaveLength(6);
+    expect(headers[0]).toHaveTextContent(/Invoice ID/i);
+    expect(headers[1]).toHaveTextContent(/Buyer/i);
+    expect(headers[2]).toHaveTextContent(/Face Value/i);
+    expect(headers[3]).toHaveTextContent(/Discount/i);
+    expect(headers[4]).toHaveTextContent(/Due Date/i);
+    expect(headers[5]).toHaveTextContent(/Status/i);
+    headers.forEach((h) => expect(h).toHaveAttribute("scope", "col"));
+  });
+
+  it("renders invoice data inside <td> cells within <tr> rows", () => {
+    render(<InvoiceTable invoices={mockInvoices as any} />);
+    const rows = screen.getAllByRole("row");
+    // one header row + two data rows
+    expect(rows.length).toBeGreaterThanOrEqual(3);
+    const cells = screen.getAllByRole("cell");
+    expect(cells.length).toBeGreaterThan(0);
+  });
+
+  it("marks the active row with aria-selected=true", () => {
+    render(<InvoiceTable invoices={mockInvoices as any} activeId="1" />);
+    const rows = screen.getAllByRole("row");
+    const activeRow = rows.find((r) => r.getAttribute("aria-selected") === "true");
+    expect(activeRow).toBeTruthy();
+  });
 });
