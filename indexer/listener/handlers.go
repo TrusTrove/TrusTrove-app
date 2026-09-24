@@ -450,5 +450,16 @@ func (l *EventListener) handleEvent(ctx context.Context, event SorobanEvent) err
 		slog.Error("Failed to log event in DB", "eventId", event.ID, "error", err)
 	}
 
+	// Fan out to webhook subscribers (non-blocking: failures are logged, not returned)
+	if l.dispatcher != nil {
+		dispatchData := make(map[string]interface{}, len(logData)+2)
+		for k, v := range logData {
+			dispatchData[k] = v
+		}
+		dispatchData["event_id"] = event.ID
+		dispatchData["ledger"] = event.Ledger
+		l.dispatcher.Dispatch(ctx, eventName, dispatchData)
+	}
+
 	return nil
 }

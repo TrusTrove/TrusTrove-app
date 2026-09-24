@@ -17,6 +17,7 @@ import (
 	"trusttrove/indexer/config"
 	"trusttrove/indexer/db"
 	"trusttrove/indexer/listener"
+	"trusttrove/indexer/webhook"
 )
 
 func main() {
@@ -86,8 +87,15 @@ func main() {
 		Handler: router,
 	}
 
-	// 4. Start Event Listener in Background
-	eventListener := listener.NewEventListener(cfg, handler.ListenerHealth())
+	// 4. Start Webhook Dispatcher Worker in Background
+	webhookDispatcher := webhook.NewDispatcher()
+	go func() {
+		slog.Info("Starting webhook dispatcher worker...")
+		webhookDispatcher.RunWorker(ctx)
+	}()
+
+	// 5. Start Event Listener in Background
+	eventListener := listener.NewEventListener(cfg, handler.ListenerHealth(), webhookDispatcher)
 	listenerErrCh := make(chan error, 1)
 	go func() {
 		slog.Info("Starting Soroban Event Listener background task...")
@@ -97,7 +105,7 @@ func main() {
 		}
 	}()
 
-	// 5. Start API Server in Background
+	// 6. Start API Server in Background
 	go func() {
 		slog.Info("Starting HTTP API Server", "port", cfg.APIPort)
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -106,7 +114,7 @@ func main() {
 		}
 	}()
 
-	// 6. Wait for Termination Signal or Listener Failure
+	// 7. Wait for Termination Signal or Listener Failure
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 

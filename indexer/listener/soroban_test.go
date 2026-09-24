@@ -65,7 +65,7 @@ func newTestEventListener(t *testing.T, cfgOverrides ...func(*config.Config)) *E
 	for _, fn := range cfgOverrides {
 		fn(cfg)
 	}
-	l := NewEventListener(cfg, api.NewListenerHealth())
+	l := NewEventListener(cfg, api.NewListenerHealth(), nil)
 	// Defaults: zero-valued no-ops. Each test that needs real behavior
 	// (e.g. TestStart_GetCheckpointErrorIsReturned) overrides the field below.
 	l.getCheckpointFn = func(_ context.Context) (int32, error) { return 0, nil }

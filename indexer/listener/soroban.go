@@ -68,9 +68,16 @@ type GetEventsParams struct {
 	Pagination  *PaginationParams `json:"pagination,omitempty"`
 }
 
+// WebhookDispatcher is the interface the listener uses to fan out events.
+// The concrete implementation lives in the webhook package.
+type WebhookDispatcher interface {
+	Dispatch(ctx context.Context, eventType string, data map[string]interface{})
+}
+
 type EventListener struct {
-	cfg    *config.Config
-	health *api.ListenerHealth
+	cfg        *config.Config
+	health     *api.ListenerHealth
+	dispatcher WebhookDispatcher
 
 	// dependency-injectable storage helpers. Defaults are wired in
 	// NewEventListener so production behavior is unchanged; tests in this
@@ -82,10 +89,11 @@ type EventListener struct {
 	isEventProcessedFn         func(context.Context, string) (bool, error)
 }
 
-func NewEventListener(cfg *config.Config, health *api.ListenerHealth) *EventListener {
+func NewEventListener(cfg *config.Config, health *api.ListenerHealth, dispatcher WebhookDispatcher) *EventListener {
 	return &EventListener{
 		cfg:                        cfg,
 		health:                     health,
+		dispatcher:                 dispatcher,
 		getCheckpointFn:            db.GetCheckpoint,
 		getLatestProcessedLedgerFn: db.GetLatestProcessedLedger,
 		upsertCheckpointFn:         db.UpsertCheckpoint,
