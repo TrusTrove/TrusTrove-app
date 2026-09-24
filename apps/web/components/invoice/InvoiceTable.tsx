@@ -1,6 +1,6 @@
 "use client";
 
-import React, { ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import React, { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { formatAmount } from "@/lib/assets";
@@ -242,6 +242,49 @@ export function InvoiceTable({
   pagination,
 }: InvoiceTableProps) {
   const parentRef = useRef<HTMLTableSectionElement | null>(null);
+  // rowRefs tracks rendered <tr> elements so the roving-tabindex effect can
+  // imperatively focus the newly active row after an arrow-key press.
+  const rowRefs = useRef<Map<number, HTMLTableRowElement>>(new Map());
+  const [focusedIndex, setFocusedIndex] = useState(0);
+
+  // Move DOM focus whenever the roving index changes.
+  useEffect(() => {
+    const row = rowRefs.current.get(focusedIndex);
+    if (row && document.activeElement !== row) {
+      row.focus({ preventScroll: false });
+    }
+  }, [focusedIndex]);
+
+  const handleRowKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLTableRowElement>, index: number) => {
+      if (!onSelectInvoice) return;
+      switch (event.key) {
+        case "ArrowDown":
+          event.preventDefault();
+          setFocusedIndex((i) => Math.min(i + 1, invoices.length - 1));
+          break;
+        case "ArrowUp":
+          event.preventDefault();
+          setFocusedIndex((i) => Math.max(i - 1, 0));
+          break;
+        case "Home":
+          event.preventDefault();
+          setFocusedIndex(0);
+          break;
+        case "End":
+          event.preventDefault();
+          setFocusedIndex(invoices.length - 1);
+          break;
+        case "Enter":
+        case " ":
+          event.preventDefault();
+          onSelectInvoice(invoices[index]);
+          break;
+      }
+    },
+    [invoices, onSelectInvoice],
+  );
+
   const rowVirtualizer = useVirtualizer({
     count: invoices.length,
     getScrollElement: () => parentRef.current,
@@ -341,17 +384,35 @@ export function InvoiceTable({
                   const invoice = invoices[virtualRow.index];
                   const isActive = activeId === invoice.id;
 
+                  const isFocusable = !!onSelectInvoice;
                   return (
                     <tr
                       key={invoice.id}
+                      ref={(el) => {
+                        if (el) rowRefs.current.set(virtualRow.index, el);
+                        else rowRefs.current.delete(virtualRow.index);
+                      }}
                       aria-selected={isActive}
-                      onClick={() => onSelectInvoice?.(invoice)}
+                      // Roving tabindex: only the focused row is in the tab order.
+                      tabIndex={isFocusable ? (virtualRow.index === focusedIndex ? 0 : -1) : undefined}
+                      onClick={() => {
+                        if (onSelectInvoice) {
+                          setFocusedIndex(virtualRow.index);
+                          onSelectInvoice(invoice);
+                        }
+                      }}
+                      onFocus={() => setFocusedIndex(virtualRow.index)}
+                      onKeyDown={(e) => handleRowKeyDown(e, virtualRow.index)}
                       className={`absolute left-0 top-0 flex w-full items-center border-b border-border/30 px-5 font-mono text-xs transition-colors ${
                         onSelectInvoice ? "cursor-pointer" : "cursor-default"
                       } ${
                         isActive
                           ? "bg-primary/5 text-primary"
                           : "hover:bg-slate-900/50"
+                      } ${
+                        isFocusable
+                          ? "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
+                          : ""
                       }`}
                       style={{
                         height: `${ROW_HEIGHT}px`,

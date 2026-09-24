@@ -99,4 +99,53 @@ describe("InvoiceTable", () => {
     const activeRow = rows.find((r) => r.getAttribute("aria-selected") === "true");
     expect(activeRow).toBeTruthy();
   });
+
+  // #803 — roving-tabindex keyboard navigation
+  it("only the first data row has tabIndex=0 initially when selectable", () => {
+    const onSelectInvoice = vi.fn();
+    render(
+      <InvoiceTable invoices={mockInvoices as any} onSelectInvoice={onSelectInvoice} />,
+    );
+    const rows = screen.getAllByRole("row");
+    // rows[0] is the header row (<tr> in <thead>), rows[1] and rows[2] are data rows
+    const dataRows = rows.filter((r) => r.getAttribute("tabindex") !== null);
+    const tabZeroRows = dataRows.filter((r) => r.getAttribute("tabindex") === "0");
+    expect(tabZeroRows).toHaveLength(1);
+  });
+
+  it("data rows have no tabIndex when onSelectInvoice is not provided", () => {
+    render(<InvoiceTable invoices={mockInvoices as any} />);
+    const rows = screen.getAllByRole("row");
+    const focusableDataRows = rows.filter(
+      (r) => r.getAttribute("tabindex") !== null,
+    );
+    expect(focusableDataRows).toHaveLength(0);
+  });
+
+  it("ArrowDown moves focus to the next row", () => {
+    const onSelectInvoice = vi.fn();
+    render(
+      <InvoiceTable invoices={mockInvoices as any} onSelectInvoice={onSelectInvoice} />,
+    );
+    const rows = screen.getAllByRole("row");
+    const firstDataRow = rows.find((r) => r.getAttribute("tabindex") === "0");
+    expect(firstDataRow).toBeTruthy();
+    fireEvent.keyDown(firstDataRow!, { key: "ArrowDown" });
+    const rowsAfter = screen.getAllByRole("row");
+    const newFocused = rowsAfter.find((r) => r.getAttribute("tabindex") === "0");
+    expect(newFocused).not.toBe(firstDataRow);
+  });
+
+  it("Enter key calls onSelectInvoice for the focused row", () => {
+    const onSelectInvoice = vi.fn();
+    render(
+      <InvoiceTable invoices={mockInvoices as any} onSelectInvoice={onSelectInvoice} />,
+    );
+    const rows = screen.getAllByRole("row");
+    const firstDataRow = rows.find((r) => r.getAttribute("tabindex") === "0");
+    fireEvent.keyDown(firstDataRow!, { key: "Enter" });
+    expect(onSelectInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({ id: mockInvoices[0].id }),
+    );
+  });
 });
