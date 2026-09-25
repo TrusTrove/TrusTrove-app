@@ -24,7 +24,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10
+          version: 9
 
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
@@ -50,6 +50,8 @@ jobs:
       - name: Run Unit Tests
         run: pnpm test
 
+      - name: Lint SDK
+        run: pnpm --filter @trusttrove/sdk lint
       - name: SDK coverage (with thresholds)
         run: pnpm --filter @trusttrove/sdk test:coverage
 

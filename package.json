@@ -6,11 +6,18 @@
   "scripts": {
     "dev": "pnpm --filter web dev",
     "build": "pnpm --filter @trusttrove/sdk build && pnpm --filter @trusttrove/sdk-react build && pnpm --filter @trusttrove/cli build && pnpm --filter web build",
-    "lint": "pnpm --filter web lint",
+    "lint": "pnpm --filter @trusttrove/sdk lint && pnpm --filter web lint",
     "test": "pnpm --filter @trusttrove/sdk test && pnpm --filter @trusttrove/sdk-react test && pnpm --filter web test",
     "typecheck": "pnpm --filter @trusttrove/sdk build && pnpm --filter @trusttrove/sdk-react build && pnpm --filter @trusttrove/cli build && pnpm -r exec tsc --noEmit"
   },
   "devDependencies": {
     "typescript": "^5.4.5"
+  },
+  "pnpm": {
+    "overrides": {
+      "postcss": ">=8.5.18",
+      "glob": ">=10.5.0",
+      "toml": ">=4.2.0"
+    }
   }
 }
