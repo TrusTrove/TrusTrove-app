@@ -1,11 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { TokenClient } from "@trusttrove/sdk";
-import {
-  useAllowance,
-  useApprove,
-  UseTokenOptions,
-} from "../src/useToken.js";
+import { useAllowance, useApprove, UseTokenOptions } from "../src/useToken.js";
 
 vi.mock("@trusttrove/sdk", () => {
   class MockTokenClient {
@@ -69,12 +65,18 @@ describe("useToken", () => {
       vi.mocked(client.allowance).mockResolvedValue(500n);
 
       const { result, rerender } = renderHook(
-        ({ spender }) => useAllowance(FROM, spender, SIGNER, makeOptions(client)),
+        ({ spender }) =>
+          useAllowance(FROM, spender, SIGNER, makeOptions(client)),
         { initialProps: { spender: SPENDER } },
       );
 
       await waitFor(() => expect(result.current.isLoading).toBe(false));
-      expect(client.allowance).toHaveBeenNthCalledWith(1, FROM, SPENDER, SIGNER);
+      expect(client.allowance).toHaveBeenNthCalledWith(
+        1,
+        FROM,
+        SPENDER,
+        SIGNER,
+      );
 
       rerender({ spender: SIGNER });
       await waitFor(() => expect(client.allowance).toHaveBeenCalledTimes(2));

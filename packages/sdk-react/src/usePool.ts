@@ -40,10 +40,10 @@ export function usePoolStats(
   options: UsePoolOptions,
 ): AsyncQueryState<PoolStats> {
   const client = useMemo(() => poolClient(options), [options]);
-  return useAsyncQuery(() => client.getStats(signerPublicKey), [
-    client,
-    signerPublicKey,
-  ]);
+  return useAsyncQuery(
+    () => client.getStats(signerPublicKey),
+    [client, signerPublicKey],
+  );
 }
 
 /**
@@ -59,11 +59,10 @@ export function useLPPosition(
   options: UsePoolOptions,
 ): AsyncQueryState<LPPosition> {
   const client = useMemo(() => poolClient(options), [options]);
-  return useAsyncQuery(() => client.getLPPosition(lp, signerPublicKey), [
-    client,
-    lp,
-    signerPublicKey,
-  ]);
+  return useAsyncQuery(
+    () => client.getLPPosition(lp, signerPublicKey),
+    [client, lp, signerPublicKey],
+  );
 }
 
 export interface UsePoolMutationsOptions {
