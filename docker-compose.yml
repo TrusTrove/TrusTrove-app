@@ -14,3 +14,11 @@ services:
 
 volumes:
   postgres_data:
+  indexer:
+    build: ./indexer
+    ports:
+      - "8080:8080"
+  web:
+    build: ./apps/web
+    ports:
+      - "3000:3000"
