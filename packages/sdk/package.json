@@ -8,6 +8,7 @@
     "build": "tsc",
     "lint": "eslint . --ext .ts",
     "test": "vitest run --passWithNoTests",
+    "test:coverage": "vitest run --coverage --passWithNoTests",
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {
@@ -20,6 +21,7 @@
     "@typescript-eslint/eslint-plugin": "^8.62.1",
     "@typescript-eslint/parser": "^8.62.1",
     "eslint": "^8.57.1",
+    "@vitest/coverage-v8": "^4.1.9",
     "typescript": "^5.4.5",
     "vitest": "^4.1.9"
   }

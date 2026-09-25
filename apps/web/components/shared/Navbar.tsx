@@ -31,6 +31,7 @@ export function Navbar() {
     { name: "SME Dashboard", href: "/dashboard" },
     { name: "LP Portal", href: "/lp" },
     { name: "Marketplace", href: "/marketplace" },
+    { name: "Analytics", href: "/analytics" },
     { name: "Profile", href: "/profile" },
   ];
 
