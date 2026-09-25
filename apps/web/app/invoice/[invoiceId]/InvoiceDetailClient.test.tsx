@@ -6,6 +6,7 @@ import { useInvoice, useInvoiceActions } from "@/hooks/useInvoices";
 import { useWalletStore } from "@/store/wallet";
 import { useRouter } from "next/navigation";
 import type { Invoice } from "@/types";
+import { generateInvoicePdf } from "@/lib/invoicePdf";
 
 // next/navigation's useRouter throws outside of an App Router provider.
 vi.mock("next/navigation", () => ({
@@ -39,6 +40,12 @@ vi.mock("@/store/confirmDialog", () => ({
     cancel: vi.fn(),
     pendingAction: null,
   })),
+}));
+
+// The PDF export is exercised in lib/invoicePdf.test.ts; here it is only
+// asserted that the button wiring calls it.
+vi.mock("@/lib/invoicePdf", () => ({
+  generateInvoicePdf: vi.fn(),
 }));
 
 const ISSUER = "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB";
@@ -429,5 +436,70 @@ describe("InvoiceDetailClient", () => {
       screen.queryByText(/Marking goods as shipped\.\.\./i),
     ).not.toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("shows a Download PDF button without a connected wallet", () => {
+    render(<InvoiceDetailClient invoiceId={INVOICE_ID} />);
+
+    expect(screen.getByRole("button", { name: /Download PDF/i })).toBeEnabled();
+  });
+
+  it("exports the loaded invoice as a PDF", async () => {
+    vi.mocked(generateInvoicePdf).mockResolvedValue(undefined);
+
+    render(<InvoiceDetailClient invoiceId={INVOICE_ID} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Download PDF/i }));
+
+    await waitFor(() =>
+      expect(generateInvoicePdf).toHaveBeenCalledWith(
+        expect.objectContaining({ id: INVOICE_ID, status: "Funded" }),
+      ),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /Download PDF/i }),
+      ).toBeEnabled(),
+    );
+  });
+
+  it("shows a loading state while the PDF is being generated", async () => {
+    let releasePdf: (() => void) | undefined;
+    vi.mocked(generateInvoicePdf).mockReturnValue(
+      new Promise<void>((resolve) => {
+        releasePdf = () => resolve();
+      }),
+    );
+
+    render(<InvoiceDetailClient invoiceId={INVOICE_ID} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Download PDF/i }));
+
+    const exportingButton = await screen.findByRole("button", {
+      name: /Generating PDF/i,
+    });
+    expect(exportingButton).toBeDisabled();
+    expect(exportingButton).toHaveAttribute("aria-busy", "true");
+
+    releasePdf?.();
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /Download PDF/i }),
+      ).toBeEnabled(),
+    );
+  });
+
+  it("surfaces PDF generation failures", async () => {
+    vi.mocked(generateInvoicePdf).mockRejectedValue(new Error("PDF failed"));
+
+    render(<InvoiceDetailClient invoiceId={INVOICE_ID} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Download PDF/i }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent("PDF failed"),
+    );
+    expect(screen.getByRole("button", { name: /Download PDF/i })).toBeEnabled();
   });
 });
