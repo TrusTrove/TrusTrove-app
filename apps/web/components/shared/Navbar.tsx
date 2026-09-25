@@ -9,7 +9,9 @@ import { SkeletonShimmer } from "./SkeletonLoader";
 import { useWalletStore } from "@/store/wallet";
 import { useBalances } from "@/hooks/useBalances";
 import { useProfile } from "@/hooks/useProfile";
+import { useNotifications } from "@/hooks/useNotifications";
 import { Wallet, Shield, Terminal, ExternalLink, Menu, X } from "lucide-react";
+import { NotificationBell } from "./NotificationBell";
 
 const ROLES = ["issuer", "buyer", "lp"] as const;
 type Role = (typeof ROLES)[number];
@@ -25,6 +27,7 @@ export function Navbar() {
   const connected = useWalletStore((s) => s.connected);
   const { balances, loading: balancesLoading } = useBalances();
   const { isVerified } = useProfile();
+  const { notifications, markAllAsRead } = useNotifications();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navItems = [
@@ -167,7 +170,13 @@ export function Navbar() {
               </>
             )}
 
-            <ThemeToggle />
+            <div className="hidden sm:flex items-center gap-2">
+              <NotificationBell
+                notifications={notifications}
+                onOpen={markAllAsRead}
+              />
+              <ThemeToggle />
+            </div>
 
             <div className="hidden sm:block">
               <WalletConnect />
@@ -222,7 +231,11 @@ export function Navbar() {
             })}
           </div>
 
-          <div className="mt-4 sm:hidden">
+          <div className="mt-4 sm:hidden flex items-center justify-between gap-4">
+            <NotificationBell
+              notifications={notifications}
+              onOpen={markAllAsRead}
+            />
             <WalletConnect />
           </div>
         </div>

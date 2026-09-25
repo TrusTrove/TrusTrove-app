@@ -14,11 +14,78 @@ import {
   Building2,
   Calendar,
   UserCheck,
-  FileBadge2,
   Building,
   Fingerprint,
+  BellRing,
+  FileBadge2,
 } from "lucide-react";
 import { truncateAddress } from "@/lib/format";
+
+function NotificationPreferences({ address }: { address: string }) {
+  const categories = [
+    "Invoice Created",
+    "Invoice Listed",
+    "Invoice Funded",
+    "Invoice Shipped",
+    "Delivery Confirmed",
+    "Invoice Repaid",
+    "Invoice Defaulted",
+  ];
+
+  const storageKey = `trusttrove_prefs_${address}`;
+  const [prefs, setPrefs] = useState<Record<string, boolean>>(() => {
+    try {
+      const stored = localStorage.getItem(storageKey);
+      if (stored) return JSON.parse(stored);
+    } catch (e) {}
+    // Default to true for all
+    const initial: Record<string, boolean> = {};
+    categories.forEach((c) => (initial[c] = true));
+    return initial;
+  });
+
+  const toggleCategory = (category: string) => {
+    const nextPrefs = { ...prefs, [category]: !prefs[category] };
+    setPrefs(nextPrefs);
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(nextPrefs));
+    } catch (e) {}
+  };
+
+  return (
+    <div className="mt-8 space-y-4">
+      <div className="border-b border-border/40 pb-2">
+        <h2 className="text-sm font-bold font-mono tracking-wider uppercase text-white flex items-center gap-2">
+          <BellRing className="w-4 h-4 text-primary" />
+          Notification Preferences
+        </h2>
+        <p className="text-slate-500 text-[10px] font-mono mt-1">
+          Choose which on-chain events trigger in-app notifications.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 font-mono text-xs">
+        {categories.map((category) => (
+          <div
+            key={category}
+            className="flex items-center justify-between p-3 rounded-lg border border-border bg-card"
+          >
+            <span className="text-slate-300 font-bold">{category}</span>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                className="sr-only peer"
+                checked={prefs[category] !== false}
+                onChange={() => toggleCategory(category)}
+              />
+              <div className="w-9 h-5 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+            </label>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const registryContractID = process.env.NEXT_PUBLIC_REGISTRY_CONTRACT_ID || "";
 
@@ -259,6 +326,8 @@ export default function ProfilePage() {
             </div>
           )}
         </ErrorBoundary>
+
+        {address && <NotificationPreferences address={address} />}
       </div>
 
       <RegistrationModal

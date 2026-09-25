@@ -22,6 +22,9 @@ vi.mock("@/hooks/useBalances", () => ({
 vi.mock("@/hooks/useProfile", () => ({
   useProfile: () => ({ isVerified: false }),
 }));
+vi.mock("@/hooks/useNotifications", () => ({
+  useNotifications: () => ({ notifications: [], markAllAsRead: vi.fn() }),
+}));
 vi.mock("@/store/wallet", () => ({
   useWalletStore: (selector: any) => {
     const state = { role: "issuer", setRole, connected: true };
@@ -39,6 +42,7 @@ vi.mock("lucide-react", () => {
     X: Icon,
     Moon: Icon,
     Sun: Icon,
+    Bell: Icon,
   };
 });
 
