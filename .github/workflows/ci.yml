@@ -50,6 +50,9 @@ jobs:
       - name: Run Unit Tests
         run: pnpm test
 
+      - name: Lint SDK
+        run: pnpm --filter @trusttrove/sdk lint
+
       - name: Lint Web Application
         run: pnpm --filter web lint
 
