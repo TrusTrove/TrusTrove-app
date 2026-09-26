@@ -10,6 +10,36 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d trusttrove"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  indexer:
+    build:
+      context: .
+      dockerfile: indexer/Dockerfile
+    container_name: trusttrove-indexer
+    env_file:
+      - .env.docker
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: trusttrove-web
+    ports:
+      - "3000:3000"
+    depends_on:
+      - indexer
     restart: unless-stopped
 
 volumes:

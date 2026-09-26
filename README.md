@@ -120,31 +120,45 @@ pnpm install
 ### 2. Set up environment variables
 
 ```bash
-cp .env.example .env.local
+cp .env.docker.example .env.docker   # for the Docker Compose stack below
+cp .env.example .env.local           # only needed for the manual run path
 ```
 
 The contract IDs are pre-filled with the deployed testnet addresses. Review `.env.example` for every frontend, SDK, and indexer variable before changing networks.
 
-### 3. Start PostgreSQL
+### 3. Bring up the full local stack (recommended)
+
+Docker Compose runs the entire stack — database, indexer, and web app — with one command:
 
 ```bash
-docker-compose up -d
+docker compose up -d --build
 ```
 
-### 4. Start the indexer
+Wait for the stack to become healthy (first build takes a few minutes), then check that:
 
-```bash
-cd indexer
-go run main.go
-```
-
-### 5. Start the frontend
-
-```bash
-pnpm --filter web dev
-```
+- **db** (PostgreSQL 15) is listening on `localhost:5432`
+- **indexer** (Go API + indexer) is up on `localhost:8080` and applied database migrations automatically on startup
+- **web** (Next.js) is up on [http://localhost:3000](http://localhost:3000)
 
 Open [http://localhost:3000](http://localhost:3000), connect Freighter on testnet, and get testnet USDC from [demo.stellar.org](https://demo.stellar.org).
+
+To stop the stack: `docker compose down`. To rebuild after changes: `docker compose up -d --build`. To reset the local database: `docker compose down -v` and bring it back up.
+
+### Alternative: run services manually
+
+If you're iterating on indexer or web code directly, run the processes on the host instead of in containers:
+
+```bash
+# 1. Start only the database
+docker compose up -d db
+
+# 2. Start the indexer (applies migrations on startup)
+cd indexer
+go run main.go
+
+# 3. Start the frontend (in another terminal)
+pnpm --filter web dev
+```
 
 ---
 
