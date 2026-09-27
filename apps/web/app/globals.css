@@ -7,6 +7,11 @@
    * `:root` holds the LIGHT theme. The dark palette lives under `.dark`, which
    * `apps/web/app/layout.tsx` renders on <html> by default and the theme
    * toggle (components/shared/ThemeToggle.tsx) adds/removes at runtime.
+   *
+   * Light values are tuned for WCAG AA (>= 4.5:1) wherever they are used as
+   * text: foreground/muted-foreground on every surface, and the --primary,
+   * --secondary and --destructive accents both as text on background, card and
+   * muted surfaces and as fills behind their *-foreground counterparts.
    */
   :root {
     --background: 210 40% 98%;
@@ -16,7 +21,7 @@
     --card-foreground: 210 33% 11%;
     --popover: 0 0% 100%;
     --popover-foreground: 210 33% 11%;
-    --primary: 168 84% 30%;
+    --primary: 168 84% 26%;
     --primary-foreground: 0 0% 100%;
     --secondary: 217 84% 46%;
     --secondary-foreground: 0 0% 100%;
@@ -28,7 +33,7 @@
     --destructive-foreground: 0 0% 100%;
     --border: 214 25% 85%;
     --input: 214 25% 85%;
-    --ring: 168 84% 30%;
+    --ring: 168 84% 26%;
     --radius: 0.5rem;
     --scrollbar-track: 210 33% 94.5%;
     --scrollbar-thumb: 214 20% 74%;
