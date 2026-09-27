@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import "./globals.css";
@@ -23,6 +23,27 @@ export const metadata: Metadata = {
   title: "TrusTrove | Decentralized Trade Finance Operations Terminal",
   description:
     "Tokenize unpaid trade invoices as Stellar assets and receive immediate USDC funding. Yield opportunities for liquidity providers.",
+  // PWA installability: the manifest and icons live in `public/`.
+  manifest: "/manifest.webmanifest",
+  applicationName: "TrusTrove",
+  appleWebApp: {
+    capable: true,
+    title: "TrusTrove",
+    statusBarStyle: "black-translucent",
+  },
+  icons: {
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
+  },
+};
+
+// Next 14 moved `themeColor` from `metadata` to the `viewport` export.
+// Matches the dark `--background` token and the manifest's `theme_color`.
+export const viewport: Viewport = {
+  themeColor: "#080c10",
 };
 
 export default function RootLayout({
