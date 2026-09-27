@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"trusttrove/indexer/db"
+
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -387,5 +389,41 @@ func TestPerClientRateLimiter_TokenRefill(t *testing.T) {
 	// Should be allowed again after refill
 	if !rl.allow(clientKey) {
 		t.Error("should be allowed after token refill")
+	}
+}
+
+func TestRouter_PublicReadRoutesAreRateLimited(t *testing.T) {
+	h := newTestHandler(t)
+	// newTestHandler leaves RateLimitRPS at 0, which would reject every
+	// request. Give this client a real budget (RPS=1 -> burst=2) and stub
+	// the pool-stats reader so the handler answers without a live database.
+	h.cfg.RateLimitRPS = 1
+	h.getPoolStatsFn = func(context.Context) (*db.DbPoolStats, error) {
+		return &db.DbPoolStats{}, nil
+	}
+	router := NewRouter(h)
+
+	const maxRequests = 6
+	allowed, limited := 0, 0
+	for i := 0; i < maxRequests; i++ {
+		req := httptest.NewRequest(http.MethodGet, "/pool/stats", nil)
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		switch rr.Code {
+		case http.StatusOK:
+			allowed++
+		case http.StatusTooManyRequests:
+			limited++
+		default:
+			t.Fatalf("request %d: unexpected status %d; body=%s", i+1, rr.Code, rr.Body.String())
+		}
+	}
+
+	if allowed == 0 {
+		t.Fatal("expected the first requests to be served before the limiter engages")
+	}
+	if limited == 0 {
+		t.Fatalf("expected status %d once the client exceeded the configured RPS", http.StatusTooManyRequests)
 	}
 }

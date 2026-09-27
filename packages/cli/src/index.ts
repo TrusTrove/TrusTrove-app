@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
 import { Command } from "commander";
+import {
+  checkPoolBalanceCommand,
+  type CheckPoolBalanceOptions,
+} from "./commands/check-pool-balance.js";
 
 function readVersion(): string {
   try {
@@ -22,16 +26,13 @@ program
   )
   .version(readVersion(), "-v, --version", "output the current version");
 
-program.addHelpText(
-  "afterAll",
-  [
-    "",
-    "Scope:",
-    "  This release only wires the CLI entrypoint and argument parsing.",
-    "  Real commands (list-invoices, check-pool-balance) land in follow-up",
-    "  issues built on @trusttrove/sdk.",
-    "",
-  ].join("\n"),
-);
+program
+  .command("check-pool-balance")
+  .description("Fetch and print pool balance stats for the configured pool")
+  .option("--public-key <key>", "public key for the read-only simulation")
+  .option("--pool-contract-id <id>", "override the pool contract ID")
+  .action(async (options: CheckPoolBalanceOptions) => {
+    await checkPoolBalanceCommand(options);
+  });
 
 await program.parseAsync(process.argv);

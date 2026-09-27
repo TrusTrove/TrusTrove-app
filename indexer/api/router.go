@@ -307,15 +307,16 @@ func NewRouter(h *APIHandler) *chi.Mux {
 		r.Post("/auth", h.HandlePostAuth)
 	})
 
-	// Public protocol stats (cached, no auth)
-	r.Get("/stats", h.HandleGetStats)
-
-	// Invoices, Events, and Pool routes
-	r.Get("/events", h.HandleGetEvents)
-	r.Get("/invoices/{id}", h.HandleGetInvoiceByID)
-	r.Get("/invoices", h.HandleGetInvoices)
-	r.Get("/pool/stats", h.HandleGetPoolStats)
-	r.Get("/pool/position/{address}", h.HandleGetLPPosition)
+	// Public read-only routes (rate limited to protect the API and Soroban-backed reads)
+	r.Group(func(r chi.Router) {
+		r.Use(RateLimitMiddleware(rl))
+		r.Get("/stats", h.HandleGetStats)
+		r.Get("/events", h.HandleGetEvents)
+		r.Get("/invoices/{id}", h.HandleGetInvoiceByID)
+		r.Get("/invoices", h.HandleGetInvoices)
+		r.Get("/pool/stats", h.HandleGetPoolStats)
+		r.Get("/pool/position/{address}", h.HandleGetLPPosition)
+	})
 
 	// Protected routes (rate limited)
 	r.Group(func(r chi.Router) {

@@ -79,6 +79,12 @@ type EventListener struct {
 	health     *api.ListenerHealth
 	dispatcher WebhookDispatcher
 
+	// retryBackoff is the delay applied after the first failed poll. It
+	// doubles on every consecutive failure up to maxRetryBackoff and resets
+	// once a poll succeeds. Production leaves it at defaultRetryBackoff;
+	// tests shorten it so the retry loop can be exercised quickly.
+	retryBackoff time.Duration
+
 	// dependency-injectable storage helpers. Defaults are wired in
 	// NewEventListener so production behavior is unchanged; tests in this
 	// package can override individual fields to avoid requiring a live DB
@@ -89,11 +95,19 @@ type EventListener struct {
 	isEventProcessedFn         func(context.Context, string) (bool, error)
 }
 
+const (
+	// defaultRetryBackoff is the initial delay before retrying a failed poll.
+	defaultRetryBackoff = time.Second
+	// maxRetryBackoff caps the exponential backoff between failed polls.
+	maxRetryBackoff = 30 * time.Second
+)
+
 func NewEventListener(cfg *config.Config, health *api.ListenerHealth, dispatcher WebhookDispatcher) *EventListener {
 	return &EventListener{
 		cfg:                        cfg,
 		health:                     health,
 		dispatcher:                 dispatcher,
+		retryBackoff:               defaultRetryBackoff,
 		getCheckpointFn:            db.GetCheckpoint,
 		getLatestProcessedLedgerFn: db.GetLatestProcessedLedger,
 		upsertCheckpointFn:         db.UpsertCheckpoint,
@@ -155,6 +169,11 @@ func (l *EventListener) Start(ctx context.Context) error {
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 
+	initialBackoff := l.retryBackoff
+	if initialBackoff <= 0 {
+		initialBackoff = defaultRetryBackoff
+	}
+	backoff := initialBackoff
 	for {
 		select {
 		case <-ctx.Done():
@@ -166,14 +185,31 @@ func (l *EventListener) Start(ctx context.Context) error {
 		case <-ticker.C:
 			nextLedger, err := l.pollEvents(ctx, currentLedger)
 			if err != nil {
-				slog.Error("Error polling events", "error", err)
+				// A single Soroban RPC hiccup must not take down the
+				// listener: report degraded health, back off, and retry.
+				slog.Error("Error polling events; retrying with backoff", "error", err, "backoff", backoff)
 				if l.health != nil {
 					l.health.MarkStopped()
 				}
-				return fmt.Errorf("listener poll failed: %w", err)
+				select {
+				case <-ctx.Done():
+					slog.Info("Event listener stopping...")
+					return nil
+				case <-time.After(backoff):
+				}
+				backoff *= 2
+				if backoff > maxRetryBackoff {
+					backoff = maxRetryBackoff
+				}
+				continue
 			}
+			backoff = initialBackoff
 			if l.health != nil {
-				l.health.MarkHeartbeat()
+				if l.health.IsHealthy() {
+					l.health.MarkHeartbeat()
+				} else {
+					l.health.MarkStarted()
+				}
 			}
 			currentLedger = nextLedger
 

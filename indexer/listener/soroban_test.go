@@ -286,3 +286,57 @@ func TestStart_ProcessesAtLeastOnceThenStopsOnCancel(t *testing.T) {
 		t.Error("expected listener health to be unhealthy after MarkStopped")
 	}
 }
+
+func TestStart_SurvivesConsecutivePollErrors(t *testing.T) {
+	const failures = 3
+	var pollCount int32
+	// Startup (getLatestLedger) succeeds so Start reaches its poll loop;
+	// every getEvents call afterwards fails like a transient RPC outage.
+	server := stubSorobanRPC(t, func(method string) (any, int) {
+		if method == "getEvents" {
+			atomic.AddInt32(&pollCount, 1)
+			return nil, http.StatusInternalServerError
+		}
+		return map[string]any{"sequence": int32(500)}, http.StatusOK
+	})
+
+	l := newTestEventListener(t, func(c *config.Config) {
+		c.SorobanRPCURL = server.URL
+		c.IndexerPollIntervalMs = 5
+		c.RegistryContractID = "CABGWVIZFF62FG67ZGFEP67NEEY4WYTMFURDMFTKKNRDAFPKPOJDTN4C"
+	})
+	l.retryBackoff = 5 * time.Millisecond
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	errCh := make(chan error, 1)
+	go func() { errCh <- l.Start(ctx) }()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for atomic.LoadInt32(&pollCount) < failures {
+		if time.Now().After(deadline) {
+			t.Fatal("listener exited after transient poll errors instead of retrying")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	// /health must surface the outage while the listener is backing off.
+	healthDeadline := time.Now().Add(time.Second)
+	for l.health.IsHealthy() && time.Now().Before(healthDeadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if l.health.IsHealthy() {
+		t.Error("expected listener health to report degraded while retrying")
+	}
+
+	cancel()
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Fatalf("expected nil error on cancel after retry loop, got %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Start did not return after cancel")
+	}
+}
