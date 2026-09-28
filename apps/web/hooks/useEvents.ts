@@ -12,7 +12,7 @@ export function useRecentEvents(
 ) {
   const eventsQuery = useQuery({
     queryKey: ["recentEvents", limit],
-    queryFn: () => getRecentEvents(limit),
+    queryFn: ({ signal }) => getRecentEvents(limit, { signal }),
     refetchInterval: options?.refetchInterval,
   });
 

@@ -4,6 +4,7 @@ import {
   getInvoices,
   getInvoiceByID,
   createInvoice,
+  mutationRetryPolicy,
   PaginatedInvoices,
 } from "@/lib/api";
 import { useWalletStore } from "@/store/wallet";
@@ -87,7 +88,15 @@ export function useInvoiceActions() {
     return poolClientRef.current;
   }, []);
 
+  const invoicesQuery = useQuery<PaginatedInvoices>({
+    queryKey: ["invoices", filters],
+    queryFn: ({ signal }) => getInvoices(filters, { signal }),
+    refetchInterval: 15000,
+    staleTime: 15000,
+  });
+
   const createInvoiceMutation = useMutation({
+    ...mutationRetryPolicy,
     mutationFn: async ({
       buyer,
       faceValue,
@@ -111,6 +120,7 @@ export function useInvoiceActions() {
   });
 
   const listInvoiceMutation = useMutation({
+    ...mutationRetryPolicy,
     mutationFn: async ({
       invoiceId,
       discountBps,
@@ -132,6 +142,7 @@ export function useInvoiceActions() {
   });
 
   const fundInvoiceMutation = useMutation({
+    ...mutationRetryPolicy,
     mutationFn: async ({ invoiceId }: { invoiceId: string }) => {
       if (!address) throw new Error("Wallet not connected");
       const client = await getPoolClient();
@@ -147,6 +158,7 @@ export function useInvoiceActions() {
   });
 
   const shipInvoiceMutation = useMutation({
+    ...mutationRetryPolicy,
     mutationFn: async ({ invoiceId }: { invoiceId: string }) => {
       if (!address) throw new Error("Wallet not connected");
       const client = await getInvoiceClient();
@@ -162,6 +174,7 @@ export function useInvoiceActions() {
   });
 
   const confirmDeliveryMutation = useMutation({
+    ...mutationRetryPolicy,
     mutationFn: async ({ invoiceId }: { invoiceId: string }) => {
       if (!address) throw new Error("Wallet not connected");
       const invoice = await getInvoiceByID(invoiceId);
@@ -178,6 +191,7 @@ export function useInvoiceActions() {
   });
 
   const repayInvoiceMutation = useMutation({
+    ...mutationRetryPolicy,
     mutationFn: async ({ invoiceId }: { invoiceId: string }) => {
       if (!address) throw new Error("Wallet not connected");
       const client = await getInvoiceClient();
@@ -209,6 +223,7 @@ export function useInvoiceActions() {
   });
 
   const defaultInvoiceMutation = useMutation({
+    ...mutationRetryPolicy,
     mutationFn: async ({ invoiceId }: { invoiceId: string }) => {
       if (!address) throw new Error("Wallet not connected");
       const client = await getInvoiceClient();
@@ -349,7 +364,7 @@ export function useInvoices(filters?: {
 export function useInvoice(id: string) {
   const invoiceQuery = useQuery({
     queryKey: ["invoice", id],
-    queryFn: () => getInvoiceByID(id),
+    queryFn: ({ signal }) => getInvoiceByID(id, { signal }),
     enabled: !!id,
     staleTime: 60000,
   });
