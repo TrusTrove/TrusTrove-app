@@ -235,6 +235,43 @@ describe("useProfile", () => {
     ).rejects.toThrow("On-chain error");
   });
 
+  it("constructs exactly one RegistryClient instance per mount", async () => {
+    act(() => {
+      useWalletStore.getState().connect("G123", "testnet");
+    });
+
+    vi.mocked(RegistryClient).mockImplementation(function () {
+      return {
+        getProfile: vi.fn().mockResolvedValue(null),
+        isVerified: vi.fn().mockResolvedValue(false),
+        registerIssuer: vi.fn().mockResolvedValue("tx_hash"),
+        registerBuyer: vi.fn().mockResolvedValue("tx_hash"),
+      };
+    } as any);
+
+    const { result, rerender, unmount } = renderHook(() => useProfile());
+
+    // Re-renders, refetches, and mutations must all reuse the memoized client.
+    rerender();
+    await act(async () => {
+      await result.current.register({
+        role: "issuer",
+        metadata: { name: "Test Issuer" },
+      });
+      await result.current.refetchProfile();
+    });
+
+    expect(vi.mocked(RegistryClient)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(RegistryClient)).toHaveBeenCalledWith(
+      process.env.NEXT_PUBLIC_REGISTRY_CONTRACT_ID || "",
+    );
+
+    // A fresh mount constructs a new (single) client instance.
+    unmount();
+    renderHook(() => useProfile());
+    expect(vi.mocked(RegistryClient)).toHaveBeenCalledTimes(2);
+  });
+
   it("refetchProfile refetches both queries", async () => {
     const refetch1 = vi.fn().mockResolvedValue(undefined);
     const refetch2 = vi.fn().mockResolvedValue(undefined);

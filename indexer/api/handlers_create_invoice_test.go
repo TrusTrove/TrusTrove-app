@@ -10,6 +10,8 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"trusttrove/indexer/soroban"
+
 	"github.com/stellar/go-stellar-sdk/keypair"
 	"github.com/stellar/go-stellar-sdk/xdr"
 )
@@ -159,7 +161,7 @@ func TestHandleCreateInvoice_HappyPath(t *testing.T) {
 	var simulateCalls atomic.Int32
 	var transactionCalls atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var request JsonRpcRequest
+		var request soroban.JsonRpcRequest
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { getNetworkDetails } from "@stellar/freighter-api";
 import { useWalletStore } from "@/store/wallet";
 import { connectFreighter, FreighterError } from "@/lib/freighter";
@@ -17,16 +17,7 @@ interface FreighterNetworkDetails {
   network?: string;
 }
 
-function hasFreighterExtension(): boolean {
-  return typeof window !== "undefined" && "freighter" in window;
-}
-
 async function validateFreighterNetwork(): Promise<void> {
-  // The connection helper already handles wallet availability. This guard also
-  // keeps mocked connections and non-browser environments from attempting to
-  // access the extension API when no Freighter provider is present.
-  if (!hasFreighterExtension()) return;
-
   const details = (await getNetworkDetails()) as FreighterNetworkDetails;
   const network = details.network?.trim().toLowerCase();
 
@@ -62,7 +53,11 @@ async function validateFreighterNetwork(): Promise<void> {
  * const { address, connected, connectWallet, disconnectWallet, loading, error } = useWallet();
  */
 export function useWallet() {
-  const { address, connected, network, connect, disconnect } = useWalletStore();
+  const address = useWalletStore((s) => s.address);
+  const connected = useWalletStore((s) => s.connected);
+  const network = useWalletStore((s) => s.network);
+  const connect = useWalletStore((s) => s.connect);
+  const disconnect = useWalletStore((s) => s.disconnect);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
@@ -80,7 +75,11 @@ export function useWallet() {
    * address and defaults the network to `'testnet'`. The connection is rejected
    * if Freighter reports a different active network.
    */
+  const connectingRef = useRef(false);
+
   const connectWallet = async () => {
+    if (connectingRef.current) return;
+    connectingRef.current = true;
     setLoading(true);
     setError(null);
     setErrorCode(null);
@@ -105,6 +104,7 @@ export function useWallet() {
       disconnect();
     } finally {
       setLoading(false);
+      connectingRef.current = false;
     }
   };
 

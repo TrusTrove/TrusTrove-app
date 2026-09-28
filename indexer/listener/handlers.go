@@ -10,6 +10,7 @@ import (
 	"trusttrove/indexer/api"
 	"trusttrove/indexer/config"
 	"trusttrove/indexer/db"
+	"trusttrove/indexer/soroban"
 	"trusttrove/indexer/xdrutil"
 
 	"github.com/stellar/go-stellar-sdk/keypair"
@@ -21,7 +22,7 @@ func SyncPoolStats(ctx context.Context, cfg *config.Config, serverKP *keypair.Fu
 	slog.Info("Syncing pool stats from chain...")
 
 	// Read stats from pool contract on-chain
-	scValResult, err := api.ReadContract(ctx, cfg.SorobanRPCURL, cfg.PoolContractID, "get_stats", []xdr.ScVal{}, serverKP)
+	scValResult, err := soroban.ReadContract(ctx, cfg.SorobanRPCURL, cfg.PoolContractID, "get_stats", []xdr.ScVal{}, serverKP)
 	if err != nil {
 		return fmt.Errorf("sync pool stats: read contract: %w", err)
 	}
@@ -285,6 +286,72 @@ func (l *EventListener) handleInvoiceDefaulted(ctx context.Context, event Soroba
 	return nil
 }
 
+func (l *EventListener) handleAttestationSubmitted(ctx context.Context, event SorobanEvent, ledgerClosedAt int64) error {
+	// Topic format: ["AttestationSubmitted" / "submit_attestation", invoice_id_bytes, agent_id_symbol]
+	// Value: risk_score (u32)
+	if len(event.Topic) < 2 {
+		return fmt.Errorf("invalid topic length for attestation event")
+	}
+
+	var idVal xdr.ScVal
+	err := xdr.SafeUnmarshalBase64(event.Topic[1], &idVal)
+	if err != nil {
+		return fmt.Errorf("parse topic invoice_id: %w", err)
+	}
+	invoiceID := xdrutil.ParseBytes(idVal)
+
+	// Parse agent_id from topic[2] if present
+	agentID := ""
+	if len(event.Topic) >= 3 {
+		var agentVal xdr.ScVal
+		err = xdr.SafeUnmarshalBase64(event.Topic[2], &agentVal)
+		if err == nil && agentVal.Sym != nil {
+			agentID = string(*agentVal.Sym)
+		}
+	}
+
+	// Parse risk_score from value
+	riskScoreBps := 0
+	var val xdr.ScVal
+	err = xdr.SafeUnmarshalBase64(event.Value, &val)
+	if err == nil {
+		riskScoreBps = int(xdrutil.ParseU32(val))
+	}
+
+	err = db.UpdateInvoiceAttestation(ctx, invoiceID, agentID, "", riskScoreBps, ledgerClosedAt)
+	if err != nil {
+		return err
+	}
+
+	slog.Info("Indexed event: AttestationSubmitted", "id", invoiceID, "agentID", agentID, "riskScoreBps", riskScoreBps)
+	return nil
+}
+func (l *EventListener) handleRegistrationEvent(ctx context.Context, event SorobanEvent, ledgerClosedAt int64, eventName string) error {
+	// Topic format: ["issuer_registered" / "buyer_registered", account_address]
+	if len(event.Topic) < 2 {
+		return fmt.Errorf("invalid topic length for registration event")
+	}
+
+	var addrVal xdr.ScVal
+	if err := xdr.SafeUnmarshalBase64(event.Topic[1], &addrVal); err != nil {
+		return fmt.Errorf("parse registration address topic: %w", err)
+	}
+	address := xdrutil.ParseAddress(addrVal)
+	if address == "" {
+		return fmt.Errorf("registration event value: topic address is not a valid address")
+	}
+
+	logData := map[string]interface{}{
+		"address": address,
+	}
+	if err := db.LogEvent(ctx, event.ID, event.ContractID, event.Ledger, ledgerClosedAt, eventName, logData); err != nil {
+		return err
+	}
+
+	slog.Info("Indexed event: registration", "event", eventName, "address", address)
+	return nil
+}
+
 func (l *EventListener) handleEvent(ctx context.Context, event SorobanEvent) error {
 	if len(event.Topic) == 0 {
 		return fmt.Errorf("event topic is empty")
@@ -331,6 +398,13 @@ func (l *EventListener) handleEvent(ctx context.Context, event SorobanEvent) err
 		err = l.handleInvoiceRepaid(ctx, event, serverKP, ledgerClosedAt)
 	case "trigger_default", "InvoiceDefaulted":
 		err = l.handleInvoiceDefaulted(ctx, event, serverKP)
+	case "submit_attestation", "AttestationSubmitted":
+		err = l.handleAttestationSubmitted(ctx, event, ledgerClosedAt)
+	case "issuer_registered", "buyer_registered":
+		// Registry contract registrations are logged (and de-duplicated) via
+		// events_log but have no invoice fan-out, so they short-circuit the
+		// generic tail below.
+		return l.handleRegistrationEvent(ctx, event, ledgerClosedAt, eventName)
 	default:
 		slog.Debug("Skipping unhandled contract event", "name", eventName)
 		return nil
@@ -374,6 +448,17 @@ func (l *EventListener) handleEvent(ctx context.Context, event SorobanEvent) err
 	err = db.LogEvent(ctx, event.ID, event.ContractID, event.Ledger, ledgerClosedAt, eventName, logData)
 	if err != nil {
 		slog.Error("Failed to log event in DB", "eventId", event.ID, "error", err)
+	}
+
+	// Fan out to webhook subscribers (non-blocking: failures are logged, not returned)
+	if l.dispatcher != nil {
+		dispatchData := make(map[string]interface{}, len(logData)+2)
+		for k, v := range logData {
+			dispatchData[k] = v
+		}
+		dispatchData["event_id"] = event.ID
+		dispatchData["ledger"] = event.Ledger
+		l.dispatcher.Dispatch(ctx, eventName, dispatchData)
 	}
 
 	return nil

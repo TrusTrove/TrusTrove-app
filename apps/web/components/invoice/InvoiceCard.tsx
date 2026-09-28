@@ -1,9 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useId, useState } from "react";
 import { Invoice } from "@/types";
 import { InvoiceStatus } from "./InvoiceStatus";
-import { useInvoices } from "@/hooks/useInvoices";
+import { VerificationBadge } from "./VerificationBadge";
+import type { VerificationState } from "./VerificationBadge";
+import { useInvoiceActions } from "@/hooks/useInvoices";
 import { Button } from "@/components/ui/button";
 import { useWalletStore } from "@/store/wallet";
 import { useProfile } from "@/hooks/useProfile";
@@ -19,6 +21,8 @@ import {
   Clock,
 } from "lucide-react";
 import { formatAmount } from "@/lib/assets";
+import { truncateAddress } from "@/lib/format";
+import { MAX_DISCOUNT_BPS, validateDiscountBps } from "@/lib/validation";
 import { useConfirmDialogStore } from "@/store/confirmDialog";
 
 interface InvoiceCardProps {
@@ -34,7 +38,7 @@ export const InvoiceCard = React.memo(function InvoiceCard({
   onSelect,
   isSelected,
 }: InvoiceCardProps) {
-  const { address } = useWalletStore();
+  const address = useWalletStore((s) => s.address);
   const { isVerified } = useProfile();
   const {
     listInvoice,
@@ -43,7 +47,7 @@ export const InvoiceCard = React.memo(function InvoiceCard({
     confirmDelivery,
     repayInvoice,
     defaultInvoice,
-  } = useInvoices();
+  } = useInvoiceActions();
   const { request: requestConfirmation } = useConfirmDialogStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,11 +55,7 @@ export const InvoiceCard = React.memo(function InvoiceCard({
   const [copiedBuyer, setCopiedBuyer] = useState(false);
   const [discountBpsInput, setDiscountBpsInput] = useState("200"); // default 2%
   const [showListForm, setShowListForm] = useState(false);
-
-  const truncateAddr = (addr: string) => {
-    if (!addr) return "";
-    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-  };
+  const discountBpsId = useId();
 
   const copyToClipboard = async (text: string, type: "id" | "buyer") => {
     await navigator.clipboard.writeText(text);
@@ -73,9 +73,9 @@ export const InvoiceCard = React.memo(function InvoiceCard({
     setError(null);
     try {
       const bps = parseInt(discountBpsInput, 10);
-      if (isNaN(bps) || bps <= 0 || bps > 10000) {
+      if (!validateDiscountBps(bps)) {
         throw new Error(
-          "Discount basis points must be between 1 and 10,000 (100%)",
+          `Discount basis points must be between 1 and ${MAX_DISCOUNT_BPS.toLocaleString()} (50%)`,
         );
       }
       await listInvoice({ invoiceId: invoice.id, discountBps: bps });
@@ -110,6 +110,12 @@ export const InvoiceCard = React.memo(function InvoiceCard({
 
   const showActions = !!address;
 
+  // Derive per-invoice verification state from attestation fields
+  const verificationState: VerificationState =
+    invoice.riskScoreBps != null ? "verified" : "unverified";
+  // "failed" is reserved for a future explicit failure signal from the indexer;
+  // it is intentionally not wired to fake data here.
+
   // Render actions depending on state
   return (
     <div
@@ -124,7 +130,7 @@ export const InvoiceCard = React.memo(function InvoiceCard({
         <div className="space-y-1">
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] font-mono text-slate-500 font-bold">
-              INV#{truncateAddr(invoice.id)}
+              INV#{truncateAddress(invoice.id)}
             </span>
             <button
               onClick={(e) => {
@@ -145,7 +151,13 @@ export const InvoiceCard = React.memo(function InvoiceCard({
             Invoice obligation
           </h3>
         </div>
-        <InvoiceStatus status={invoice.status} />
+        <div className="flex items-center gap-2">
+          <VerificationBadge
+            state={verificationState}
+            riskScoreBps={invoice.riskScoreBps}
+          />
+          <InvoiceStatus status={invoice.status} />
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 mb-4">
@@ -174,7 +186,7 @@ export const InvoiceCard = React.memo(function InvoiceCard({
           <span className="text-slate-500">Buyer Address:</span>
           <div className="flex items-center gap-1">
             <span className="text-slate-300" title={invoice.buyer}>
-              {truncateAddr(invoice.buyer)}
+              {truncateAddress(invoice.buyer)}
             </span>
             <button
               onClick={(e) => {
@@ -283,11 +295,18 @@ export const InvoiceCard = React.memo(function InvoiceCard({
           {showListForm && (
             <div className="bg-[#080c10] p-3 border border-border rounded space-y-3">
               <div>
-                <label className="block text-[10px] font-bold font-mono text-slate-500 uppercase tracking-wider mb-1">
-                  Discount Basis Points (e.g. 200 = 2.00%)
+                <label
+                  htmlFor={discountBpsId}
+                  className="block text-[10px] font-bold font-mono text-slate-500 uppercase tracking-wider mb-1"
+                >
+                  Discount Basis Points (e.g. 200 = 2.00%, max 5,000 = 50%)
                 </label>
                 <input
+                  id={discountBpsId}
                   type="number"
+                  min={1}
+                  max={MAX_DISCOUNT_BPS}
+                  step={1}
                   className="w-full bg-slate-900 border border-border rounded px-3 py-1.5 text-white font-mono text-xs focus:outline-none focus:border-primary"
                   value={discountBpsInput}
                   onChange={(e) => setDiscountBpsInput(e.target.value)}

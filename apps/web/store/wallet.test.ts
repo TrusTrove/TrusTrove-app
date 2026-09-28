@@ -114,6 +114,7 @@ describe("wallet store", () => {
   });
 
   it("partialize persists address, network, connected, and role", () => {
+  it("partialize persists only the selected role", () => {
     useWalletStore.getState().connect("GA123", "testnet");
     useWalletStore.getState().setToken("jwt");
     useWalletStore.getState().setRole("buyer");
@@ -135,6 +136,7 @@ describe("wallet store", () => {
     const raw = localStorage.getItem("wallet-storage");
     const persisted = JSON.parse(raw!);
     expect(persisted.state.token).toBeUndefined();
+    expect(persisted.state).toEqual({ role: "buyer" });
   });
 
   it("persist middleware stores state under correct key", () => {
@@ -190,5 +192,33 @@ describe("wallet store", () => {
       expect(state.address).toBeNull();
       expect(state.network).toBeNull();
     });
+  it("clears stale wallet session fields when rehydrating legacy storage", async () => {
+    useWalletStore.setState({
+      address: "GCURRENT",
+      connected: true,
+      network: "testnet",
+      token: "current-token",
+      role: "issuer",
+    });
+    localStorage.setItem(
+      "wallet-storage",
+      JSON.stringify({
+        state: {
+          address: "GSTALE",
+          network: "mainnet",
+          role: "buyer",
+        },
+        version: 0,
+      }),
+    );
+
+    await useWalletStore.persist.rehydrate();
+
+    const state = useWalletStore.getState();
+    expect(state.address).toBeNull();
+    expect(state.connected).toBe(false);
+    expect(state.network).toBeNull();
+    expect(state.token).toBeNull();
+    expect(state.role).toBe("buyer");
   });
 });

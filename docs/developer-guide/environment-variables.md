@@ -21,6 +21,7 @@
 | `INVOICE_CONTRACT_ID`              | Backend only       | Deployed invoice contract address        | `CA4O...`                                            |
 | `ESCROW_CONTRACT_ID`               | Backend only       | Deployed escrow contract address         | `CAJW...`                                            |
 | `POOL_CONTRACT_ID`                 | Backend only       | Deployed pool contract address           | `CAKE...`                                            |
+| `AGENT_REGISTRY_CONTRACT`          | Backend only       | Deployed agent-registry contract address | `CABC...`                                            |
 | `USDC_ISSUER`                      | Backend only       | USDC issuer on Stellar testnet           | `GBBD...`                                            |
 | `USDC_ASSET_CODE`                  | Backend only       | USDC asset code                          | `USDC`                                               |
 | `DATABASE_URL`                     | Backend only       | Neon pooled connection string            | `postgresql://user:pass@host/db?sslmode=require`     |
@@ -30,6 +31,8 @@
 | `JWT_SECRET`                       | Backend only       | Secret for JWT signing                   | `your-secret-here`                                   |
 | `JWT_EXPIRY_HOURS`                 | Backend only       | JWT token expiry                         | `24`                                                 |
 | `ALLOWED_ORIGINS`                  | Backend only       | Allowed CORS origins for the indexer API | `https://trustrove.vercel.app,http://localhost:3000` |
+
+> **Note:** `AGENT_REGISTRY_CONTRACT` is deployed from Underwrite's separate `underwrite-contract` repo, not from this monorepo.
 
 ## Source of truth
 

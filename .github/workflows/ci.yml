@@ -29,6 +29,16 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Audit npm dependencies
+        # pnpm-workspace.yaml's auditConfig.ignoreGhsas lists the specific,
+        # already-triaged advisories this ignores (next 14->15 and toml 3->4,
+        # both needing a major-version bump, not a patch override) and why.
+        # Any new high/critical advisory not on that list fails the build.
+        run: pnpm audit --audit-level=high
+
       - name: Build Packages (SDK & Web App)
         run: pnpm build
         env:
@@ -40,6 +50,19 @@ jobs:
       - name: Run Unit Tests
         run: pnpm test
 
+      - name: SDK coverage (with thresholds)
+        run: pnpm --filter @trusttrove/sdk test:coverage
+
+      - name: Upload SDK coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdk-coverage-report
+          path: |
+            packages/sdk/coverage
+            packages/sdk/coverage/lcov.info
+          if-no-files-found: warn
+
       - name: Lint Web Application
         run: pnpm --filter web lint
 
@@ -50,6 +73,21 @@ jobs:
     name: Verify Go Indexer & API
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: trusttrove_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -57,7 +95,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          go-version: "1.25"
 
       - name: Get Dependencies
         run: |
@@ -72,7 +110,32 @@ jobs:
       - name: Test Go Services
         run: |
           cd indexer
-          go test -v ./...
+          go test -v -coverprofile=coverage.out ./...
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/trusttrove_test?sslmode=disable
+          INDEXER_MIGRATIONS_DIR: ${{ github.workspace }}/indexer/db/migrations
+
+      - name: Enforce indexer/db coverage threshold
+        run: |
+          cd indexer
+          go test -covermode=atomic -coverprofile=db-coverage.out ./db/... \
+            | tee /dev/stderr \
+            | grep -oE 'coverage: [0-9.]+% of statements' \
+            | grep -oE '[0-9.]+' \
+            > /tmp/db_coverage_pct.txt
+          pct=$(cat /tmp/db_coverage_pct.txt)
+          echo "indexer/db statement coverage: ${pct}%"
+          awk -v pct="$pct" 'BEGIN { exit !(pct >= 70) }' \
+            || (echo "indexer/db coverage ${pct}% is below the required 70% threshold" && exit 1)
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/trusttrove_test?sslmode=disable
+          INDEXER_MIGRATIONS_DIR: ${{ github.workspace }}/indexer/db/migrations
+
+      - name: Vulnerability scan (govulncheck)
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          cd indexer
+          govulncheck ./...
 
       - name: Lint Go Services
         run: |

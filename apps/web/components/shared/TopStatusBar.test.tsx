@@ -94,7 +94,23 @@ describe("TopStatusBar", () => {
     expect(screen.getAllByText(/GCXQA4VO\.\.\./).length).toBeGreaterThan(0);
   });
 
-  it("falls back to placeholder ticker when the hook reports an error", () => {
+  it("shows a loading indicator while the events query is loading", () => {
+    vi.mocked(useRecentEvents).mockReturnValue({
+      events: [],
+      isLoading: true,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(<TopStatusBar />);
+
+    expect(
+      screen.getByText("Loading live network activity..."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Awaiting...")).not.toBeInTheDocument();
+  });
+
+  it("shows a live feed error state when the hook reports an error", () => {
     vi.mocked(useRecentEvents).mockReturnValue({
       events: [],
       isLoading: false,
@@ -104,8 +120,8 @@ describe("TopStatusBar", () => {
 
     render(<TopStatusBar />);
 
-    expect(screen.getAllByText("Awaiting...").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("0 USDC").length).toBeGreaterThan(0);
+    expect(screen.getByText("Live feed unavailable")).toBeInTheDocument();
+    expect(screen.queryByText("Awaiting...")).not.toBeInTheDocument();
   });
 
   it("toggles the ticker pause state when the pause/play button is clicked", () => {

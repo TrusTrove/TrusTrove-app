@@ -69,6 +69,12 @@ function DefaultErrorFallback({
       >
         Try again
       </button>
+      <button
+        onClick={() => window.location.reload()}
+        className="rounded-md border border-red-700/60 px-3 py-1.5 text-xs text-red-300/80 transition hover:bg-red-900/20"
+      >
+        Reload page
+      </button>
     </div>
   );
 }

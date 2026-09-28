@@ -12,21 +12,25 @@ import (
 )
 
 type DbInvoice struct {
-	ID               string `json:"id"`
-	Issuer           string `json:"issuer"`
-	Buyer            string `json:"buyer"`
-	FaceValue        string `json:"face_value"` // BigInt represented as string for JSON/SQL numeric safety
-	DiscountBps      int    `json:"discount_bps"`
-	FundedAmount     string `json:"funded_amount"`
-	DueDate          int64  `json:"due_date"`
-	Status           string `json:"status"`
-	CreatedAt        int64  `json:"created_at"`
-	FundedAt         *int64 `json:"funded_at"`
-	ShippedAt        *int64 `json:"shipped_at"`
-	IssuerConfirmed  bool   `json:"issuer_confirmed"`
-	BuyerConfirmed   bool   `json:"buyer_confirmed"`
-	BuyerConfirmedAt *int64 `json:"buyer_confirmed_at"`
-	RepaidAt         *int64 `json:"repaid_at"`
+	ID                 string  `json:"id"`
+	Issuer             string  `json:"issuer"`
+	Buyer              string  `json:"buyer"`
+	FaceValue          string  `json:"face_value"` // BigInt represented as string for JSON/SQL numeric safety
+	DiscountBps        int     `json:"discount_bps"`
+	FundedAmount       string  `json:"funded_amount"`
+	DueDate            int64   `json:"due_date"`
+	Status             string  `json:"status"`
+	CreatedAt          int64   `json:"created_at"`
+	FundedAt           *int64  `json:"funded_at"`
+	ShippedAt          *int64  `json:"shipped_at"`
+	IssuerConfirmed    bool    `json:"issuer_confirmed"`
+	BuyerConfirmed     bool    `json:"buyer_confirmed"`
+	BuyerConfirmedAt   *int64  `json:"buyer_confirmed_at"`
+	RepaidAt           *int64  `json:"repaid_at"`
+	AttestationAgentID *string `json:"attestation_agent_id"`
+	RiskScoreBps       *int    `json:"risk_score_bps"`
+	EvidenceHash       *string `json:"evidence_hash"`
+	AttestedAt         *int64  `json:"attested_at"`
 }
 
 type DbPoolStats struct {
@@ -85,28 +89,34 @@ func InsertInvoice(ctx context.Context, inv *DbInvoice) error {
 	query := `
 		INSERT INTO invoices (
 			id, issuer, buyer, face_value, discount_bps, funded_amount, due_date, status, created_at,
-			funded_at, shipped_at, issuer_confirmed, buyer_confirmed, buyer_confirmed_at, repaid_at
+			funded_at, shipped_at, issuer_confirmed, buyer_confirmed, buyer_confirmed_at, repaid_at,
+			attestation_agent_id, risk_score_bps, evidence_hash, attested_at
 		) VALUES (
 			@id, @issuer, @buyer, @face_value, @discount_bps, @funded_amount, @due_date, @status, @created_at,
-			@funded_at, @shipped_at, @issuer_confirmed, @buyer_confirmed, @buyer_confirmed_at, @repaid_at
+			@funded_at, @shipped_at, @issuer_confirmed, @buyer_confirmed, @buyer_confirmed_at, @repaid_at,
+			@attestation_agent_id, @risk_score_bps, @evidence_hash, @attested_at
 		)
 	`
 	args := pgx.NamedArgs{
-		"id":                 inv.ID,
-		"issuer":             inv.Issuer,
-		"buyer":              inv.Buyer,
-		"face_value":         inv.FaceValue,
-		"discount_bps":       inv.DiscountBps,
-		"funded_amount":      inv.FundedAmount,
-		"due_date":           inv.DueDate,
-		"status":             inv.Status,
-		"created_at":         inv.CreatedAt,
-		"funded_at":          inv.FundedAt,
-		"shipped_at":         inv.ShippedAt,
-		"issuer_confirmed":   inv.IssuerConfirmed,
-		"buyer_confirmed":    inv.BuyerConfirmed,
-		"buyer_confirmed_at": inv.BuyerConfirmedAt,
-		"repaid_at":          inv.RepaidAt,
+		"id":                   inv.ID,
+		"issuer":               inv.Issuer,
+		"buyer":                inv.Buyer,
+		"face_value":           inv.FaceValue,
+		"discount_bps":         inv.DiscountBps,
+		"funded_amount":        inv.FundedAmount,
+		"due_date":             inv.DueDate,
+		"status":               inv.Status,
+		"created_at":           inv.CreatedAt,
+		"funded_at":            inv.FundedAt,
+		"shipped_at":           inv.ShippedAt,
+		"issuer_confirmed":     inv.IssuerConfirmed,
+		"buyer_confirmed":      inv.BuyerConfirmed,
+		"buyer_confirmed_at":   inv.BuyerConfirmedAt,
+		"repaid_at":            inv.RepaidAt,
+		"attestation_agent_id": inv.AttestationAgentID,
+		"risk_score_bps":       inv.RiskScoreBps,
+		"evidence_hash":        inv.EvidenceHash,
+		"attested_at":          inv.AttestedAt,
 	}
 	_, err := Pool.Exec(ctx, query, args)
 	if err != nil {
@@ -118,7 +128,8 @@ func InsertInvoice(ctx context.Context, inv *DbInvoice) error {
 func GetInvoiceByID(ctx context.Context, id string) (*DbInvoice, error) {
 	query := `
 		SELECT id, issuer, buyer, face_value, discount_bps, funded_amount, due_date, status, created_at,
-			funded_at, shipped_at, issuer_confirmed, buyer_confirmed, buyer_confirmed_at, repaid_at
+			funded_at, shipped_at, issuer_confirmed, buyer_confirmed, buyer_confirmed_at, repaid_at,
+			attestation_agent_id, risk_score_bps, evidence_hash, attested_at
 		FROM invoices WHERE id = $1
 	`
 	var inv DbInvoice
@@ -126,6 +137,7 @@ func GetInvoiceByID(ctx context.Context, id string) (*DbInvoice, error) {
 		&inv.ID, &inv.Issuer, &inv.Buyer, &inv.FaceValue, &inv.DiscountBps, &inv.FundedAmount,
 		&inv.DueDate, &inv.Status, &inv.CreatedAt, &inv.FundedAt, &inv.ShippedAt,
 		&inv.IssuerConfirmed, &inv.BuyerConfirmed, &inv.BuyerConfirmedAt, &inv.RepaidAt,
+		&inv.AttestationAgentID, &inv.RiskScoreBps, &inv.EvidenceHash, &inv.AttestedAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -165,7 +177,8 @@ func GetInvoicesPage(ctx context.Context, status, issuer string, limit, offset i
 	query := fmt.Sprintf(`
 		SELECT 
 			id, issuer, buyer, face_value, discount_bps, funded_amount, due_date, status, created_at,
-			funded_at, shipped_at, issuer_confirmed, buyer_confirmed, buyer_confirmed_at, repaid_at
+			funded_at, shipped_at, issuer_confirmed, buyer_confirmed, buyer_confirmed_at, repaid_at,
+			attestation_agent_id, risk_score_bps, evidence_hash, attested_at
 		FROM invoices%s
 		ORDER BY created_at DESC
 		LIMIT $%d OFFSET $%d
@@ -185,6 +198,7 @@ func GetInvoicesPage(ctx context.Context, status, issuer string, limit, offset i
 			&inv.ID, &inv.Issuer, &inv.Buyer, &inv.FaceValue, &inv.DiscountBps, &inv.FundedAmount,
 			&inv.DueDate, &inv.Status, &inv.CreatedAt, &inv.FundedAt, &inv.ShippedAt,
 			&inv.IssuerConfirmed, &inv.BuyerConfirmed, &inv.BuyerConfirmedAt, &inv.RepaidAt,
+			&inv.AttestationAgentID, &inv.RiskScoreBps, &inv.EvidenceHash, &inv.AttestedAt,
 		); err != nil {
 			return nil, 0, fmt.Errorf("queries: scan invoice: %w", err)
 		}
@@ -267,6 +281,19 @@ func UpdateInvoiceStatus(ctx context.Context, id string, status string) error {
 	_, err := Pool.Exec(ctx, query, status, id)
 	if err != nil {
 		return fmt.Errorf("queries: update invoice status: %w", err)
+	}
+	return nil
+}
+
+func UpdateInvoiceAttestation(ctx context.Context, invoiceID, agentID, evidenceHash string, riskScoreBps int, attestedAt int64) error {
+	query := `
+		UPDATE invoices 
+		SET attestation_agent_id = $1, risk_score_bps = $2, evidence_hash = $3, attested_at = $4
+		WHERE id = $5
+	`
+	_, err := Pool.Exec(ctx, query, agentID, riskScoreBps, evidenceHash, attestedAt, invoiceID)
+	if err != nil {
+		return fmt.Errorf("queries: update invoice attestation: %w", err)
 	}
 	return nil
 }

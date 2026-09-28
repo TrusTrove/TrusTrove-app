@@ -170,4 +170,29 @@ describe("WalletConnect", () => {
     fireEvent.click(screen.getByLabelText(/Copy wallet address/i));
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(address);
   });
+
+  it("shows an error when copying the wallet address fails", async () => {
+    const address = "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB";
+    vi.mocked(useWallet).mockReturnValue({
+      connected: true,
+      loading: false,
+      address,
+      error: null,
+      connectWallet: vi.fn(),
+      disconnectWallet: vi.fn(),
+    } as any);
+    vi.mocked(isFreighterInstalled).mockResolvedValue(true);
+    vi.mocked(navigator.clipboard.writeText).mockRejectedValueOnce(
+      new Error("Clipboard permission denied"),
+    );
+
+    render(<WalletConnect />);
+
+    const copyButton = await screen.findByLabelText(/Copy wallet address/i);
+    fireEvent.click(copyButton);
+
+    expect(
+      await screen.findByText(/couldn't copy wallet address/i),
+    ).toBeInTheDocument();
+  });
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { useInvoices } from "@/hooks/useInvoices";
+import { useInvoiceActions } from "@/hooks/useInvoices";
 import { Button } from "@/components/ui/button";
 import { ShieldAlert, PlusCircle } from "lucide-react";
 import type { AssetType } from "@/types";
@@ -9,6 +9,7 @@ import { ASSET_OPTIONS } from "@/lib/assets";
 import { AmountInput } from "@/components/shared/AmountInput";
 import { useWalletStore } from "@/store/wallet";
 import { DatePicker } from "@/components/ui/date-picker";
+import { getErrorMessage } from "@/lib/errors";
 
 const invoiceContractID = process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID || "";
 
@@ -17,10 +18,6 @@ const getTrustroveSdk = () => import("@trusttrove/sdk");
 
 interface InvoiceFormProps {
   onSuccess?: () => void;
-}
-
-function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Transaction failed";
 }
 
 /**
@@ -44,8 +41,8 @@ async function cancelCreatedInvoice(invoiceId: string) {
 }
 
 export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
-  const { createInvoice, isCreating, listInvoice } = useInvoices();
-  const { address } = useWalletStore();
+  const { createInvoice, isCreating, listInvoice } = useInvoiceActions();
+  const address = useWalletStore((s) => s.address);
 
   const [buyer, setBuyer] = useState("");
   const [faceValue, setFaceValue] = useState("");

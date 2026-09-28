@@ -39,6 +39,7 @@
 ## Developer Guide
 
 - [Local Setup](developer-guide/local-setup.md)
+- [Troubleshooting](developer-guide/troubleshooting.md)
 - [Environment Variables](developer-guide/environment-variables.md)
 - [Mainnet Setup](developer-guide/mainnet-setup.md)
 - [SDK Reference](developer-guide/sdk-reference.md)

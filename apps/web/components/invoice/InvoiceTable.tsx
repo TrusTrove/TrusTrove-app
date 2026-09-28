@@ -1,12 +1,21 @@
 "use client";
 
-import React, { ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { formatAmount } from "@/lib/assets";
 import { Invoice } from "@/types";
 import { Button } from "@/components/ui/button";
 import { InvoiceStatus } from "./InvoiceStatus";
+import { InvoiceCard } from "./InvoiceCard";
+import { truncateAddress } from "@/lib/format";
 import {
   ChevronLeft,
   ChevronRight,
@@ -40,15 +49,34 @@ interface InvoiceTableProps {
   emptyStateDescription?: string;
   emptyStateAction?: EmptyStateAction;
   pagination?: InvoicePaginationProps;
+  role?: "issuer" | "buyer" | "lp";
+  /**
+   * Opt into multi-select mode: adds a checkbox per row, a "select all on
+   * page" checkbox in the header, and a selection toolbar. Off by default, so
+   * existing single-select callers are unaffected.
+   */
+  selectable?: boolean;
+  /**
+   * Selected invoice ids. Passing this makes the selection controlled; omit it
+   * to let the table track its own selection internally.
+   */
+  selectedIds?: string[];
+  /** Called with the next set of selected ids whenever the selection changes. */
+  onSelectionChange?: (ids: string[]) => void;
 }
 
 const DEFAULT_PAGE_SIZES = [10, 20, 50, 100];
 const ROW_HEIGHT = 72;
 
-function truncateAddr(addr: string) {
-  if (!addr) return "";
-  return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-}
+// The checkbox column is fixed-width so it does not steal space from the six
+// proportional data columns below.
+const SELECT_COL_FLEX = "0 0 2.5rem";
+
+const CHECKBOX_CLASSES =
+  "h-4 w-4 cursor-pointer accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 focus-visible:ring-offset-[#080c10]";
+
+// Shared flex proportions matching the 6-column layout.
+const COL_FLEX = ["1.15", "1.15", "1", "0.8", "0.95", "0.75"] as const;
 
 function clampPage(page: number, totalPages: number) {
   return Math.min(Math.max(page, 1), Math.max(totalPages, 1));
@@ -241,8 +269,121 @@ export function InvoiceTable({
   emptyStateDescription,
   emptyStateAction,
   pagination,
+  role,
+  selectable = false,
+  selectedIds,
+  onSelectionChange,
 }: InvoiceTableProps) {
-  const parentRef = useRef<HTMLDivElement | null>(null);
+  const parentRef = useRef<HTMLTableSectionElement | null>(null);
+  // rowRefs tracks rendered <tr> elements so the roving-tabindex effect can
+  // imperatively focus the newly active row after an arrow-key press.
+  const rowRefs = useRef<Map<number, HTMLTableRowElement>>(new Map());
+  const [focusedIndex, setFocusedIndex] = useState(0);
+  // Uncontrolled fallback: used only while `selectedIds` is not supplied.
+  const [internalSelectedIds, setInternalSelectedIds] = useState<string[]>([]);
+  const selectAllRef = useRef<HTMLInputElement | null>(null);
+
+  const isSelectionControlled = selectedIds !== undefined;
+  const selection = isSelectionControlled ? selectedIds : internalSelectedIds;
+
+  const selectedSet = useMemo(() => new Set(selection), [selection]);
+
+  const commitSelection = useCallback(
+    (next: string[]) => {
+      if (!isSelectionControlled) setInternalSelectedIds(next);
+      onSelectionChange?.(next);
+    },
+    [isSelectionControlled, onSelectionChange],
+  );
+
+  const toggleRowSelection = useCallback(
+    (id: string) => {
+      const next = selectedSet.has(id)
+        ? selection.filter((selectedId) => selectedId !== id)
+        : [...selection, id];
+      commitSelection(next);
+    },
+    [commitSelection, selectedSet, selection],
+  );
+
+  const pageIds = useMemo(
+    () => invoices.map((invoice) => invoice.id),
+    [invoices],
+  );
+  const selectedOnPageCount = useMemo(
+    () => pageIds.filter((id) => selectedSet.has(id)).length,
+    [pageIds, selectedSet],
+  );
+  const allOnPageSelected =
+    pageIds.length > 0 && selectedOnPageCount === pageIds.length;
+
+  // "Select all" is scoped to the current page, so selections made on other
+  // pages survive paging back and forth.
+  const toggleAllOnPage = useCallback(() => {
+    if (allOnPageSelected) {
+      const pageIdSet = new Set(pageIds);
+      commitSelection(selection.filter((id) => !pageIdSet.has(id)));
+      return;
+    }
+    const merged = new Set(selection);
+    pageIds.forEach((id) => merged.add(id));
+    commitSelection(Array.from(merged));
+  }, [allOnPageSelected, commitSelection, pageIds, selection]);
+
+  const clearSelection = useCallback(
+    () => commitSelection([]),
+    [commitSelection],
+  );
+
+  // `indeterminate` is a DOM-only property, so it has to be set imperatively.
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate =
+        selectedOnPageCount > 0 && !allOnPageSelected;
+    }
+  }, [selectedOnPageCount, allOnPageSelected]);
+
+  // Move DOM focus whenever the roving index changes.
+  useEffect(() => {
+    const row = rowRefs.current.get(focusedIndex);
+    if (row && document.activeElement !== row) {
+      row.focus({ preventScroll: false });
+    }
+  }, [focusedIndex]);
+
+  const handleRowKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLTableRowElement>, index: number) => {
+      if (!onSelectInvoice) return;
+      // Keys pressed inside the row checkbox belong to the checkbox: without
+      // this, Space would both toggle it and fire onSelectInvoice.
+      if (event.target !== event.currentTarget) return;
+      switch (event.key) {
+        case "ArrowDown":
+          event.preventDefault();
+          setFocusedIndex((i) => Math.min(i + 1, invoices.length - 1));
+          break;
+        case "ArrowUp":
+          event.preventDefault();
+          setFocusedIndex((i) => Math.max(i - 1, 0));
+          break;
+        case "Home":
+          event.preventDefault();
+          setFocusedIndex(0);
+          break;
+        case "End":
+          event.preventDefault();
+          setFocusedIndex(invoices.length - 1);
+          break;
+        case "Enter":
+        case " ":
+          event.preventDefault();
+          onSelectInvoice(invoices[index]);
+          break;
+      }
+    },
+    [invoices, onSelectInvoice],
+  );
+
   const rowVirtualizer = useVirtualizer({
     count: invoices.length,
     getScrollElement: () => parentRef.current,
@@ -300,77 +441,235 @@ export function InvoiceTable({
         </div>
       </div>
 
+      {selectable && (
+        <div
+          className="flex items-center justify-between gap-3 border-b border-border/60 bg-[#080c10]/50 px-4 py-2.5 sm:px-5"
+          role="status"
+          aria-live="polite"
+        >
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+            {selection.length} selected
+          </span>
+          {selection.length > 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="border-border bg-[#0b1117] text-[10px] font-bold uppercase tracking-wider text-slate-200 hover:bg-slate-900 hover:text-white"
+              onClick={clearSelection}
+            >
+              Clear selection
+            </Button>
+          )}
+        </div>
+      )}
+
       {invoices.length === 0 ? (
         <div className="bg-[#080c10]/40">{emptyNode}</div>
       ) : (
         <>
           <div className="overflow-x-auto">
-            <div className="min-w-[920px]">
-              <div className="grid grid-cols-[1.15fr_1.15fr_1fr_0.8fr_0.95fr_0.75fr] border-b border-border/60 bg-[#080c10]/80 px-5 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                <div>Invoice ID</div>
-                <div>Buyer</div>
-                <div>Face Value</div>
-                <div>Discount</div>
-                <div>Due Date</div>
-                <div>Status</div>
-              </div>
+            {/* display:block overrides UA table layout so thead/tbody can use
+                flex rows whose column widths are kept in sync via COL_FLEX. */}
+            <table
+              className="min-w-[920px] w-full"
+              style={{ display: "block" }}
+              role="grid"
+              aria-label="Invoice Ledger"
+            >
+              <thead style={{ display: "block" }}>
+                <tr className="flex border-b border-border/60 bg-[#080c10]/80 px-5 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                  {selectable && (
+                    <th
+                      scope="col"
+                      style={{ flex: SELECT_COL_FLEX }}
+                      className="text-left"
+                    >
+                      <input
+                        ref={selectAllRef}
+                        type="checkbox"
+                        className={CHECKBOX_CLASSES}
+                        checked={allOnPageSelected}
+                        onChange={toggleAllOnPage}
+                        aria-label="Select all invoices on this page"
+                      />
+                    </th>
+                  )}
+                  <th
+                    scope="col"
+                    style={{ flex: COL_FLEX[0] }}
+                    className="text-left"
+                  >
+                    Invoice ID
+                  </th>
+                  <th
+                    scope="col"
+                    style={{ flex: COL_FLEX[1] }}
+                    className="text-left"
+                  >
+                    Buyer
+                  </th>
+                  <th
+                    scope="col"
+                    style={{ flex: COL_FLEX[2] }}
+                    className="text-left"
+                  >
+                    Face Value
+                  </th>
+                  <th
+                    scope="col"
+                    style={{ flex: COL_FLEX[3] }}
+                    className="text-left"
+                  >
+                    Discount
+                  </th>
+                  <th
+                    scope="col"
+                    style={{ flex: COL_FLEX[4] }}
+                    className="text-left"
+                  >
+                    Due Date
+                  </th>
+                  <th
+                    scope="col"
+                    style={{ flex: COL_FLEX[5] }}
+                    className="text-left"
+                  >
+                    Status
+                  </th>
+                </tr>
+              </thead>
 
-              <div ref={parentRef} className="max-h-[65vh] overflow-auto">
-                <div
-                  className="relative w-full"
-                  style={{ height: `${totalHeight}px` }}
-                >
-                  {rowsToRender.map((virtualRow) => {
-                    const invoice = invoices[virtualRow.index];
-                    const isActive = activeId === invoice.id;
+              {/* tbody is the virtual-scroll container: height=totalHeight lets the
+                  browser know the full scrollable extent; maxHeight clips it visually. */}
+              <tbody
+                ref={parentRef}
+                style={{
+                  display: "block",
+                  position: "relative",
+                  overflowY: "auto",
+                  maxHeight: "65vh",
+                  height: `${totalHeight}px`,
+                }}
+              >
+                {rowsToRender.map((virtualRow) => {
+                  const invoice = invoices[virtualRow.index];
+                  const isActive = activeId === invoice.id;
+                  const isChecked = selectedSet.has(invoice.id);
 
-                    return (
-                      <button
-                        key={invoice.id}
-                        type="button"
-                        onClick={() => onSelectInvoice?.(invoice)}
-                        disabled={!onSelectInvoice}
-                        aria-pressed={isActive}
-                        className={`absolute left-0 top-0 grid w-full grid-cols-[1.15fr_1.15fr_1fr_0.8fr_0.95fr_0.75fr] items-center border-b border-border/30 px-5 text-left font-mono text-xs transition-colors ${
-                          onSelectInvoice ? "cursor-pointer" : "cursor-default"
-                        } ${
-                          isActive
-                            ? "bg-primary/5 text-primary"
-                            : "hover:bg-slate-900/50"
-                        }`}
-                        style={{
-                          height: `${ROW_HEIGHT}px`,
-                          transform: `translateY(${virtualRow.start}px)`,
-                        }}
+                  const isFocusable = !!onSelectInvoice;
+                  return (
+                    <tr
+                      key={invoice.id}
+                      ref={(el) => {
+                        if (el) rowRefs.current.set(virtualRow.index, el);
+                        else rowRefs.current.delete(virtualRow.index);
+                      }}
+                      aria-selected={selectable ? isChecked : isActive}
+                      // Roving tabindex: only the focused row is in the tab order.
+                      tabIndex={
+                        isFocusable
+                          ? virtualRow.index === focusedIndex
+                            ? 0
+                            : -1
+                          : undefined
+                      }
+                      onClick={() => {
+                        if (onSelectInvoice) {
+                          setFocusedIndex(virtualRow.index);
+                          onSelectInvoice(invoice);
+                        }
+                      }}
+                      onFocus={() => setFocusedIndex(virtualRow.index)}
+                      onKeyDown={(e) => handleRowKeyDown(e, virtualRow.index)}
+                      className={`absolute left-0 top-0 flex w-full items-center border-b border-border/30 px-5 font-mono text-xs transition-colors ${
+                        onSelectInvoice ? "cursor-pointer" : "cursor-default"
+                      } ${
+                        isActive
+                          ? "bg-primary/5 text-primary"
+                          : "hover:bg-slate-900/50"
+                      } ${
+                        isFocusable
+                          ? "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
+                          : ""
+                      }`}
+                      style={{
+                        height: `${ROW_HEIGHT}px`,
+                        transform: `translateY(${virtualRow.start}px)`,
+                      }}
+                    >
+                      {selectable && (
+                        <td
+                          style={{ flex: SELECT_COL_FLEX }}
+                          // Clicking the checkbox must not also trigger the
+                          // row's single-select handler.
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <input
+                            type="checkbox"
+                            className={CHECKBOX_CLASSES}
+                            checked={isChecked}
+                            onChange={() => toggleRowSelection(invoice.id)}
+                            aria-label={`Select invoice ${invoice.id}`}
+                          />
+                        </td>
+                      )}
+                      <td
+                        style={{ flex: COL_FLEX[0] }}
+                        className="font-bold text-primary"
                       >
-                        <div className="font-bold text-primary">
-                          {truncateAddr(invoice.id)}
-                        </div>
-                        <div className="text-slate-400">
-                          {truncateAddr(invoice.buyer)}
-                        </div>
-                        <div className="font-bold text-white">
-                          {formatAmount(invoice.faceValue, invoice.asset)}
-                        </div>
-                        <div className="text-slate-300">
-                          {invoice.discountBps > 0
-                            ? `${(invoice.discountBps / 100).toFixed(2)}%`
-                            : "—"}
-                        </div>
-                        <div className="text-slate-400">
-                          {new Date(
-                            invoice.dueDate * 1000,
-                          ).toLocaleDateString()}
-                        </div>
-                        <div className="flex justify-start">
-                          <InvoiceStatus status={invoice.status} />
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
+                        {truncateAddress(invoice.id)}
+                      </td>
+                      <td
+                        style={{ flex: COL_FLEX[1] }}
+                        className="text-slate-400"
+                      >
+                        {truncateAddress(invoice.buyer)}
+                      </td>
+                      <td
+                        style={{ flex: COL_FLEX[2] }}
+                        className="font-bold text-white"
+                      >
+                        {formatAmount(invoice.faceValue, invoice.asset)}
+                      </td>
+                      <td
+                        style={{ flex: COL_FLEX[3] }}
+                        className="text-slate-300"
+                      >
+                        {invoice.discountBps > 0
+                          ? `${(invoice.discountBps / 100).toFixed(2)}%`
+                          : "—"}
+                      </td>
+                      <td
+                        style={{ flex: COL_FLEX[4] }}
+                        className="text-slate-400"
+                      >
+                        {new Date(invoice.dueDate * 1000).toLocaleDateString()}
+                      </td>
+                      <td
+                        style={{ flex: COL_FLEX[5] }}
+                        className="flex justify-start"
+                      >
+                        <InvoiceStatus status={invoice.status} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile Cards view (hidden on desktop >= md) */}
+          <div className="md:hidden space-y-4">
+            {invoices.map((invoice) => (
+              <InvoiceCard
+                key={invoice.id}
+                invoice={invoice}
+                role={role}
+                onSelect={onSelectInvoice}
+                isSelected={activeId === invoice.id}
+              />
+            ))}
           </div>
 
           {pagination && <InvoicePagination {...pagination} />}

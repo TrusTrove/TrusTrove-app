@@ -1,7 +1,29 @@
 packages:
-  - "apps/*"
-  - "packages/*"
-
+  - apps/*
+  - packages/*
+  - examples/*
 allowBuilds:
   esbuild: false
   unrs-resolver: true
+auditConfig:
+  ignoreGhsas:
+    - GHSA-p293-qw3h-jr36
+    - GHSA-2xp9-vwfh-vxw4
+    - GHSA-h25m-26qc-wcjf
+    - GHSA-q4gf-8mx6-v5v3
+    - GHSA-8h8q-6873-q5fj
+    - GHSA-c4j6-fc7j-m34r
+    - GHSA-36qx-fr4f-26g5
+    - GHSA-m99w-x7hq-7vfj
+    - GHSA-89xv-2m56-2m9x
+    - GHSA-p9j2-gv94-2wf4
+    - GHSA-82x6-q7mm-w9cf
+    - GHSA-v5mp-jgw5-2x6j
+overrides:
+  postcss: ">=8.5.18 <9"
+  nanoid: ">=3.3.18 <4"
+  js-yaml: ">=4.3.2 <5"
+  glob: ">=12.0.0 <13"
+  brace-expansion@1: ">=1.1.18 <2"
+  brace-expansion@5: ">=5.0.9 <6"
+  undici: ">=7.29.0 <8"

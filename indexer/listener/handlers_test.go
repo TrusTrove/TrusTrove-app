@@ -348,3 +348,194 @@ func TestHandleDeliveryConfirmed(t *testing.T) {
 		t.Errorf("Status after confirmed: got %q, want %q", got.Status, "Confirmed")
 	}
 }
+
+func TestHandleAttestationSubmitted(t *testing.T) {
+	skipIfNoDB(t)
+
+	l := newTestListener()
+	ctx := context.Background()
+
+	const (
+		issuer = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
+		buyer  = "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN"
+	)
+	rawIDBytes := []byte(fmt.Sprintf("attested%d", time.Now().UnixNano()))
+	invoiceIDHex := fmt.Sprintf("%x", rawIDBytes)
+
+	inv := &db.DbInvoice{
+		ID:           invoiceIDHex,
+		Issuer:       issuer,
+		Buyer:        buyer,
+		FaceValue:    "1000000000",
+		FundedAmount: "0",
+		DueDate:      time.Now().Add(30 * 24 * time.Hour).Unix(),
+		Status:       "Created",
+		CreatedAt:    time.Now().Unix(),
+	}
+	if err := db.InsertInvoice(ctx, inv); err != nil {
+		t.Fatalf("setup InsertInvoice: %v", err)
+	}
+	t.Cleanup(func() {
+		if db.Pool != nil {
+			db.Pool.Exec(ctx, "DELETE FROM invoices WHERE id = $1", invoiceIDHex)
+		}
+	})
+
+	idScBytes := xdr.ScBytes(rawIDBytes)
+	idTopic := encodeScVal(xdr.ScVal{Type: xdr.ScValTypeScvBytes, Bytes: &idScBytes})
+
+	// agent_id as a symbol topic
+	agentSymbol := xdr.ScSymbol("agent_underwrite")
+	agentTopic := encodeScVal(xdr.ScVal{Type: xdr.ScValTypeScvSymbol, Sym: &agentSymbol})
+
+	// risk_score = 2500 bps as u32 value
+	riskScore := xdr.Uint32(2500)
+	riskVal := xdr.ScVal{Type: xdr.ScValTypeScvU32, U32: &riskScore}
+
+	event := SorobanEvent{
+		ID:             fmt.Sprintf("event-attestation-%d", time.Now().UnixNano()),
+		ContractID:     "CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS",
+		Ledger:         1010,
+		LedgerClosedAt: time.Now().Format(time.RFC3339),
+		Topic:          []string{encodeSymbol("AttestationSubmitted"), idTopic, agentTopic},
+		Value:          encodeScVal(riskVal),
+	}
+
+	if err := l.handleAttestationSubmitted(ctx, event, time.Now().Unix()); err != nil {
+		t.Fatalf("handleAttestationSubmitted: %v", err)
+	}
+
+	got, err := db.GetInvoiceByID(ctx, invoiceIDHex)
+	if err != nil || got == nil {
+		t.Fatalf("GetInvoiceByID after attestation: err=%v, got=%v", err, got)
+	}
+	if got.AttestationAgentID == nil || *got.AttestationAgentID != "agent_underwrite" {
+		t.Errorf("AttestationAgentID: got %v, want %q", got.AttestationAgentID, "agent_underwrite")
+	}
+	if got.RiskScoreBps == nil || *got.RiskScoreBps != 2500 {
+		t.Errorf("RiskScoreBps: got %v, want %d", got.RiskScoreBps, 2500)
+	}
+}
+
+func TestHandleAttestationSubmitted_ShortTopic(t *testing.T) {
+	l := newTestListener()
+	ctx := context.Background()
+
+	// Event with only one topic element should fail
+	event := SorobanEvent{
+		ID:             "event-short-topic",
+		ContractID:     "CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS",
+		Ledger:         1011,
+		LedgerClosedAt: time.Now().Format(time.RFC3339),
+		Topic:          []string{encodeSymbol("AttestationSubmitted")},
+		Value:          encodeScVal(xdr.ScVal{Type: xdr.ScValTypeScvVoid}),
+	}
+
+	err := l.handleAttestationSubmitted(ctx, event, time.Now().Unix())
+	if err == nil {
+		t.Fatal("expected error for short topic, got nil")
+	}
+}
+
+// TestHandleIssuerRegistered verifies that a registry_contract
+// `issuer_registered` event is persisted to events_log rather than dropped by
+// the default skip branch.
+func TestHandleIssuerRegistered(t *testing.T) {
+	skipIfNoDB(t)
+
+	l := newTestListener()
+	ctx := context.Background()
+
+	const issuer = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
+	eventID := fmt.Sprintf("event-issuer-registered-%d", time.Now().UnixNano())
+	t.Cleanup(func() {
+		if db.Pool != nil {
+			db.Pool.Exec(ctx, "DELETE FROM events_log WHERE event_id = $1", eventID)
+		}
+	})
+
+	event := SorobanEvent{
+		ID:             eventID,
+		ContractID:     "CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS",
+		Ledger:         1100,
+		LedgerClosedAt: time.Now().Format(time.RFC3339),
+		Topic: []string{
+			encodeSymbol("issuer_registered"),
+			encodeScVal(makeAccountAddressScVal(issuer)),
+		},
+		Value: "",
+	}
+
+	if err := l.handleEvent(ctx, event); err != nil {
+		t.Fatalf("handleEvent(issuer_registered): %v", err)
+	}
+
+	processed, err := db.IsEventProcessed(ctx, eventID)
+	if err != nil {
+		t.Fatalf("IsEventProcessed: %v", err)
+	}
+	if !processed {
+		t.Fatal("issuer_registered event was skipped — expected it to be persisted in events_log")
+	}
+}
+
+// TestHandleBuyerRegistered verifies the registry_contract buyer registration
+// event (distinct topic) follows the same path.
+func TestHandleBuyerRegistered(t *testing.T) {
+	skipIfNoDB(t)
+
+	l := newTestListener()
+	ctx := context.Background()
+
+	const buyer = "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN"
+	eventID := fmt.Sprintf("event-buyer-registered-%d", time.Now().UnixNano())
+	t.Cleanup(func() {
+		if db.Pool != nil {
+			db.Pool.Exec(ctx, "DELETE FROM events_log WHERE event_id = $1", eventID)
+		}
+	})
+
+	event := SorobanEvent{
+		ID:             eventID,
+		ContractID:     "CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS",
+		Ledger:         1101,
+		LedgerClosedAt: time.Now().Format(time.RFC3339),
+		Topic: []string{
+			encodeSymbol("buyer_registered"),
+			encodeScVal(makeAccountAddressScVal(buyer)),
+		},
+		Value: "",
+	}
+
+	if err := l.handleEvent(ctx, event); err != nil {
+		t.Fatalf("handleEvent(buyer_registered): %v", err)
+	}
+
+	processed, err := db.IsEventProcessed(ctx, eventID)
+	if err != nil {
+		t.Fatalf("IsEventProcessed: %v", err)
+	}
+	if !processed {
+		t.Fatal("buyer_registered event was skipped — expected it to be persisted in events_log")
+	}
+}
+
+// TestHandleRegistrationEvent_ShortTopic verifies registrations with no address
+// topic fail instead of being silently skipped.
+func TestHandleRegistrationEvent_ShortTopic(t *testing.T) {
+	l := newTestListener()
+	ctx := context.Background()
+
+	event := SorobanEvent{
+		ID:             "event-registration-short-topic",
+		ContractID:     "CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS",
+		Ledger:         1102,
+		LedgerClosedAt: time.Now().Format(time.RFC3339),
+		Topic:          []string{encodeSymbol("issuer_registered")},
+		Value:          "",
+	}
+
+	if err := l.handleEvent(ctx, event); err == nil {
+		t.Fatal("expected error for registration event with no address topic, got nil")
+	}
+}

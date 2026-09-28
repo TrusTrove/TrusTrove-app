@@ -77,7 +77,8 @@ async function fetchBalancesFromHorizon(
  * }
  */
 export function useBalances() {
-  const { address, connected } = useWalletStore();
+  const address = useWalletStore((s) => s.address);
+  const connected = useWalletStore((s) => s.connected);
 
   const query = useQuery({
     queryKey: ["balances", address, connected],

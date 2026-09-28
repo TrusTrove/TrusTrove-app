@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
-  apiFetch,
   fetchChallenge,
   verifyChallenge,
   createInvoice,

@@ -3,6 +3,17 @@
 The TypeScript SDK in `packages/sdk` wraps all Soroban contract calls.
 Import from `@trusttrove/sdk` in the monorepo or use the workspace package.
 
+## Runnable example
+
+> A complete, runnable example lives at [`examples/sdk-quickstart/`](../../examples/sdk-quickstart/).
+> It is a framework-free Node/TypeScript script that calls
+> `RegistryClient.isVerified()`, `PoolClient.getStats()` and
+> `InvoiceClient.getByStatus()` against Stellar testnet. From the repo root:
+>
+> ```bash
+> pnpm --filter sdk-quickstart start
+> ```
+
 ## Setup
 
 ```typescript
@@ -29,6 +40,7 @@ import {
   InvoiceClient,
   PoolClient,
   EscrowClient,
+  TokenClient,
 } from "@trusttrove/sdk";
 
 const registry = new RegistryClient(
@@ -37,6 +49,7 @@ const registry = new RegistryClient(
 const invoice = new InvoiceClient(process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID!);
 const pool = new PoolClient(process.env.NEXT_PUBLIC_POOL_CONTRACT_ID!);
 const escrow = new EscrowClient(process.env.NEXT_PUBLIC_ESCROW_CONTRACT_ID!);
+const usdc = TokenClient.forUSDC();
 ```
 
 > **Note:** All write methods (`writeContract`) require a `signerPublicKey` argument — the Freighter wallet address that will sign the transaction. All read methods (`readContract`) also require it to build and simulate the transaction.
@@ -141,6 +154,21 @@ const stats = await pool.getStats(signerPublicKey);
 // Get utilization rate as a standalone call
 const rateBps = await pool.getUtilizationRate(signerPublicKey);
 
+// Before deposit or any other pool/invoice operation that transfers USDC,
+// ensure the target contract has sufficient token allowance (see Token Client below).
+await usdc.allowance(
+  lpPublicKey,
+  process.env.NEXT_PUBLIC_POOL_CONTRACT_ID!,
+  signerPublicKey,
+);
+await usdc.approve(
+  lpPublicKey,
+  process.env.NEXT_PUBLIC_POOL_CONTRACT_ID!,
+  BigInt(1_000_000_000_000),
+  expirationLedger,
+  signerPublicKey,
+);
+
 // Deposit USDC (returns tx hash)
 const txHash = await pool.deposit(
   lpPublicKey,
@@ -164,6 +192,39 @@ await pool.fundInvoice(invoiceIdHex, signerPublicKey);
 // Record a repayment back into the pool
 await pool.receiveRepayment(invoiceIdHex, repaymentAmount, signerPublicKey);
 ```
+
+---
+
+## Token Client
+
+`TokenClient` wraps the USDC Stellar Asset Contract (SAC) allowance methods. USDC deposits and repayments call `transfer_from` through the pool or invoice contract, so the spender must be approved before the financial operation is submitted. The web app's `useTokenAllowance` hook performs this check automatically.
+
+```typescript
+import { TokenClient } from "@trusttrove/sdk";
+
+const usdc = TokenClient.forUSDC();
+const allowance = await usdc.allowance(
+  userPublicKey,
+  spenderContractId,
+  signerPublicKey,
+);
+
+if (allowance < amount) {
+  const latestLedger = await server.getLatestLedger();
+  await usdc.approve(
+    userPublicKey,
+    spenderContractId,
+    amount,
+    latestLedger.sequence + 535_680,
+    signerPublicKey,
+  );
+}
+```
+
+- `TokenClient.forUSDC()` derives the configured USDC SAC contract ID.
+- `allowance(from, spender, signerPublicKey)` reads the current allowance in stroops.
+- `approve(from, spender, amount, expirationLedger, signerPublicKey)` submits the approval transaction.
+- Use the pool contract as `spenderContractId` for deposits and the invoice contract for repayments. In the web app, see `useTokenAllowance` for the reusable implementation.
 
 ---
 
@@ -243,21 +304,45 @@ fromUsdc("1000.50"); // → BigInt(10005000000)
 
 ## Error Handling
 
-All SDK calls throw on failure. Common patterns:
+All SDK calls throw on failure. Failures surface as typed errors so consumers
+can branch with `instanceof` instead of string-matching `err.message`:
 
 ```typescript
+import {
+  SimulationError,
+  MissingReturnValueError,
+  TransactionSendError,
+  TransactionFailedError,
+  TransactionTimeoutError,
+} from "@trusttrove/sdk";
+
 try {
   const txHash = await invoice.create(...);
   console.log("Created:", txHash);
 } catch (err) {
-  if (err instanceof TransactionTimeoutError) {
+  if (err instanceof SimulationError) {
+    // Soroban RPC rejected the simulation for err.method
+    console.warn("Simulation failed:", err.method, err.cause);
+  } else if (err instanceof MissingReturnValueError) {
+    // Simulation succeeded but returned no value for err.method
+    console.warn("No return value:", err.method);
+  } else if (err instanceof TransactionSendError) {
+    // Signed transaction was rejected at submission (err.sorobanError if set)
+    console.warn("Send failed:", err.method, err.sorobanError);
+  } else if (err instanceof TransactionFailedError) {
+    // Transaction was accepted and confirmed as FAILED on-chain
+    console.warn("Failed on-chain:", err.method);
+  } else if (err instanceof TransactionTimeoutError) {
     // Transaction was sent but confirmation timed out
     console.warn("Timed out, tx hash:", err.txHash);
   } else {
-    // Simulation error, signing error, or network error
+    // Signing error, invalid input, or network error
     console.error(err.message);
   }
 }
 ```
 
-Import `TransactionTimeoutError` from `@trusttrove/sdk` to distinguish polling timeouts from other failures. The SDK automatically retries transient network errors up to 3 times with exponential backoff before throwing.
+Every typed error records the contract method name it was raised for, and the
+simulation- and send-related classes additionally carry the underlying Soroban
+error where the RPC returned one. The SDK automatically retries transient
+network errors up to 3 times with exponential backoff before throwing.

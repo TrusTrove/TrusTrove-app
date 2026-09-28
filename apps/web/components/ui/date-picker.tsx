@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { format } from "date-fns";
+import { format, parse } from "date-fns";
 import { Calendar as CalendarIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -28,7 +28,9 @@ export function DatePicker({
 }: DatePickerProps) {
   const [open, setOpen] = React.useState(false);
 
-  const selectedDate = value ? new Date(value) : undefined;
+  const selectedDate = value
+    ? parse(value, "yyyy-MM-dd", new Date())
+    : undefined;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -51,7 +53,7 @@ export function DatePicker({
           selected={selectedDate}
           onSelect={(date) => {
             if (date) {
-              onChange(date.toISOString().split("T")[0]);
+              onChange(format(date, "yyyy-MM-dd"));
               setOpen(false);
             }
           }}

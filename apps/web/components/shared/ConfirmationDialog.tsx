@@ -5,11 +5,7 @@ import { X, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { useConfirmDialogStore } from "@/store/confirmDialog";
-
-function truncateAddr(addr: string) {
-  if (!addr) return "";
-  return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-}
+import { truncateAddress } from "@/lib/format";
 
 export function ConfirmationDialog() {
   const { pendingAction, cancel } = useConfirmDialogStore();
@@ -60,7 +56,7 @@ export function ConfirmationDialog() {
           <div className="flex justify-between">
             <span className="text-slate-500">Invoice ID:</span>
             <span className="text-slate-200" title={pendingAction.invoiceId}>
-              {truncateAddr(pendingAction.invoiceId)}
+              {truncateAddress(pendingAction.invoiceId)}
             </span>
           </div>
           <div className="flex justify-between">

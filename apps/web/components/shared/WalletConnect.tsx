@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import * as freighterApi from "@stellar/freighter-api";
 import { useWallet } from "@/hooks/useWallet";
 import { Button } from "@/components/ui/button";
 import { isFreighterInstalled } from "@/lib/freighter";
@@ -15,14 +14,11 @@ import {
   Check,
   ExternalLink,
 } from "lucide-react";
+import { truncateAddress } from "@/lib/format";
+import { getErrorMessage } from "@/lib/errors";
 
 interface FreighterNetworkApi {
   setNetwork?: (network: string) => Promise<unknown>;
-}
-
-function getErrorMessage(error: unknown) {
-  if (error instanceof Error) return error.message;
-  return "Freighter could not switch networks";
 }
 
 export function WalletConnect() {
@@ -36,9 +32,10 @@ export function WalletConnect() {
     errorCode,
   } = useWallet();
 
-  const { network } = useWalletStore();
+  const network = useWalletStore((s) => s.network);
   const [installed, setInstalled] = useState<boolean | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState<string | null>(null);
   const [switchingNetwork, setSwitchingNetwork] = useState(false);
   const [networkSwitchError, setNetworkSwitchError] = useState<string | null>(
     null,
@@ -50,9 +47,16 @@ export function WalletConnect() {
 
   const handleCopy = async () => {
     if (!address) return;
-    await navigator.clipboard.writeText(address);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+
+    try {
+      setCopyError(null);
+      await navigator.clipboard.writeText(address);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+      setCopyError("Couldn't copy wallet address. Please try again.");
+    }
   };
 
   const handleSwitchToTestnet = async () => {
@@ -85,10 +89,6 @@ export function WalletConnect() {
     } finally {
       setSwitchingNetwork(false);
     }
-  };
-
-  const formatAddress = (addr: string) => {
-    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
   };
 
   // If Freighter is not installed
@@ -166,7 +166,7 @@ export function WalletConnect() {
           <div className="flex items-center gap-2 bg-neutral-900 border border-border rounded-lg pl-3 pr-1 py-1 transition-all duration-200">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             <span className="text-xs font-semibold font-mono text-slate-300">
-              {formatAddress(address)}
+              {truncateAddress(address)}
             </span>
 
             <button
@@ -215,6 +215,16 @@ export function WalletConnect() {
           <span className="truncate max-w-xs">
             You cancelled the connection request
           </span>
+        </div>
+      )}
+
+      {copyError && (
+        <div
+          role="alert"
+          className="flex items-center gap-1.5 text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-md px-2.5 py-1"
+        >
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+          <span>{copyError}</span>
         </div>
       )}
 

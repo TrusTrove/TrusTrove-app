@@ -24,7 +24,7 @@ The registry contract stores a `Profile` struct with `role` (`Issuer` or `Buyer`
 
 ## Users
 
-- **SMEs (Lagos textile supplier, Nairobi agri-exporter, Accra electronics distributor)**: Non-crypto-native business owners who need immediate working capital by tokenizing unpaid trade invoices. They require an interface that is extremely fast, highly trustworthy, and clearly displays fees.
+- **SMEs (Lagos textile supplier, Nairobi agri-exporter, Accra electronics distributor)**: Non-crypto-native business owners who needs immediate working capital by tokenizing unpaid trade invoices. They require an interface that is extremely fast, highly trustworthy, and clearly displays fees.
 - **Liquidity Providers (LPs)**: CFOs, treasurers, and institutional yield-seekers depositing USDC into the pool to earn yield from discount fees. They require data-dense, precise analytics and total transparency on pool utilization.
 - **Buyers**: Corporate trade counterparties who confirm receipt of shipments and repay the invoice face value in USDC upon maturity.
 

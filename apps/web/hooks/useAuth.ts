@@ -7,6 +7,7 @@ import {
   initApiClientWithToken,
 } from "@/lib/api";
 import { createErrorHandler } from "@/lib/errors";
+import { useAppError } from "./useAppError";
 
 const { captureError } = createErrorHandler("useAuth");
 
@@ -35,9 +36,12 @@ const { captureError } = createErrorHandler("useAuth");
  * const { isAuthenticated, login, logout, loading, error } = useAuth();
  */
 export function useAuth() {
-  const { address, token, setToken, disconnect } = useWalletStore();
+  const address = useWalletStore((s) => s.address);
+  const token = useWalletStore((s) => s.token);
+  const setToken = useWalletStore((s) => s.setToken);
+  const disconnect = useWalletStore((s) => s.disconnect);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { error, handleError, clearError } = useAppError();
 
   /**
    * Initiates the SEP-10 wallet authentication flow using the api utility functions.
@@ -46,12 +50,12 @@ export function useAuth() {
    */
   const login = async () => {
     if (!address) {
-      setError("Wallet not connected");
+      handleError(new Error("Wallet not connected"));
       return;
     }
 
     setLoading(true);
-    setError(null);
+    clearError();
 
     try {
       const { transaction, network_passphrase } = await fetchChallenge(address);
@@ -70,7 +74,7 @@ export function useAuth() {
       initApiClientWithToken();
     } catch (err: unknown) {
       const appError = captureError(err);
-      setError(appError.message);
+      handleError(appError);
       setToken(null);
       initApiClientWithToken();
     } finally {
@@ -85,6 +89,7 @@ export function useAuth() {
     setToken(null);
     initApiClientWithToken();
     disconnect();
+    clearError();
   };
 
   return {

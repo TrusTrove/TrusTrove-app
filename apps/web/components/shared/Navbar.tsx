@@ -3,12 +3,33 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { WalletConnect } from "./WalletConnect";
+import { ThemeToggle } from "./ThemeToggle";
 import { SkeletonShimmer } from "./SkeletonLoader";
 import { useWalletStore } from "@/store/wallet";
 import { useBalances } from "@/hooks/useBalances";
 import { useProfile } from "@/hooks/useProfile";
-import { Wallet, Shield, Terminal, ExternalLink, Menu, X } from "lucide-react";
+import { useNotifications } from "@/hooks/useNotifications";
+import {
+  Wallet,
+  Shield,
+  Terminal,
+  ExternalLink,
+  Menu,
+  X,
+  Compass,
+} from "lucide-react";
+import { NotificationBell } from "./NotificationBell";
+import { OnboardingTour } from "./OnboardingTour";
+import { useOnboardingStore } from "@/store/onboarding";
+
+// User-facing strings live in `messages/en.json` under the "Navbar" namespace
+// and are read with `useTranslations("Navbar")`. This file is the reference
+// migration for the rest of the app: add keys to the component's namespace in
+// en.json (nesting related keys, using ICU `{placeholders}` for interpolated
+// values), then replace each literal with `t("key")`. Non-display identifiers
+// such as route hrefs and role values stay in code.
 
 const ROLES = ["issuer", "buyer", "lp"] as const;
 type Role = (typeof ROLES)[number];
@@ -17,19 +38,31 @@ function isRole(value: string): value is Role {
   return (ROLES as readonly string[]).includes(value);
 }
 
+const NAV_ITEMS = [
+  { key: "dashboard", href: "/dashboard" },
+  { key: "lp", href: "/lp" },
+  { key: "marketplace", href: "/marketplace" },
+  { key: "analytics", href: "/analytics" },
+  { key: "profile", href: "/profile" },
+] as const;
+
+function formatAmount(value: string) {
+  return parseFloat(value).toLocaleString(undefined, {
+    maximumFractionDigits: 2,
+  });
+}
+
 export function Navbar() {
+  const t = useTranslations("Navbar");
   const pathname = usePathname();
-  const { role, setRole, connected } = useWalletStore();
+  const role = useWalletStore((s) => s.role);
+  const setRole = useWalletStore((s) => s.setRole);
+  const connected = useWalletStore((s) => s.connected);
   const { balances, loading: balancesLoading } = useBalances();
   const { isVerified } = useProfile();
+  const { notifications, markAllAsRead } = useNotifications();
+  const startTour = useOnboardingStore((s) => s.start);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  const navItems = [
-    { name: "SME Dashboard", href: "/dashboard" },
-    { name: "LP Portal", href: "/lp" },
-    { name: "Marketplace", href: "/marketplace" },
-    { name: "Profile", href: "/profile" },
-  ];
 
   const closeMobileMenu = () => setMobileMenuOpen(false);
 
@@ -46,29 +79,30 @@ export function Navbar() {
               <div className="bg-primary/10 border border-primary/20 p-2 rounded-lg text-primary shadow-[0_0_10px_rgba(0,212,170,0.1)]">
                 <Terminal className="w-5 h-5" />
               </div>
-              <span className="font-extrabold text-lg tracking-tight font-mono text-white">
+              <span className="font-extrabold text-lg tracking-tight font-mono text-foreground">
                 TRUST<span className="text-primary">TROVE</span>
               </span>
             </Link>
 
             <div className="hidden md:flex space-x-1">
-              {navItems.map((item) => {
+              {NAV_ITEMS.map((item) => {
                 const isActive = pathname === item.href;
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
+                    data-tour={`nav-${item.key}`}
                     className={`px-3.5 py-1.5 rounded-lg text-xs font-bold font-mono tracking-wider uppercase transition-all duration-200 border flex items-center gap-1.5 ${
                       isActive
                         ? "bg-primary/5 border-primary/20 text-primary"
-                        : "border-transparent text-slate-400 hover:text-white hover:bg-slate-900/50"
+                        : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/60"
                     }`}
                   >
-                    <span>{item.name}</span>
-                    {item.name === "Profile" && connected && isVerified && (
+                    <span>{t(`nav.${item.key}`)}</span>
+                    {item.key === "profile" && connected && isVerified && (
                       <span
                         className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]"
-                        title="Verified Profile"
+                        title={t("verifiedProfile")}
                       />
                     )}
                   </Link>
@@ -81,17 +115,23 @@ export function Navbar() {
             {connected && (
               <>
                 {/* Balances */}
-                <div className="hidden md:flex items-center gap-3 bg-neutral-900 border border-border rounded-lg px-3 py-1">
+                <div
+                  data-tour="balances"
+                  className="hidden md:flex items-center gap-3 bg-background-secondary border border-border rounded-lg px-3 py-1"
+                >
                   <div className="flex items-center gap-1.5 group relative">
                     <Wallet className="w-3 h-3 text-sky-400" />
                     {balancesLoading ? (
                       <SkeletonShimmer className="h-3.5 w-14" />
                     ) : (
                       <>
-                        <span className="text-[10px] font-mono text-slate-300 font-bold">
+                        <span className="text-[10px] font-mono text-foreground/80 font-bold">
                           {balances.usdc !== null
-                            ? `${parseFloat(balances.usdc).toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC`
-                            : "— USDC"}
+                            ? t("balanceAmount", {
+                                amount: formatAmount(balances.usdc),
+                                asset: "USDC",
+                              })
+                            : t("balanceUnavailableUsdc")}
                         </span>
                         {(balances.usdc === null ||
                           parseFloat(balances.usdc) === 0) && (
@@ -102,7 +142,7 @@ export function Navbar() {
                               rel="noopener noreferrer"
                               className="flex items-center gap-1 hover:underline"
                             >
-                              Get testnet USDC{" "}
+                              {t("getTestnetUsdc")}{" "}
                               <ExternalLink className="w-3 h-3" />
                             </a>
                           </div>
@@ -116,21 +156,28 @@ export function Navbar() {
                     {balancesLoading ? (
                       <SkeletonShimmer className="h-3.5 w-14" />
                     ) : (
-                      <span className="text-[10px] font-mono text-slate-300 font-bold">
+                      <span className="text-[10px] font-mono text-foreground/80 font-bold">
                         {balances.xlm !== null
-                          ? `${parseFloat(balances.xlm).toLocaleString(undefined, { maximumFractionDigits: 2 })} XLM`
-                          : "0 XLM"}
+                          ? t("balanceAmount", {
+                              amount: formatAmount(balances.xlm),
+                              asset: "XLM",
+                            })
+                          : t("balanceEmptyXlm")}
                       </span>
                     )}
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 bg-neutral-900 border border-border rounded-lg px-2.5 py-1">
+                <div
+                  data-tour="role-switcher"
+                  className="flex items-center gap-2 bg-background-secondary border border-border rounded-lg px-2.5 py-1"
+                >
                   <Shield className="w-3.5 h-3.5 text-primary" />
-                  <span className="text-[10px] font-bold text-slate-500 font-mono uppercase tracking-wider hidden sm:inline">
-                    Role:
+                  <span className="text-[10px] font-bold text-muted-foreground font-mono uppercase tracking-wider hidden sm:inline">
+                    {t("roleLabel")}
                   </span>
                   <select
+                    aria-label={t("roleSelectLabel")}
                     value={role}
                     onChange={(e) => {
                       const value = e.target.value;
@@ -138,27 +185,48 @@ export function Navbar() {
                         setRole(value);
                       }
                     }}
-                    className="bg-transparent text-xs text-white border-none focus:ring-0 focus:outline-none font-bold font-mono cursor-pointer pr-5 py-0"
+                    className="bg-transparent text-xs text-foreground border-none focus:ring-0 focus:outline-none font-bold font-mono cursor-pointer pr-5 py-0"
                   >
                     <option
                       value="issuer"
-                      className="bg-[#080c10] text-slate-200"
+                      className="bg-background text-foreground"
                     >
-                      SME (Issuer)
+                      {t("roles.issuer")}
                     </option>
                     <option
                       value="buyer"
-                      className="bg-[#080c10] text-slate-200"
+                      className="bg-background text-foreground"
                     >
-                      Buyer
+                      {t("roles.buyer")}
                     </option>
-                    <option value="lp" className="bg-[#080c10] text-slate-200">
-                      LP (Funder)
+                    <option
+                      value="lp"
+                      className="bg-background text-foreground"
+                    >
+                      {t("roles.lp")}
                     </option>
                   </select>
                 </div>
               </>
             )}
+
+            <div className="hidden sm:flex items-center gap-2">
+              <NotificationBell
+                notifications={notifications}
+                onOpen={markAllAsRead}
+              />
+              <button
+                type="button"
+                data-tour="tour-launcher"
+                onClick={startTour}
+                aria-label={t("takeTour")}
+                title={t("takeTour")}
+                className="inline-flex items-center justify-center rounded-lg border border-border bg-background-secondary p-2 text-muted-foreground transition hover:border-primary/40 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              >
+                <Compass className="h-4 w-4" aria-hidden="true" />
+              </button>
+              <ThemeToggle />
+            </div>
 
             <div className="hidden sm:block">
               <WalletConnect />
@@ -166,14 +234,10 @@ export function Navbar() {
 
             <button
               type="button"
-              aria-label={
-                mobileMenuOpen
-                  ? "Close navigation menu"
-                  : "Open navigation menu"
-              }
+              aria-label={mobileMenuOpen ? t("closeMenu") : t("openMenu")}
               aria-expanded={mobileMenuOpen}
               onClick={() => setMobileMenuOpen((open) => !open)}
-              className="md:hidden inline-flex items-center justify-center rounded-lg border border-border bg-neutral-900 p-2 text-slate-200 transition hover:border-primary/40 hover:text-primary"
+              className="md:hidden inline-flex items-center justify-center rounded-lg border border-border bg-background-secondary p-2 text-foreground transition hover:border-primary/40 hover:text-primary"
             >
               {mobileMenuOpen ? (
                 <X className="h-5 w-5" />
@@ -186,9 +250,9 @@ export function Navbar() {
       </div>
 
       {mobileMenuOpen && (
-        <div className="md:hidden border-t border-border bg-[#080c10]/95 px-4 py-4 shadow-2xl backdrop-blur-xl">
+        <div className="md:hidden border-t border-border bg-background/95 px-4 py-4 shadow-2xl backdrop-blur-xl">
           <div className="flex flex-col gap-2">
-            {navItems.map((item) => {
+            {NAV_ITEMS.map((item) => {
               const isActive = pathname === item.href;
               return (
                 <Link
@@ -198,26 +262,44 @@ export function Navbar() {
                   className={`flex items-center justify-between rounded-xl border px-4 py-3 text-sm font-bold font-mono uppercase tracking-wider transition ${
                     isActive
                       ? "border-primary/30 bg-primary/10 text-primary"
-                      : "border-border bg-neutral-900/70 text-slate-300 hover:border-primary/30 hover:text-white"
+                      : "border-border bg-background-secondary/70 text-muted-foreground hover:border-primary/30 hover:text-foreground"
                   }`}
                 >
-                  <span>{item.name}</span>
-                  {item.name === "Profile" && connected && isVerified && (
+                  <span>{t(`nav.${item.key}`)}</span>
+                  {item.key === "profile" && connected && isVerified && (
                     <span
                       className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]"
-                      title="Verified Profile"
+                      title={t("verifiedProfile")}
                     />
                   )}
                 </Link>
               );
             })}
+            <button
+              type="button"
+              data-tour="tour-launcher"
+              onClick={() => {
+                closeMobileMenu();
+                startTour();
+              }}
+              className="flex items-center gap-2 rounded-xl border border-border bg-background-secondary/70 px-4 py-3 text-sm font-bold font-mono uppercase tracking-wider text-muted-foreground transition hover:border-primary/30 hover:text-foreground"
+            >
+              <Compass className="h-4 w-4" aria-hidden="true" />
+              {t("takeTour")}
+            </button>
           </div>
 
-          <div className="mt-4 sm:hidden">
+          <div className="mt-4 sm:hidden flex items-center justify-between gap-4">
+            <NotificationBell
+              notifications={notifications}
+              onOpen={markAllAsRead}
+            />
             <WalletConnect />
           </div>
         </div>
       )}
+
+      <OnboardingTour />
     </nav>
   );
 }

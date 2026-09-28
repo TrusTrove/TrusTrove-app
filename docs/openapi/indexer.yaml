@@ -7,7 +7,7 @@ info:
 
     ## SEP-10 authentication flow
 
-    1. The frontend calls `GET /auth?account=<stellar_public_key>` to request an authentication challenge.
+    1. The frontend calls `GET /auth?address=<stellar_public_key>` to request an authentication challenge.
     2. The client signs the returned SEP-10 challenge transaction with Freighter or another Stellar wallet.
     3. The client sends the signed challenge to `POST /auth`.
     4. The indexer validates the signed challenge and returns a JWT.
@@ -55,7 +55,7 @@ paths:
       description: Returns a SEP-10 challenge transaction for the supplied Stellar account.
       security: []
       parameters:
-        - name: account
+        - name: address
           in: query
           required: true
           schema:
@@ -114,22 +114,15 @@ paths:
       security: []
       parameters:
         - $ref: "#/components/parameters/Limit"
-        - $ref: "#/components/parameters/Cursor"
       responses:
         "200":
           description: Indexed events
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  events:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Event"
-                  next_cursor:
-                    type: string
-                    nullable: true
+                type: array
+                items:
+                  $ref: "#/components/schemas/Event"
 
   /invoices:
     get:
@@ -149,22 +142,20 @@ paths:
           schema:
             type: string
         - $ref: "#/components/parameters/Limit"
-        - $ref: "#/components/parameters/Cursor"
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
       responses:
         "200":
           description: Invoice list
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  invoices:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Invoice"
-                  next_cursor:
-                    type: string
-                    nullable: true
+                $ref: "#/components/schemas/PaginatedInvoices"
     post:
       tags: [Invoices]
       summary: Create invoice
@@ -266,6 +257,22 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /pool/snapshots:
+    get:
+      tags: [Pool]
+      summary: Historical pool snapshots
+      description: Returns historical liquidity pool snapshots used for charts and trend analysis.
+      security: []
+      responses:
+        "200":
+          description: Pool snapshots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PoolSnapshot"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -283,13 +290,6 @@ components:
         minimum: 1
         maximum: 100
         default: 20
-    Cursor:
-      name: cursor
-      in: query
-      required: false
-      schema:
-        type: string
-
   responses:
     BadRequest:
       description: Bad request
@@ -390,6 +390,23 @@ components:
           format: int64
       required: [id, issuer, buyer, face_value, due_date, status]
 
+    PaginatedInvoices:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Invoice"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+        totalPages:
+          type: integer
+      required: [data, total, page, limit, totalPages]
+
     Event:
       type: object
       properties:
@@ -454,3 +471,24 @@ components:
           type: string
         deposit_count:
           type: integer
+
+    PoolSnapshot:
+      type: object
+      properties:
+        total_deposits:
+          type: string
+        total_funded:
+          type: string
+        available_liquidity:
+          type: string
+        utilization_rate_bps:
+          type: integer
+        total_yield_distributed:
+          type: string
+        active_invoice_count:
+          type: integer
+        total_shares:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
