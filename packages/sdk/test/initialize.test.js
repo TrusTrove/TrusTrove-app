@@ -1,17 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { Keypair } from "@stellar/stellar-sdk";
+import { Keypair, StrKey } from "@stellar/stellar-sdk";
 import { RegistryClient } from "../dist/clients/registry.js";
 import { PoolClient } from "../dist/clients/pool.js";
 import { InvoiceClient } from "../dist/clients/invoice.js";
 import { EscrowClient } from "../dist/clients/escrow.js";
 
 const adminAddress = Keypair.random().publicKey();
+const contractId = StrKey.encodeContract(new Uint8Array(32));
 
 function createClient(ClientClass) {
   return new (class extends ClientClass {
     constructor() {
-      super("test-contract");
+      super(contractId);
     }
 
     async writeContract(method, args, publicKey) {

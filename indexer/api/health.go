@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"trusttrove/indexer/db"
 )
 
@@ -15,6 +16,16 @@ type ListenerHealth struct {
 	running       bool
 	stopped       bool
 	lastHeartbeat time.Time
+	Lag           int
+}
+
+var LedgerLag = prometheus.NewGauge(prometheus.GaugeOpts{
+	Name: "stellar_ledger_lag",
+	Help: "Ledger lag between horizon and local.",
+})
+
+func init() {
+	prometheus.MustRegister(LedgerLag)
 }
 
 func NewListenerHealth() *ListenerHealth {

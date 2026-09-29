@@ -58,14 +58,25 @@ fund, whether they repay, and how long capital sits idle between deployments.
 
 ### Default risk
 
-When a buyer defaults, the pool loses the yield and a portion of principal.
-Specifically, the pool funded at a discount, so it already holds less than face value.
-On default, it recovers only the funded amount from escrow — which is exactly what
-it paid. Net loss to the pool on default: zero principal loss, full yield loss.
+When a buyer defaults, the pool loses the **full funded amount** — principal,
+not just yield. This follows from how funding and default work on-chain:
+`pool_contract.fund_invoice` locks the funded amount in escrow and immediately
+releases it to the SME in the same transaction, so escrow holds nothing for a
+funded invoice. On default, `escrow_contract.handle_default()` therefore finds
+no record and recovers nothing, and `pool_contract.handle_default()` reduces
+total deposits by the funded amount. The loss is shared across all LP shares
+through a lower share price.
 
-Wait — that is not quite right for the other LPs. If the pool funded $9,800 and
-collects $9,800, that LP's capital is returned. But the expected yield ($200) is
-gone. Since yield was already priced into the share price expectations, LPs see
-a reduction in expected returns, not necessarily principal.
+Worked example (2% discount, $10,000 face value):
 
-LPs should understand this before depositing.
+- Pool holds $100,000 in deposits → 100,000 shares at $1.00.
+- Pool funds the invoice: $9,800 leaves the pool, SME receives $9,800.
+- Buyer defaults. Escrow holds $0 for this invoice, so the pool recovers $0.
+- Total deposits drop by the $9,800 funded amount: $100,000 → $90,200 against
+  the same 100,000 shares. Share price falls $1.00 → $0.902.
+- An LP who deposited $1,000 (1,000 shares) can now withdraw ~$902 — a $98
+  principal loss from this single default, plus the $200 of yield that never
+  materialized.
+
+LPs should understand this before depositing: a default destroys the capital
+the pool advanced, up to the full funded amount per defaulted invoice.

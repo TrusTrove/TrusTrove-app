@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -13,6 +14,7 @@ import (
 
 	"trusttrove/indexer/api"
 	"trusttrove/indexer/config"
+	"trusttrove/indexer/db"
 
 	"github.com/stellar/go-stellar-sdk/keypair"
 )
@@ -65,13 +67,15 @@ func newTestEventListener(t *testing.T, cfgOverrides ...func(*config.Config)) *E
 	for _, fn := range cfgOverrides {
 		fn(cfg)
 	}
-	l := NewEventListener(cfg, api.NewListenerHealth())
+	l := NewEventListener(cfg, api.NewListenerHealth(), nil)
 	// Defaults: zero-valued no-ops. Each test that needs real behavior
 	// (e.g. TestStart_GetCheckpointErrorIsReturned) overrides the field below.
 	l.getCheckpointFn = func(_ context.Context) (int32, error) { return 0, nil }
 	l.getLatestProcessedLedgerFn = func(_ context.Context) (int32, error) { return 0, nil }
 	l.upsertCheckpointFn = func(_ context.Context, _ int32) error { return nil }
-	l.isEventProcessedFn = func(_ context.Context, _ string) (bool, error) { return false, nil }
+	l.areEventsProcessedFn = func(_ context.Context, _ []string) (map[string]bool, error) {
+		return map[string]bool{}, nil
+	}
 	return l
 }
 
@@ -131,11 +135,11 @@ func TestPollEvents_EmptyEventsReturnsLatestPlusOne(t *testing.T) {
 		c.RegistryContractID = "CABGWVIZFF62FG67ZGFEP67NEEY4WYTMFURDMFTKKNRDAFPKPOJDTN4C"
 		c.InvoiceContractID = "CA4O3MR7LWHRSUDBNU6FY6UDFFYBN7TGBZXBDZB4OYYXFYXIFJ6RJF6B"
 	})
-	// isEventProcessed is wired to a no-op by newTestEventListener, but assert
+	// AreEventsProcessed is wired to a no-op by newTestEventListener, but assert
 	// it's never invoked when the events array is empty.
-	l.isEventProcessedFn = func(_ context.Context, _ string) (bool, error) {
-		t.Error("isEventProcessed should not be called when the events array is empty")
-		return false, nil
+	l.areEventsProcessedFn = func(_ context.Context, _ []string) (map[string]bool, error) {
+		t.Error("areEventsProcessed should not be called when the events array is empty")
+		return map[string]bool{}, nil
 	}
 
 	got, err := l.pollEvents(context.Background(), inputStart)
@@ -164,6 +168,185 @@ func TestPollEvents_RPCErrorIsPropagated(t *testing.T) {
 
 	if _, err := l.pollEvents(context.Background(), 100); err == nil {
 		t.Fatal("expected error when RPC returns HTTP 500")
+	}
+}
+
+// rpcEventFor builds one getEvents result entry whose topic[0] carries the
+// given event symbol. Using a registration symbol with no address topic makes
+// handleEvent fail before it touches the database, so tests can tell from the
+// returned error whether an event was handed off for processing at all.
+func rpcEventFor(id, symbol string) map[string]any {
+	return map[string]any{
+		"id":             id,
+		"contractId":     "CABGWVIZFF62FG67ZGFEP67NEEY4WYTMFURDMFTKKNRDAFPKPOJDTN4C",
+		"ledger":         124,
+		"ledgerClosedAt": "2024-12-30T00:00:00Z",
+		"type":           "contract",
+		"topic":          []string{encodeSymbol(symbol)},
+		"value":          map[string]any{"xdr": encodeSymbol("unused")},
+	}
+}
+
+// TestPollEvents_ProcessedLookupFailureIsReturned is the #929 regression: when
+// the events_log de-duplication lookup fails, pollEvents must surface the error
+// so Start backs off, instead of treating every event on the page as new and
+// re-applying on-chain state changes while the database is unhealthy.
+func TestPollEvents_ProcessedLookupFailureIsReturned(t *testing.T) {
+	server := stubSorobanRPC(t, func(method string) (any, int) {
+		if method != "getEvents" {
+			return map[string]any{"sequence": int32(200)}, http.StatusOK
+		}
+		return map[string]any{
+			"events":       []any{rpcEventFor("200-000001", "issuer_registered")},
+			"latestLedger": uint32(200),
+			"cursor":       "",
+		}, http.StatusOK
+	})
+
+	l := newTestEventListener(t, func(c *config.Config) {
+		c.SorobanRPCURL = server.URL
+		c.RegistryContractID = "CABGWVIZFF62FG67ZGFEP67NEEY4WYTMFURDMFTKKNRDAFPKPOJDTN4C"
+	})
+	wantErr := errors.New("events_log lookup unavailable")
+	l.areEventsProcessedFn = func(_ context.Context, _ []string) (map[string]bool, error) {
+		return nil, wantErr
+	}
+
+	_, err := l.pollEvents(context.Background(), 100)
+	if err == nil {
+		t.Fatal("expected pollEvents to fail when the de-duplication lookup fails")
+	}
+	if !errors.Is(err, wantErr) {
+		t.Errorf("expected the lookup error to be wrapped, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "check processed events") {
+		t.Errorf("expected 'check processed events' in error, got %v", err)
+	}
+	// handleEvent rejects a registration event with no address topic, so this
+	// string appearing would prove the event fell through to processing.
+	if strings.Contains(err.Error(), "handle event") {
+		t.Errorf("event was processed despite the failed lookup: %v", err)
+	}
+}
+
+// TestPollEvents_BatchLookupRunsOncePerPage covers #929's other half: the whole
+// page is checked with a single AreEventsProcessed call, and rows already in
+// events_log are skipped rather than handled.
+func TestPollEvents_BatchLookupRunsOncePerPage(t *testing.T) {
+	const contractID = "CABGWVIZFF62FG67ZGFEP67NEEY4WYTMFURDMFTKKNRDAFPKPOJDTN4C"
+	eventIDs := []string{"300-000001", "300-000002", "300-000003"}
+	events := make([]any, 0, len(eventIDs))
+	for _, id := range eventIDs {
+		events = append(events, rpcEventFor(id, "issuer_registered"))
+	}
+
+	server := stubSorobanRPC(t, func(method string) (any, int) {
+		if method != "getEvents" {
+			return map[string]any{"sequence": int32(300)}, http.StatusOK
+		}
+		return map[string]any{
+			"events":       events,
+			"latestLedger": uint32(300),
+			"cursor":       "",
+		}, http.StatusOK
+	})
+
+	l := newTestEventListener(t, func(c *config.Config) {
+		c.SorobanRPCURL = server.URL
+		c.RegistryContractID = contractID
+	})
+
+	var lookups int32
+	var gotIDs []string
+	l.areEventsProcessedFn = func(_ context.Context, ids []string) (map[string]bool, error) {
+		atomic.AddInt32(&lookups, 1)
+		gotIDs = ids
+		processed := make(map[string]bool, len(ids))
+		for _, id := range ids {
+			processed[id] = true
+		}
+		return processed, nil
+	}
+
+	if _, err := l.pollEvents(context.Background(), 100); err != nil {
+		t.Fatalf("expected processed events to be skipped without error, got %v", err)
+	}
+	if got := atomic.LoadInt32(&lookups); got != 1 {
+		t.Errorf("expected 1 batched lookup for the page, got %d", got)
+	}
+	if strings.Join(gotIDs, ",") != strings.Join(eventIDs, ",") {
+		t.Errorf("expected the whole page in one call, got %v", gotIDs)
+	}
+}
+
+// TestPollEvents_LookupFailureDoesNotReapplyInvoice is the DB-backed form of
+// #929's acceptance criterion: with the lookup failing, neither the invoice row
+// nor the events_log row may appear.
+func TestPollEvents_LookupFailureDoesNotReapplyInvoice(t *testing.T) {
+	skipIfNoDB(t)
+
+	ctx := context.Background()
+	const (
+		issuer     = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
+		buyer      = "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN"
+		contractID = "CABGWVIZFF62FG67ZGFEP67NEEY4WYTMFURDMFTKKNRDAFPKPOJDTN4C"
+	)
+	rawIDBytes := []byte(fmt.Sprintf("lookupfail%d", time.Now().UnixNano()))
+	invoiceIDHex := fmt.Sprintf("%x", rawIDBytes)
+	eventID := fmt.Sprintf("event-lookupfail-%d", time.Now().UnixNano())
+	t.Cleanup(func() {
+		if db.Pool != nil {
+			db.Pool.Exec(ctx, "DELETE FROM invoices WHERE id = $1", invoiceIDHex)
+			db.Pool.Exec(ctx, "DELETE FROM events_log WHERE event_id = $1", eventID)
+		}
+	})
+
+	server := stubSorobanRPC(t, func(method string) (any, int) {
+		if method != "getEvents" {
+			return map[string]any{"sequence": int32(400)}, http.StatusOK
+		}
+		return map[string]any{
+			"events": []any{map[string]any{
+				"id":             eventID,
+				"contractId":     contractID,
+				"ledger":         400,
+				"ledgerClosedAt": "2024-12-30T00:00:00Z",
+				"type":           "contract",
+				"topic":          []string{encodeSymbol("create")},
+				"value": map[string]any{
+					"xdr": makeInvoiceCreatedValue(rawIDBytes, issuer, buyer, 1000000000, 1735689600),
+				},
+			}},
+			"latestLedger": uint32(400),
+			"cursor":       "",
+		}, http.StatusOK
+	})
+
+	l := newTestEventListener(t, func(c *config.Config) {
+		c.SorobanRPCURL = server.URL
+		c.RegistryContractID = contractID
+	})
+	l.areEventsProcessedFn = func(_ context.Context, _ []string) (map[string]bool, error) {
+		return nil, errors.New("connection reset by peer")
+	}
+
+	if _, err := l.pollEvents(context.Background(), 100); err == nil {
+		t.Fatal("expected pollEvents to return the lookup error")
+	}
+
+	invoice, err := db.GetInvoiceByID(ctx, invoiceIDHex)
+	if err != nil {
+		t.Fatalf("GetInvoiceByID: %v", err)
+	}
+	if invoice != nil {
+		t.Error("invoice row was inserted although the de-duplication lookup failed")
+	}
+	processed, err := db.IsEventProcessed(ctx, eventID)
+	if err != nil {
+		t.Fatalf("IsEventProcessed: %v", err)
+	}
+	if processed {
+		t.Error("events_log row was written although the de-duplication lookup failed")
 	}
 }
 
@@ -284,5 +467,59 @@ func TestStart_ProcessesAtLeastOnceThenStopsOnCancel(t *testing.T) {
 		// iteration fails to find a non-cancelled ctx), MarkStopped has
 		// been called and IsHealthy should report false.
 		t.Error("expected listener health to be unhealthy after MarkStopped")
+	}
+}
+
+func TestStart_SurvivesConsecutivePollErrors(t *testing.T) {
+	const failures = 3
+	var pollCount int32
+	// Startup (getLatestLedger) succeeds so Start reaches its poll loop;
+	// every getEvents call afterwards fails like a transient RPC outage.
+	server := stubSorobanRPC(t, func(method string) (any, int) {
+		if method == "getEvents" {
+			atomic.AddInt32(&pollCount, 1)
+			return nil, http.StatusInternalServerError
+		}
+		return map[string]any{"sequence": int32(500)}, http.StatusOK
+	})
+
+	l := newTestEventListener(t, func(c *config.Config) {
+		c.SorobanRPCURL = server.URL
+		c.IndexerPollIntervalMs = 5
+		c.RegistryContractID = "CABGWVIZFF62FG67ZGFEP67NEEY4WYTMFURDMFTKKNRDAFPKPOJDTN4C"
+	})
+	l.retryBackoff = 5 * time.Millisecond
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	errCh := make(chan error, 1)
+	go func() { errCh <- l.Start(ctx) }()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for atomic.LoadInt32(&pollCount) < failures {
+		if time.Now().After(deadline) {
+			t.Fatal("listener exited after transient poll errors instead of retrying")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	// /health must surface the outage while the listener is backing off.
+	healthDeadline := time.Now().Add(time.Second)
+	for l.health.IsHealthy() && time.Now().Before(healthDeadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if l.health.IsHealthy() {
+		t.Error("expected listener health to report degraded while retrying")
+	}
+
+	cancel()
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Fatalf("expected nil error on cancel after retry loop, got %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Start did not return after cancel")
 	}
 }

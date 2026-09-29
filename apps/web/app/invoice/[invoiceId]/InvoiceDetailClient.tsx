@@ -152,38 +152,38 @@ export default function InvoiceDetailClient({
         <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold font-mono uppercase tracking-wider">
           <Link
             href="/dashboard"
-            className="flex items-center gap-1.5 text-slate-500 transition-colors hover:text-white"
+            className="flex items-center gap-1.5 text-slate-500 transition-colors hover:text-white flex-shrink-0"
           >
             <ArrowLeft className="w-3.5 h-3.5" /> Dashboard
           </Link>
-          <ChevronRight className="w-3.5 h-3.5 text-slate-700" />
+          <ChevronRight className="w-3.5 h-3.5 text-slate-700 flex-shrink-0" />
           <Link
             href="/dashboard"
-            className="text-slate-500 transition-colors hover:text-white"
+            className="text-slate-500 transition-colors hover:text-white flex-shrink-0"
           >
             Invoices
           </Link>
-          <ChevronRight className="w-3.5 h-3.5 text-slate-700" />
-          <span className="text-slate-400">
+          <ChevronRight className="w-3.5 h-3.5 text-slate-700 flex-shrink-0" />
+          <span className="text-slate-400 truncate">
             Invoice #{truncateAddress(invoice.id)}
           </span>
         </div>
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/40 pb-5">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <h1 className="text-md font-bold font-mono text-white">
+          <div className="space-y-1.5 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-md font-bold font-mono text-white truncate">
                 INVOICE AUDIT LEDGER
               </h1>
               <InvoiceStatus status={invoice.status} />
             </div>
-            <div className="flex items-center gap-1.5 font-mono text-xs text-slate-500">
-              <span>
+            <div className="flex items-center gap-1.5 font-mono text-xs text-slate-500 flex-wrap">
+              <span className="truncate">
                 HASH: <strong className="text-slate-400">{invoice.id}</strong>
               </span>
               <button
                 onClick={() => copyToClipboard(invoice.id, "id")}
-                className="text-slate-600 hover:text-primary transition-colors"
+                className="text-slate-600 hover:text-primary transition-colors flex-shrink-0"
                 aria-label="Copy invoice ID"
               >
                 {copiedId ? (
@@ -194,11 +194,11 @@ export default function InvoiceDetailClient({
               </button>
             </div>
           </div>
-          <div className="bg-[#0d131a] border border-border rounded px-4 py-2 font-mono text-right">
+          <div className="bg-[#0d131a] border border-border rounded px-4 py-2 font-mono text-right flex-shrink-0">
             <span className="text-[10px] text-slate-500 font-bold uppercase block">
               Face Value Obligations
             </span>
-            <span className="text-lg font-bold text-white block mt-0.5">
+            <span className="text-lg font-bold text-white block mt-0.5 truncate">
               {formatAmount(invoice.faceValue)}
             </span>
           </div>
@@ -310,13 +310,13 @@ export default function InvoiceDetailClient({
                 Maturity Parameters
               </h3>
               <div className="space-y-4 font-mono text-xs">
-                <div className="flex justify-between">
+                <div className="flex flex-wrap justify-between gap-2">
                   <span className="text-slate-500">Maturity Date:</span>
                   <span className="text-slate-300 font-bold">
                     {new Date(invoice.dueDate * 1000).toLocaleDateString()}
                   </span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex flex-wrap justify-between gap-2">
                   <span className="text-slate-500">Maturity Status:</span>
                   <span
                     className={`font-bold ${isOverdue && invoice.status !== "Repaid" ? "text-amber-500" : "text-slate-300"}`}
@@ -326,7 +326,7 @@ export default function InvoiceDetailClient({
                       : `${daysRemaining} days remaining`}
                   </span>
                 </div>
-                <div className="flex justify-between border-t border-border/20 pt-3">
+                <div className="flex flex-wrap justify-between gap-2 border-t border-border/20 pt-3">
                   <span className="text-slate-500">Discount Rate:</span>
                   <span className="text-primary font-bold">
                     {invoice.discountBps > 0
@@ -334,7 +334,7 @@ export default function InvoiceDetailClient({
                       : "—"}
                   </span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex flex-wrap justify-between gap-2">
                   <span className="text-slate-500">Net Discount Fee:</span>
                   <span className="text-slate-300 font-bold">
                     {formatAmount(
@@ -360,12 +360,12 @@ export default function InvoiceDetailClient({
                   }
                   disabled={!invoiceUrl}
                 >
-                  <span>
+                  <span className="truncate">
                     {copiedLink ? "LINK COPIED" : "Copy Invoice Link"}
                   </span>
-                  <Copy className="w-3.5 h-3.5" />
+                  <Copy className="w-3.5 h-3.5 flex-shrink-0" />
                 </Button>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <a
                     className="border border-border rounded px-2 py-2 text-center text-slate-300 hover:text-white"
                     href={whatsappUrl}

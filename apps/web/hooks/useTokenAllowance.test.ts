@@ -107,4 +107,88 @@ describe("useTokenAllowance", () => {
       }),
     ).rejects.toThrow("approve failed");
   });
+
+  it("treats an allowance exactly equal to the amount as sufficient", async () => {
+    useWalletStore.getState().connect("GTEST", "testnet");
+
+    const mockAllowance = vi.fn().mockResolvedValue(100n);
+    const mockApprove = vi.fn();
+    const mockServer = { getLatestLedger: vi.fn() };
+    vi.mocked(TokenClient.forUSDC).mockReturnValue({
+      allowance: mockAllowance,
+      approve: mockApprove,
+    } as any);
+    vi.mocked(getSorobanServer).mockReturnValue(mockServer as any);
+
+    const { result } = renderHook(() => useTokenAllowance());
+
+    await act(async () => {
+      await result.current.ensureAllowance("CSPENDER", 100n);
+    });
+
+    expect(mockApprove).not.toHaveBeenCalled();
+    // No ledger lookup either — the whole approval path is skipped.
+    expect(mockServer.getLatestLedger).not.toHaveBeenCalled();
+  });
+
+  it("approves from a zero allowance", async () => {
+    useWalletStore.getState().connect("GTEST", "testnet");
+
+    const mockAllowance = vi.fn().mockResolvedValue(0n);
+    const mockApprove = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(TokenClient.forUSDC).mockReturnValue({
+      allowance: mockAllowance,
+      approve: mockApprove,
+    } as any);
+    vi.mocked(getSorobanServer).mockReturnValue({
+      getLatestLedger: vi.fn().mockResolvedValue({ sequence: 42 }),
+    } as any);
+
+    const { result } = renderHook(() => useTokenAllowance());
+
+    await act(async () => {
+      await result.current.ensureAllowance("CSPENDER", 1n);
+    });
+
+    expect(mockApprove).toHaveBeenCalledWith(
+      "GTEST",
+      "CSPENDER",
+      1n,
+      42 + 535_680,
+      "GTEST",
+    );
+  });
+
+  it("propagates a failure to read the latest ledger", async () => {
+    useWalletStore.getState().connect("GTEST", "testnet");
+
+    const mockApprove = vi.fn();
+    vi.mocked(TokenClient.forUSDC).mockReturnValue({
+      allowance: vi.fn().mockResolvedValue(0n),
+      approve: mockApprove,
+    } as any);
+    vi.mocked(getSorobanServer).mockReturnValue({
+      getLatestLedger: vi.fn().mockRejectedValue(new Error("rpc down")),
+    } as any);
+
+    const { result } = renderHook(() => useTokenAllowance());
+
+    await expect(
+      act(async () => {
+        await result.current.ensureAllowance("CSPENDER", 100n);
+      }),
+    ).rejects.toThrow("rpc down");
+    expect(mockApprove).not.toHaveBeenCalled();
+  });
+
+  it("keeps ensureAllowance stable across re-renders while the address is unchanged", () => {
+    useWalletStore.getState().connect("GTEST", "testnet");
+
+    const { result, rerender } = renderHook(() => useTokenAllowance());
+    const first = result.current.ensureAllowance;
+
+    rerender();
+
+    expect(result.current.ensureAllowance).toBe(first);
+  });
 });

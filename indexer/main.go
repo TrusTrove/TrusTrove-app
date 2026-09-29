@@ -17,9 +17,47 @@ import (
 	"trusttrove/indexer/config"
 	"trusttrove/indexer/db"
 	"trusttrove/indexer/listener"
+	"trusttrove/indexer/webhook"
+	"trusttrove/indexer/webhooks"
 )
 
+// Process exit statuses. Orchestrators configured with Docker's
+// `restart: on-failure` or systemd's `Restart=on-failure` only bring a
+// container/service back up when the process leaves a non-zero status behind,
+// so a failed listener must never look like a clean stop.
+const (
+	exitSuccess = 0
+	exitFailure = 1
+)
+
+// shutdownCause records why the run loop stopped. It is the only input to the
+// exit status, which keeps the decision testable without starting the process.
+type shutdownCause string
+
+const (
+	causeTerminationSignal shutdownCause = "termination signal"
+	causeListenerFailure   shutdownCause = "listener failure"
+	causeHTTPServerFailure shutdownCause = "http server failure"
+)
+
+// exitCodeFor maps a shutdown cause to the exit status the process returns.
+// Only an intentional SIGINT/SIGTERM stop is a success; a listener or HTTP
+// server failure, and any cause we did not record, exits non-zero so the
+// supervisor restarts the indexer.
+func exitCodeFor(cause shutdownCause) int {
+	if cause == causeTerminationSignal {
+		return exitSuccess
+	}
+	return exitFailure
+}
+
 func main() {
+	// run() returns the exit status so deferred functions (sentry.Flush, the
+	// context cancel) always execute before os.Exit.
+	os.Exit(run())
+}
+
+func run() int {
 	// Configure default slog JSON logging format
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
@@ -32,7 +70,7 @@ func main() {
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		slog.Error("Failed to load configuration", "error", err)
-		os.Exit(1)
+		return exitFailure
 	}
 
 	// Log secret sources for transparency (never log the secrets themselves)
@@ -69,7 +107,7 @@ func main() {
 
 	if err := db.InitDB(ctx, cfg.DatabaseURL); err != nil {
 		slog.Error("Failed to initialize database", "error", err)
-		os.Exit(1)
+		return exitFailure
 	}
 	slog.Info("Database connection and migrations successfully verified")
 
@@ -77,7 +115,7 @@ func main() {
 	handler, err := api.NewAPIHandler(cfg)
 	if err != nil {
 		slog.Error("Failed to initialize API handler", "error", err)
-		os.Exit(1)
+		return exitFailure
 	}
 
 	router := api.NewRouter(handler)
@@ -86,8 +124,20 @@ func main() {
 		Handler: router,
 	}
 
-	// 4. Start Event Listener in Background
-	eventListener := listener.NewEventListener(cfg, handler.ListenerHealth())
+	// 4. Start Webhook Dispatcher (for enqueueing) and Delivery Worker (for sending) in Background
+	webhookDispatcher := webhook.NewDispatcher()
+	workerCfg := webhooks.DefaultWorkerConfig()
+	workerCfg.Concurrency = cfg.WebhookConcurrency
+	webhookDeliveryWorker := webhooks.NewDeliveryWorker(workerCfg)
+	go func() {
+		slog.Info("Starting webhook delivery worker...")
+		if err := webhookDeliveryWorker.Start(ctx); err != nil && !errors.Is(err, context.Canceled) {
+			slog.Error("Webhook delivery worker exited with error", "error", err)
+		}
+	}()
+
+	// 5. Start Event Listener in Background
+	eventListener := listener.NewEventListener(cfg, handler.ListenerHealth(), webhookDispatcher)
 	listenerErrCh := make(chan error, 1)
 	go func() {
 		slog.Info("Starting Soroban Event Listener background task...")
@@ -97,23 +147,23 @@ func main() {
 		}
 	}()
 
-	// 5. Start API Server in Background
+	// 6. Start API Server in Background
+	serverErrCh := make(chan error, 1)
 	go func() {
 		slog.Info("Starting HTTP API Server", "port", cfg.APIPort)
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			slog.Error("HTTP API server failed", "error", err)
-			os.Exit(1)
+			serverErrCh <- err
 		}
 	}()
 
-	// 6. Wait for Termination Signal or Listener Failure
+	// 7. Wait for Termination Signal or Background Component Failure
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 
 	var shutdownOnce sync.Once
-	shutdown := func(reason string) {
+	shutdown := func(reason shutdownCause) {
 		shutdownOnce.Do(func() {
-			slog.Info("Shutting down gracefully", "reason", reason)
+			slog.Info("Shutting down gracefully", "reason", string(reason))
 
 			// Cancel context to stop listener
 			cancel()
@@ -137,13 +187,21 @@ func main() {
 		})
 	}
 
+	var cause shutdownCause
 	select {
 	case err := <-listenerErrCh:
 		slog.Error("Event listener exited with error", "error", err)
-		shutdown("listener failure")
+		cause = causeListenerFailure
+	case err := <-serverErrCh:
+		slog.Error("HTTP API server failed", "error", err)
+		cause = causeHTTPServerFailure
 	case <-stop:
-		shutdown("termination signal")
+		cause = causeTerminationSignal
 	}
 
-	slog.Info("TrusTrove Indexer and API server stopped.")
+	code := exitCodeFor(cause)
+	shutdown(cause)
+
+	slog.Info("TrusTrove Indexer and API server stopped.", "exitCode", code)
+	return code
 }

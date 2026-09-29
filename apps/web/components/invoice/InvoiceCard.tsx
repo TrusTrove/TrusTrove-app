@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { formatAmount } from "@/lib/assets";
 import { truncateAddress } from "@/lib/format";
-import { validateDiscountBps } from "@/lib/validation";
+import { MAX_DISCOUNT_BPS, validateDiscountBps } from "@/lib/validation";
 import { useConfirmDialogStore } from "@/store/confirmDialog";
 
 interface InvoiceCardProps {
@@ -75,7 +75,7 @@ export const InvoiceCard = React.memo(function InvoiceCard({
       const bps = parseInt(discountBpsInput, 10);
       if (!validateDiscountBps(bps)) {
         throw new Error(
-          "Discount basis points must be between 1 and 10,000 (100%)",
+          `Discount basis points must be between 1 and ${MAX_DISCOUNT_BPS.toLocaleString()} (50%)`,
         );
       }
       await listInvoice({ invoiceId: invoice.id, discountBps: bps });
@@ -299,11 +299,14 @@ export const InvoiceCard = React.memo(function InvoiceCard({
                   htmlFor={discountBpsId}
                   className="block text-[10px] font-bold font-mono text-slate-500 uppercase tracking-wider mb-1"
                 >
-                  Discount Basis Points (e.g. 200 = 2.00%)
+                  Discount Basis Points (e.g. 200 = 2.00%, max 5,000 = 50%)
                 </label>
                 <input
                   id={discountBpsId}
                   type="number"
+                  min={1}
+                  max={MAX_DISCOUNT_BPS}
+                  step={1}
                   className="w-full bg-slate-900 border border-border rounded px-3 py-1.5 text-white font-mono text-xs focus:outline-none focus:border-primary"
                   value={discountBpsInput}
                   onChange={(e) => setDiscountBpsInput(e.target.value)}

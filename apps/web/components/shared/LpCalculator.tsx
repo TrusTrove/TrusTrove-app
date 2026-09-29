@@ -170,7 +170,7 @@ export function LpCalculator() {
 
         <div className="bg-slate-950 p-3 border border-border/40 rounded text-[10px] font-mono text-slate-500 mt-6 leading-relaxed">
           <span className="text-primary font-bold block mb-1">
-            PROTCOL YIELD MECHANIC
+            PROTOCOL YIELD MECHANIC
           </span>
           USDC is never idle. Invoices listed by SMEs are funded automatically
           by the pool contract using liquid deposits, allocating discount fees

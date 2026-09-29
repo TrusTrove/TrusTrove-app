@@ -29,6 +29,7 @@ var configEnvNames = []string{
 	"ALLOWED_ORIGINS",
 	"CORS_ALLOWED_ORIGINS",
 	"RATE_LIMIT_RPS",
+	"WEBHOOK_WORKER_CONCURRENCY",
 	"SENTRY_DSN",
 }
 
@@ -55,6 +56,43 @@ func requiredConfigEnv() map[string]string {
 	}
 }
 
+// TestLoadConfigWebhookConcurrency covers the pool size setting added for
+// webhook issue #933: it must be configurable, and unusable values must not be
+// able to ask for a zero (or negative) pool.
+func TestLoadConfigWebhookConcurrency(t *testing.T) {
+	cases := []struct {
+		value string
+		want  int
+	}{
+		{"", 8},
+		{"1", 1},
+		{"32", 32},
+		{"0", 8},
+		{"-4", 8},
+		{"not-a-number", 8},
+	}
+
+	for _, tc := range cases {
+		name := tc.value
+		if name == "" {
+			name = "unset"
+		}
+		t.Run(name, func(t *testing.T) {
+			env := requiredConfigEnv()
+			env["WEBHOOK_WORKER_CONCURRENCY"] = tc.value
+			setConfigEnv(t, env)
+
+			cfg, err := LoadConfig()
+			if err != nil {
+				t.Fatalf("LoadConfig: %v", err)
+			}
+			if cfg.WebhookConcurrency != tc.want {
+				t.Errorf("WebhookConcurrency = %d, want %d for WEBHOOK_WORKER_CONCURRENCY=%q", cfg.WebhookConcurrency, tc.want, tc.value)
+			}
+		})
+	}
+}
+
 func TestLoadConfig(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -74,6 +112,7 @@ func TestLoadConfig(t *testing.T) {
 				env["API_PORT"] = "9000"
 				env["ALLOWED_ORIGINS"] = " https://app.example,https://admin.example, "
 				env["RATE_LIMIT_RPS"] = "25"
+				env["WEBHOOK_WORKER_CONCURRENCY"] = "3"
 				env["SENTRY_DSN"] = " https://examplePublicKey@o0.ingest.sentry.io/0 "
 				return env
 			}(),
@@ -86,6 +125,9 @@ func TestLoadConfig(t *testing.T) {
 				}
 				if cfg.IndexerPollIntervalMs != 2500 || cfg.JWTExpiryHours != 12 || cfg.APIPort != "9000" || cfg.RateLimitRPS != 25 {
 					t.Errorf("parsed settings = (%d, %d, %q, %d); want (2500, 12, 9000, 25)", cfg.IndexerPollIntervalMs, cfg.JWTExpiryHours, cfg.APIPort, cfg.RateLimitRPS)
+				}
+				if cfg.WebhookConcurrency != 3 {
+					t.Errorf("WebhookConcurrency = %d; want 3 from WEBHOOK_WORKER_CONCURRENCY", cfg.WebhookConcurrency)
 				}
 				wantOrigins := []string{"https://app.example", "https://admin.example"}
 				if strings.Join(cfg.CORSAllowedOrigins, ",") != strings.Join(wantOrigins, ",") {
@@ -108,6 +150,9 @@ func TestLoadConfig(t *testing.T) {
 				}
 				if cfg.IndexerPollIntervalMs != 5000 || cfg.JWTExpiryHours != 24 || cfg.APIPort != "8080" || cfg.RateLimitRPS != 10 {
 					t.Errorf("defaults = (%d, %d, %q, %d); want (5000, 24, 8080, 10)", cfg.IndexerPollIntervalMs, cfg.JWTExpiryHours, cfg.APIPort, cfg.RateLimitRPS)
+				}
+				if cfg.WebhookConcurrency != 8 {
+					t.Errorf("WebhookConcurrency = %d; want the documented default of 8", cfg.WebhookConcurrency)
 				}
 				if len(cfg.CORSAllowedOrigins) != 1 || cfg.CORSAllowedOrigins[0] != "http://localhost:3000" {
 					t.Errorf("default origins = %v, want localhost origin", cfg.CORSAllowedOrigins)

@@ -326,6 +326,31 @@ func (l *EventListener) handleAttestationSubmitted(ctx context.Context, event So
 	slog.Info("Indexed event: AttestationSubmitted", "id", invoiceID, "agentID", agentID, "riskScoreBps", riskScoreBps)
 	return nil
 }
+func (l *EventListener) handleRegistrationEvent(ctx context.Context, event SorobanEvent, ledgerClosedAt int64, eventName string) error {
+	// Topic format: ["issuer_registered" / "buyer_registered", account_address]
+	if len(event.Topic) < 2 {
+		return fmt.Errorf("invalid topic length for registration event")
+	}
+
+	var addrVal xdr.ScVal
+	if err := xdr.SafeUnmarshalBase64(event.Topic[1], &addrVal); err != nil {
+		return fmt.Errorf("parse registration address topic: %w", err)
+	}
+	address := xdrutil.ParseAddress(addrVal)
+	if address == "" {
+		return fmt.Errorf("registration event value: topic address is not a valid address")
+	}
+
+	logData := map[string]interface{}{
+		"address": address,
+	}
+	if err := db.LogEvent(ctx, event.ID, event.ContractID, event.Ledger, ledgerClosedAt, eventName, logData); err != nil {
+		return err
+	}
+
+	slog.Info("Indexed event: registration", "event", eventName, "address", address)
+	return nil
+}
 
 func (l *EventListener) handleEvent(ctx context.Context, event SorobanEvent) error {
 	if len(event.Topic) == 0 {
@@ -375,6 +400,11 @@ func (l *EventListener) handleEvent(ctx context.Context, event SorobanEvent) err
 		err = l.handleInvoiceDefaulted(ctx, event, serverKP)
 	case "submit_attestation", "AttestationSubmitted":
 		err = l.handleAttestationSubmitted(ctx, event, ledgerClosedAt)
+	case "issuer_registered", "buyer_registered":
+		// Registry contract registrations are logged (and de-duplicated) via
+		// events_log but have no invoice fan-out, so they short-circuit the
+		// generic tail below.
+		return l.handleRegistrationEvent(ctx, event, ledgerClosedAt, eventName)
 	default:
 		slog.Debug("Skipping unhandled contract event", "name", eventName)
 		return nil
@@ -420,5 +450,59 @@ func (l *EventListener) handleEvent(ctx context.Context, event SorobanEvent) err
 		slog.Error("Failed to log event in DB", "eventId", event.ID, "error", err)
 	}
 
+	// Fan out to webhook subscribers (non-blocking: failures are logged, not returned)
+	if l.dispatcher != nil {
+		l.dispatchWebhookEvent(ctx, eventName, event, ledgerClosedAt, logData)
+	}
+
 	return nil
+}
+
+// dispatchWebhookEvent builds the data map webhook.Dispatcher turns into an
+// envelope. The invoice fields come from the row the handler just updated
+// rather than from the event, so every documented payload field — status,
+// face_value, due_date and the lifecycle timestamps — is populated.
+func (l *EventListener) dispatchWebhookEvent(ctx context.Context, eventName string, event SorobanEvent, ledgerClosedAt int64, logData map[string]interface{}) {
+	data := make(map[string]interface{}, len(logData)+16)
+	for k, v := range logData {
+		data[k] = v
+	}
+	data["event_id"] = event.ID
+	data["ledger"] = event.Ledger
+	data["contract_id"] = event.ContractID
+	// occurred_at in the envelope is derived from this, not from wall-clock
+	// time, so a re-indexed historical event keeps its on-chain timestamp.
+	data["ledger_closed_at"] = ledgerClosedAt
+
+	invoiceID, _ := data["invoice_id"].(string)
+	if invoiceID == "" {
+		l.dispatcher.Dispatch(ctx, eventName, data)
+		return
+	}
+
+	invoice, err := db.GetInvoiceByID(ctx, invoiceID)
+	if err != nil {
+		slog.Error("Failed to load invoice for webhook payload", "invoice_id", invoiceID, "error", err)
+	} else if invoice != nil {
+		addInvoiceFields(data, invoice)
+	}
+
+	l.dispatcher.Dispatch(ctx, eventName, data)
+}
+
+// addInvoiceFields copies the persisted invoice columns into the dispatch data
+// under the keys webhook.BuildEnvelope reads.
+func addInvoiceFields(data map[string]interface{}, invoice *db.DbInvoice) {
+	data["issuer"] = invoice.Issuer
+	data["buyer"] = invoice.Buyer
+	data["face_value"] = invoice.FaceValue
+	data["discount_bps"] = invoice.DiscountBps
+	data["funded_amount"] = invoice.FundedAmount
+	data["due_date"] = invoice.DueDate
+	data["status"] = invoice.Status
+	data["created_at"] = invoice.CreatedAt
+	data["funded_at"] = invoice.FundedAt
+	data["shipped_at"] = invoice.ShippedAt
+	data["buyer_confirmed_at"] = invoice.BuyerConfirmedAt
+	data["repaid_at"] = invoice.RepaidAt
 }

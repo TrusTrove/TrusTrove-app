@@ -252,6 +252,7 @@ export default function Marketplace() {
                 invoices={filteredAndSortedInvoices}
                 onSelectInvoice={handleSelectInvoice}
                 activeId={selectedInvoice?.id}
+                role={role}
                 emptyStateTitle="No invoices match your filters"
                 emptyStateDescription="Try broadening the amount range or resetting the filters to reveal more listed invoices."
                 emptyStateAction={{
@@ -274,19 +275,6 @@ export default function Marketplace() {
                   onLimitChange: handleLimitChange,
                 }}
               />
-
-              {/* Mobile Cards view (hidden on desktop, but let's implement layout) */}
-              <div className="md:hidden space-y-4">
-                {filteredAndSortedInvoices.map((invoice) => (
-                  <InvoiceCard
-                    key={invoice.id}
-                    invoice={invoice}
-                    role={role}
-                    onSelect={handleSelectInvoice}
-                    isSelected={selectedInvoice?.id === invoice.id}
-                  />
-                ))}
-              </div>
             </ErrorBoundary>
           </div>
 

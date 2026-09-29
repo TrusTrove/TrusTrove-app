@@ -5,9 +5,10 @@ import { TxHistory } from "./TxHistory";
 import { useTxHistory } from "@/hooks/useTxHistory";
 import type { TxHistoryItem } from "@/types";
 
-vi.mock("@/hooks/useTxHistory", () => ({
-  useTxHistory: vi.fn(),
-}));
+vi.mock("@/hooks/useTxHistory", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/hooks/useTxHistory")>();
+  return { ...actual, useTxHistory: vi.fn() };
+});
 
 vi.mock("@/components/shared/SkeletonLoader", () => ({
   SkeletonShimmer: () => <div data-testid="tx-row-skeleton" />,

@@ -9,7 +9,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { useTxHistory } from "@/hooks/useTxHistory";
+import { useTxHistory, isRateLimitError } from "@/hooks/useTxHistory";
 import { SkeletonShimmer } from "./SkeletonLoader";
 
 interface TxHistoryProps {
@@ -74,7 +74,9 @@ export function TxHistory({ address }: TxHistoryProps) {
       {error && (
         <div className="text-center py-6">
           <p className="text-rose-400 text-sm mb-2">
-            Failed to load transactions
+            {isRateLimitError(error)
+              ? "Horizon is rate limiting this request. Please wait a moment."
+              : "Failed to load transactions"}
           </p>
           <button
             onClick={() => refetch()}

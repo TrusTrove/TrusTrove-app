@@ -50,6 +50,19 @@ jobs:
       - name: Run Unit Tests
         run: pnpm test
 
+      - name: SDK coverage (with thresholds)
+        run: pnpm --filter @trusttrove/sdk test:coverage
+
+      - name: Upload SDK coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdk-coverage-report
+          path: |
+            packages/sdk/coverage
+            packages/sdk/coverage/lcov.info
+          if-no-files-found: warn
+
       - name: Lint Web Application
         run: pnpm --filter web lint
 

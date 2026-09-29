@@ -71,6 +71,36 @@ pnpm test               # SDK + web app unit tests
 cd indexer && go test ./...   # Go indexer unit tests
 ```
 
+## Analyzing the frontend bundle
+
+The web app is wired up with [`@next/bundle-analyzer`](https://www.npmjs.com/package/@next/bundle-analyzer) so bundle bloat can be spotted before it ships, instead of only when someone manually audits `apps/web/package.json`.
+
+```bash
+pnpm --filter web analyze
+```
+
+That runs a production `next build` with `ANALYZE=true` and writes one interactive treemap per bundle to `apps/web/.next/analyze/`:
+
+| File          | Covers                            |
+| ------------- | --------------------------------- |
+| `client.html` | JavaScript shipped to the browser |
+| `nodejs.html` | The Node.js server runtime bundle |
+| `edge.html`   | The edge runtime bundle           |
+
+Open `apps/web/.next/analyze/client.html` in a browser — that is the one that determines what users download. Add `ANALYZE_OPEN=true` to have the reports opened automatically:
+
+```bash
+ANALYZE=true ANALYZE_OPEN=true pnpm --filter web build
+```
+
+Analysis is strictly opt-in: without `ANALYZE=true`, `pnpm build` and `pnpm --filter web dev` behave exactly as before.
+
+What to look for:
+
+- A dependency in the treemap that no longer appears in any `import` — a leftover that should be removed from `package.json`.
+- A single package dominating a shared chunk — usually a candidate for a dynamic `import()` so it only loads on the route that needs it.
+- A chunk that grew noticeably against the previous run — worth explaining in the PR that caused it.
+
 ## Database migrations
 
 Indexer migrations are stored in `indexer/db/migrations` and use a forward-only migration system. Migration files are named using the `NNN_name.sql` convention (e.g., `001_initial.sql`, `002_add_indexes.sql`).

@@ -33,6 +33,7 @@ type Config struct {
 	JWTExpiryHours        int
 	CORSAllowedOrigins    []string
 	RateLimitRPS          int
+	WebhookConcurrency    int
 	ServerSeed            string
 	ServerSeedGenerated   bool
 	SentryDSN             string
@@ -142,6 +143,16 @@ func LoadConfig() (*Config, error) {
 		}
 	}
 
+	// Number of webhook deliveries attempted in parallel per batch. Keeping the
+	// default small avoids overwhelming subscriber endpoints that rate limit
+	// their inbound traffic.
+	webhookConcurrency := 8
+	if concurrencyStr := os.Getenv("WEBHOOK_WORKER_CONCURRENCY"); concurrencyStr != "" {
+		if val, err := strconv.Atoi(concurrencyStr); err == nil && val > 0 {
+			webhookConcurrency = val
+		}
+	}
+
 	cfg := &Config{
 		StellarNetwork:        getRequired("STELLAR_NETWORK"),
 		HorizonURL:            getRequired("HORIZON_URL"),
@@ -161,6 +172,7 @@ func LoadConfig() (*Config, error) {
 		JWTExpiryHours:        jwtExpiryHours,
 		CORSAllowedOrigins:    corsOrigins,
 		RateLimitRPS:          rateLimitRPS,
+		WebhookConcurrency:    webhookConcurrency,
 		ServerSeed:            serverSeed,
 		ServerSeedGenerated:   serverSeedGenerated,
 		SentryDSN:             strings.TrimSpace(os.Getenv("SENTRY_DSN")),
