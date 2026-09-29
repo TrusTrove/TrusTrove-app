@@ -1,7 +1,15 @@
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+} from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { DiscountCalculator } from "./DiscountCalculator";
+import { useSmeDerivedValues } from "./SmeCalculator";
+import { useLpDerivedValues } from "./LpCalculator";
 
 describe("DiscountCalculator", () => {
   it("renders the default SME financing calculation", () => {
@@ -139,5 +147,102 @@ describe("DiscountCalculator", () => {
     expect(container).toHaveTextContent("2%");
     expect(container).toHaveTextContent("60");
     expect(container).not.toHaveTextContent("NaN");
+  });
+});
+
+describe("derived values are memoized (#662)", () => {
+  it("does not recompute SME derived values when unrelated state changes", () => {
+    const { result } = renderHook(() => {
+      const [paymentTerms, setPaymentTerms] = React.useState(60);
+      const derived = useSmeDerivedValues(50000, 2);
+      return { paymentTerms, setPaymentTerms, derived };
+    });
+
+    const initial = result.current.derived;
+    expect(initial).toEqual({ discountPaid: 1000, fundedAmount: 49000 });
+
+    act(() => result.current.setPaymentTerms(90));
+
+    expect(result.current.paymentTerms).toBe(90);
+    expect(result.current.derived).toBe(initial);
+  });
+
+  it("recomputes SME derived values when a keyed input changes", () => {
+    const { result, rerender } = renderHook(
+      ({
+        faceValue,
+        discountRate,
+      }: {
+        faceValue: number;
+        discountRate: number;
+      }) => useSmeDerivedValues(faceValue, discountRate),
+      { initialProps: { faceValue: 50000, discountRate: 2 } },
+    );
+
+    const initial = result.current;
+    rerender({ faceValue: 50000, discountRate: 5 });
+
+    expect(result.current).not.toBe(initial);
+    expect(result.current.discountPaid).toBe(2500);
+    expect(result.current.fundedAmount).toBe(47500);
+  });
+
+  it("does not recompute LP derived values when unrelated state changes", () => {
+    const { result } = renderHook(() => {
+      const [activeTab, setActiveTab] = React.useState("sme");
+      const derived = useLpDerivedValues(10000, 80, 2, 60);
+      return { activeTab, setActiveTab, derived };
+    });
+
+    const initial = result.current.derived;
+    expect(initial.lpProjectedApy).toBeCloseTo(9.733, 2);
+    expect(initial.lpAnnualEarnings).toBeCloseTo(973.33, 2);
+
+    act(() => result.current.setActiveTab("lp"));
+
+    expect(result.current.activeTab).toBe("lp");
+    expect(result.current.derived).toBe(initial);
+  });
+
+  it("recomputes LP derived values when a keyed input changes", () => {
+    const { result, rerender } = renderHook(
+      ({
+        lpDeposit,
+        lpUtilization,
+        lpAvgDiscount,
+        lpAvgMaturity,
+      }: {
+        lpDeposit: number;
+        lpUtilization: number;
+        lpAvgDiscount: number;
+        lpAvgMaturity: number;
+      }) =>
+        useLpDerivedValues(
+          lpDeposit,
+          lpUtilization,
+          lpAvgDiscount,
+          lpAvgMaturity,
+        ),
+      {
+        initialProps: {
+          lpDeposit: 10000,
+          lpUtilization: 80,
+          lpAvgDiscount: 2,
+          lpAvgMaturity: 60,
+        },
+      },
+    );
+
+    const initial = result.current;
+    rerender({
+      lpDeposit: 10000,
+      lpUtilization: 100,
+      lpAvgDiscount: 2,
+      lpAvgMaturity: 60,
+    });
+
+    expect(result.current).not.toBe(initial);
+    expect(result.current.lpProjectedApy).toBeCloseTo(12.1667, 3);
+    expect(result.current.lpAnnualEarnings).toBeCloseTo(1216.67, 2);
   });
 });

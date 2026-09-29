@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { SmeCalculator } from "./SmeCalculator";
 import { LpCalculator } from "./LpCalculator";
 
@@ -65,12 +65,15 @@ export function AnimatedValue({
 export function DiscountCalculator() {
   const [activeTab, setActiveTab] = useState<"sme" | "lp">("sme");
 
+  const handleSelectSme = useCallback(() => setActiveTab("sme"), []);
+  const handleSelectLp = useCallback(() => setActiveTab("lp"), []);
+
   return (
     <div className="bg-card border border-border rounded-lg overflow-hidden">
       {/* Tabs */}
       <div className="flex border-b border-border bg-[#080c10]/60">
         <button
-          onClick={() => setActiveTab("sme")}
+          onClick={handleSelectSme}
           className={`flex-1 py-3 px-4 font-mono text-xs font-bold uppercase tracking-wider text-center border-r border-border transition-colors ${
             activeTab === "sme"
               ? "text-primary bg-slate-900/50"
@@ -80,7 +83,7 @@ export function DiscountCalculator() {
           SME Financing Calculator
         </button>
         <button
-          onClick={() => setActiveTab("lp")}
+          onClick={handleSelectLp}
           className={`flex-1 py-3 px-4 font-mono text-xs font-bold uppercase tracking-wider text-center transition-colors ${
             activeTab === "lp"
               ? "text-primary bg-slate-900/50"
