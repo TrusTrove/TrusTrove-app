@@ -77,14 +77,14 @@ TrusTrove is a decentralized trade finance platform built on the Stellar network
 
 ### Monorepo layout
 
-| Path | Package | Role |
-| ---- | ------- | ---- |
-| `apps/web` | Next.js app | SME / LP user interfaces |
-| `indexer` | Go module | API service, event listener, webhook fan-out |
-| `packages/sdk` | `@trusttrove/sdk` | TypeScript wrappers over all Soroban contract calls |
-| `packages/sdk-react` | `@trusttrove/sdk-react` | React hooks over the SDK (`useInvoice`, `usePool`, `useEscrow`, `useRegistry`, `useAgentRegistry`, `useToken`) |
-| `packages/cli` | `@trusttrove/cli` | `trusttrove` command-line client built on the SDK |
-| `examples/` | e.g. `examples/sdk-quickstart` | Runnable framework-free SDK usage examples |
+| Path                 | Package                        | Role                                                                                                           |
+| -------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `apps/web`           | Next.js app                    | SME / LP user interfaces                                                                                       |
+| `indexer`            | Go module                      | API service, event listener, webhook fan-out                                                                   |
+| `packages/sdk`       | `@trusttrove/sdk`              | TypeScript wrappers over all Soroban contract calls                                                            |
+| `packages/sdk-react` | `@trusttrove/sdk-react`        | React hooks over the SDK (`useInvoice`, `usePool`, `useEscrow`, `useRegistry`, `useAgentRegistry`, `useToken`) |
+| `packages/cli`       | `@trusttrove/cli`              | `trusttrove` command-line client built on the SDK                                                              |
+| `examples/`          | e.g. `examples/sdk-quickstart` | Runnable framework-free SDK usage examples                                                                     |
 
 ---
 
