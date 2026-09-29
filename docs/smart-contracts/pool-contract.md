@@ -3,6 +3,16 @@
 USDC liquidity pool with share-based LP accounting. The share price grows as
 invoices repay with yield.
 
+### initialize
+
+```rust
+initialize(env: Env, admin: Address)
+```
+
+Sets the admin address. Can only be called once. Panics if called again.
+SDK: `PoolClient.initialize(adminAddress, signerPublicKey)` —
+`packages/sdk/src/clients/pool.ts`.
+
 ### deposit
 
 ```rust
@@ -47,7 +57,10 @@ handle_default(env: Env, invoice_id: BytesN<32>) -> bool
 ```
 
 Called by `invoice_contract` on default. Calls `escrow_contract.handle_default()`
-to recover funds. Reduces total deposits by the funded amount.
+to recover funds — but escrow holds nothing for a funded invoice (the funded
+amount was already released to the issuer inside `fund_invoice`), so in practice
+nothing is recovered. Reduces total deposits by the funded amount: the pool takes
+a principal loss of up to the full funded amount, shared across all LP shares.
 
 ### get_stats
 

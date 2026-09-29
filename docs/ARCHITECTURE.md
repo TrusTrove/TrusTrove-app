@@ -7,8 +7,8 @@ This document provides a high-level overview of the TrusTrove system architectur
 TrusTrove is a decentralized trade finance platform built on the Stellar network. The system consists of three main tiers:
 
 1. **Frontend**: Next.js single-page application that provides user interfaces for SMEs and Liquidity Providers.
-2. **Go Indexer / Backend**: Go API service and background event listener backed by a PostgreSQL database.
-3. **Smart Contracts**: Four Soroban smart contracts deployed on the Stellar Testnet.
+2. **Go Indexer / Backend**: Go API service and background event listener backed by a PostgreSQL database, with webhook fan-out and Prometheus metrics.
+3. **Smart Contracts**: Soroban smart contracts deployed on the Stellar Testnet (four TrusTrove contracts plus the external Underwrite agent-registry they depend on).
 
 ```
 ┌────────────────────────────────┐
@@ -19,14 +19,23 @@ TrusTrove is a decentralized trade finance platform built on the Stellar network
      ▼                      ▼
 ┌────────────────┐     ┌─────────────────────────┐
 │   Go Indexer   │     │     Smart Contracts     │
-│   (API & Sync) │     │ (Soroban / Stellar Txt) │
-└────┬───────────┘     └────────────┬────────────┘
-     │                              ▲
-     │ Writes to Cache              │ Polls Events
-     ▼                              │ & Syncs Stats
-┌────────────────┐                  │
-│ PostgreSQL DB  │◄─────────────────┘
+│   (API & Sync) │────▶│ (Soroban / Stellar Txt) │
+└────┬───────┬───┘relay└────────────┬────────────┘
+     │       │                     ▲
+     │       │ Writes to Cache     │ Polls Events
+     │       │                     │ & Syncs Stats
+     ▼       ▼                     │
+┌────────────────┐                 │
+│ PostgreSQL DB  │◄────────────────┘
 └────────────────┘
+     │
+     │ Webhook fan-out        ┌─────────────────────┐
+     └───────────────────────▶│ Webhook subscribers │
+                              │ (external services) │
+                              └─────────────────────┘
+┌────────────────┐  scrapes   ┌─────────────────────┐
+│   Prometheus   │◄───────────│ Indexer GET /metrics│
+└────────────────┘            └─────────────────────┘
 ```
 
 ---
@@ -39,7 +48,7 @@ TrusTrove is a decentralized trade finance platform built on the Stellar network
 - **Role**: High-fidelity web application for interacting with the platform.
 - **Current Responsibilities**:
   - Connects to Stellar wallets (e.g., Freighter) for transaction signing.
-  - Interacts directly with the Soroban smart contracts using client wrapper SDKs for user-initiated on-chain operations (e.g., listing an invoice, depositing USDC to the pool, repaying an invoice).
+  - Interacts directly with the Soroban smart contracts via [`@trusttrove/sdk`](../packages/sdk) for user-initiated on-chain operations (e.g., listing an invoice, depositing USDC to the pool, repaying an invoice).
   - Performs off-chain requests to the Go Indexer API for user authentication and invoice creation.
   - Queries the Indexer API to fetch historical lists of invoices, liquidity pool metrics, and individual LP positions.
 
@@ -50,8 +59,10 @@ TrusTrove is a decentralized trade finance platform built on the Stellar network
 - **Current Responsibilities**:
   - **API Service**: Implements SEP-10 authentication (requesting challenge tx and exchanging signed tx for JWT) and exposes REST endpoints for protocol-level stats, invoices, events, and pool data.
   - **Transaction Operator / Relay**: Implements the `POST /invoices` endpoint. It simulates the invoice creation transaction on Soroban, constructs the transaction envelope, signs it with the Indexer server's Stellar account, submits it to Stellar, and polls for on-chain confirmation.
-  - **Event Listener**: A background worker polling the Soroban RPC for contract events (e.g., `InvoiceCreated`, `InvoiceListed`, `InvoiceFunded`, `InvoiceShipped`, `InvoiceRepaid`). It decodes these events from XDR and saves/syncs them directly to the database.
+  - **Event Listener**: A background worker polling the Soroban RPC for contract events. It handles `InvoiceCreated`, `InvoiceListed`, `InvoiceFunded`, `InvoiceShipped`, `DeliveryConfirmed`, `InvoiceRepaid`, `InvoiceDefaulted`, `AttestationSubmitted`, and the `issuer_registered` / `buyer_registered` registration events (see `indexer/listener/handlers.go`). It decodes these events from XDR and saves/syncs them directly to the database.
   - **Database (PostgreSQL)**: Acts as a fast database cache for the blockchain events, facilitating paginated queries and aggregation calculations.
+  - **Webhook dispatcher and delivery worker** (`indexer/webhook`, `indexer/webhooks`, started in `indexer/main.go`): fans indexed invoice/pool events out to external subscriber endpoints. See [`docs/webhooks.md`](./webhooks.md) for the envelope, signing, and retry semantics.
+  - **Observability and hardening** (`indexer/api/router.go`, `indexer/main.go`): Prometheus metrics at `GET /metrics` (`indexer/api/metrics.go` — invoices indexed, webhook delivery outcomes, listener ledger position, DB query latency); Sentry panic reporting via `RecoveryMiddleware` (no-op when `SENTRY_DSN` is unset); per-client token-bucket rate limiting via `RateLimitMiddleware` (keyed on JWT subject, falling back to client IP — 429 with `Retry-After`); strict-allowlist CORS (`CORSMiddleware`) and security headers (`SecurityHeadersMiddleware`); and a listener-liveness health check at `GET /health` (200 `{"status":"ok"}` vs 503 degraded).
 
 ### Smart Contracts (Soroban)
 
@@ -59,9 +70,21 @@ TrusTrove is a decentralized trade finance platform built on the Stellar network
 - **Role**: Decentralized protocol logic and fund management on-chain.
 - **Current Responsibilities**:
   - `registry_contract`: Manages white-listed status for participating SMEs (issuers) and Buyers.
-  - `invoice_contract`: Governs the lifecycle of tokenized invoices, handling invoice creation, shipping confirmations, delivery confirmations, repayment, and defaults.
+  - `invoice_contract`: Governs the lifecycle of tokenized invoices, handling invoice creation, shipping confirmations, delivery confirmations, repayment, and defaults. `list_for_financing` is gated on a stored Underwrite risk attestation (see `submit_attestation`).
   - `pool_contract`: Manages the shared liquidity pool, USDC deposits/withdrawals for LPs, invoice funding calculations, and distribution of yield.
   - `escrow_contract`: Safely locks the funded USDC amount until repayment or default conditions are resolved.
+  - External dependency — Underwrite `agent-registry` (deployed from the separate `underwrite-contract` repo): registry of authorized risk-assessment agents. `invoice_contract.submit_attestation` verifies attestation signatures against it, so an invoice cannot be listed for financing until a registered, active agent has attested it.
+
+### Monorepo layout
+
+| Path | Package | Role |
+| ---- | ------- | ---- |
+| `apps/web` | Next.js app | SME / LP user interfaces |
+| `indexer` | Go module | API service, event listener, webhook fan-out |
+| `packages/sdk` | `@trusttrove/sdk` | TypeScript wrappers over all Soroban contract calls |
+| `packages/sdk-react` | `@trusttrove/sdk-react` | React hooks over the SDK (`useInvoice`, `usePool`, `useEscrow`, `useRegistry`, `useAgentRegistry`, `useToken`) |
+| `packages/cli` | `@trusttrove/cli` | `trusttrove` command-line client built on the SDK |
+| `examples/` | e.g. `examples/sdk-quickstart` | Runnable framework-free SDK usage examples |
 
 ---
 
@@ -73,7 +96,7 @@ Invoice creation in TrusTrove follows a hybrid pattern: the Frontend requests cr
 
 1. **Stellar Wallet Connection & SEP-10 Auth**:
    - The user connects their wallet (e.g., Freighter) on the frontend.
-   - To interact with protected Indexer endpoints, the Frontend initiates the SEP-10 flow by calling `GET /auth?account=<address>`.
+   - To interact with protected Indexer endpoints, the Frontend initiates the SEP-10 flow by calling `GET /auth?address=<stellar_public_key>`.
    - The Indexer generates a challenge transaction and returns it. The Frontend prompts the user's wallet to sign the challenge, and sends the signed transaction to `POST /auth`.
    - The Indexer validates the signature and returns a JSON Web Token (JWT).
 
@@ -118,7 +141,7 @@ sequenceDiagram
     participant IX_LIS as Indexer Listener (Go)
 
     Note over SME, FE: 1. Authentication (SEP-10)
-    FE->>IX_API: GET /auth?account=<address>
+    FE->>IX_API: GET /auth?address=<stellar_public_key>
     IX_API-->>FE: SEP-10 Challenge Tx
     FE->>Wallet: Sign challenge
     Wallet-->>FE: Signed Challenge Tx
@@ -159,4 +182,57 @@ sequenceDiagram
     DB-->>IX_API: Invoice details (status: "Created")
     IX_API-->>FE: Invoice details JSON
     FE->>SME: Display Invoice in UI (status: Created)
+```
+
+## 5. Listing → Attestation Check → Funding Flow
+
+Unlike creation (relayed by the indexer), listing and funding are user-signed
+Soroban transactions submitted from the frontend via `@trusttrove/sdk` with
+Freighter. Listing is gated on the Underwrite attestation: `list_for_financing`
+fails with `VerificationRequired` until a registered, active agent's
+`AttestationSubmitted` event has been indexed. The listener fans each indexed
+event out to webhook subscribers (see [`docs/webhooks.md`](./webhooks.md)).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor SME as SME (Issuer)
+    participant FE as Frontend (Next.js)
+    participant Wallet as Stellar Wallet (Freighter)
+    participant SC as Invoice Contract (Soroban)
+    participant POOL as Pool Contract (Soroban)
+    participant RPC as Soroban RPC
+    participant IX_LIS as Indexer Listener (Go)
+    participant DB as PostgreSQL DB
+    participant WH as Webhook subscribers
+
+    Note over SME, SC: 1. Underwrite attestation (prerequisite for listing)
+    SC-->>RPC: Emits AttestationSubmitted (agent_id, risk_score)
+    IX_LIS->>RPC: getEvents(topic: "AttestationSubmitted")
+    RPC-->>IX_LIS: AttestationSubmitted Event (XDR)
+    IX_LIS->>DB: Store attestation on invoice row
+    IX_LIS->>WH: Dispatch webhook (invoice attested)
+
+    Note over SME, Wallet: 2. Listing (SME-signed)
+    SME->>FE: Set discount & list for financing
+    FE->>Wallet: Sign list_for_financing(invoice_id, discount_bps)
+    Wallet-->>FE: Signed transaction
+    FE->>RPC: sendTransaction
+    RPC->>SC: Executes list_for_financing()<br/>checks stored Attestation first
+    SC-->>RPC: Emits InvoiceListed Event (XDR)
+    IX_LIS->>RPC: getEvents(topic: "InvoiceListed")
+    RPC-->>IX_LIS: InvoiceListed Event (XDR)
+    IX_LIS->>DB: Update Invoice (status: "Listed")
+    IX_LIS->>WH: Dispatch webhook (invoice.listed)
+
+    Note over FE, POOL: 3. Funding (LP-signed)
+    FE->>Wallet: Sign pool fund_invoice(invoice_id)
+    Wallet-->>FE: Signed transaction
+    FE->>RPC: sendTransaction
+    RPC->>POOL: Executes fund_invoice()<br/>escrow.lock + release_to_issuer + mark_funded
+    POOL-->>RPC: Emits InvoiceFunded Event (XDR)
+    IX_LIS->>RPC: getEvents(topic: "InvoiceFunded")
+    RPC-->>IX_LIS: InvoiceFunded Event (XDR)
+    IX_LIS->>DB: Update Invoice (status: "Funded") + SyncPoolStats
+    IX_LIS->>WH: Dispatch webhook (invoice.funded)
 ```

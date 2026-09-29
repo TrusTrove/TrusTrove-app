@@ -41,6 +41,7 @@ import {
   PoolClient,
   EscrowClient,
   TokenClient,
+  AgentRegistryClient,
 } from "@trusttrove/sdk";
 
 const registry = new RegistryClient(
@@ -50,6 +51,12 @@ const invoice = new InvoiceClient(process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID!);
 const pool = new PoolClient(process.env.NEXT_PUBLIC_POOL_CONTRACT_ID!);
 const escrow = new EscrowClient(process.env.NEXT_PUBLIC_ESCROW_CONTRACT_ID!);
 const usdc = TokenClient.forUSDC();
+// AgentRegistryClient targets the external Underwrite agent-registry contract
+// (deployed from the separate `underwrite-contract` repo), not TrusTrove's own
+// issuer/buyer registry. Its contract ID comes from the Underwrite deployment.
+const agents = new AgentRegistryClient(
+  process.env.NEXT_PUBLIC_AGENT_REGISTRY_CONTRACT_ID!,
+);
 ```
 
 > **Note:** All write methods (`writeContract`) require a `signerPublicKey` argument — the Freighter wallet address that will sign the transaction. All read methods (`readContract`) also require it to build and simulate the transaction.
@@ -83,6 +90,45 @@ await registry.registerBuyer(
 // Revoke an address (admin only)
 await registry.revoke(publicKey, signerPublicKey);
 ```
+
+---
+
+## Agent Registry Client
+
+`AgentRegistryClient` (`packages/sdk/src/clients/agentRegistry.ts`) reads from
+Underwrite's external **agent-registry** contract (deployed from the separate
+`underwrite-contract` repo) — not TrusTrove's own issuer/buyer `RegistryClient`.
+This is the client to use when inspecting the Underwrite agent that attested an
+invoice via `invoice_contract.submit_attestation`: the invoice's
+`attestationAgentId` field gives you the `agentId` to look up here.
+
+```typescript
+import { AgentRegistryClient } from "@trusttrove/sdk";
+
+const agents = new AgentRegistryClient(
+  process.env.NEXT_PUBLIC_AGENT_REGISTRY_CONTRACT_ID!,
+);
+
+// Look up the agent that attested an invoice
+const agent = await agents.getAgent("agent_underwrite", signerPublicKey);
+console.log(agent.active); // true — authorized to attest
+```
+
+The returned `Agent` object has the following shape:
+
+```typescript
+interface Agent {
+  agentId: string; // on-chain Symbol identifier, e.g. "agent_underwrite"
+  pubkey: string; // Stellar public key registered for this agent
+  active: boolean; // whether the agent is currently authorized to attest
+  registeredAt: number; // Unix timestamp (seconds) of registration
+}
+```
+
+> **Note:** `getAgent` is a read-only (simulated) call with no on-chain side
+> effects, and `AgentRegistryClient` exposes no `initialize` method. There is
+> currently no `InvoiceClient` wrapper for `submit_attestation` (tracked in
+> #815) — attestations are submitted directly against the contract.
 
 ---
 
