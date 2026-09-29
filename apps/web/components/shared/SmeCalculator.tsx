@@ -9,9 +9,12 @@ export function SmeCalculator() {
   const [paymentTerms, setPaymentTerms] = useState<number>(60);
   const [discountRate, setDiscountRate] = useState<number>(2.0);
 
-  const handleFaceValueChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setFaceValue(parseInt(e.target.value));
-  }, []);
+  const handleFaceValueChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setFaceValue(parseInt(e.target.value));
+    },
+    [],
+  );
 
   const discountPaid = faceValue * (discountRate / 100);
   const fundedAmount = faceValue - discountPaid;
@@ -40,7 +43,7 @@ export function SmeCalculator() {
             max="500000"
             step="1000"
             value={faceValue}
-            onChange={(e) => setFaceValue(parseInt(e.target.value))}
+            onChange={handleFaceValueChange}
             className="w-full accent-primary bg-slate-900 h-1.5 rounded"
             aria-label="Invoice Face Value"
             aria-valuenow={faceValue}
