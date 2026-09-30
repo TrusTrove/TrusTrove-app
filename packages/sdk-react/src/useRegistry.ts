@@ -42,7 +42,14 @@ export function useIsVerified(
   signerPublicKey: string,
   options: UseRegistryOptions,
 ): AsyncQueryState<boolean> {
-  const client = useMemo(() => registryClient(options), [options]);
+  // Memoize on the option *contents* (client identity / contractId value), not
+  // the options object identity, so inline `{ contractId }` literals don't
+  // re-create the client — and re-trigger queries — on every render.
+  const client = useMemo(
+    () =>
+      registryClient({ client: options.client, contractId: options.contractId }),
+    [options.client, options.contractId],
+  );
   return useAsyncQuery(
     () => client.isVerified(address, signerPublicKey),
     [client, address, signerPublicKey],
@@ -61,7 +68,14 @@ export function useProfile(
   signerPublicKey: string,
   options: UseRegistryOptions,
 ): AsyncQueryState<Profile> {
-  const client = useMemo(() => registryClient(options), [options]);
+  // Memoize on the option *contents* (client identity / contractId value), not
+  // the options object identity, so inline `{ contractId }` literals don't
+  // re-create the client — and re-trigger queries — on every render.
+  const client = useMemo(
+    () =>
+      registryClient({ client: options.client, contractId: options.contractId }),
+    [options.client, options.contractId],
+  );
   return useAsyncQuery(
     () => client.getProfile(address, signerPublicKey),
     [client, address, signerPublicKey],
@@ -108,7 +122,14 @@ export function useRegistryMutations(
   signerPublicKey: string,
   options: UseRegistryMutationsOptions,
 ): RegistryMutationResult {
-  const client = useMemo(() => registryClient(options), [options]);
+  // Memoize on the option *contents* (client identity / contractId value), not
+  // the options object identity, so inline `{ contractId }` literals don't
+  // re-create the client — and re-trigger queries — on every render.
+  const client = useMemo(
+    () =>
+      registryClient({ client: options.client, contractId: options.contractId }),
+    [options.client, options.contractId],
+  );
 
   const registerIssuer = useAsyncMutation(
     (address: string, metadata: Record<string, string>) =>
