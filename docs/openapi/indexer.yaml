@@ -172,8 +172,8 @@ paths:
               invoice:
                 value:
                   buyer: GBUYERAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-                  face_value: "1000.00"
-                  due_date: 1735689600
+                  face_value: "10000000000"
+                  due_date: 1790000000
                   asset: USDC
       responses:
         "201":
@@ -355,11 +355,19 @@ components:
       properties:
         buyer:
           type: string
+          description: Stellar account address (G...) of the buyer.
         face_value:
           type: string
+          description: >-
+            Decimal string of the invoice face value in stroops. Must be
+            strictly positive and at most 2^128 - 1
+            (340282366920938463463374607431768211455); at most 40 digits.
         due_date:
           type: integer
           format: int64
+          description: >-
+            Unix timestamp in seconds. Must be in the future and no more than
+            5 years from the time the request is validated.
         asset:
           type: string
       required: [buyer, face_value, due_date, asset]

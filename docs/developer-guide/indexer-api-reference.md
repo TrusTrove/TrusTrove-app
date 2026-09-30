@@ -143,11 +143,23 @@ Creates an off-chain/indexed invoice record. **Requires JWT** (`Authorization: B
 ```json
 {
   "buyer": "GBUYERAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-  "face_value": "1000.00",
-  "due_date": 1735689600,
+  "face_value": "10000000000",
+  "due_date": 1790000000,
   "asset": "USDC"
 }
 ```
+
+**Accepted ranges:**
+
+- `face_value` — decimal string, strictly positive, and at most `2^128 - 1`
+  (i.e. `340282366920938463463374607431768211455`). Values outside this range,
+  non-numeric strings, or strings longer than 40 digits are rejected with
+  `400 invalid face value`. The amount is in stroops (1 USDC = 10,000,000
+  stroops), matching the on-chain representation.
+- `due_date` — Unix timestamp in seconds. Must be in the future and no more
+  than 5 years (`maxDueDateHorizonSeconds`) from the time the request is
+  validated. Timestamps in the past or beyond the horizon are rejected with
+  `400 invalid due date`.
 
 **Response (201):**
 

@@ -20,6 +20,18 @@ import (
 // transaction to reach a terminal state before giving up.
 const maxPollAttempts = 30
 
+// maxFaceValueDigits caps the length of the decimal face_value string accepted
+// by validateCreateInvoiceRequest before it is parsed with big.Int. The u128
+// range needs at most 39 digits; 40 leaves headroom for leading zeros while
+// rejecting arbitrarily long inputs before any big-int work happens.
+const maxFaceValueDigits = 40
+
+// maxDueDateHorizonSeconds is the maximum accepted window for due_date, measured
+// from the time the request is validated. Anything further in the future is
+// rejected with 400 before the server spends fees on simulation/submission.
+// 5 years covers realistic trade-finance payment terms.
+const maxDueDateHorizonSeconds int64 = 5 * 365 * 24 * 60 * 60
+
 // createInvoicePollDelay is the pause between getTransaction polls.
 const createInvoicePollDelay = 1 * time.Second
 
@@ -76,7 +88,8 @@ func (h *APIHandler) HandleCreateInvoice(w http.ResponseWriter, r *http.Request)
 
 // validateCreateInvoiceRequest checks that the caller is authenticated and that
 // the request body carries a well-formed buyer address, a positive face value
-// and a due date. It performs no I/O, so it is unit-testable on its own.
+// within the u128 range, and a due date inside the accepted window. It performs
+// no I/O, so it is unit-testable on its own.
 func validateCreateInvoiceRequest(ctx context.Context, body createInvoiceRequest) (*createInvoiceParams, error) {
 	issuer, ok := GetUserAddress(ctx)
 	if !ok || issuer == "" {
@@ -91,17 +104,47 @@ func validateCreateInvoiceRequest(ctx context.Context, body createInvoiceRequest
 		return nil, httpErrorf(http.StatusBadRequest, "invalid buyer address")
 	}
 
+	// Reject absurdly long decimal strings before parsing so a huge request
+	// cannot trigger needless big.Int work; the u128 range needs at most 39
+	// digits, so anything beyond maxFaceValueDigits cannot be valid.
+	if len(body.FaceValue) > maxFaceValueDigits {
+		return nil, httpErrorf(http.StatusBadRequest, "invalid face value: face_value exceeds the u128 range (max 2^128 - 1)")
+	}
+
 	faceValueBig, ok := new(big.Int).SetString(body.FaceValue, 10)
 	if !ok || faceValueBig.Sign() <= 0 {
 		return nil, httpErrorf(http.StatusBadRequest, "invalid face value")
+	}
+	if faceValueBig.BitLen() > 128 {
+		return nil, httpErrorf(http.StatusBadRequest, "invalid face value: face_value exceeds the u128 range (max 2^128 - 1)")
+	}
+
+	dueDate, err := validateDueDate(body.DueDate)
+	if err != nil {
+		return nil, err
 	}
 
 	return &createInvoiceParams{
 		Issuer:    issuer,
 		Buyer:     body.Buyer,
 		FaceValue: faceValueBig,
-		DueDate:   uint64(body.DueDate),
+		DueDate:   dueDate,
 	}, nil
+}
+
+// validateDueDate ensures due_date is a future timestamp below the maximum
+// horizon. Timestamps in the past or beyond maxDueDateHorizonSeconds are
+// rejected before the server spends fees simulating and submitting the
+// transaction.
+func validateDueDate(dueDate int64) (uint64, error) {
+	now := time.Now().Unix()
+	if dueDate <= now {
+		return 0, httpErrorf(http.StatusBadRequest, "invalid due date: due_date must be a future Unix timestamp")
+	}
+	if dueDate > now+maxDueDateHorizonSeconds {
+		return 0, httpErrorf(http.StatusBadRequest, "invalid due date: due_date exceeds the maximum horizon of %d days from now", maxDueDateHorizonSeconds/(24*60*60))
+	}
+	return uint64(dueDate), nil
 }
 
 // buildCreateInvoiceTx fetches the server account sequence, assembles the
@@ -178,7 +221,12 @@ func buildCreateInvoiceOp(contractID string, params *createInvoiceParams) (*txnb
 	if err != nil {
 		return nil, httpErrorf(http.StatusInternalServerError, "failed to build buyer address")
 	}
-	faceValueVal := soroban.MakeU128ScVal(params.FaceValue)
+	// Validation guarantees face value fits a u128, so a failure here would
+	// indicate a programming error rather than bad client input.
+	faceValueVal, err := soroban.MakeU128ScVal(params.FaceValue)
+	if err != nil {
+		return nil, httpErrorf(http.StatusBadRequest, "invalid face value: %s", err.Error())
+	}
 	dueDateVal := soroban.MakeU64ScVal(params.DueDate)
 
 	op, err := soroban.BuildInvokeContractOp(contractID, "create", []xdr.ScVal{issuerVal, buyerVal, faceValueVal, dueDateVal})

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"trusttrove/indexer/soroban"
 
@@ -83,6 +84,12 @@ func TestHandleCreateInvoice_InvalidRequests(t *testing.T) {
 			withIssuer: true,
 			wantStatus: http.StatusBadRequest,
 		},
+		{
+			name:       "past due date",
+			body:       `{"buyer":"` + buyer.Address() + `","face_value":"1000","due_date":1700000000}`,
+			withIssuer: true,
+			wantStatus: http.StatusBadRequest,
+		},
 	}
 
 	for _, tt := range tests {
@@ -100,6 +107,26 @@ func TestHandleCreateInvoice_InvalidRequests(t *testing.T) {
 				t.Fatalf("got status %d, want %d; body: %s", recorder.Code, tt.wantStatus, recorder.Body.String())
 			}
 		})
+	}
+}
+
+func TestHandleCreateInvoice_FaceValueExceedsU128(t *testing.T) {
+	h := newTestHandler(t)
+	issuer, err := keypair.Random()
+	if err != nil {
+		t.Fatalf("generate issuer keypair: %v", err)
+	}
+	buyer, err := keypair.Random()
+	if err != nil {
+		t.Fatalf("generate buyer keypair: %v", err)
+	}
+
+	recorder := invoiceRequest(t, h, issuer.Address(), buyer.Address(), "340282366920938463463374607431768211456", time.Now().Add(24*time.Hour).Unix())
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("got status %d, want %d; body: %s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), "exceeds the u128 range") {
+		t.Fatalf("expected u128 range error, got %q", recorder.Body.String())
 	}
 }
 
@@ -121,7 +148,7 @@ func TestHandleCreateInvoice_SorobanRPCFailure(t *testing.T) {
 	defer server.Close()
 	h.cfg.SorobanRPCURL = server.URL
 
-	recorder := invoiceRequest(t, h, issuer.Address(), buyer.Address(), "1000", 1700000000)
+	recorder := invoiceRequest(t, h, issuer.Address(), buyer.Address(), "1000", time.Now().Add(24*time.Hour).Unix())
 	if recorder.Code != http.StatusInternalServerError {
 		t.Fatalf("got status %d, want %d; body: %s", recorder.Code, http.StatusInternalServerError, recorder.Body.String())
 	}
@@ -188,7 +215,7 @@ func TestHandleCreateInvoice_HappyPath(t *testing.T) {
 	defer server.Close()
 	h.cfg.SorobanRPCURL = server.URL
 
-	recorder := invoiceRequest(t, h, issuer.Address(), buyer.Address(), "1000", 1700000000)
+	recorder := invoiceRequest(t, h, issuer.Address(), buyer.Address(), "1000", time.Now().Add(24*time.Hour).Unix())
 	if recorder.Code != http.StatusOK && recorder.Code != http.StatusCreated {
 		t.Fatalf("got status %d, want 200 or 201; body: %s", recorder.Code, recorder.Body.String())
 	}

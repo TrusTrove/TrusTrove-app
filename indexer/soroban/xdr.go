@@ -61,7 +61,21 @@ func MakeAddressScVal(addr string) (xdr.ScVal, error) {
 }
 
 // MakeU128ScVal splits val into the hi/lo 64-bit halves of a Soroban u128.
-func MakeU128ScVal(val *big.Int) xdr.ScVal {
+//
+// It returns an error when val is negative, nil, or exceeds the u128 range
+// (BitLen() > 128). Without this check the hi/lo split would silently drop the
+// high bits, submitting value mod 2^128 on-chain instead of the requested
+// amount.
+func MakeU128ScVal(val *big.Int) (xdr.ScVal, error) {
+	if val == nil {
+		return xdr.ScVal{}, errors.New("u128 value is nil")
+	}
+	if val.Sign() < 0 {
+		return xdr.ScVal{}, fmt.Errorf("u128 value must be non-negative, got %s", val)
+	}
+	if val.BitLen() > 128 {
+		return xdr.ScVal{}, fmt.Errorf("u128 value %s exceeds the u128 range (max 2^128 - 1)", val)
+	}
 	hi := new(big.Int).Rsh(val, 64).Uint64()
 	lo := new(big.Int).And(val, new(big.Int).SetUint64(0xffffffffffffffff)).Uint64()
 	parts := xdr.UInt128Parts{
@@ -71,7 +85,7 @@ func MakeU128ScVal(val *big.Int) xdr.ScVal {
 	return xdr.ScVal{
 		Type: xdr.ScValTypeScvU128,
 		U128: &parts,
-	}
+	}, nil
 }
 
 // MakeU64ScVal wraps val as a u64-typed ScVal.
