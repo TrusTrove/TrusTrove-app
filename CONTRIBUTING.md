@@ -28,6 +28,12 @@ Before opening or requesting review of a pull request, confirm the following:
 
 ---
 
+## Test command coverage
+
+`pnpm build` covers `@trusttrove/sdk`, `@trusttrove/sdk-react`, `@trusttrove/cli`, and `web`. `pnpm test` covers SDK, SDK React, and web Vitest suites; it does not run CLI or Go tests. `pnpm lint` covers web only, while `pnpm typecheck` checks every TypeScript workspace.
+
+Vitest output uses `Test Files` and `Tests`; the old Jest-style sample output is intentionally not reproduced here. Go output uses the module path `trusttrove/indexer`. Database integration tests require `TEST_DATABASE_URL`; for Docker Compose use `postgres://postgres:<POSTGRES_PASSWORD>@localhost:5433/postgres?sslmode=disable`. Without that variable, those tests are skipped.
+
 ## Git Workflow Guidelines
 
 We follow a strict, linear git history workflow to ensure codebase traceability.

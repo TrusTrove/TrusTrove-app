@@ -71,6 +71,8 @@ pnpm test               # SDK + web app unit tests
 cd indexer && go test ./...   # Go indexer unit tests
 ```
 
+Command coverage: `pnpm build` builds SDK, SDK React, CLI, and web; `pnpm test` runs SDK, SDK React, and web; `pnpm lint` covers web only; and `pnpm typecheck` checks all TypeScript workspaces. Go database integration tests require `TEST_DATABASE_URL`. For the local Compose database use `postgres://postgres:<POSTGRES_PASSWORD>@localhost:5433/postgres?sslmode=disable`.
+
 ## Analyzing the frontend bundle
 
 The web app is wired up with [`@next/bundle-analyzer`](https://www.npmjs.com/package/@next/bundle-analyzer) so bundle bloat can be spotted before it ships, instead of only when someone manually audits `apps/web/package.json`.
