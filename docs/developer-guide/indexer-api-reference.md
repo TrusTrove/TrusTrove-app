@@ -98,13 +98,13 @@ Protocol-level aggregated statistics for the landing page.
 
 How the aggregates are derived from invoice `status`:
 
-| Field | Statuses included |
-|-------|-------------------|
-| `total_usdc_financed` | `Funded`, `Active`, `Confirmed`, `Repaid` (sum of `funded_amount`) |
+| Field                  | Statuses included                                                  |
+| ---------------------- | ------------------------------------------------------------------ |
+| `total_usdc_financed`  | `Funded`, `Active`, `Confirmed`, `Repaid` (sum of `funded_amount`) |
 | `active_invoice_count` | `Funded`, `Active`, `Confirmed` (capital deployed, not yet repaid) |
-| `total_repaid` | `Repaid` |
-| `total_defaulted` | `Defaulted` |
-| `average_yield_bps` | `Funded`, `Active`, `Confirmed`, `Repaid` (mean `discount_bps`) |
+| `total_repaid`         | `Repaid`                                                           |
+| `total_defaulted`      | `Defaulted`                                                        |
+| `average_yield_bps`    | `Funded`, `Active`, `Confirmed`, `Repaid` (mean `discount_bps`)    |
 
 ## GET /auth
 
