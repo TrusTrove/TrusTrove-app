@@ -5,6 +5,7 @@ import Link from "next/link";
 import { PageLayout } from "@/components/shared/PageLayout";
 import { InvoiceTable } from "@/components/invoice/InvoiceTable";
 import { InvoiceCard } from "@/components/invoice/InvoiceCard";
+import { InvoiceCompareModal } from "@/components/invoice/InvoiceCompareModal";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { useInvoiceList } from "@/hooks/useInvoices";
 import { usePool } from "@/hooks/usePool";
@@ -12,21 +13,105 @@ import { useWalletStore } from "@/store/wallet";
 import { useProfile } from "@/hooks/useProfile";
 import { Invoice } from "@/types";
 import { formatAmount } from "@/lib/assets";
-import { ShieldAlert } from "lucide-react";
+import { ShieldAlert, RotateCcw, Save, Trash2, Menu } from "lucide-react";
+
+const MARKETPLACE_FILTERS_KEY = "trusttrove:marketplace:filters";
+const MARKETPLACE_PRESETS_KEY = "trusttrove:marketplace:presets";
+
+interface MarketplaceFilters {
+  statusFilter: string;
+  minAmount: string;
+  maxAmount: string;
+  maxDiscount: string;
+}
+
+interface FilterPreset {
+  name: string;
+  filters: MarketplaceFilters;
+  createdAt: number;
+}
+
+function readFiltersFromStorage(): MarketplaceFilters | null {
+  try {
+    const stored = window.localStorage.getItem(MARKETPLACE_FILTERS_KEY);
+    if (!stored) return null;
+    const parsed = JSON.parse(stored);
+    return {
+      statusFilter: parsed.statusFilter ?? "Listed",
+      minAmount: parsed.minAmount ?? "",
+      maxAmount: parsed.maxAmount ?? "",
+      maxDiscount: parsed.maxDiscount ?? "500",
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeFiltersToStorage(filters: MarketplaceFilters): void {
+  try {
+    window.localStorage.setItem(MARKETPLACE_FILTERS_KEY, JSON.stringify(filters));
+  } catch {
+    // Storage disabled — in-memory state still applies for this session.
+  }
+}
+
+function readPresetsFromStorage(address?: string): FilterPreset[] {
+  try {
+    const key = address ? `${MARKETPLACE_PRESETS_KEY}_${address}` : MARKETPLACE_PRESETS_KEY;
+    const stored = window.localStorage.getItem(key);
+    if (!stored) return [];
+    const parsed = JSON.parse(stored);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writePresetsToStorage(presets: FilterPreset[], address?: string): void {
+  try {
+    const key = address ? `${MARKETPLACE_PRESETS_KEY}_${address}` : MARKETPLACE_PRESETS_KEY;
+    window.localStorage.setItem(key, JSON.stringify(presets));
+  } catch {
+    // Storage disabled
+  }
+}
 
 export default function Marketplace() {
   const connected = useWalletStore((s) => s.connected);
+  const address = useWalletStore((s) => s.address);
   const role = useWalletStore((s) => s.role);
   const { isVerified } = useProfile();
   const { stats, isStatsLoading } = usePool();
-  const [statusFilter, setStatusFilter] = useState<string>("Listed");
   const [invoicePage, setInvoicePage] = useState(1);
   const [invoiceLimit, setInvoiceLimit] = useState(20);
+  const [showPresetsDropdown, setShowPresetsDropdown] = useState(false);
+  const [showCompareModal, setShowCompareModal] = useState(false);
+  const [newPresetName, setNewPresetName] = useState("");
+  const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
+  const [editingPresetName, setEditingPresetName] = useState("");
 
-  // Filter States
-  const [minAmount, setMinAmount] = useState("");
-  const [maxAmount, setMaxAmount] = useState("");
-  const [maxDiscount, setMaxDiscount] = useState("500"); // 500 bps max
+  // Filter States - initialized from localStorage
+  const [statusFilter, setStatusFilter] = useState<string>(() => {
+    const stored = readFiltersFromStorage();
+    return stored?.statusFilter ?? "Listed";
+  });
+  const [minAmount, setMinAmount] = useState<string>(() => {
+    const stored = readFiltersFromStorage();
+    return stored?.minAmount ?? "";
+  });
+  const [maxAmount, setMaxAmount] = useState<string>(() => {
+    const stored = readFiltersFromStorage();
+    return stored?.maxAmount ?? "";
+  });
+  const [maxDiscount, setMaxDiscount] = useState<string>(() => {
+    const stored = readFiltersFromStorage();
+    return stored?.maxDiscount ?? "500";
+  });
+
+  // Persist filters to localStorage on change
+  useEffect(() => {
+    writeFiltersToStorage({ statusFilter, minAmount, maxAmount, maxDiscount });
+  }, [statusFilter, minAmount, maxAmount, maxDiscount]);
 
   const { invoices, isLoading, total, totalPages } = useInvoiceList({
     status: statusFilter === "ALL" ? undefined : statusFilter,
@@ -86,12 +171,86 @@ export default function Marketplace() {
     setSelectedInvoice(null);
   };
 
+  // Multi-select state for comparison
+  const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<string[]>([]);
+
+  // Presets state
+  const [presets, setPresets] = useState<FilterPreset[]>(() =>
+    readPresetsFromStorage(address ?? undefined),
+  );
+
+  // Persist presets to localStorage on change
+  useEffect(() => {
+    writePresetsToStorage(presets, address ?? undefined);
+  }, [presets, address]);
+
+  // Handle preset selection
+  const applyPreset = (preset: FilterPreset) => {
+    setStatusFilter(preset.filters.statusFilter);
+    setMinAmount(preset.filters.minAmount);
+    setMaxAmount(preset.filters.maxAmount);
+    setMaxDiscount(preset.filters.maxDiscount);
+    setShowPresetsDropdown(false);
+  };
+
+  // Save current filters as a preset
+  const savePreset = () => {
+    if (!newPresetName.trim()) return;
+    if (presets.length >= 10) {
+      alert("Maximum of 10 saved presets reached. Please delete one first.");
+      return;
+    }
+    const newPreset: FilterPreset = {
+      name: newPresetName.trim(),
+      filters: { statusFilter, minAmount, maxAmount, maxDiscount },
+      createdAt: Date.now(),
+    };
+    setPresets([...presets, newPreset]);
+    setNewPresetName("");
+    setShowPresetsDropdown(false);
+  };
+
+  // Delete a preset
+  const deletePreset = (id: string) => {
+    setPresets(presets.filter((_, index) => index.toString() !== id));
+    setShowPresetsDropdown(false);
+  };
+
+  // Start editing a preset name
+  const startEditingPreset = (id: string, name: string) => {
+    setEditingPresetId(id);
+    setEditingPresetName(name);
+  };
+
+  // Save edited preset name
+  const saveEditedPreset = (id: string) => {
+    if (!editingPresetName.trim()) return;
+    setPresets(
+      presets.map((p, index) =>
+        index.toString() === id ? { ...p, name: editingPresetName.trim() } : p,
+      ),
+    );
+    setEditingPresetId(null);
+    setEditingPresetName("");
+  };
+
   // Calculate funded amount preview (face value - discount fee)
   const calculateFundingValue = (faceValue: bigint, discountBps: number) => {
     const value = Number(faceValue);
     const fee = value * (discountBps / 10000);
     return BigInt(Math.floor(value - fee));
   };
+
+  // Get selected invoices for comparison
+  const selectedInvoices = useMemo(
+    () => filteredAndSortedInvoices.filter((inv) => selectedInvoiceIds.includes(inv.id)),
+    [filteredAndSortedInvoices, selectedInvoiceIds],
+  );
+
+  // Handle selection change from InvoiceTable
+  const handleSelectionChange = useCallback((ids: string[]) => {
+    setSelectedInvoiceIds(ids.slice(0, 4)); // Cap at 4 for comparison
+  }, []);
 
   return (
     <PageLayout>
@@ -148,7 +307,7 @@ export default function Marketplace() {
         )}
 
         {/* Filter bar */}
-        <div className="bg-[#0d131a] border border-border rounded-lg p-4 grid grid-cols-1 md:grid-cols-4 gap-4 font-mono text-xs items-end">
+        <div className="bg-[#0d131a] border border-border rounded-lg p-4 grid grid-cols-1 md:grid-cols-5 gap-4 font-mono text-xs items-end">
           <div className="space-y-1">
             <span className="text-[10px] text-slate-500 font-bold uppercase">
               Maturity Status
@@ -229,6 +388,142 @@ export default function Marketplace() {
               aria-valuemax={500}
             />
           </div>
+
+          {/* Saved Searches / Presets */}
+          <div className="relative space-y-1">
+            <span className="text-[10px] text-slate-500 font-bold uppercase">
+              Saved Searches
+            </span>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowPresetsDropdown(!showPresetsDropdown)}
+                className="w-full bg-[#080c10] border border-border rounded px-3 py-1.5 text-white focus:outline-none focus:border-primary cursor-pointer flex items-center justify-between text-left hover:border-primary/40 transition-colors"
+                aria-haspopup="listbox"
+                aria-expanded={showPresetsDropdown}
+              >
+                <span className="truncate pr-6">
+                  {presets.length > 0
+                    ? `${presets.length} preset${presets.length !== 1 ? "s" : ""} saved`
+                    : "No saved searches"}
+                </span>
+                <Menu className="w-4 h-4 text-slate-400 shrink-0" />
+              </button>
+
+              {showPresetsDropdown && (
+                <div
+                  className="absolute bottom-full left-0 right-0 mb-2 bg-[#0d131a] border border-border rounded-lg p-2 shadow-xl z-10 font-mono text-xs max-h-80 overflow-auto"
+                  role="listbox"
+                >
+                  {/* Save current filters as new preset */}
+                  <div className="border-b border-border/40 pb-2 mb-2 flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Preset name..."
+                      className="flex-1 bg-[#080c10] border border-border rounded px-2 py-1.5 text-white focus:outline-none focus:border-primary text-[11px]"
+                      value={newPresetName}
+                      onChange={(e) => setNewPresetName(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && savePreset()}
+                      aria-label="New preset name"
+                    />
+                    <button
+                      type="button"
+                      onClick={savePreset}
+                      disabled={!newPresetName.trim() || presets.length >= 10}
+                      className="px-3 py-1.5 bg-primary text-black font-bold uppercase text-[10px] rounded hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {/* Presets list */}
+                  {presets.length === 0 ? (
+                    <p className="text-slate-500 text-center py-2 text-[10px]">
+                      No saved searches yet
+                    </p>
+                  ) : (
+                    <ul className="space-y-1" role="listbox">
+                      {presets.map((preset, index) => (
+                        <li key={index} className="relative">
+                          {editingPresetId === index.toString() ? (
+                            <div className="flex gap-2 p-2">
+                              <input
+                                type="text"
+                                className="flex-1 bg-[#080c10] border border-primary rounded px-2 py-1 text-white focus:outline-none text-[11px]"
+                                value={editingPresetName}
+                                onChange={(e) => setEditingPresetName(e.target.value)}
+                                onKeyDown={(e) =>
+                                  e.key === "Enter" ? saveEditedPreset(index.toString()) : undefined
+                                }
+                                onBlur={() => saveEditedPreset(index.toString())}
+                                autoFocus
+                              />
+                              <button
+                                type="button"
+                                onClick={() => saveEditedPreset(index.toString())}
+                                className="px-2 py-1 text-primary hover:underline text-[10px]"
+                              >
+                                Save
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-between p-2 hover:bg-slate-900/50 rounded">
+                              <button
+                                type="button"
+                                onClick={() => applyPreset(preset)}
+                                className="flex-1 text-left text-white hover:text-primary transition-colors flex items-center gap-2"
+                                role="option"
+                                aria-selected="false"
+                              >
+                                <span className="font-bold">{preset.name}</span>
+                                <span className="text-slate-500 text-[9px]">
+                                  ({preset.filters.statusFilter}{", "}
+                                  {preset.filters.minAmount || "0"}{"-"}
+                                  {preset.filters.maxAmount || "∞"}{" "}
+                                  ≤{Number(preset.filters.maxDiscount) / 100}%)
+                                </span>
+                              </button>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    startEditingPreset(index.toString(), preset.name);
+                                  }}
+                                  className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded transition-colors"
+                                  aria-label="Rename preset"
+                                >
+                                  <Menu className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deletePreset(index.toString());
+                                  }}
+                                  className="p-1 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded transition-colors"
+                                  aria-label="Delete preset"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {/* Cap notice */}
+                  {presets.length >= 10 && (
+                    <p className="text-amber-400 text-[9px] text-center pt-2 border-t border-border/40">
+                      Maximum of 10 presets reached
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Marketplace Contents */}
@@ -253,6 +548,9 @@ export default function Marketplace() {
                 onSelectInvoice={handleSelectInvoice}
                 activeId={selectedInvoice?.id}
                 role={role}
+                selectable
+                selectedIds={selectedInvoiceIds}
+                onSelectionChange={handleSelectionChange}
                 emptyStateTitle="No invoices match your filters"
                 emptyStateDescription="Try broadening the amount range or resetting the filters to reveal more listed invoices."
                 emptyStateAction={{
@@ -264,6 +562,12 @@ export default function Marketplace() {
                     setMaxDiscount("500");
                     setSelectedInvoice(null);
                     setInvoicePage(1);
+                    writeFiltersToStorage({
+                      statusFilter: "Listed",
+                      minAmount: "",
+                      maxAmount: "",
+                      maxDiscount: "500",
+                    });
                   },
                 }}
                 pagination={{
@@ -276,6 +580,37 @@ export default function Marketplace() {
                 }}
               />
             </ErrorBoundary>
+
+            {/* Compare Selected Toolbar */}
+            {selectedInvoiceIds.length >= 2 && (
+              <div className="bg-[#0d131a] border border-primary/20 rounded-lg p-4 flex items-center justify-between gap-4 font-mono text-xs">
+                <div className="flex items-center gap-3">
+                  <span className="text-primary font-bold uppercase">
+                    {selectedInvoiceIds.length} selected
+                  </span>
+                  <span className="text-slate-500 text-[10px]">
+                    (max 4 for comparison)
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowCompareModal(true)}
+                  disabled={selectedInvoiceIds.length > 4}
+                  className="px-4 py-2 bg-primary text-black font-bold uppercase tracking-wider rounded hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Compare Selected
+                </button>
+              </div>
+            )}
+
+            {/* Compare Modal */}
+            {showCompareModal && selectedInvoices.length >= 2 && (
+              <InvoiceCompareModal
+                invoices={selectedInvoices}
+                onClose={() => setShowCompareModal(false)}
+              />
+            )}
           </div>
 
           {/* Console Management Center (Right) */}

@@ -37,7 +37,9 @@ function NotificationPreferences({ address }: { address: string }) {
     try {
       const stored = localStorage.getItem(storageKey);
       if (stored) return JSON.parse(stored);
-    } catch (e) {}
+    } catch {
+      // Ignore storage errors
+    }
     // Default to true for all
     const initial: Record<string, boolean> = {};
     categories.forEach((c) => (initial[c] = true));
@@ -49,7 +51,9 @@ function NotificationPreferences({ address }: { address: string }) {
     setPrefs(nextPrefs);
     try {
       localStorage.setItem(storageKey, JSON.stringify(nextPrefs));
-    } catch (e) {}
+    } catch {
+      // Ignore storage errors
+    }
   };
 
   return (

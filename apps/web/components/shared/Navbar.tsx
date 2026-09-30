@@ -87,6 +87,7 @@ export function Navbar() {
             <div className="hidden md:flex space-x-1">
               {NAV_ITEMS.map((item) => {
                 const isActive = pathname === item.href;
+                const Icon = item.icon;
                 return (
                   <Link
                     key={item.href}
@@ -254,6 +255,7 @@ export function Navbar() {
           <div className="flex flex-col gap-2">
             {NAV_ITEMS.map((item) => {
               const isActive = pathname === item.href;
+              const Icon = item.icon;
               return (
                 <Link
                   key={item.href}
