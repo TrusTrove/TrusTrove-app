@@ -109,7 +109,7 @@ func ListActiveWebhookSubscriptionsForEvent(ctx context.Context, eventType strin
 	query := `
 		SELECT id, target_url, event_types, signing_secret, active, created_at, updated_at
 		FROM webhook_subscriptions
-		WHERE active = TRUE AND $1 = ANY(event_types)
+		WHERE active = TRUE AND event_types @> ARRAY[$1]::text[]
 	`
 	rows, err := Pool.Query(ctx, query, eventType)
 	if err != nil {
