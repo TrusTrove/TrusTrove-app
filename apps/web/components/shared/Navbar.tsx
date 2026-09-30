@@ -102,7 +102,8 @@ export function Navbar() {
                               rel="noopener noreferrer"
                               className="flex items-center gap-1 hover:underline"
                             >
-                              Get testnet USDC <ExternalLink className="w-3 h-3" />
+                              Get testnet USDC{" "}
+                              <ExternalLink className="w-3 h-3" />
                             </a>
                           </div>
                         )}
@@ -138,13 +139,22 @@ export function Navbar() {
                     className="bg-transparent text-[11px] font-mono text-slate-200 font-bold uppercase tracking-wider focus:outline-none cursor-pointer py-0.5 pr-1"
                     aria-label="Select role"
                   >
-                    <option value="issuer" className="bg-neutral-900 text-slate-200">
+                    <option
+                      value="issuer"
+                      className="bg-neutral-900 text-slate-200"
+                    >
                       Issuer
                     </option>
-                    <option value="buyer" className="bg-neutral-900 text-slate-200">
+                    <option
+                      value="buyer"
+                      className="bg-neutral-900 text-slate-200"
+                    >
                       Buyer
                     </option>
-                    <option value="lp" className="bg-neutral-900 text-slate-200">
+                    <option
+                      value="lp"
+                      className="bg-neutral-900 text-slate-200"
+                    >
                       LP
                     </option>
                   </select>
@@ -163,7 +173,11 @@ export function Navbar() {
               aria-label="Toggle mobile menu"
               aria-expanded={mobileMenuOpen}
             >
-              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              {mobileMenuOpen ? (
+                <X className="w-5 h-5" />
+              ) : (
+                <Menu className="w-5 h-5" />
+              )}
             </button>
           </div>
         </div>
