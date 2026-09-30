@@ -176,6 +176,76 @@ func TestGetProtocolStats_Empty(t *testing.T) {
 	}
 }
 
+// TestGetProtocolStats_CountsListenerStatuses seeds invoices using the exact
+// CapCase statuses the listener writes and asserts every filtered aggregate
+// picks them up. It runs inside a transaction that first clears the invoices
+// table and is always rolled back, so the expected values are exact and no
+// other test's data is affected.
+func TestGetProtocolStats_CountsListenerStatuses(t *testing.T) {
+	skipIfNoDB(t)
+
+	ctx := context.Background()
+	tx, err := Pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	t.Cleanup(func() { _ = tx.Rollback(ctx) })
+
+	if _, err := tx.Exec(ctx, "DELETE FROM invoices"); err != nil {
+		t.Fatalf("clear invoices: %v", err)
+	}
+
+	seed := []struct {
+		status      string
+		funded      string
+		discountBps int
+	}{
+		{"Created", "0", 0},
+		{"Listed", "0", 500},
+		{"Funded", "1000", 100},
+		{"Active", "2000", 200},
+		{"Confirmed", "3000", 300},
+		{"Repaid", "4000", 400},
+		{"Defaulted", "5000", 900},
+	}
+	for i, s := range seed {
+		inv := newTestInvoice(fmt.Sprintf("stats-test%d-%d", time.Now().UnixNano(), i))
+		inv.Status = s.status
+		inv.FundedAmount = s.funded
+		inv.DiscountBps = s.discountBps
+		if err := InsertInvoice(ctx, tx, inv); err != nil {
+			t.Fatalf("InsertInvoice %s: %v", s.status, err)
+		}
+	}
+
+	stats, err := getProtocolStats(ctx, tx)
+	if err != nil {
+		t.Fatalf("getProtocolStats: %v", err)
+	}
+
+	if stats.TotalInvoices != 7 {
+		t.Errorf("TotalInvoices = %d, want 7", stats.TotalInvoices)
+	}
+	// Funded + Active + Confirmed + Repaid = 1000 + 2000 + 3000 + 4000.
+	if stats.TotalUSDCFinanced != "10000" {
+		t.Errorf("TotalUSDCFinanced = %q, want %q", stats.TotalUSDCFinanced, "10000")
+	}
+	// Funded, Active, Confirmed.
+	if stats.ActiveInvoiceCount != 3 {
+		t.Errorf("ActiveInvoiceCount = %d, want 3", stats.ActiveInvoiceCount)
+	}
+	if stats.TotalRepaid != 1 {
+		t.Errorf("TotalRepaid = %d, want 1", stats.TotalRepaid)
+	}
+	if stats.TotalDefaulted != 1 {
+		t.Errorf("TotalDefaulted = %d, want 1", stats.TotalDefaulted)
+	}
+	// avg(100, 200, 300, 400) = 250.
+	if stats.AverageYieldBps != 250 {
+		t.Errorf("AverageYieldBps = %d, want 250", stats.AverageYieldBps)
+	}
+}
+
 func TestLocateMigrationDir(t *testing.T) {
 	// Save original env value
 	originalEnv := os.Getenv("INDEXER_MIGRATIONS_DIR")

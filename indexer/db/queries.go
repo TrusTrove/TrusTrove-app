@@ -55,21 +55,33 @@ type ProtocolStats struct {
 	RegisteredIssuers  int    `json:"registered_issuers"`
 }
 
+// GetProtocolStats returns the protocol-level aggregates served by GET /stats.
+//
+// Status literals must match the CapCase values the listener writes
+// (Created, Listed, Funded, Active, Confirmed, Repaid, Defaulted); Postgres
+// string comparison is case-sensitive. An invoice counts as "active" while
+// capital is deployed and not yet returned: Funded, Active (shipped) and
+// Confirmed (delivery confirmed, awaiting repayment). The financed total and
+// average yield additionally include Repaid invoices.
 func GetProtocolStats(ctx context.Context) (*ProtocolStats, error) {
+	return getProtocolStats(ctx, Pool)
+}
+
+func getProtocolStats(ctx context.Context, q Querier) (*ProtocolStats, error) {
 	query := `
 		SELECT
-			COALESCE(SUM(funded_amount) FILTER (WHERE status IN ('funded', 'shipped', 'confirmed', 'repaid')), 0)::TEXT AS total_usdc_financed,
-			COUNT(*) FILTER (WHERE status IN ('funded', 'shipped', 'confirmed')) AS active_invoice_count,
+			COALESCE(SUM(funded_amount) FILTER (WHERE status IN ('Funded', 'Active', 'Confirmed', 'Repaid')), 0)::TEXT AS total_usdc_financed,
+			COUNT(*) FILTER (WHERE status IN ('Funded', 'Active', 'Confirmed')) AS active_invoice_count,
 			COUNT(*) AS total_invoices,
-			COUNT(*) FILTER (WHERE status = 'repaid') AS total_repaid,
-			COUNT(*) FILTER (WHERE status = 'defaulted') AS total_defaulted,
-			COALESCE(AVG(discount_bps) FILTER (WHERE status IN ('funded', 'shipped', 'confirmed', 'repaid')), 0)::INTEGER AS average_yield_bps,
+			COUNT(*) FILTER (WHERE status = 'Repaid') AS total_repaid,
+			COUNT(*) FILTER (WHERE status = 'Defaulted') AS total_defaulted,
+			COALESCE(AVG(discount_bps) FILTER (WHERE status IN ('Funded', 'Active', 'Confirmed', 'Repaid')), 0)::INTEGER AS average_yield_bps,
 			COALESCE((SELECT utilization_rate_bps FROM pool_snapshots WHERE id = 1), 0) AS pool_utilization_bps,
 			COUNT(DISTINCT issuer) AS registered_issuers
 		FROM invoices
 	`
 	var stats ProtocolStats
-	err := Pool.QueryRow(ctx, query).Scan(
+	err := q.QueryRow(ctx, query).Scan(
 		&stats.TotalUSDCFinanced,
 		&stats.ActiveInvoiceCount,
 		&stats.TotalInvoices,
