@@ -17,7 +17,7 @@ a **Transaction Preview** panel below the input:
 - **Footprint Size** — the number of ledger entries the transaction touches.
 - **Estimated network fee** — the simulated fee in XLM.
 
-While the simulation runs, the panel shows *Simulating Transaction...*; if the
+While the simulation runs, the panel shows _Simulating Transaction..._; if the
 simulation fails, the panel shows **Simulation Failed** and the error instead —
 in that case, do not submit.
 
