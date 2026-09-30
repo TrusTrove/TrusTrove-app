@@ -44,6 +44,7 @@
 - [Mainnet Setup](developer-guide/mainnet-setup.md)
 - [SDK Reference](developer-guide/sdk-reference.md)
 - [Indexer API Reference](developer-guide/indexer-api-reference.md)
+- [Webhooks](webhooks.md)
 - [Security Headers](developer-guide/security-headers.md)
 
 ## Contributing

@@ -22,7 +22,8 @@ const (
 	maxAttempts  = 5
 	pollInterval = 5 * time.Second
 	httpTimeout  = 10 * time.Second
-	// backoffBase is multiplied by 2^attempt to get the retry delay (seconds).
+	// backoffBase * 2^n is the retry delay after the n-th failed attempt
+	// (20s, 40s, 80s, 160s).
 	backoffBase = 10 * time.Second
 )
 
@@ -294,7 +295,9 @@ func (d *Dispatcher) handleFailure(ctx context.Context, delivery *db.WebhookDeli
 		return
 	}
 
-	// Exponential backoff: backoffBase * 2^attempt (10s, 20s, 40s, 80s)
+	// Exponential backoff: backoffBase * 2^nextAttempt, so 20s, 40s, 80s and
+	// 160s after failed attempts 1-4. The failure that reaches max_attempts
+	// (the 5th by default) is dead-lettered above without a delay.
 	delay := backoffBase * (1 << uint(nextAttempt))
 	nextAt := time.Now().Add(delay)
 	if err := db.MarkDeliveryRetry(ctx, delivery.ID, nextAt, statusCode, errMsg); err != nil {

@@ -213,7 +213,9 @@ func (w *DeliveryWorker) handleFailure(ctx context.Context, delivery *db.Webhook
 		return
 	}
 
-	// Exponential backoff: backoffBase * 2^attempt (10s, 20s, 40s, 80s)
+	// Exponential backoff: backoffBase * 2^nextAttempt, so 20s, 40s, 80s and
+	// 160s after failed attempts 1-4. The failure that reaches max_attempts
+	// (the 5th by default) is dead-lettered above without a delay.
 	delay := backoffBase * (1 << uint(nextAttempt))
 	nextAt := time.Now().Add(delay)
 	if err := db.MarkDeliveryRetry(writeCtx, delivery.ID, nextAt, statusCode, errMsg); err != nil {

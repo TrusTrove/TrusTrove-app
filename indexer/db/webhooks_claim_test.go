@@ -59,6 +59,14 @@ func queueClaimTestDeliveries(t *testing.T, ctx context.Context, sub *WebhookSub
 		}
 		ids = append(ids, id)
 	}
+	// Claims are served oldest next_attempt_at first. Backdating these rows
+	// makes them the first ones claimed, so pending rows queued concurrently by
+	// other packages' tests in the shared database can't take their place.
+	if _, err := Pool.Exec(ctx,
+		"UPDATE webhook_deliveries SET next_attempt_at = TIMESTAMP '2000-01-01' WHERE id = ANY($1)", ids,
+	); err != nil {
+		t.Fatalf("backdate queued deliveries: %v", err)
+	}
 	return ids
 }
 
