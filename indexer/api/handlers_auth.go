@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -43,8 +42,7 @@ func (h *APIHandler) HandlePostAuth(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Transaction string `json:"transaction"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+	if !decodeJSONBody(w, r, &body, maxAuthBodyBytes) {
 		return
 	}
 

@@ -30,6 +30,23 @@ const (
 	exitFailure = 1
 )
 
+// HTTP server timeouts. Go's zero values mean "no limit", which lets a client
+// that trickles header or body bytes (slowloris) pin a connection and its
+// goroutine indefinitely.
+const (
+	httpReadHeaderTimeout = 5 * time.Second
+	// httpReadTimeout covers headers plus body; request bodies are capped at a
+	// few KB (see api.decodeJSONBody), so this is ample for slow clients.
+	httpReadTimeout = 15 * time.Second
+	// httpWriteTimeout must outlast the slowest handler. POST /invoices builds,
+	// simulates and submits a transaction and then polls getTransaction up to
+	// 30 times at 1s intervals (api.maxPollAttempts) before responding, so a
+	// normal confirmation can take ~30-40s. 90s leaves headroom for Soroban RPC
+	// latency on each of those calls.
+	httpWriteTimeout = 90 * time.Second
+	httpIdleTimeout  = 120 * time.Second
+)
+
 // shutdownCause records why the run loop stopped. It is the only input to the
 // exit status, which keeps the decision testable without starting the process.
 type shutdownCause string
@@ -120,8 +137,12 @@ func run() int {
 
 	router := api.NewRouter(handler)
 	server := &http.Server{
-		Addr:    ":" + cfg.APIPort,
-		Handler: router,
+		Addr:              ":" + cfg.APIPort,
+		Handler:           router,
+		ReadHeaderTimeout: httpReadHeaderTimeout,
+		ReadTimeout:       httpReadTimeout,
+		WriteTimeout:      httpWriteTimeout,
+		IdleTimeout:       httpIdleTimeout,
 	}
 
 	// 4. Start Webhook Dispatcher (for enqueueing) and Delivery Worker (for sending) in Background

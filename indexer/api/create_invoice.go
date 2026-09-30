@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"log/slog"
 	"math/big"
 	"net/http"
@@ -57,8 +56,7 @@ type createInvoiceParams struct {
 // transaction, then submit it and wait for confirmation.
 func (h *APIHandler) HandleCreateInvoice(w http.ResponseWriter, r *http.Request) {
 	var body createInvoiceRequest
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+	if !decodeJSONBody(w, r, &body, maxCreateInvoiceBodyBytes) {
 		return
 	}
 

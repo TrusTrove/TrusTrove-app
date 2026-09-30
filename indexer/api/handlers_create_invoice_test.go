@@ -229,3 +229,21 @@ func TestHandleCreateInvoice_HappyPath(t *testing.T) {
 		t.Fatalf("response does not contain invoice data: %s", recorder.Body.String())
 	}
 }
+
+// TestHandleCreateInvoice_OversizedBody expects 413 for a body over
+// maxCreateInvoiceBodyBytes. The request carries no authenticated issuer, so
+// reaching validation would answer 401 instead; 413 proves the limit is
+// enforced first.
+func TestHandleCreateInvoice_OversizedBody(t *testing.T) {
+	h := newTestHandler(t)
+
+	body := `{"buyer":"` + strings.Repeat("G", int(maxCreateInvoiceBodyBytes)) + `","face_value":"1000","due_date":1700000000}`
+	req := httptest.NewRequest(http.MethodPost, "/invoices", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	h.HandleCreateInvoice(recorder, req)
+
+	if recorder.Code != http.StatusRequestEntityTooLarge {
+		t.Errorf("oversized body: got status %d, want %d", recorder.Code, http.StatusRequestEntityTooLarge)
+	}
+}
