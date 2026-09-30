@@ -1,8 +1,8 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { axe } from "vitest-axe";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { renderWithProviders } from "@/test-utils/renderWithProviders";
 
 vi.mock("@/store/wallet", () => ({
   useWalletStore: (selector: any) => {
@@ -60,17 +60,11 @@ vi.mock("@/components/invoice/InvoiceCard", () => ({
   InvoiceCard: () => null,
 }));
 
-const queryClient = new QueryClient();
-
 import Marketplace from "@/app/marketplace/page";
 
 describe("Marketplace filter labels accessibility", () => {
   it("Min Value and Max Value labels are associated with their inputs", async () => {
-    const { container } = render(
-      <QueryClientProvider client={queryClient}>
-        <Marketplace />
-      </QueryClientProvider>,
-    );
+    const { container } = renderWithProviders(<Marketplace />);
 
     const minValueLabel = screen.getByText("Min Value");
     const maxValueLabel = screen.getByText("Max Value");
@@ -120,11 +114,7 @@ describe("Marketplace filter labels accessibility", () => {
   });
 
   it("Min Value label htmlFor matches input id for click-to-focus", () => {
-    render(
-      <QueryClientProvider client={queryClient}>
-        <Marketplace />
-      </QueryClientProvider>,
-    );
+    renderWithProviders(<Marketplace />);
 
     const label = screen.getByText("Min Value");
     const input = screen.getByPlaceholderText("e.g. 5000");
@@ -135,11 +125,7 @@ describe("Marketplace filter labels accessibility", () => {
   });
 
   it("Max Value label htmlFor matches input id for click-to-focus", () => {
-    render(
-      <QueryClientProvider client={queryClient}>
-        <Marketplace />
-      </QueryClientProvider>,
-    );
+    renderWithProviders(<Marketplace />);
 
     const label = screen.getByText("Max Value");
     const input = screen.getByPlaceholderText("e.g. 50000");

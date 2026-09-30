@@ -68,6 +68,174 @@
       }
     }
   },
+  "Dashboard": {
+    "connectPrompt": {
+      "title": "Connect Your Wallet",
+      "body": "Connect your Freighter wallet to access the SME Financing Dashboard, issue invoices, and request immediate liquidity."
+    },
+    "header": {
+      "title": "SME Financing Dashboard",
+      "operator": "OPERATOR: {address} | ROLE: {role}",
+      "createInvoice": "Create Invoice",
+      "createInvoiceLocked": "Please complete your profile registration to unlock invoice creation"
+    },
+    "checklist": {
+      "title": "Get Started",
+      "description": "Complete the steps below to unlock full dashboard operations.",
+      "connectWallet": {
+        "title": "Connect Wallet",
+        "description": "Wallet connected successfully",
+        "status": "Done"
+      },
+      "registerProfile": {
+        "title": "Register Profile",
+        "description": "Register your business credentials on-chain",
+        "status": "Pending"
+      },
+      "createInvoice": {
+        "title": "Create Invoice",
+        "description": "Requires verified profile",
+        "status": "Locked"
+      },
+      "cta": "Complete Profile Registration"
+    },
+    "stats": {
+      "created": {
+        "label": "Created",
+        "hint": "Total trade files"
+      },
+      "listed": {
+        "label": "Currently Listed",
+        "hint": "Awaiting financing"
+      },
+      "fundedActive": {
+        "label": "Funded & Active",
+        "hint": "Liquidity deployed on-chain"
+      },
+      "repaid": {
+        "label": "Total Repaid",
+        "hint": "Settle invoices"
+      },
+      "financed": {
+        "label": "Total Financed",
+        "hint": "Liquidity captured"
+      }
+    },
+    "invoices": {
+      "title": "Issued Invoices",
+      "emptyState": {
+        "title": "No invoices yet",
+        "description": "Create your first invoice to populate the dashboard and unlock the financing flow.",
+        "action": "Create Your First Invoice"
+      }
+    },
+    "activity": {
+      "title": "On-Chain Activity Logs",
+      "empty": "No events recorded yet.",
+      "types": {
+        "created": "Invoice Created",
+        "listed": "Invoice Listed",
+        "funded": "Invoice Funded",
+        "shipped": "Invoice Shipped",
+        "deliveryConfirmed": "Delivery Confirmed",
+        "repaid": "Invoice Repaid",
+        "defaulted": "Invoice Defaulted"
+      },
+      "invoiceRef": "INV#{id}...",
+      "unknownBuyer": "unknown",
+      "details": {
+        "created": "{invoice} created for buyer {buyer}",
+        "listed": "{invoice} listed for financing",
+        "funded": "{invoice} funded",
+        "shipped": "{invoice} marked as shipped",
+        "deliveryConfirmed": "Buyer confirmed delivery for {invoice}",
+        "repaid": "{invoice} repaid",
+        "defaulted": "{invoice} defaulted",
+        "fallback": "Event occurred"
+      },
+      "time": {
+        "justNow": "just now",
+        "minutesAgo": "{minutes} min ago",
+        "hoursAgo": "{hours}h ago",
+        "daysAgo": "{days}d ago"
+      }
+    },
+    "console": {
+      "title": "Management console",
+      "selectedDetails": "Selected invoice details",
+      "clear": "Clear console",
+      "viewAuditLedger": "View audit ledger",
+      "emptyState": "Select an obligation from the table to load actions in the operator console."
+    },
+    "createModal": {
+      "label": "Create Invoice",
+      "title": "New Invoice",
+      "close": "[Close Esc]"
+    }
+  },
+  "Marketplace": {
+    "header": {
+      "title": "Invoice Marketplace",
+      "description": "Audit list of tokenized trade obligations listed on the Stellar Soroban network.",
+      "liquidityLabel": "Pool Liquidity Available"
+    },
+    "syncing": "Syncing...",
+    "verificationBanner": {
+      "title": "Profile Verification Required",
+      "body": "Your connected wallet address is not verified on-chain. To fund invoices or execute smart contract operations, you must register your business credentials. Go to the <link>[Profile Page]</link> to register."
+    },
+    "filters": {
+      "status": {
+        "label": "Maturity Status",
+        "options": {
+          "all": "All Invoices",
+          "created": "Created",
+          "listed": "Listed (Awaiting Liquidity)",
+          "funded": "Funded (USDC Deployed)",
+          "active": "Active (Shipped)",
+          "confirmed": "Confirmed (Delivered)",
+          "repaid": "Repaid (Settled)",
+          "defaulted": "Defaulted"
+        }
+      },
+      "minValue": {
+        "label": "Min Value",
+        "placeholder": "e.g. 5000"
+      },
+      "maxValue": {
+        "label": "Max Value",
+        "placeholder": "e.g. 50000"
+      },
+      "maxDiscount": {
+        "label": "Max Discount Rate",
+        "ariaLabel": "Maximum discount rate"
+      }
+    },
+    "invoices": {
+      "title": "Available Invoices ({count})",
+      "emptyState": {
+        "title": "No invoices match your filters",
+        "description": "Try broadening the amount range or resetting the filters to reveal more listed invoices.",
+        "action": "Reset Filters"
+      }
+    },
+    "console": {
+      "title": "Management Center",
+      "role": "Consoling role: <strong>{role}</strong>",
+      "publicView": "PUBLIC VIEW",
+      "clear": "Clear select",
+      "fundingPreview": {
+        "title": "POOL FINANCING PREVIEW",
+        "faceValue": "Face Value:",
+        "fundedCost": "Funded Cost (at {bps} bps):",
+        "note": "Funding this invoice deploys USDC from the pool contract into escrow. LPs earn the discount difference upon repayment."
+      },
+      "emptyState": {
+        "title": "NO INVOICE SELECTED",
+        "description": "Select an obligation from the ledger table to view its parameters and execute smart contract actions."
+      }
+    }
+  },
   "Common": {
     "loading": "Loading…",
     "error": "Something went wrong",
