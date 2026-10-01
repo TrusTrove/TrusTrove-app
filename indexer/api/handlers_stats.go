@@ -79,6 +79,34 @@ func (h *APIHandler) HandleGetPoolStats(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, stats)
 }
 
+// GET /pool/snapshots
+func (h *APIHandler) HandleGetPoolSnapshots(w http.ResponseWriter, r *http.Request) {
+	limit := 100
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		if parsed, err := strconv.Atoi(limitStr); err == nil && parsed > 0 {
+			limit = parsed
+			if limit > 500 {
+				limit = 500
+			}
+		}
+	}
+
+	snaps, err := h.getPoolSnapshotsFn(r.Context(), limit)
+	if err != nil {
+		// The raw DB error can disclose table/column names; log it and return
+		// a generic message (issue #921).
+		internalError(w, r, "failed to retrieve pool snapshots", err)
+		return
+	}
+
+	// Return [] rather than null so clients can map over the body directly.
+	if snaps == nil {
+		snaps = []*db.PoolSnapshotHistory{}
+	}
+
+	writeJSON(w, http.StatusOK, snaps)
+}
+
 // GET /events
 func (h *APIHandler) HandleGetEvents(w http.ResponseWriter, r *http.Request) {
 	limitStr := r.URL.Query().Get("limit")

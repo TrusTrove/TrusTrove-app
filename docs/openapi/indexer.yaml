@@ -26,6 +26,8 @@ tags:
   - name: Stats
   - name: Pool
   - name: Events
+  - name: Webhooks
+  - name: Metrics
 
 security:
   - bearerAuth: []
@@ -47,6 +49,36 @@ paths:
                 ok:
                   value:
                     status: ok
+        "503":
+          description: Service degraded (database or listener unavailable)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  error:
+                    type: string
+              examples:
+                degraded:
+                  value:
+                    status: degraded
+                    error: listener or database unavailable
+
+  /metrics:
+    get:
+      tags: [Metrics]
+      summary: Prometheus metrics
+      description: Returns process metrics in the Prometheus text exposition format.
+      security: []
+      responses:
+        "200":
+          description: Prometheus metrics
+          content:
+            text/plain:
+              schema:
+                type: string
 
   /auth:
     get:
@@ -75,6 +107,8 @@ paths:
                     network_passphrase: Test SDF Network ; September 2015
         "400":
           $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
     post:
       tags: [Auth]
       summary: Exchange signed SEP-10 challenge for JWT
@@ -106,6 +140,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 
   /events:
     get:
@@ -123,6 +159,8 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Event"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 
   /invoices:
     get:
@@ -156,6 +194,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PaginatedInvoices"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
     post:
       tags: [Invoices]
       summary: Create invoice
@@ -174,18 +214,19 @@ paths:
                   buyer: GBUYERAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
                   face_value: "10000000000"
                   due_date: 1790000000
-                  asset: USDC
       responses:
         "201":
           description: Invoice created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Invoice"
+                $ref: "#/components/schemas/CreateInvoiceResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 
   /invoices/{id}:
     get:
@@ -208,6 +249,8 @@ paths:
                 $ref: "#/components/schemas/Invoice"
         "404":
           $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 
   /stats:
     get:
@@ -221,6 +264,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProtocolStats"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 
   /pool/stats:
     get:
@@ -234,6 +279,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PoolStats"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 
   /pool/position/{address}:
     get:
@@ -256,22 +303,38 @@ paths:
                 $ref: "#/components/schemas/LPPosition"
         "404":
           $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 
   /pool/snapshots:
     get:
       tags: [Pool]
       summary: Historical pool snapshots
-      description: Returns historical liquidity pool snapshots used for charts and trend analysis.
+      description: >
+        Returns historical liquidity pool snapshots used for charts and trend
+        analysis, newest first. Unlike every other indexer response, snapshot
+        fields use camelCase to match the web app's PoolSnapshot type.
       security: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
       responses:
         "200":
-          description: Pool snapshots
+          description: Pool snapshots, newest first
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: "#/components/schemas/PoolSnapshot"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 
   /webhooks:
     post:
@@ -295,6 +358,8 @@ paths:
       responses:
         '201':
           description: Webhook created
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
     get:
       tags: [Webhooks]
       summary: List webhook subscriptions
@@ -303,6 +368,8 @@ paths:
       responses:
         '200':
           description: List of webhooks
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
   /webhooks/{id}:
     delete:
       tags: [Webhooks]
@@ -318,6 +385,8 @@ paths:
       responses:
         '204':
           description: Webhook deleted
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 components:
   securitySchemes:
     bearerAuth:
@@ -337,27 +406,52 @@ components:
         default: 20
   responses:
     BadRequest:
-      description: Bad request
+      description: Bad request (plain text error body)
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/Error"
+        text/plain:
+          schema:
+            type: string
     Unauthorized:
-      description: Authentication required or invalid
+      description: Authentication required or invalid (plain text error body)
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/Error"
+        text/plain:
+          schema:
+            type: string
     NotFound:
-      description: Resource not found
+      description: Resource not found (plain text error body)
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/Error"
+        text/plain:
+          schema:
+            type: string
+    TooManyRequests:
+      description: Rate limit exceeded
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying
+          schema:
+            type: integer
+      content:
+        text/plain:
+          schema:
+            type: string
 
   schemas:
     Error:
       type: object
+      description: >-
+        Note: most error responses from this API are served as plain text
+        (Content-Type: text/plain) via net/http's Error function. This JSON
+        schema documents the shape used by endpoints that do return JSON error
+        bodies, such as the RecoveryMiddleware panic response.
       properties:
         error:
           type: string
@@ -413,9 +507,24 @@ components:
           description: >-
             Unix timestamp in seconds. Must be in the future and no more than
             5 years from the time the request is validated.
-        asset:
+      required: [buyer, face_value, due_date]
+
+    CreateInvoiceResponse:
+      type: object
+      description: >-
+        Response returned by POST /invoices after the create-invoice
+        transaction is submitted and confirmed on-chain.
+      properties:
+        invoice_id:
           type: string
-      required: [buyer, face_value, due_date, asset]
+          description: Hexadecimal BytesN<32> invoice identifier.
+        transaction_hash:
+          type: string
+          description: Hash of the submitted Stellar transaction.
+        status:
+          type: string
+          description: Terminal transaction status (e.g. SUCCESS).
+      required: [invoice_id, transaction_hash, status]
 
     Invoice:
       type: object
@@ -430,6 +539,9 @@ components:
           type: string
         face_value:
           type: string
+        discount_bps:
+          type: integer
+          description: Discount in basis points applied when the invoice is listed.
         funded_amount:
           type: string
         due_date:
@@ -441,6 +553,39 @@ components:
         created_at:
           type: integer
           format: int64
+        funded_at:
+          type: integer
+          format: int64
+          nullable: true
+        shipped_at:
+          type: integer
+          format: int64
+          nullable: true
+        issuer_confirmed:
+          type: boolean
+        buyer_confirmed:
+          type: boolean
+        buyer_confirmed_at:
+          type: integer
+          format: int64
+          nullable: true
+        repaid_at:
+          type: integer
+          format: int64
+          nullable: true
+        attestation_agent_id:
+          type: string
+          nullable: true
+        risk_score_bps:
+          type: integer
+          nullable: true
+        evidence_hash:
+          type: string
+          nullable: true
+        attested_at:
+          type: integer
+          format: int64
+          nullable: true
       required: [id, issuer, buyer, face_value, due_date, status]
 
     PaginatedInvoices:
@@ -462,22 +607,28 @@ components:
 
     Event:
       type: object
+      description: One indexed Soroban event, matching db.EventLog.
       properties:
         id:
+          type: integer
+          description: Sequential database identifier.
+        event_id:
           type: string
+          description: On-chain event identifier.
         contract_id:
-          type: string
-        type:
           type: string
         ledger:
           type: integer
           format: int64
-        transaction_hash:
+        ledger_closed_at:
+          type: integer
+          format: int64
+        event_type:
           type: string
         data:
           type: object
           additionalProperties: true
-      required: [id, contract_id, type]
+      required: [id, event_id, contract_id, event_type]
 
     ProtocolStats:
       type: object
@@ -496,6 +647,9 @@ components:
           type: integer
         pool_utilization_bps:
           type: integer
+        registered_issuers:
+          type: integer
+          description: Distinct issuer addresses that have created invoices.
 
     PoolStats:
       type: object
@@ -512,6 +666,12 @@ components:
           type: string
         active_invoice_count:
           type: integer
+        total_shares:
+          type: string
+          description: Total LP pool shares issued.
+        updated_at:
+          type: string
+          format: date-time
 
     LPPosition:
       type: object
@@ -527,21 +687,27 @@ components:
 
     PoolSnapshot:
       type: object
+      description: >
+        One recorded pool-state snapshot. Field names are camelCase to match
+        the web app's PoolSnapshot type (every other indexer response uses
+        snake_case).
       properties:
-        total_deposits:
-          type: string
-        total_funded:
-          type: string
-        available_liquidity:
-          type: string
-        utilization_rate_bps:
+        timestamp:
           type: integer
-        total_yield_distributed:
-          type: string
-        active_invoice_count:
+          description: Unix timestamp (seconds) when the snapshot was recorded.
+        utilizationRateBps:
           type: integer
-        total_shares:
+          description: Pool utilization at that time, in basis points.
+        totalYieldDistributed:
           type: string
-        updated_at:
+          description: Cumulative yield distributed up to that time (stroops as string).
+        totalDeposits:
           type: string
-          format: date-time
+        totalFunded:
+          type: string
+        availableLiquidity:
+          type: string
+        activeInvoiceCount:
+          type: integer
+        totalShares:
+          type: string

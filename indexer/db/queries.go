@@ -363,7 +363,88 @@ func UpdatePoolStats(ctx context.Context, stats *DbPoolStats) error {
 	if err != nil {
 		return fmt.Errorf("queries: update pool stats: %w", err)
 	}
+
+	// Record a history row so GET /pool/snapshots can chart pool-state changes
+	// over time. A failure here does not undo the main-row update, but it is
+	// returned so callers (and the listener) can surface or retry it.
+	if err := InsertPoolSnapshotHistory(ctx, Pool, stats); err != nil {
+		return err
+	}
 	return nil
+}
+
+// PoolSnapshotHistory is one recorded pool-state snapshot served by
+// GET /pool/snapshots. JSON tags are camelCase to match the web app's
+// PoolSnapshot type in apps/web/types/index.ts; every other indexer response
+// uses snake_case, so this shape is the documented exception.
+type PoolSnapshotHistory struct {
+	Timestamp             int64  `json:"timestamp"`
+	UtilizationRateBps    int    `json:"utilizationRateBps"`
+	TotalYieldDistributed string `json:"totalYieldDistributed"`
+	TotalDeposits         string `json:"totalDeposits"`
+	TotalFunded           string `json:"totalFunded"`
+	AvailableLiquidity    string `json:"availableLiquidity"`
+	ActiveInvoiceCount    int    `json:"activeInvoiceCount"`
+	TotalShares           string `json:"totalShares"`
+}
+
+// InsertPoolSnapshotHistory appends the current pool stats to
+// pool_snapshot_history. It takes a Querier so callers can run it inside a
+// transaction alongside the pool_snapshots update.
+func InsertPoolSnapshotHistory(ctx context.Context, q Querier, stats *DbPoolStats) error {
+	if stats == nil {
+		return fmt.Errorf("queries: insert pool snapshot history: stats is nil")
+	}
+	query := `
+		INSERT INTO pool_snapshot_history (
+			recorded_at, total_deposits, total_funded, available_liquidity,
+			utilization_rate_bps, total_yield_distributed, active_invoice_count, total_shares
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	`
+	_, err := q.Exec(ctx, query,
+		time.Now().Unix(),
+		stats.TotalDeposits, stats.TotalFunded, stats.AvailableLiquidity,
+		stats.UtilizationRateBps, stats.TotalYieldDistributed, stats.ActiveInvoiceCount,
+		stats.TotalShares,
+	)
+	if err != nil {
+		return fmt.Errorf("queries: insert pool snapshot history: %w", err)
+	}
+	return nil
+}
+
+// GetPoolSnapshots returns pool_snapshot_history rows ordered by recorded_at
+// DESC (newest first), limited to limit rows.
+func GetPoolSnapshots(ctx context.Context, limit int) ([]*PoolSnapshotHistory, error) {
+	query := `
+		SELECT recorded_at, total_deposits, total_funded, available_liquidity,
+		       utilization_rate_bps, total_yield_distributed, active_invoice_count, total_shares
+		FROM pool_snapshot_history
+		ORDER BY recorded_at DESC
+		LIMIT $1
+	`
+	rows, err := Pool.Query(ctx, query, limit)
+	if err != nil {
+		return nil, fmt.Errorf("queries: get pool snapshots: %w", err)
+	}
+	defer rows.Close()
+
+	snaps := make([]*PoolSnapshotHistory, 0)
+	for rows.Next() {
+		var snap PoolSnapshotHistory
+		if err := rows.Scan(
+			&snap.Timestamp, &snap.TotalDeposits, &snap.TotalFunded, &snap.AvailableLiquidity,
+			&snap.UtilizationRateBps, &snap.TotalYieldDistributed, &snap.ActiveInvoiceCount,
+			&snap.TotalShares,
+		); err != nil {
+			return nil, fmt.Errorf("queries: scan pool snapshot: %w", err)
+		}
+		snaps = append(snaps, &snap)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("queries: iterate pool snapshots: %w", err)
+	}
+	return snaps, nil
 }
 
 func LogEvent(ctx context.Context, q Querier, eventID, contractID string, ledger int32, ledgerClosedAt int64, eventType string, data interface{}) error {
