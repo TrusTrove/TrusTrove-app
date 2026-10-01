@@ -44,7 +44,7 @@ Returns invoices with optional filtering.
   "total": 47,
   "page": 1,
   "limit": 20,
-  "total_pages": 3
+  "totalPages": 3
 }
 ```
 
@@ -63,7 +63,9 @@ Returns current pool statistics aggregated from indexed events.
   "available_liquidity": "250000000000000",
   "utilization_rate_bps": 7500,
   "total_yield_distributed": "15000000000000",
-  "active_invoice_count": 12
+  "active_invoice_count": 12,
+  "total_shares": "1000000000000",
+  "updated_at": "2026-01-01T12:00:00Z"
 }
 ```
 
@@ -92,7 +94,8 @@ Protocol-level aggregated statistics for the landing page.
   "total_repaid": 31,
   "total_defaulted": 2,
   "average_yield_bps": 210,
-  "pool_utilization_bps": 7500
+  "pool_utilization_bps": 7500,
+  "registered_issuers": 5
 }
 ```
 
@@ -154,8 +157,7 @@ Creates an off-chain/indexed invoice record. **Requires JWT** (`Authorization: B
 {
   "buyer": "GBUYERAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
   "face_value": "10000000000",
-  "due_date": 1790000000,
-  "asset": "USDC"
+  "due_date": 1790000000
 }
 ```
 
@@ -207,7 +209,13 @@ Returns the most recent indexed Soroban events. No JWT required.
 
 ## GET /pool/snapshots
 
-Returns historical pool snapshots used for charts and trend analysis. No JWT required.
+Returns historical pool snapshots used for charts and trend analysis, newest
+first. No JWT required. Unlike every other indexer response, snapshot fields
+use camelCase to match the web app's `PoolSnapshot` type.
+
+**Query parameters:**
+
+- `limit` — number of snapshots to return (default: 100, max: 500)
 
 **Response:**
 
@@ -216,7 +224,28 @@ Returns historical pool snapshots used for charts and trend analysis. No JWT req
   {
     "timestamp": 1748000000,
     "utilizationRateBps": 7500,
-    "totalYieldDistributed": "15000000000000"
+    "totalYieldDistributed": "15000000000000",
+    "totalDeposits": "25000000000000",
+    "totalFunded": "18000000000000",
+    "availableLiquidity": "7000000000000",
+    "activeInvoiceCount": 12,
+    "totalShares": "25000000000000"
   }
 ]
+```
+
+## GET /metrics
+
+Prometheus metrics exposition endpoint. No JWT required.
+
+Returns process metrics in the Prometheus text format
+(`Content-Type: text/plain`).
+
+```
+# HELP trustrove_invoices_indexed_total Total number of invoice events indexed, partitioned by event type.
+# TYPE trustrove_invoices_indexed_total counter
+trustrove_invoices_indexed_total{event_type="invoice_created"} 42
+# HELP trustrove_listener_last_ledger Most recently processed Soroban ledger sequence number.
+# TYPE trustrove_listener_last_ledger gauge
+trustrove_listener_last_ledger 123456
 ```
