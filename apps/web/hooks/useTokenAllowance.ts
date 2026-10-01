@@ -36,7 +36,7 @@ const APPROVAL_LEDGER_OFFSET = 535_680;
  * ```
  */
 export function useTokenAllowance() {
-  const { address } = useWalletStore();
+  const address = useWalletStore((s) => s.address);
 
   const ensureAllowance = useCallback(
     async (spenderContractId: string, amount: bigint): Promise<void> => {

@@ -40,6 +40,55 @@ describe("InvoiceStatusTimeline", () => {
     expect(screen.getAllByText("Pending")).toHaveLength(6);
   });
 
+  it("displays the Funded status branch correctly", () => {
+    render(
+      <InvoiceStatusTimeline
+        invoice={makeInvoice({
+          status: "Funded",
+          fundedAt: 1_735_500_000,
+        })}
+      />,
+    );
+
+    expect(screen.getByText("Funded by Pool")).toBeInTheDocument();
+    expect(screen.getByText("Repaid / Defaulted")).toBeInTheDocument();
+    const pendingElements = screen.getAllByText("Pending");
+    expect(pendingElements.length).toBeGreaterThan(0);
+  });
+
+  it("displays the Active status branch correctly with shipped state", () => {
+    render(
+      <InvoiceStatusTimeline
+        invoice={makeInvoice({
+          status: "Active",
+          fundedAt: 1_735_500_000,
+          shippedAt: 1_735_550_000,
+        })}
+      />,
+    );
+
+    expect(screen.getByText("Marked as Shipped")).toBeInTheDocument();
+    expect(screen.getByText("Repaid / Defaulted")).toBeInTheDocument();
+  });
+
+  it("displays the Confirmed status branch correctly with issuer and buyer confirmation", () => {
+    render(
+      <InvoiceStatusTimeline
+        invoice={makeInvoice({
+          status: "Confirmed",
+          fundedAt: 1_735_500_000,
+          shippedAt: 1_735_550_000,
+          issuerConfirmed: true,
+          buyerConfirmed: true,
+          buyerConfirmedAt: 1_735_600_000,
+        })}
+      />,
+    );
+
+    expect(screen.getByText("Delivery Confirmed - Buyer")).toBeInTheDocument();
+    expect(screen.getByText("Repaid / Defaulted")).toBeInTheDocument();
+  });
+
   it("advances the timeline and displays the repaid settlement state", () => {
     render(
       <InvoiceStatusTimeline
@@ -57,6 +106,36 @@ describe("InvoiceStatusTimeline", () => {
     expect(screen.getByText("Repaid")).toBeInTheDocument();
     expect(screen.queryByText("Repaid / Defaulted")).not.toBeInTheDocument();
     expect(screen.getAllByText(/Dec/).length).toBeGreaterThan(0);
+  });
+
+  it("displays the defaulted settlement state", () => {
+    render(
+      <InvoiceStatusTimeline
+        invoice={makeInvoice({
+          status: "Defaulted",
+          fundedAt: 1_735_500_000,
+          shippedAt: 1_735_550_000,
+          buyerConfirmed: true,
+          buyerConfirmedAt: 1_735_600_000,
+          defaultedAt: 1_735_650_000,
+        })}
+      />,
+    );
+
+    expect(screen.getByText("Defaulted")).toBeInTheDocument();
+    expect(screen.queryByText("Repaid / Defaulted")).not.toBeInTheDocument();
+  });
+
+  it("handles undefined/unknown status gracefully without throwing", () => {
+    const invoiceWithUnknownStatus = makeInvoice({
+      status: "UnknownStatus" as any,
+    });
+
+    expect(() => {
+      render(<InvoiceStatusTimeline invoice={invoiceWithUnknownStatus} />);
+    }).not.toThrow();
+
+    expect(screen.getByText("Created")).toBeInTheDocument();
   });
 
   it("renders transaction hash links for mapped and legacy transaction fields", () => {

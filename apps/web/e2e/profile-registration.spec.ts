@@ -31,7 +31,11 @@ test.describe("Profile Registration & Verification - Happy Path", () => {
     await page.getByRole("button", { name: /Register profile/i }).click();
 
     // Modal should be visible with the registration form
-    await expect(page.getByText(/Register Business Metadata/i)).toBeVisible();
+    const dialog = page.getByRole("dialog", {
+      name: /Register Business Metadata/i,
+    });
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toHaveAttribute("aria-modal", "true");
     await expect(
       page.getByText(/Select On-Chain Business Role/i),
     ).toBeVisible();

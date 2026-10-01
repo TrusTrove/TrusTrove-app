@@ -7,7 +7,7 @@ info:
 
     ## SEP-10 authentication flow
 
-    1. The frontend calls `GET /auth?account=<stellar_public_key>` to request an authentication challenge.
+    1. The frontend calls `GET /auth?address=<stellar_public_key>` to request an authentication challenge.
     2. The client signs the returned SEP-10 challenge transaction with Freighter or another Stellar wallet.
     3. The client sends the signed challenge to `POST /auth`.
     4. The indexer validates the signed challenge and returns a JWT.
@@ -55,7 +55,7 @@ paths:
       description: Returns a SEP-10 challenge transaction for the supplied Stellar account.
       security: []
       parameters:
-        - name: account
+        - name: address
           in: query
           required: true
           schema:
@@ -114,22 +114,15 @@ paths:
       security: []
       parameters:
         - $ref: "#/components/parameters/Limit"
-        - $ref: "#/components/parameters/Cursor"
       responses:
         "200":
           description: Indexed events
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  events:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Event"
-                  next_cursor:
-                    type: string
-                    nullable: true
+                type: array
+                items:
+                  $ref: "#/components/schemas/Event"
 
   /invoices:
     get:
@@ -149,22 +142,20 @@ paths:
           schema:
             type: string
         - $ref: "#/components/parameters/Limit"
-        - $ref: "#/components/parameters/Cursor"
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
       responses:
         "200":
           description: Invoice list
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  invoices:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Invoice"
-                  next_cursor:
-                    type: string
-                    nullable: true
+                $ref: "#/components/schemas/PaginatedInvoices"
     post:
       tags: [Invoices]
       summary: Create invoice
@@ -181,8 +172,8 @@ paths:
               invoice:
                 value:
                   buyer: GBUYERAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-                  face_value: "1000.00"
-                  due_date: 1735689600
+                  face_value: "10000000000"
+                  due_date: 1790000000
                   asset: USDC
       responses:
         "201":
@@ -282,6 +273,51 @@ paths:
                 items:
                   $ref: "#/components/schemas/PoolSnapshot"
 
+  /webhooks:
+    post:
+      tags: [Webhooks]
+      summary: Create webhook subscription
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url:
+                  type: string
+                event_types:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '201':
+          description: Webhook created
+    get:
+      tags: [Webhooks]
+      summary: List webhook subscriptions
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of webhooks
+  /webhooks/{id}:
+    delete:
+      tags: [Webhooks]
+      summary: Delete webhook subscription
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Webhook deleted
 components:
   securitySchemes:
     bearerAuth:
@@ -299,13 +335,6 @@ components:
         minimum: 1
         maximum: 100
         default: 20
-    Cursor:
-      name: cursor
-      in: query
-      required: false
-      schema:
-        type: string
-
   responses:
     BadRequest:
       description: Bad request
@@ -371,11 +400,19 @@ components:
       properties:
         buyer:
           type: string
+          description: Stellar account address (G...) of the buyer.
         face_value:
           type: string
+          description: >-
+            Decimal string of the invoice face value in stroops. Must be
+            strictly positive and at most 2^128 - 1
+            (340282366920938463463374607431768211455); at most 40 digits.
         due_date:
           type: integer
           format: int64
+          description: >-
+            Unix timestamp in seconds. Must be in the future and no more than
+            5 years from the time the request is validated.
         asset:
           type: string
       required: [buyer, face_value, due_date, asset]
@@ -405,6 +442,23 @@ components:
           type: integer
           format: int64
       required: [id, issuer, buyer, face_value, due_date, status]
+
+    PaginatedInvoices:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Invoice"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+        totalPages:
+          type: integer
+      required: [data, total, page, limit, totalPages]
 
     Event:
       type: object

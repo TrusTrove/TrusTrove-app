@@ -4,6 +4,16 @@ Holds USDC between the moment the pool funds an invoice and the moment the issue
 receives the funds. Only `pool_contract` can call write functions on this contract.
 The frontend never calls escrow directly.
 
+### initialize
+
+```rust
+initialize(env: Env, admin: Address)
+```
+
+Sets the admin address. Can only be called once. Panics if called again.
+SDK: `EscrowClient.initialize(adminAddress, signerPublicKey)` —
+`packages/sdk/src/clients/escrow.ts`.
+
 ### lock
 
 ```rust
@@ -37,7 +47,10 @@ handle_default(env: Env, invoice_id: BytesN<32>) -> bool
 ```
 
 Returns locked funds to `pool_contract`. Called when an invoice defaults.
-Returns `false` (no panic) if no record exists for the invoice.
+Returns `false` (no panic) if no record exists for the invoice — which is the
+normal case for a funded invoice, because `release_to_issuer` already deleted
+the record inside the `fund_invoice` flow. In that case nothing is recovered
+and the pool absorbs the full funded amount as a loss.
 
 ### get_locked
 

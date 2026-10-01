@@ -23,5 +23,21 @@ export default defineConfig({
       "@trusttrove/sdk": resolve(__dirname, "../../packages/sdk/src/index.ts"),
     },
     exclude: ["e2e/**", "node_modules/**"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "html"],
+      exclude: [
+        "e2e/**",
+        "regression/**",
+        "**/*.test.{ts,tsx}",
+        "**/*.d.ts",
+        "**/*.config.{ts,mts,mjs,js}",
+        ".next/**",
+        "test-utils/**",
+      ],
+      thresholds: {
+        statements: 70,
+      },
+    },
   },
 });

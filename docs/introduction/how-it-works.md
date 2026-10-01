@@ -57,8 +57,11 @@ as yield across LP shares, increasing the share price for all LPs proportionally
 
 ### What happens on default
 
-If the due date passes without repayment, anyone can call `trigger_default()`. The
-escrow contract returns whatever funds are locked to the pool. The pool takes the loss,
-which reduces share value for all LPs.
+If the due date passes without repayment, anyone can call `trigger_default()`.
+Because the funded amount was already released to the SME at funding time,
+escrow holds nothing for the invoice and the pool recovers nothing. The pool
+writes down the full funded amount, which reduces share value for all LPs —
+a principal loss, not just lost yield. See
+[Default risk](./../protocol/economic-model.md#default-risk) for a worked example.
 
 Default risk is real. LPs accept it when they deposit.

@@ -2,6 +2,39 @@
 
 import { useEffect, useRef } from "react";
 
+/**
+ * Custom hook that traps keyboard focus within a container element.
+ *
+ * When `enabled` is `true`, the hook:
+ * 1. Saves the currently focused element and moves focus into the container
+ *    (first focusable child, or the container itself if none exist).
+ * 2. Intercepts Tab and Shift+Tab key presses so focus cycles within the
+ *    container rather than escaping to elements outside it.
+ * 3. Intercepts the Escape key, stops its propagation, and invokes the
+ *    optional `onEscape` callback.
+ * 4. On cleanup (or when `enabled` becomes `false`), restores focus to the
+ *    element that was focused before the trap activated.
+ *
+ * Attach the returned ref to the container element whose focus should be
+ * trapped (e.g. a modal dialog, dropdown, or popover).
+ *
+ * @param enabled - Whether the focus trap is active. Pass `false` to disable
+ *   the trap without removing the ref from the DOM.
+ * @param onEscape - Optional callback invoked when the Escape key is pressed
+ *   while the trap is active. Useful for closing modals or dismissing menus.
+ *
+ * @returns A React ref object to attach to the focus-trap container element.
+ *
+ * @example
+ * const modalRef = useFocusTrap(isOpen, () => setIsOpen(false));
+ *
+ * return (
+ *   <dialog ref={modalRef} open={isOpen}>
+ *     <button>First</button>
+ *     <button>Last</button>
+ *   </dialog>
+ * );
+ */
 export function useFocusTrap<T extends HTMLElement>(
   enabled: boolean,
   onEscape?: () => void,

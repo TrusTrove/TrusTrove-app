@@ -9,6 +9,9 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
+
+	"trusttrove/indexer/soroban"
 
 	"github.com/stellar/go-stellar-sdk/keypair"
 	"github.com/stellar/go-stellar-sdk/xdr"
@@ -81,6 +84,12 @@ func TestHandleCreateInvoice_InvalidRequests(t *testing.T) {
 			withIssuer: true,
 			wantStatus: http.StatusBadRequest,
 		},
+		{
+			name:       "past due date",
+			body:       `{"buyer":"` + buyer.Address() + `","face_value":"1000","due_date":1700000000}`,
+			withIssuer: true,
+			wantStatus: http.StatusBadRequest,
+		},
 	}
 
 	for _, tt := range tests {
@@ -98,6 +107,26 @@ func TestHandleCreateInvoice_InvalidRequests(t *testing.T) {
 				t.Fatalf("got status %d, want %d; body: %s", recorder.Code, tt.wantStatus, recorder.Body.String())
 			}
 		})
+	}
+}
+
+func TestHandleCreateInvoice_FaceValueExceedsU128(t *testing.T) {
+	h := newTestHandler(t)
+	issuer, err := keypair.Random()
+	if err != nil {
+		t.Fatalf("generate issuer keypair: %v", err)
+	}
+	buyer, err := keypair.Random()
+	if err != nil {
+		t.Fatalf("generate buyer keypair: %v", err)
+	}
+
+	recorder := invoiceRequest(t, h, issuer.Address(), buyer.Address(), "340282366920938463463374607431768211456", time.Now().Add(24*time.Hour).Unix())
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("got status %d, want %d; body: %s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), "exceeds the u128 range") {
+		t.Fatalf("expected u128 range error, got %q", recorder.Body.String())
 	}
 }
 
@@ -119,7 +148,7 @@ func TestHandleCreateInvoice_SorobanRPCFailure(t *testing.T) {
 	defer server.Close()
 	h.cfg.SorobanRPCURL = server.URL
 
-	recorder := invoiceRequest(t, h, issuer.Address(), buyer.Address(), "1000", 1700000000)
+	recorder := invoiceRequest(t, h, issuer.Address(), buyer.Address(), "1000", time.Now().Add(24*time.Hour).Unix())
 	if recorder.Code != http.StatusInternalServerError {
 		t.Fatalf("got status %d, want %d; body: %s", recorder.Code, http.StatusInternalServerError, recorder.Body.String())
 	}
@@ -159,7 +188,7 @@ func TestHandleCreateInvoice_HappyPath(t *testing.T) {
 	var simulateCalls atomic.Int32
 	var transactionCalls atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var request JsonRpcRequest
+		var request soroban.JsonRpcRequest
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -186,7 +215,7 @@ func TestHandleCreateInvoice_HappyPath(t *testing.T) {
 	defer server.Close()
 	h.cfg.SorobanRPCURL = server.URL
 
-	recorder := invoiceRequest(t, h, issuer.Address(), buyer.Address(), "1000", 1700000000)
+	recorder := invoiceRequest(t, h, issuer.Address(), buyer.Address(), "1000", time.Now().Add(24*time.Hour).Unix())
 	if recorder.Code != http.StatusOK && recorder.Code != http.StatusCreated {
 		t.Fatalf("got status %d, want 200 or 201; body: %s", recorder.Code, recorder.Body.String())
 	}
@@ -198,5 +227,23 @@ func TestHandleCreateInvoice_HappyPath(t *testing.T) {
 	}
 	if !strings.Contains(recorder.Body.String(), "invoice") {
 		t.Fatalf("response does not contain invoice data: %s", recorder.Body.String())
+	}
+}
+
+// TestHandleCreateInvoice_OversizedBody expects 413 for a body over
+// maxCreateInvoiceBodyBytes. The request carries no authenticated issuer, so
+// reaching validation would answer 401 instead; 413 proves the limit is
+// enforced first.
+func TestHandleCreateInvoice_OversizedBody(t *testing.T) {
+	h := newTestHandler(t)
+
+	body := `{"buyer":"` + strings.Repeat("G", int(maxCreateInvoiceBodyBytes)) + `","face_value":"1000","due_date":1700000000}`
+	req := httptest.NewRequest(http.MethodPost, "/invoices", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	h.HandleCreateInvoice(recorder, req)
+
+	if recorder.Code != http.StatusRequestEntityTooLarge {
+		t.Errorf("oversized body: got status %d, want %d", recorder.Code, http.StatusRequestEntityTooLarge)
 	}
 }

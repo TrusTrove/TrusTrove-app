@@ -113,7 +113,7 @@ describe("wallet store", () => {
     expect(useWalletStore.getState().role).toBe("lp");
   });
 
-  it("partialize persists only address, network, and role", () => {
+  it("partialize persists only the selected role", () => {
     useWalletStore.getState().connect("GA123", "testnet");
     useWalletStore.getState().setToken("jwt");
     useWalletStore.getState().setRole("buyer");
@@ -122,24 +122,42 @@ describe("wallet store", () => {
     expect(raw).not.toBeNull();
 
     const persisted = JSON.parse(raw!);
-    expect(persisted.state.address).toBe("GA123");
-    expect(persisted.state.network).toBe("testnet");
-    expect(persisted.state.role).toBe("buyer");
-    expect(persisted.state).not.toHaveProperty("connected");
-    expect(persisted.state).not.toHaveProperty("token");
-  });
-
-  it("partialize excludes token and connected from localStorage", () => {
-    useWalletStore.getState().setToken("secret");
-    const raw = localStorage.getItem("wallet-storage");
-    const persisted = JSON.parse(raw!);
-    expect(persisted.state.token).toBeUndefined();
-    expect(persisted.state.connected).toBeUndefined();
+    expect(persisted.state).toEqual({ role: "buyer" });
   });
 
   it("persist middleware stores state under correct key", () => {
     useWalletStore.getState().connect("GA123", "testnet");
     const raw = localStorage.getItem("wallet-storage");
     expect(raw).not.toBeNull();
+  });
+
+  it("clears stale wallet session fields when rehydrating legacy storage", async () => {
+    useWalletStore.setState({
+      address: "GCURRENT",
+      connected: true,
+      network: "testnet",
+      token: "current-token",
+      role: "issuer",
+    });
+    localStorage.setItem(
+      "wallet-storage",
+      JSON.stringify({
+        state: {
+          address: "GSTALE",
+          network: "mainnet",
+          role: "buyer",
+        },
+        version: 0,
+      }),
+    );
+
+    await useWalletStore.persist.rehydrate();
+
+    const state = useWalletStore.getState();
+    expect(state.address).toBeNull();
+    expect(state.connected).toBe(false);
+    expect(state.network).toBeNull();
+    expect(state.token).toBeNull();
+    expect(state.role).toBe("buyer");
   });
 });

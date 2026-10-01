@@ -7,7 +7,7 @@ import { PageLayout } from "@/components/shared/PageLayout";
 import { InvoiceTable } from "@/components/invoice/InvoiceTable";
 import { InvoiceCard } from "@/components/invoice/InvoiceCard";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
-import { useInvoices } from "@/hooks/useInvoices";
+import { useInvoiceList } from "@/hooks/useInvoices";
 import { useRecentEvents } from "@/hooks/useEvents";
 import { useWalletStore } from "@/store/wallet";
 import { useProfile } from "@/hooks/useProfile";
@@ -20,6 +20,7 @@ import { Layers, Plus, CheckCircle2, Circle, Lock } from "lucide-react";
 import { Invoice } from "@/types";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatAmount } from "@/lib/assets";
+import { truncateAddress } from "@/lib/format";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 
 const InvoiceForm = dynamic(
@@ -35,10 +36,12 @@ const InvoiceForm = dynamic(
 );
 
 export default function SMEDashboard() {
-  const { address, connected, role } = useWalletStore();
+  const address = useWalletStore((s) => s.address);
+  const connected = useWalletStore((s) => s.connected);
+  const role = useWalletStore((s) => s.role);
   const [invoicePage, setInvoicePage] = useState(1);
   const [invoiceLimit, setInvoiceLimit] = useState(20);
-  const { invoices, isLoading, total, totalPages } = useInvoices({
+  const { invoices, isLoading, total, totalPages } = useInvoiceList({
     issuer: address || undefined,
     page: invoicePage,
     limit: invoiceLimit,
@@ -65,10 +68,6 @@ export default function SMEDashboard() {
       i.status === "Active" ||
       i.status === "Confirmed",
   ).length;
-
-  const formatAddress = (addr: string) => {
-    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-  };
 
   const handlePageChange = (page: number) => {
     setInvoicePage(page);
@@ -174,7 +173,7 @@ export default function SMEDashboard() {
               SME Financing Dashboard
             </h1>
             <p className="text-slate-500 text-xs font-mono mt-1">
-              OPERATOR: {address && formatAddress(address)} | ROLE:{" "}
+              OPERATOR: {address && truncateAddress(address)} | ROLE:{" "}
               {role.toUpperCase()}
             </p>
           </div>
@@ -279,7 +278,7 @@ export default function SMEDashboard() {
         )}
 
         {/* Stats Row */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           <div className="bg-card border border-border rounded-lg p-4 font-mono">
             <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">
               Created
@@ -324,7 +323,7 @@ export default function SMEDashboard() {
             <span className="text-[9px] text-slate-600">Settle invoices</span>
           </div>
 
-          <div className="bg-card border border-border rounded-lg p-4 col-span-2 lg:col-span-1 font-mono">
+          <div className="bg-card border border-border rounded-lg p-4 font-mono md:col-span-1 lg:col-span-1">
             <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">
               Total Financed
             </span>
@@ -353,6 +352,7 @@ export default function SMEDashboard() {
                   invoices={invoices}
                   onSelectInvoice={(invoice) => setSelectedInvoice(invoice)}
                   activeId={selectedInvoice?.id}
+                  role={role}
                   emptyStateTitle="No invoices yet"
                   emptyStateDescription="Create your first invoice to populate the dashboard and unlock the financing flow."
                   emptyStateAction={{
@@ -475,6 +475,10 @@ export default function SMEDashboard() {
           aria-label="Create Invoice"
           tabIndex={-1}
           className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-[#080c10]/95 backdrop-blur-sm p-0 md:p-4"
+          onClick={() => setShowCreateModal(false)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") setShowCreateModal(false);
+          }}
         >
           <div
             className="w-full max-w-lg relative bg-card border md:border-border rounded-t-2xl md:rounded-lg max-h-[92vh] md:max-h-[85vh] overflow-hidden flex flex-col shadow-2xl"

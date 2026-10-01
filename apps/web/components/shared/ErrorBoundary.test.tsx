@@ -53,6 +53,24 @@ describe("ErrorBoundary", () => {
         screen.getByText("Something went wrong loading this."),
       ).toBeInTheDocument();
       expect(screen.getByText("Child failed")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Reload page" }),
+      ).toBeInTheDocument();
+
+      const reload = vi.fn();
+      const originalLocation = window.location;
+      Object.defineProperty(window, "location", {
+        configurable: true,
+        value: { ...originalLocation, reload },
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: "Reload page" }));
+      expect(reload).toHaveBeenCalledOnce();
+
+      Object.defineProperty(window, "location", {
+        configurable: true,
+        value: originalLocation,
+      });
 
       fireEvent.click(screen.getByRole("button", { name: "Try again" }));
 

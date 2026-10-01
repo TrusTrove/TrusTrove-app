@@ -53,7 +53,11 @@ async function validateFreighterNetwork(): Promise<void> {
  * const { address, connected, connectWallet, disconnectWallet, loading, error } = useWallet();
  */
 export function useWallet() {
-  const { address, connected, network, connect, disconnect } = useWalletStore();
+  const address = useWalletStore((s) => s.address);
+  const connected = useWalletStore((s) => s.connected);
+  const network = useWalletStore((s) => s.network);
+  const connect = useWalletStore((s) => s.connect);
+  const disconnect = useWalletStore((s) => s.disconnect);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);

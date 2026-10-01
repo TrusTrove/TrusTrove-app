@@ -17,6 +17,10 @@ indexer/indexer.exe
 *.wasm
 *.exe
 
+# Test coverage output
+coverage/
+*.out
+
 # Debug logs
 npm-debug.log*
 yarn-debug.log*

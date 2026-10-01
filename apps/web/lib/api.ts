@@ -8,59 +8,97 @@ import {
   EventLog,
   PoolSnapshot,
 } from "@/types";
-class ApiClient {
-  private baseUrl: string;
-  private token?: string;
 
-  constructor(baseUrl: string) {
-    this.baseUrl = baseUrl;
-  }
+/**
+ * Raw snake_case wire shapes returned by the indexer API. These mirror the
+ * documented payloads in docs/developer-guide/indexer-api-reference.md so the
+ * network boundaries in `apiFetch` are typed instead of `any`. Fields that
+ * only appear for later lifecycle stages are optional; the normalization
+ * helpers below tolerate their absence.
+ */
 
-  setToken(token: string): void {
-    this.token = token;
-  }
+/** Wire shape for `GET /invoices` and `GET /invoices/:id`. */
+interface RawInvoice {
+  id: string;
+  issuer: string;
+  buyer: string;
+  face_value: string;
+  funded_amount?: string;
+  discount_bps?: number;
+  due_date?: number;
+  status?: string;
+  created_at?: number;
+  funded_at?: number | null;
+  shipped_at?: number | null;
+  repaid_at?: number | null;
+  listed_at?: number | null;
+  issuer_confirmed_at?: number | null;
+  buyer_confirmed_at?: number | null;
+  defaulted_at?: number | null;
+  issuer_confirmed?: boolean;
+  buyer_confirmed?: boolean;
+  transaction_hashes?: unknown;
+  tx_hashes?: unknown;
+  created_tx_hash?: unknown;
+  listed_tx_hash?: unknown;
+  funded_tx_hash?: unknown;
+  shipped_tx_hash?: unknown;
+  issuer_confirmed_tx_hash?: unknown;
+  buyer_confirmed_tx_hash?: unknown;
+  repaid_tx_hash?: unknown;
+  defaulted_tx_hash?: unknown;
+}
 
-  async fetch<T>(path: string, options: RequestInit = {}): Promise<T> {
-    const headers = new Headers(options.headers || {});
+/** Wire shape for `GET /pool/stats`. */
+interface RawPoolStats {
+  total_deposits: string;
+  total_funded: string;
+  available_liquidity: string;
+  utilization_rate_bps: number;
+  total_yield_distributed: string;
+  active_invoice_count: number;
+  total_shares?: string;
+}
 
-    if (this.token) {
-      headers.set("Authorization", `Bearer ${this.token}`);
-    }
-    if (
-      !headers.has("Content-Type") &&
-      (options.method === "POST" || options.method === "PUT")
-    ) {
-      headers.set("Content-Type", "application/json");
-    }
+/** Wire shape for `GET /pool/position/:address`. */
+interface RawLPPosition {
+  shares: string;
+  usdc_value: string;
+  yield_earned: string;
+  deposit_count: number;
+}
 
-    const res = await fetch(`${this.baseUrl}${path}`, {
-      ...options,
-      headers,
-    });
-
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(text || `HTTP error! status: ${res.status}`);
-    }
-
-    return res.json() as Promise<T>;
-  }
+/** Wire shape for `GET /events`. */
+interface RawEventLog {
+  id: number;
+  event_id: string;
+  contract_id: string;
+  ledger: number;
+  ledger_closed_at: number;
+  event_type: string;
+  data: Record<string, unknown>;
 }
 
 const getApiUrl = () => {
   return process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
 };
 
-const apiClient = new ApiClient(getApiUrl());
+export const apiClient = {
+  token: undefined as string | undefined,
+  setToken(token: string | undefined): void {
+    this.token = token;
+  },
+  async fetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+    return apiFetch<T>(path, options);
+  },
+};
 
 function initApiClientWithToken(): void {
   const token = useWalletStore.getState().token;
-  if (token) {
-    apiClient.setToken(token);
-  }
+  apiClient.setToken(token ?? undefined);
 }
 
-export { ApiClient, apiClient, initApiClientWithToken };
+export { initApiClientWithToken };
 
 /**
  * Low-level helper that performs an authenticated `fetch` against the TrusTrove
@@ -109,7 +147,20 @@ export async function apiFetch<T>(
         text || "Service Temporarily Unavailable. Please try again later.",
       );
     }
-    throw new Error(text || `HTTP error! status: ${res.status}`);
+    let errorMessage = text;
+    try {
+      const json = JSON.parse(text);
+      if (json && typeof json === "object") {
+        if ("error" in json && typeof json.error === "string") {
+          errorMessage = json.error;
+        } else if ("message" in json && typeof json.message === "string") {
+          errorMessage = json.message;
+        }
+      }
+    } catch {
+      // Not JSON
+    }
+    throw new Error(errorMessage || `HTTP error! status: ${res.status}`);
   }
 
   return res.json() as Promise<T>;
@@ -226,7 +277,7 @@ export function parseRawEventLog(raw: unknown): EventLog {
 export async function fetchChallenge(
   address: string,
 ): Promise<{ transaction: string; network_passphrase: string }> {
-  return apiClient.fetch<{ transaction: string; network_passphrase: string }>(
+  return apiFetch<{ transaction: string; network_passphrase: string }>(
     `/auth?address=${address}`,
   );
 }
@@ -241,7 +292,7 @@ export async function fetchChallenge(
 export async function verifyChallenge(
   transaction: string,
 ): Promise<{ token: string }> {
-  return apiClient.fetch<{ token: string }>("/auth", {
+  return apiFetch<{ token: string }>("/auth", {
     method: "POST",
     body: JSON.stringify({ transaction }),
   });
@@ -270,7 +321,7 @@ export async function createInvoice(
   dueDate: number,
   asset: AssetType = "USDC",
 ): Promise<{ invoice_id: string; transaction_hash: string; status: string }> {
-  return apiClient.fetch<{
+  return apiFetch<{
     invoice_id: string;
     transaction_hash: string;
     status: string;
@@ -302,7 +353,7 @@ export async function createInvoice(
  *   - `issuerConfirmed` / `buyerConfirmed` — `boolean` confirmation flags.
  */
 export async function getInvoiceByID(id: string): Promise<Invoice> {
-  const raw = await apiFetch<any>(`/invoices/${id}`);
+  const raw = await apiFetch<RawInvoice>(`/invoices/${id}`);
   return parseInvoiceResponse(raw);
 }
 
@@ -347,8 +398,8 @@ export async function getInvoices(filters?: {
   if (filters?.limit != null) params.append("limit", String(filters.limit));
   const query = params.size > 0 ? `?${params.toString()}` : "";
 
-  const raw = await apiClient.fetch<{
-    data: any[];
+  const raw = await apiFetch<{
+    data: RawInvoice[];
     total: number;
     page: number;
     limit: number;
@@ -373,7 +424,7 @@ export async function getInvoices(filters?: {
  *   `activeInvoiceCount`, `totalShares`).
  */
 export async function getPoolStats(): Promise<PoolStats> {
-  const raw = await apiClient.fetch<any>("/pool/stats");
+  const raw = await apiFetch<RawPoolStats>("/pool/stats");
   return parseRawPoolStats(raw);
 }
 
@@ -386,7 +437,7 @@ export async function getPoolStats(): Promise<PoolStats> {
  *   `depositCount`).
  */
 export async function getLPPosition(address: string): Promise<LPPosition> {
-  const raw = await apiClient.fetch<any>(`/pool/position/${address}`);
+  const raw = await apiFetch<RawLPPosition>(`/pool/position/${address}`);
   return parseRawLPPosition(raw);
 }
 
@@ -400,7 +451,7 @@ export async function getLPPosition(address: string): Promise<LPPosition> {
  */
 export async function getRecentEvents(limit?: number): Promise<EventLog[]> {
   const query = limit ? `?limit=${limit}` : "";
-  const rawList = await apiClient.fetch<any[]>(`/events${query}`);
+  const rawList = await apiFetch<RawEventLog[]>(`/events${query}`);
   return rawList.map(parseRawEventLog);
 }
 
@@ -413,7 +464,7 @@ export async function getRecentEvents(limit?: number): Promise<EventLog[]> {
  *   - `totalYieldDistributed` — `string` cumulative yield up to that time.
  */
 export async function getPoolSnapshots(): Promise<PoolSnapshot[]> {
-  return apiClient.fetch<PoolSnapshot[]>("/pool/snapshots");
+  return apiFetch<PoolSnapshot[]>("/pool/snapshots");
 }
 
 export interface ProtocolStats {
@@ -441,5 +492,5 @@ export interface ProtocolStats {
  *   - `registered_issuers` — `number` count of registered issuers.
  */
 export async function getProtocolStats(): Promise<ProtocolStats> {
-  return apiClient.fetch<ProtocolStats>("/stats");
+  return apiFetch<ProtocolStats>("/stats");
 }

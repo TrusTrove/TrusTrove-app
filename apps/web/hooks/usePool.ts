@@ -6,6 +6,7 @@ import { useWalletStore } from "@/store/wallet";
 import { showSuccessToast } from "@/lib/toast";
 import { createErrorHandler } from "@/lib/errors";
 import { useTokenAllowance } from "./useTokenAllowance";
+import { useAppError } from "./useAppError";
 import type { AssetType } from "@/types";
 
 const { handleMutationError } = createErrorHandler("usePool");
@@ -26,10 +27,17 @@ interface DepositArguments {
  */
 export function usePool() {
   const queryClient = useQueryClient();
-  const { address } = useWalletStore();
+  const address = useWalletStore((s) => s.address);
   const { ensureAllowance } = useTokenAllowance();
+  const { error: appError, handleError, clearError } = useAppError();
 
-  const poolClient = useMemo(() => new PoolClient(poolContractID), []);
+  const poolClient = useMemo(() => {
+    try {
+      return new PoolClient(poolContractID);
+    } catch {
+      return null;
+    }
+  }, []);
 
   const statsQuery = useQuery({
     queryKey: ["poolStats"],
@@ -55,15 +63,18 @@ export function usePool() {
         await ensureAllowance(poolContractID, amount);
       }
 
+      if (!poolClient) throw new Error("Pool client not available");
       return poolClient.deposit(address, amount, address);
     },
     onSuccess: (txHash: string) => {
+      clearError();
       queryClient.invalidateQueries({ queryKey: ["poolStats"] });
       queryClient.invalidateQueries({ queryKey: ["lpPosition", address] });
       showSuccessToast("Deposit Complete", txHash);
     },
     onError: (error) => {
       handleMutationError(error, "Deposit Failed");
+      handleError(error, "Deposit failed");
     },
   });
 
@@ -72,15 +83,18 @@ export function usePool() {
       if (!address) {
         throw new Error("Wallet not connected");
       }
+      if (!poolClient) throw new Error("Pool client not available");
       return poolClient.withdraw(address, shares, address);
     },
     onSuccess: (txHash: string) => {
+      clearError();
       queryClient.invalidateQueries({ queryKey: ["poolStats"] });
       queryClient.invalidateQueries({ queryKey: ["lpPosition", address] });
       showSuccessToast("Withdrawal Complete", txHash);
     },
     onError: (error) => {
       handleMutationError(error, "Withdrawal Failed");
+      handleError(error, "Withdrawal failed");
     },
   });
 
@@ -102,5 +116,7 @@ export function usePool() {
     withdraw: withdrawMutation.mutateAsync,
     isWithdrawing: withdrawMutation.isPending,
     withdrawError: withdrawMutation.error,
+
+    appError,
   };
 }

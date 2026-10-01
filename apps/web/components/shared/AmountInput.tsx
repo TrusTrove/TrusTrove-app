@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useId } from "react";
 import type { AssetType } from "@/types";
 import { ASSET_INFO } from "@/lib/assets";
 
@@ -31,14 +31,19 @@ export function AmountInput({
 }: AmountInputProps) {
   const assetInfo = ASSET_INFO[asset];
   const parsedValue = parseFloat(value.replace(/,/g, "")) || 0;
+  const inputId = useId();
 
   return (
     <div className="space-y-1">
-      <label className="block text-[10px] font-bold font-mono text-slate-500 uppercase tracking-wider">
+      <label
+        htmlFor={inputId}
+        className="block text-[10px] font-bold font-mono text-slate-500 uppercase tracking-wider"
+      >
         {label || `Amount (${assetInfo.label})`}
       </label>
       <div className="relative">
         <input
+          id={inputId}
           type="text"
           inputMode="decimal"
           placeholder={placeholder}

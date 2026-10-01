@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -144,6 +146,38 @@ func TestHandleGetInvoiceByID_DBErrorReturns500(t *testing.T) {
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf("expected 500 on db error, got %d", rr.Code)
+	}
+}
+
+// TestHandleGetInvoiceByID_InternalErrorDoesNotLeakErrorText covers issue
+// #921: a backend failure must reach the operator's logs, not the client. The
+// injected fn fails with an error carrying a sentinel secret (the kind of
+// text pgx or *url.Error produce, e.g. an RPC URL with an API key); the
+// response must stay generic, include a request id, and never contain the
+// sentinel.
+func TestHandleGetInvoiceByID_InternalErrorDoesNotLeakErrorText(t *testing.T) {
+	h := readonlyTestHandler(t)
+
+	const sentinel = "SUPER-SECRET-INTERNAL-DETAIL-postgres://user:pass@db/idx"
+	h.getInvoiceByIDFn = func(_ context.Context, _ string) (*db.DbInvoice, error) {
+		return nil, fmt.Errorf("pq: relation \"invoices\" missing: %s", sentinel)
+	}
+
+	rr := httptest.NewRecorder()
+	req := withURLParams(httptest.NewRequest(http.MethodGet, "/invoices/anything", nil), map[string]string{"id": "anything"})
+	h.HandleGetInvoiceByID(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d; body: %s", rr.Code, rr.Body.String())
+	}
+	if strings.Contains(rr.Body.String(), sentinel) {
+		t.Fatalf("response leaked internal error text: %s", rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "failed to retrieve invoice") {
+		t.Fatalf("expected generic failure message, got %q", rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "request id:") {
+		t.Fatalf("expected a request id in the response, got %q", rr.Body.String())
 	}
 }
 

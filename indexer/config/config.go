@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -33,8 +33,10 @@ type Config struct {
 	JWTExpiryHours        int
 	CORSAllowedOrigins    []string
 	RateLimitRPS          int
+	WebhookConcurrency    int
 	ServerSeed            string
 	ServerSeedGenerated   bool
+	SentryDSN             string
 }
 
 func LoadConfig() (*Config, error) {
@@ -43,9 +45,9 @@ func LoadConfig() (*Config, error) {
 	for _, path := range envPaths {
 		err := godotenv.Load(path)
 		if err == nil {
-			log.Printf("INFO: loaded env file: %s", path)
+			slog.Info("loaded env file", "path", path)
 		} else if !errors.Is(err, os.ErrNotExist) {
-			log.Printf("WARN: failed to load env file %s: %v", path, err)
+			slog.Warn("failed to load env file", "path", path, "error", err)
 		}
 	}
 
@@ -141,6 +143,16 @@ func LoadConfig() (*Config, error) {
 		}
 	}
 
+	// Number of webhook deliveries attempted in parallel per batch. Keeping the
+	// default small avoids overwhelming subscriber endpoints that rate limit
+	// their inbound traffic.
+	webhookConcurrency := 8
+	if concurrencyStr := os.Getenv("WEBHOOK_WORKER_CONCURRENCY"); concurrencyStr != "" {
+		if val, err := strconv.Atoi(concurrencyStr); err == nil && val > 0 {
+			webhookConcurrency = val
+		}
+	}
+
 	cfg := &Config{
 		StellarNetwork:        getRequired("STELLAR_NETWORK"),
 		HorizonURL:            getRequired("HORIZON_URL"),
@@ -160,8 +172,10 @@ func LoadConfig() (*Config, error) {
 		JWTExpiryHours:        jwtExpiryHours,
 		CORSAllowedOrigins:    corsOrigins,
 		RateLimitRPS:          rateLimitRPS,
+		WebhookConcurrency:    webhookConcurrency,
 		ServerSeed:            serverSeed,
 		ServerSeedGenerated:   serverSeedGenerated,
+		SentryDSN:             strings.TrimSpace(os.Getenv("SENTRY_DSN")),
 	}
 
 	if len(missing) > 0 {

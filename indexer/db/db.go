@@ -7,15 +7,54 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 var Pool *pgxpool.Pool
+
+// Querier is the minimal SQL-execution surface shared by *pgxpool.Pool and
+// pgx.Tx. The invoice writers, the event-log helper and the webhook delivery
+// insert accept it so the listener can run every statement for one event
+// against either the shared pool (statement-per-statement, the historical
+// behavior) or a single transaction (the current behavior). QueryRow is
+// included alongside Exec because the listener also reads back the invoice
+// row it just wrote inside the same transaction to build webhook payloads.
+type Querier interface {
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+// WithTx runs fn inside a single database transaction on the shared pool.
+// If fn returns an error the transaction is rolled back and that error is
+// returned to the caller; a failed commit is rolled back as well. This is the
+// primitive the event listener uses to commit an event's state change, its
+// events_log row and its webhook_deliveries rows as one unit.
+func WithTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
+	if Pool == nil {
+		return fmt.Errorf("db: WithTx: database pool not initialized")
+	}
+
+	tx, err := Pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("db: begin transaction: %w", err)
+	}
+
+	if err := fn(tx); err != nil {
+		rollbackOnError(ctx, tx)
+		return err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		rollbackOnError(ctx, tx)
+		return fmt.Errorf("db: commit transaction: %w", err)
+	}
+	return nil
+}
 
 func InitDB(ctx context.Context, databaseURL string) error {
 	var err error
@@ -37,33 +76,54 @@ func InitDB(ctx context.Context, databaseURL string) error {
 	return nil
 }
 
+// migrationLockID is an arbitrary, fixed key for a Postgres advisory lock
+// that serializes migration application across concurrent callers (e.g.
+// multiple indexer replicas starting up at once, or — as surfaced by CI —
+// multiple Go test binaries that each call InitDB against the same
+// database). Without it, two callers can both see a migration as
+// not-yet-applied and race to run the same ALTER TABLE/CREATE TABLE,
+// producing an "already exists" error instead of one waiting for the other.
+const migrationLockID = 847362910123
+
 func RunMigration(ctx context.Context) error {
 	migrationDir, err := locateMigrationDir()
 	if err != nil {
 		return err
 	}
 
-	if err := ensureSchemaMigrationsTable(ctx); err != nil {
-		return fmt.Errorf("failed to ensure schema_migrations table: %w", err)
-	}
-
+	// Read and validate the filenames before touching the database, so a
+	// duplicate migration number fails fast without applying anything.
 	files, err := os.ReadDir(migrationDir)
 	if err != nil {
 		return fmt.Errorf("failed to read migration directory %s: %w", migrationDir, err)
 	}
 
-	migrationFiles := make([]string, 0, len(files))
+	names := make([]string, 0, len(files))
 	for _, file := range files {
-		if file.IsDir() {
-			continue
-		}
-		name := file.Name()
-		if strings.HasSuffix(name, ".sql") {
-			migrationFiles = append(migrationFiles, name)
+		if !file.IsDir() {
+			names = append(names, file.Name())
 		}
 	}
 
-	sort.Strings(migrationFiles)
+	migrationFiles, err := validateMigrationNames(names)
+	if err != nil {
+		return fmt.Errorf("migration directory %s: %w", migrationDir, err)
+	}
+
+	lockConn, err := Pool.Acquire(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to acquire connection for migration lock: %w", err)
+	}
+	defer lockConn.Release()
+
+	if _, err := lockConn.Exec(ctx, "SELECT pg_advisory_lock($1)", migrationLockID); err != nil {
+		return fmt.Errorf("failed to acquire migration advisory lock: %w", err)
+	}
+	defer lockConn.Exec(ctx, "SELECT pg_advisory_unlock($1)", migrationLockID)
+
+	if err := ensureSchemaMigrationsTable(ctx); err != nil {
+		return fmt.Errorf("failed to ensure schema_migrations table: %w", err)
+	}
 
 	applied, err := loadAppliedMigrations(ctx)
 	if err != nil {
