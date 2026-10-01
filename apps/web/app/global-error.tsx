@@ -16,7 +16,11 @@ export default function GlobalError({
   return (
     <html>
       <body>
-        <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-black px-4 text-center">
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="flex min-h-screen flex-col items-center justify-center gap-4 bg-black px-4 text-center"
+        >
           <h2 className="text-lg font-semibold text-red-400">
             The app crashed.
           </h2>

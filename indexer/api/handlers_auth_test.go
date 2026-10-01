@@ -242,3 +242,42 @@ func TestHandlePostAuth_ExpiredChallenge(t *testing.T) {
 		t.Errorf("expired challenge: got status %d, want %d", w.Code, http.StatusUnauthorized)
 	}
 }
+
+// TestHandlePostAuth_OversizedBody expects 413 for a body over
+// maxAuthBodyBytes, before the transaction is handed to the XDR parser (which
+// would otherwise answer 401).
+func TestHandlePostAuth_OversizedBody(t *testing.T) {
+	h := newTestHandler(t)
+
+	body := `{"transaction":"` + strings.Repeat("A", int(maxAuthBodyBytes)) + `"}`
+	req := httptest.NewRequest(http.MethodPost, "/auth", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	h.HandlePostAuth(w, req)
+
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Errorf("oversized body: got status %d, want %d", w.Code, http.StatusRequestEntityTooLarge)
+	}
+}
+
+// TestHandlePostAuth_RejectsUnknownFieldsAndTrailingData expects 400 when the
+// body has a misspelled field or more than one JSON value.
+func TestHandlePostAuth_RejectsUnknownFieldsAndTrailingData(t *testing.T) {
+	h := newTestHandler(t)
+
+	for name, body := range map[string]string{
+		"unknown field": `{"transaction":"AAAA","transction":"AAAA"}`,
+		"trailing data": `{"transaction":"AAAA"}{}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/auth", strings.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			h.HandlePostAuth(w, req)
+
+			if w.Code != http.StatusBadRequest {
+				t.Errorf("got status %d, want %d", w.Code, http.StatusBadRequest)
+			}
+		})
+	}
+}

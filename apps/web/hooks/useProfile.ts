@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { RegistryClient, Profile } from "@trusttrove/sdk";
 import { useWalletStore } from "@/store/wallet";
@@ -66,13 +67,23 @@ export function useProfile() {
   const address = useWalletStore((s) => s.address);
   const { error: appError, handleError, clearError } = useAppError();
 
+  // Construct a single SDK client per mount and reuse it across all queries
+  // and mutations so refetches/polls don't churn new client objects.
+  const registryClient = useMemo(() => {
+    try {
+      return new RegistryClient(registryContractID);
+    } catch {
+      return null;
+    }
+  }, []);
+
   const profileQuery = useQuery({
     queryKey: ["profile", address],
     queryFn: async (): Promise<Profile | null> => {
       if (!address) return null;
-      const client = new RegistryClient(registryContractID);
+      if (!registryClient) throw new Error("Registry client not available");
       try {
-        const profile = await client.getProfile(address, address);
+        const profile = await registryClient.getProfile(address, address);
         return profile;
       } catch (err) {
         if (isProfileNotFoundError(err)) {
@@ -90,9 +101,9 @@ export function useProfile() {
     queryKey: ["isVerified", address],
     queryFn: async (): Promise<boolean> => {
       if (!address) return false;
-      const client = new RegistryClient(registryContractID);
+      if (!registryClient) throw new Error("Registry client not available");
       try {
-        const verified = await client.isVerified(address, address);
+        const verified = await registryClient.isVerified(address, address);
         return verified;
       } catch (err) {
         captureError(err);
@@ -111,11 +122,11 @@ export function useProfile() {
       metadata: Record<string, string>;
     }) => {
       if (!address) throw new Error("Wallet not connected");
-      const client = new RegistryClient(registryContractID);
+      if (!registryClient) throw new Error("Registry client not available");
       if (role === "issuer") {
-        return client.registerIssuer(address, metadata, address);
+        return registryClient.registerIssuer(address, metadata, address);
       } else {
-        return client.registerBuyer(address, metadata, address);
+        return registryClient.registerBuyer(address, metadata, address);
       }
     },
     onSuccess: () => {

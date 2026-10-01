@@ -1,0 +1,28 @@
+{
+  "name": "@trusttrove/sdk-react",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run --passWithNoTests",
+    "prepublishOnly": "pnpm build"
+  },
+  "dependencies": {
+    "@trusttrove/sdk": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "^19"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "^19",
+    "@vitejs/plugin-react": "^6.0.3",
+    "jsdom": "^29.1.1",
+    "react": "^19",
+    "react-dom": "^19",
+    "typescript": "^5.4.5",
+    "vitest": "^4.1.9"
+  }
+}

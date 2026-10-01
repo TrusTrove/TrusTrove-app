@@ -1,0 +1,76 @@
+{
+  "Metadata": {
+    "title": "TrusTrove | Decentralized Trade Finance Operations Terminal",
+    "description": "Tokenize unpaid trade invoices as Stellar assets and receive immediate USDC funding. Yield opportunities for liquidity providers."
+  },
+  "Navbar": {
+    "nav": {
+      "dashboard": "SME Dashboard",
+      "lp": "LP Portal",
+      "marketplace": "Marketplace",
+      "analytics": "Analytics",
+      "profile": "Profile"
+    },
+    "verifiedProfile": "Verified Profile",
+    "getTestnetUsdc": "Get testnet USDC",
+    "balanceUnavailableUsdc": "— USDC",
+    "balanceEmptyXlm": "0 XLM",
+    "balanceAmount": "{amount} {asset}",
+    "roleLabel": "Role:",
+    "roleSelectLabel": "Active role",
+    "roles": {
+      "issuer": "SME (Issuer)",
+      "buyer": "Buyer",
+      "lp": "LP (Funder)"
+    },
+    "openMenu": "Open navigation menu",
+    "closeMenu": "Close navigation menu",
+    "takeTour": "Take the tour"
+  },
+  "OnboardingTour": {
+    "progress": "Step {current} of {total}",
+    "skip": "Skip tour",
+    "back": "Back",
+    "next": "Next",
+    "finish": "Finish",
+    "steps": {
+      "welcome": {
+        "title": "Welcome to TrusTrove",
+        "body": "Your wallet is connected. This quick tour shows where everything lives. Press Escape at any time to leave it."
+      },
+      "role": {
+        "title": "Pick your role",
+        "body": "SMEs (issuers) tokenize unpaid invoices, buyers confirm and repay them, and LPs (funders) supply USDC liquidity. Switch roles here; the app adapts its actions to match."
+      },
+      "balances": {
+        "title": "Your wallet balances",
+        "body": "Live USDC and XLM balances for the connected Freighter wallet. XLM pays network fees; USDC is what invoices are funded and repaid in."
+      },
+      "dashboard": {
+        "title": "SME Dashboard",
+        "body": "Issuers create invoices, track funding and repayments, and work through the Get Started checklist here."
+      },
+      "lp": {
+        "title": "LP Portal",
+        "body": "Liquidity providers deposit USDC into the pool, watch yield accrue, and withdraw their share."
+      },
+      "marketplace": {
+        "title": "Marketplace",
+        "body": "Browse invoices listed for funding, with their discount, due date and issuer status."
+      },
+      "profile": {
+        "title": "Profile & verification",
+        "body": "Verification registers your business in the on-chain TrusTrove Registry. Verified wallets unlock invoice creation, trading and funding."
+      },
+      "done": {
+        "title": "You're all set",
+        "body": "Relaunch this tour any time from the Take the tour button in the navigation bar."
+      }
+    }
+  },
+  "Common": {
+    "loading": "Loading…",
+    "error": "Something went wrong",
+    "retry": "Retry"
+  }
+}

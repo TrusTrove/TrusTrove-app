@@ -20,6 +20,7 @@ import { Layers, Plus, CheckCircle2, Circle, Lock } from "lucide-react";
 import { Invoice } from "@/types";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatAmount } from "@/lib/assets";
+import { truncateAddress } from "@/lib/format";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 
 const InvoiceForm = dynamic(
@@ -67,10 +68,6 @@ export default function SMEDashboard() {
       i.status === "Active" ||
       i.status === "Confirmed",
   ).length;
-
-  const formatAddress = (addr: string) => {
-    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-  };
 
   const handlePageChange = (page: number) => {
     setInvoicePage(page);
@@ -176,7 +173,7 @@ export default function SMEDashboard() {
               SME Financing Dashboard
             </h1>
             <p className="text-slate-500 text-xs font-mono mt-1">
-              OPERATOR: {address && formatAddress(address)} | ROLE:{" "}
+              OPERATOR: {address && truncateAddress(address)} | ROLE:{" "}
               {role.toUpperCase()}
             </p>
           </div>
@@ -281,7 +278,7 @@ export default function SMEDashboard() {
         )}
 
         {/* Stats Row */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           <div className="bg-card border border-border rounded-lg p-4 font-mono">
             <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">
               Created
@@ -326,7 +323,7 @@ export default function SMEDashboard() {
             <span className="text-[9px] text-slate-600">Settle invoices</span>
           </div>
 
-          <div className="bg-card border border-border rounded-lg p-4 col-span-2 lg:col-span-1 font-mono">
+          <div className="bg-card border border-border rounded-lg p-4 font-mono md:col-span-1 lg:col-span-1">
             <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">
               Total Financed
             </span>
@@ -355,6 +352,7 @@ export default function SMEDashboard() {
                   invoices={invoices}
                   onSelectInvoice={(invoice) => setSelectedInvoice(invoice)}
                   activeId={selectedInvoice?.id}
+                  role={role}
                   emptyStateTitle="No invoices yet"
                   emptyStateDescription="Create your first invoice to populate the dashboard and unlock the financing flow."
                   emptyStateAction={{

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Loader2, ExternalLink, ShieldCheck } from "lucide-react";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 
@@ -20,6 +20,9 @@ export function TransactionPending({
 }: TransactionPendingProps) {
   const [localStatus, setLocalStatus] = useState<string | null>(null);
   const [timedOut, setTimedOut] = useState(false);
+  // Respect the OS-level reduced-motion preference: the orbiting marker is
+  // rendered statically instead of looping indefinitely.
+  const shouldReduceMotion = useReducedMotion();
 
   // Only allow dismissal (Escape / backdrop click) after the transaction has
   // completed, i.e. when txHash is available.
@@ -88,12 +91,17 @@ export function TransactionPending({
 
           {/* Orbiting Moon */}
           <motion.div
+            data-testid="transaction-pending-orbit"
             className="absolute w-3 h-3 rounded-full bg-primary"
-            animate={{
-              rotate: 360,
-            }}
+            animate={
+              shouldReduceMotion
+                ? undefined
+                : {
+                    rotate: 360,
+                  }
+            }
             transition={{
-              repeat: Infinity,
+              repeat: shouldReduceMotion ? 0 : Infinity,
               duration: 4,
               ease: "linear",
             }}
@@ -110,7 +118,7 @@ export function TransactionPending({
           TRANSACTION SIGNED
         </h3>
         <p className="text-slate-400 text-xs font-mono mb-6 flex items-center gap-1.5 justify-center">
-          <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+          <Loader2 className="w-3.5 h-3.5 animate-spin motion-reduce:animate-none text-primary" />
           {timedOut ? localStatus || statusText : statusText}
         </p>
 

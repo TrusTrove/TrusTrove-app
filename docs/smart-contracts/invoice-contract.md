@@ -3,6 +3,22 @@
 Manages the full invoice lifecycle. Enforces state transitions. Emits events
 consumed by the Go indexer.
 
+### initialize
+
+```rust
+initialize(env: Env, admin: Address, agent_registry: Address)
+```
+
+Sets the admin address and the Underwrite `agent-registry` contract address.
+Can only be called once. Panics if called again. The stored agent-registry
+address is what `submit_attestation` calls cross-contract to verify the
+recovered signer key (see below). The SDK wrapper is
+`InvoiceClient.initialize(adminAddress, signerPublicKey)` —
+`packages/sdk/src/clients/invoice.ts` — which passes the admin address; the
+agent-registry address wiring is a deploy-time step (confirm the exact argument
+order against the `TrusTrove-contract` repo, which is the source of truth for
+contract signatures).
+
 ### create
 
 ```rust
@@ -141,3 +157,14 @@ get_by_issuer(env: Env, address: Address) -> Vec<Invoice>
 ```
 
 Returns all invoices created by the given issuer address. Read-only.
+SDK: `InvoiceClient.getByIssuer(address, signerPublicKey)`.
+
+### get_by_buyer
+
+```rust
+get_by_buyer(env: Env, address: Address) -> Vec<Invoice>
+```
+
+Returns all invoices naming the given buyer address. Read-only.
+SDK: `InvoiceClient.getByBuyer(address, signerPublicKey)` —
+`packages/sdk/src/clients/invoice.ts`.

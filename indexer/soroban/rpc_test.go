@@ -1,4 +1,4 @@
-package api
+package soroban
 
 import (
 	"context"
@@ -147,6 +147,33 @@ func TestCallSorobanRPC_UnreachableURLReturnsError(t *testing.T) {
 	}
 }
 
+// TestCallSorobanRPC_TransportErrorDoesNotLeakURL covers issue #921: the
+// *url.Error produced by net/http embeds the full request URL, and hosted
+// Soroban RPC providers commonly put an API key in the URL path or query
+// string. The transport error must carry only the operation and the underlying
+// cause — never the URL.
+func TestCallSorobanRPC_TransportErrorDoesNotLeakURL(t *testing.T) {
+	// The endpoint refuses the connection, guaranteeing a *url.Error from
+	// the transport layer. The URL carries a sentinel credential that must
+	// not appear anywhere in the returned error.
+	const sentinel = "topsecret-api-key-921"
+	var result any
+	err := CallSorobanRPC(context.Background(), "http://127.0.0.1:1/path/"+sentinel, "simulateTransaction", nil, &result)
+	if err == nil {
+		t.Fatal("expected transport error for unreachable host")
+	}
+	if strings.Contains(err.Error(), sentinel) {
+		t.Fatalf("error text leaked the request URL/credentials: %v", err)
+	}
+	if strings.Contains(err.Error(), "127.0.0.1:1/path") {
+		t.Fatalf("error text leaked the request path: %v", err)
+	}
+	// The JSON-RPC operation stays available for diagnosis.
+	if !strings.Contains(err.Error(), "simulateTransaction") {
+		t.Fatalf("expected operation name in error, got %v", err)
+	}
+}
+
 // ------------------------------------------------------------------
 // ReadContract
 // ------------------------------------------------------------------
@@ -215,41 +242,5 @@ func TestReadContract_InvalidResultXDRReturnsError(t *testing.T) {
 	_, err := ReadContract(context.Background(), server.URL, validContractID(t), "anyMethod", nil, serverKP)
 	if err == nil {
 		t.Fatal("expected unmarshal error when result XDR is invalid")
-	}
-}
-
-// ------------------------------------------------------------------
-// ParseInvoiceIDFromResult
-// ------------------------------------------------------------------
-
-func TestParseInvoiceIDFromResult_HappyPathReturnsHex(t *testing.T) {
-	invBytes := []byte("abc123")
-	sb := xdr.ScBytes(invBytes)
-	val := xdr.ScVal{Type: xdr.ScValTypeScvBytes, Bytes: &sb}
-	got, err := ParseInvoiceIDFromResult(encodeScVal(t, val))
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	want := "616263313233" // hex of "abc123"
-	if got != want {
-		t.Errorf("expected hex %q, got %q", want, got)
-	}
-}
-
-func TestParseInvoiceIDFromResult_InvalidBase64ReturnsError(t *testing.T) {
-	if _, err := ParseInvoiceIDFromResult("not valid base64 $$$"); err == nil {
-		t.Fatal("expected error for invalid base64 XDR")
-	}
-}
-
-func TestParseInvoiceIDFromResult_NonBytesScValReturnsError(t *testing.T) {
-	u64 := xdr.Uint64(42)
-	val := xdr.ScVal{Type: xdr.ScValTypeScvU64, U64: &u64}
-	_, err := ParseInvoiceIDFromResult(encodeScVal(t, val))
-	if err == nil {
-		t.Fatal("expected error when result is not a bytes ScVal")
-	}
-	if !strings.Contains(err.Error(), "not bytes") {
-		t.Errorf("expected 'not bytes' in error, got %v", err)
 	}
 }

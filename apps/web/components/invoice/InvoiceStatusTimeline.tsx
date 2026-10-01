@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   Banknote,
   CheckCircle2,
@@ -176,6 +176,9 @@ function truncateHash(hash: string) {
 export function InvoiceStatusTimeline({ invoice }: InvoiceStatusTimelineProps) {
   const timelineInvoice = invoice as InvoiceWithTimelineMetadata;
   const currentIndex = getCurrentIndex(invoice);
+  // Respect the OS-level reduced-motion preference: the current-step halo is
+  // rendered statically instead of pulsing indefinitely.
+  const shouldReduceMotion = useReducedMotion();
   const settledLabel =
     invoice.status === "Repaid"
       ? "Repaid"
@@ -213,11 +216,16 @@ export function InvoiceStatusTimeline({ invoice }: InvoiceStatusTimelineProps) {
             <div className="relative z-10 flex h-8 w-8 items-center justify-center">
               {isCurrent && (
                 <motion.span
+                  data-testid="timeline-current-pulse"
                   className="absolute h-8 w-8 rounded-full bg-teal-400/25"
-                  animate={{ opacity: [0.25, 0.8, 0.25], scale: [1, 1.35, 1] }}
+                  animate={
+                    shouldReduceMotion
+                      ? undefined
+                      : { opacity: [0.25, 0.8, 0.25], scale: [1, 1.35, 1] }
+                  }
                   transition={{
                     duration: 1.8,
-                    repeat: Infinity,
+                    repeat: shouldReduceMotion ? 0 : Infinity,
                     ease: "easeInOut",
                   }}
                 />
