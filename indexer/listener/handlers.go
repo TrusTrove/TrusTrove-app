@@ -5,91 +5,25 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"math/big"
 	"time"
 
 	"trusttrove/indexer/api"
 	"trusttrove/indexer/config"
 	"trusttrove/indexer/db"
+	"trusttrove/indexer/soroban"
+	"trusttrove/indexer/xdrutil"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/stellar/go-stellar-sdk/keypair"
-	"github.com/stellar/go-stellar-sdk/strkey"
 	"github.com/stellar/go-stellar-sdk/xdr"
 )
-
-// Helper parsers for XDR ScVal objects
-func parseAddress(val xdr.ScVal) string {
-	if val.Type != xdr.ScValTypeScvAddress || val.Address == nil {
-		return ""
-	}
-	addr := val.Address
-	switch addr.Type {
-	case xdr.ScAddressTypeScAddressTypeAccount:
-		if addr.AccountId != nil && addr.AccountId.Ed25519 != nil {
-			address, _ := strkey.Encode(strkey.VersionByteAccountID, addr.AccountId.Ed25519[:])
-			return address
-		}
-	case xdr.ScAddressTypeScAddressTypeContract:
-		if addr.ContractId != nil {
-			address, _ := strkey.Encode(strkey.VersionByteContract, addr.ContractId[:])
-			return address
-		}
-	}
-	return ""
-}
-
-func parseBytes(val xdr.ScVal) string {
-	if val.Type != xdr.ScValTypeScvBytes || val.Bytes == nil {
-		return ""
-	}
-	return fmt.Sprintf("%x", *val.Bytes)
-}
-
-func parseU128(val xdr.ScVal) string {
-	if val.Type != xdr.ScValTypeScvU128 || val.U128 == nil {
-		return "0"
-	}
-	hi := big.NewInt(int64(val.U128.Hi))
-	lo := big.NewInt(int64(val.U128.Lo))
-	result := new(big.Int).Lsh(hi, 64)
-	result.Or(result, lo)
-	return result.String()
-}
-
-func parseU32(val xdr.ScVal) int {
-	if val.Type != xdr.ScValTypeScvU32 || val.U32 == nil {
-		return 0
-	}
-	return int(*val.U32)
-}
-
-func parseU64(val xdr.ScVal) int64 {
-	if val.Type != xdr.ScValTypeScvU64 || val.U64 == nil {
-		return 0
-	}
-	return int64(*val.U64)
-}
-
-func getMapValue(val xdr.ScVal, key string) (xdr.ScVal, bool) {
-	if val.Type != xdr.ScValTypeScvMap || val.Map == nil || *val.Map == nil {
-		return xdr.ScVal{}, false
-	}
-	for _, entry := range **val.Map {
-		if entry.Key.Type == xdr.ScValTypeScvSymbol && entry.Key.Sym != nil {
-			if string(*entry.Key.Sym) == key {
-				return entry.Val, true
-			}
-		}
-	}
-	return xdr.ScVal{}, false
-}
 
 // SyncPoolStats retrieves latest pool statistics from the contract on-chain and updates the database
 func SyncPoolStats(ctx context.Context, cfg *config.Config, serverKP *keypair.Full) error {
 	slog.Info("Syncing pool stats from chain...")
-	
+
 	// Read stats from pool contract on-chain
-	scValResult, err := api.ReadContract(cfg.SorobanRPCURL, cfg.PoolContractID, "get_stats", []xdr.ScVal{}, serverKP)
+	scValResult, err := soroban.ReadContract(ctx, cfg.SorobanRPCURL, cfg.PoolContractID, "get_stats", []xdr.ScVal{}, serverKP)
 	if err != nil {
 		return fmt.Errorf("sync pool stats: read contract: %w", err)
 	}
@@ -100,24 +34,28 @@ func SyncPoolStats(ctx context.Context, cfg *config.Config, serverKP *keypair.Fu
 	utilizationRateBps := 0
 	totalYieldDistributed := "0"
 	activeInvoiceCount := 0
+	totalShares := "0"
 
-	if val, ok := getMapValue(scValResult, "total_deposits"); ok {
-		totalDeposits = parseU128(val)
+	if val, ok := xdrutil.GetMapVal(scValResult, "total_deposits"); ok {
+		totalDeposits = xdrutil.ParseU128(val)
 	}
-	if val, ok := getMapValue(scValResult, "total_funded"); ok {
-		totalFunded = parseU128(val)
+	if val, ok := xdrutil.GetMapVal(scValResult, "total_funded"); ok {
+		totalFunded = xdrutil.ParseU128(val)
 	}
-	if val, ok := getMapValue(scValResult, "available_liquidity"); ok {
-		availableLiquidity = parseU128(val)
+	if val, ok := xdrutil.GetMapVal(scValResult, "available_liquidity"); ok {
+		availableLiquidity = xdrutil.ParseU128(val)
 	}
-	if val, ok := getMapValue(scValResult, "utilization_rate_bps"); ok {
-		utilizationRateBps = parseU32(val)
+	if val, ok := xdrutil.GetMapVal(scValResult, "utilization_rate_bps"); ok {
+		utilizationRateBps = int(xdrutil.ParseU32(val))
 	}
-	if val, ok := getMapValue(scValResult, "total_yield_distributed"); ok {
-		totalYieldDistributed = parseU128(val)
+	if val, ok := xdrutil.GetMapVal(scValResult, "total_yield_distributed"); ok {
+		totalYieldDistributed = xdrutil.ParseU128(val)
 	}
-	if val, ok := getMapValue(scValResult, "active_invoice_count"); ok {
-		activeInvoiceCount = parseU32(val)
+	if val, ok := xdrutil.GetMapVal(scValResult, "active_invoice_count"); ok {
+		activeInvoiceCount = int(xdrutil.ParseU32(val))
+	}
+	if val, ok := xdrutil.GetMapVal(scValResult, "total_shares"); ok {
+		totalShares = xdrutil.ParseU128(val)
 	}
 
 	dbStats := &db.DbPoolStats{
@@ -127,6 +65,7 @@ func SyncPoolStats(ctx context.Context, cfg *config.Config, serverKP *keypair.Fu
 		UtilizationRateBps:    utilizationRateBps,
 		TotalYieldDistributed: totalYieldDistributed,
 		ActiveInvoiceCount:    activeInvoiceCount,
+		TotalShares:           totalShares,
 	}
 
 	err = db.UpdatePoolStats(ctx, dbStats)
@@ -140,7 +79,7 @@ func SyncPoolStats(ctx context.Context, cfg *config.Config, serverKP *keypair.Fu
 
 // Event-specific handlers called by the listener loop
 
-func (l *EventListener) handleInvoiceCreated(ctx context.Context, event SorobanEvent, ledgerClosedAt int64) error {
+func (l *EventListener) handleInvoiceCreated(ctx context.Context, tx db.Querier, event SorobanEvent, ledgerClosedAt int64) error {
 	var val xdr.ScVal
 	err := xdr.SafeUnmarshalBase64(event.Value, &val)
 	if err != nil {
@@ -154,20 +93,20 @@ func (l *EventListener) handleInvoiceCreated(ctx context.Context, event SorobanE
 	faceValue := "0"
 	dueDate := int64(0)
 
-	if idVal, ok := getMapValue(val, "id"); ok {
-		id = parseBytes(idVal)
+	if idVal, ok := xdrutil.GetMapVal(val, "id"); ok {
+		id = xdrutil.ParseBytes(idVal)
 	}
-	if issuerVal, ok := getMapValue(val, "issuer"); ok {
-		issuer = parseAddress(issuerVal)
+	if issuerVal, ok := xdrutil.GetMapVal(val, "issuer"); ok {
+		issuer = xdrutil.ParseAddress(issuerVal)
 	}
-	if buyerVal, ok := getMapValue(val, "buyer"); ok {
-		buyer = parseAddress(buyerVal)
+	if buyerVal, ok := xdrutil.GetMapVal(val, "buyer"); ok {
+		buyer = xdrutil.ParseAddress(buyerVal)
 	}
-	if faceVal, ok := getMapValue(val, "face_value"); ok {
-		faceValue = parseU128(faceVal)
+	if faceVal, ok := xdrutil.GetMapVal(val, "face_value"); ok {
+		faceValue = xdrutil.ParseU128(faceVal)
 	}
-	if dueVal, ok := getMapValue(val, "due_date"); ok {
-		dueDate = parseU64(dueVal)
+	if dueVal, ok := xdrutil.GetMapVal(val, "due_date"); ok {
+		dueDate = xdrutil.ParseU64(dueVal)
 	}
 
 	if id == "" || issuer == "" || buyer == "" {
@@ -188,7 +127,7 @@ func (l *EventListener) handleInvoiceCreated(ctx context.Context, event SorobanE
 		BuyerConfirmed:  false,
 	}
 
-	err = db.InsertInvoice(ctx, dbInvoice)
+	err = db.InsertInvoice(ctx, tx, dbInvoice)
 	if err != nil {
 		return err
 	}
@@ -197,7 +136,7 @@ func (l *EventListener) handleInvoiceCreated(ctx context.Context, event SorobanE
 	return nil
 }
 
-func (l *EventListener) handleInvoiceListed(ctx context.Context, event SorobanEvent) error {
+func (l *EventListener) handleInvoiceListed(ctx context.Context, tx db.Querier, event SorobanEvent) error {
 	// Topic format: ["InvoiceListed" / "list_for_financing", invoice_id_bytes]
 	if len(event.Topic) < 2 {
 		return fmt.Errorf("invalid topic length for list event")
@@ -208,16 +147,16 @@ func (l *EventListener) handleInvoiceListed(ctx context.Context, event SorobanEv
 	if err != nil {
 		return fmt.Errorf("parse topic invoice_id: %w", err)
 	}
-	invoiceID := parseBytes(idVal)
+	invoiceID := xdrutil.ParseBytes(idVal)
 
 	var val xdr.ScVal
 	err = xdr.SafeUnmarshalBase64(event.Value, &val)
 	if err != nil {
 		return fmt.Errorf("parse value: %w", err)
 	}
-	discountBps := parseU32(val)
+	discountBps := int(xdrutil.ParseU32(val))
 
-	err = db.UpdateInvoiceListed(ctx, invoiceID, "Listed", discountBps)
+	err = db.UpdateInvoiceListed(ctx, tx, invoiceID, "Listed", discountBps)
 	if err != nil {
 		return err
 	}
@@ -226,7 +165,7 @@ func (l *EventListener) handleInvoiceListed(ctx context.Context, event SorobanEv
 	return nil
 }
 
-func (l *EventListener) handleInvoiceFunded(ctx context.Context, event SorobanEvent, serverKP *keypair.Full, ledgerClosedAt int64) error {
+func (l *EventListener) handleInvoiceFunded(ctx context.Context, tx db.Querier, event SorobanEvent, serverKP *keypair.Full, ledgerClosedAt int64) error {
 	// Topic format: ["InvoiceFunded" / "fund_invoice", invoice_id_bytes]
 	if len(event.Topic) < 2 {
 		return fmt.Errorf("invalid topic length for funded event")
@@ -237,28 +176,28 @@ func (l *EventListener) handleInvoiceFunded(ctx context.Context, event SorobanEv
 	if err != nil {
 		return fmt.Errorf("parse topic invoice_id: %w", err)
 	}
-	invoiceID := parseBytes(idVal)
+	invoiceID := xdrutil.ParseBytes(idVal)
 
 	var val xdr.ScVal
 	err = xdr.SafeUnmarshalBase64(event.Value, &val)
 	if err != nil {
 		return fmt.Errorf("parse value: %w", err)
 	}
-	fundedAmount := parseU128(val)
+	fundedAmount := xdrutil.ParseU128(val)
 
-	err = db.UpdateInvoiceFunded(ctx, invoiceID, "Funded", fundedAmount, ledgerClosedAt)
+	err = db.UpdateInvoiceFunded(ctx, tx, invoiceID, "Funded", fundedAmount, ledgerClosedAt)
 	if err != nil {
 		return err
 	}
 
 	slog.Info("Indexed event: InvoiceFunded", "id", invoiceID, "fundedAmount", fundedAmount)
-	
+
 	// Sync pool stats after funding invoice
 	_ = SyncPoolStats(ctx, l.cfg, serverKP)
 	return nil
 }
 
-func (l *EventListener) handleInvoiceShipped(ctx context.Context, event SorobanEvent, ledgerClosedAt int64) error {
+func (l *EventListener) handleInvoiceShipped(ctx context.Context, tx db.Querier, event SorobanEvent, ledgerClosedAt int64) error {
 	if len(event.Topic) < 2 {
 		return fmt.Errorf("invalid topic length for shipped event")
 	}
@@ -268,9 +207,9 @@ func (l *EventListener) handleInvoiceShipped(ctx context.Context, event SorobanE
 	if err != nil {
 		return fmt.Errorf("parse topic invoice_id: %w", err)
 	}
-	invoiceID := parseBytes(idVal)
+	invoiceID := xdrutil.ParseBytes(idVal)
 
-	err = db.UpdateInvoiceShipped(ctx, invoiceID, "Active", ledgerClosedAt)
+	err = db.UpdateInvoiceShipped(ctx, tx, invoiceID, "Active", ledgerClosedAt)
 	if err != nil {
 		return err
 	}
@@ -279,7 +218,7 @@ func (l *EventListener) handleInvoiceShipped(ctx context.Context, event SorobanE
 	return nil
 }
 
-func (l *EventListener) handleDeliveryConfirmed(ctx context.Context, event SorobanEvent) error {
+func (l *EventListener) handleDeliveryConfirmed(ctx context.Context, tx db.Querier, event SorobanEvent, ledgerClosedAt int64) error {
 	if len(event.Topic) < 2 {
 		return fmt.Errorf("invalid topic length for confirmed event")
 	}
@@ -289,9 +228,9 @@ func (l *EventListener) handleDeliveryConfirmed(ctx context.Context, event Sorob
 	if err != nil {
 		return fmt.Errorf("parse topic invoice_id: %w", err)
 	}
-	invoiceID := parseBytes(idVal)
+	invoiceID := xdrutil.ParseBytes(idVal)
 
-	err = db.UpdateInvoiceDeliveryConfirmed(ctx, invoiceID, "Confirmed")
+	err = db.UpdateInvoiceDeliveryConfirmed(ctx, tx, invoiceID, "Confirmed", ledgerClosedAt)
 	if err != nil {
 		return err
 	}
@@ -300,7 +239,7 @@ func (l *EventListener) handleDeliveryConfirmed(ctx context.Context, event Sorob
 	return nil
 }
 
-func (l *EventListener) handleInvoiceRepaid(ctx context.Context, event SorobanEvent, serverKP *keypair.Full, ledgerClosedAt int64) error {
+func (l *EventListener) handleInvoiceRepaid(ctx context.Context, tx db.Querier, event SorobanEvent, serverKP *keypair.Full, ledgerClosedAt int64) error {
 	if len(event.Topic) < 2 {
 		return fmt.Errorf("invalid topic length for repaid event")
 	}
@@ -310,9 +249,9 @@ func (l *EventListener) handleInvoiceRepaid(ctx context.Context, event SorobanEv
 	if err != nil {
 		return fmt.Errorf("parse topic invoice_id: %w", err)
 	}
-	invoiceID := parseBytes(idVal)
+	invoiceID := xdrutil.ParseBytes(idVal)
 
-	err = db.UpdateInvoiceRepaid(ctx, invoiceID, "Repaid", ledgerClosedAt)
+	err = db.UpdateInvoiceRepaid(ctx, tx, invoiceID, "Repaid", ledgerClosedAt)
 	if err != nil {
 		return err
 	}
@@ -324,7 +263,7 @@ func (l *EventListener) handleInvoiceRepaid(ctx context.Context, event SorobanEv
 	return nil
 }
 
-func (l *EventListener) handleInvoiceDefaulted(ctx context.Context, event SorobanEvent, serverKP *keypair.Full) error {
+func (l *EventListener) handleInvoiceDefaulted(ctx context.Context, tx db.Querier, event SorobanEvent, serverKP *keypair.Full) error {
 	if len(event.Topic) < 2 {
 		return fmt.Errorf("invalid topic length for default event")
 	}
@@ -334,9 +273,9 @@ func (l *EventListener) handleInvoiceDefaulted(ctx context.Context, event Soroba
 	if err != nil {
 		return fmt.Errorf("parse topic invoice_id: %w", err)
 	}
-	invoiceID := parseBytes(idVal)
+	invoiceID := xdrutil.ParseBytes(idVal)
 
-	err = db.UpdateInvoiceStatus(ctx, invoiceID, "Defaulted")
+	err = db.UpdateInvoiceStatus(ctx, tx, invoiceID, "Defaulted")
 	if err != nil {
 		return err
 	}
@@ -348,6 +287,78 @@ func (l *EventListener) handleInvoiceDefaulted(ctx context.Context, event Soroba
 	return nil
 }
 
+func (l *EventListener) handleAttestationSubmitted(ctx context.Context, tx db.Querier, event SorobanEvent, ledgerClosedAt int64) error {
+	// Topic format: ["AttestationSubmitted" / "submit_attestation", invoice_id_bytes, agent_id_symbol]
+	// Value: risk_score (u32)
+	if len(event.Topic) < 2 {
+		return fmt.Errorf("invalid topic length for attestation event")
+	}
+
+	var idVal xdr.ScVal
+	err := xdr.SafeUnmarshalBase64(event.Topic[1], &idVal)
+	if err != nil {
+		return fmt.Errorf("parse topic invoice_id: %w", err)
+	}
+	invoiceID := xdrutil.ParseBytes(idVal)
+
+	// Parse agent_id from topic[2] if present
+	agentID := ""
+	if len(event.Topic) >= 3 {
+		var agentVal xdr.ScVal
+		err = xdr.SafeUnmarshalBase64(event.Topic[2], &agentVal)
+		if err == nil && agentVal.Sym != nil {
+			agentID = string(*agentVal.Sym)
+		}
+	}
+
+	// Parse risk_score from value
+	riskScoreBps := 0
+	var val xdr.ScVal
+	err = xdr.SafeUnmarshalBase64(event.Value, &val)
+	if err == nil {
+		riskScoreBps = int(xdrutil.ParseU32(val))
+	}
+
+	err = db.UpdateInvoiceAttestation(ctx, tx, invoiceID, agentID, "", riskScoreBps, ledgerClosedAt)
+	if err != nil {
+		return err
+	}
+
+	slog.Info("Indexed event: AttestationSubmitted", "id", invoiceID, "agentID", agentID, "riskScoreBps", riskScoreBps)
+	return nil
+}
+func (l *EventListener) handleRegistrationEvent(ctx context.Context, tx db.Querier, event SorobanEvent, ledgerClosedAt int64, eventName string) error {
+	// Topic format: ["issuer_registered" / "buyer_registered", account_address]
+	if len(event.Topic) < 2 {
+		return fmt.Errorf("invalid topic length for registration event")
+	}
+
+	var addrVal xdr.ScVal
+	if err := xdr.SafeUnmarshalBase64(event.Topic[1], &addrVal); err != nil {
+		return fmt.Errorf("parse registration address topic: %w", err)
+	}
+	address := xdrutil.ParseAddress(addrVal)
+	if address == "" {
+		return fmt.Errorf("registration event value: topic address is not a valid address")
+	}
+
+	logData := map[string]interface{}{
+		"address": address,
+	}
+	if err := db.LogEvent(ctx, tx, event.ID, event.ContractID, event.Ledger, ledgerClosedAt, eventName, logData); err != nil {
+		return err
+	}
+
+	slog.Info("Indexed event: registration", "event", eventName, "address", address)
+	return nil
+}
+
+// handleEvent applies one contract event atomically. The event's state
+// change (invoice insert/update), its events_log row — which is what marks
+// the event as processed for de-duplication — and its webhook_deliveries
+// rows are all written in a single transaction (issue #925). Any failure
+// rolls the whole unit of work back and is returned to the caller, so the
+// poller retries the ledger instead of advancing past a half-processed event.
 func (l *EventListener) handleEvent(ctx context.Context, event SorobanEvent) error {
 	if len(event.Topic) == 0 {
 		return fmt.Errorf("event topic is empty")
@@ -363,7 +374,7 @@ func (l *EventListener) handleEvent(ctx context.Context, event SorobanEvent) err
 	}
 	eventName := string(*topicVal.Sym)
 
-	serverKP, err := api.GetServerKeypair(l.cfg.JWTSecret)
+	serverKP, err := api.GetServerKeypair(l.cfg.ServerSeed)
 	if err != nil {
 		return fmt.Errorf("get server keypair: %w", err)
 	}
@@ -379,35 +390,134 @@ func (l *EventListener) handleEvent(ctx context.Context, event SorobanEvent) err
 	var data map[string]interface{}
 	_ = json.Unmarshal([]byte(event.Value), &data) // Unmarshal if it's JSON, ignore if it fails
 
-	switch eventName {
-	case "create", "InvoiceCreated":
-		err = l.handleInvoiceCreated(ctx, event, ledgerClosedAt)
-	case "list_for_financing", "InvoiceListed":
-		err = l.handleInvoiceListed(ctx, event)
-	case "fund_invoice", "InvoiceFunded":
-		err = l.handleInvoiceFunded(ctx, event, serverKP, ledgerClosedAt)
-	case "mark_shipped", "InvoiceShipped":
-		err = l.handleInvoiceShipped(ctx, event, ledgerClosedAt)
-	case "confirm_delivery", "DeliveryConfirmed":
-		err = l.handleDeliveryConfirmed(ctx, event)
-	case "repay", "InvoiceRepaid":
-		err = l.handleInvoiceRepaid(ctx, event, serverKP, ledgerClosedAt)
-	case "trigger_default", "InvoiceDefaulted":
-		err = l.handleInvoiceDefaulted(ctx, event, serverKP)
-	default:
-		slog.Debug("Skipping unhandled contract event", "name", eventName)
+	return db.WithTx(ctx, func(tx pgx.Tx) error {
+		switch eventName {
+		case "create", "InvoiceCreated":
+			err = l.handleInvoiceCreated(ctx, tx, event, ledgerClosedAt)
+		case "list_for_financing", "InvoiceListed":
+			err = l.handleInvoiceListed(ctx, tx, event)
+		case "fund_invoice", "InvoiceFunded":
+			err = l.handleInvoiceFunded(ctx, tx, event, serverKP, ledgerClosedAt)
+		case "mark_shipped", "InvoiceShipped":
+			err = l.handleInvoiceShipped(ctx, tx, event, ledgerClosedAt)
+		case "confirm_delivery", "DeliveryConfirmed":
+			err = l.handleDeliveryConfirmed(ctx, tx, event, ledgerClosedAt)
+		case "repay", "InvoiceRepaid":
+			err = l.handleInvoiceRepaid(ctx, tx, event, serverKP, ledgerClosedAt)
+		case "trigger_default", "InvoiceDefaulted":
+			err = l.handleInvoiceDefaulted(ctx, tx, event, serverKP)
+		case "submit_attestation", "AttestationSubmitted":
+			err = l.handleAttestationSubmitted(ctx, tx, event, ledgerClosedAt)
+		case "issuer_registered", "buyer_registered":
+			// Registry contract registrations are logged (and de-duplicated)
+			// via events_log inside this transaction but have no invoice
+			// fan-out, so they short-circuit the tail below.
+			return l.handleRegistrationEvent(ctx, tx, event, ledgerClosedAt, eventName)
+		default:
+			slog.Debug("Skipping unhandled contract event", "name", eventName)
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("handler for %s failed: %w", eventName, err)
+		}
+
+		// Build structured data for the event log
+		logData := map[string]interface{}{}
+
+		// Try to extract invoice_id from topic[1] for events that carry it
+		if len(event.Topic) >= 2 && eventName != "create" && eventName != "InvoiceCreated" {
+			var topicVal xdr.ScVal
+			if err := xdr.SafeUnmarshalBase64(event.Topic[1], &topicVal); err == nil {
+				invoiceID := xdrutil.ParseBytes(topicVal)
+				if invoiceID != "" {
+					logData["invoice_id"] = invoiceID
+				}
+			}
+		}
+
+		// For InvoiceCreated, extract from the value payload
+		if eventName == "create" || eventName == "InvoiceCreated" {
+			var val xdr.ScVal
+			if err := xdr.SafeUnmarshalBase64(event.Value, &val); err == nil {
+				if idVal, ok := xdrutil.GetMapVal(val, "id"); ok {
+					logData["invoice_id"] = xdrutil.ParseBytes(idVal)
+				}
+				if issuerVal, ok := xdrutil.GetMapVal(val, "issuer"); ok {
+					logData["issuer"] = xdrutil.ParseAddress(issuerVal)
+				}
+				if buyerVal, ok := xdrutil.GetMapVal(val, "buyer"); ok {
+					logData["buyer"] = xdrutil.ParseAddress(buyerVal)
+				}
+			}
+		}
+
+		// Mark the event processed in the same transaction as the state
+		// change: a failed insert must roll the state change back (and vice
+		// versa) so the poller re-processes a consistent unit of work instead
+		// of advancing past a half-applied event.
+		if err := db.LogEvent(ctx, tx, event.ID, event.ContractID, event.Ledger, ledgerClosedAt, eventName, logData); err != nil {
+			return fmt.Errorf("log event: %w", err)
+		}
+
+		// Enqueue webhook deliveries on the same transaction (issue #925):
+		// the fan-out either commits with the event or is retried with it.
+		// The non-transactional dispatch paths (pool events, unknown events)
+		// are unaffected.
+		if l.dispatcher != nil {
+			if err := l.dispatcher.EnqueueDeliveries(ctx, tx, eventName, l.webhookDispatchData(ctx, tx, eventName, event, ledgerClosedAt, logData)); err != nil {
+				return fmt.Errorf("enqueue webhook deliveries: %w", err)
+			}
+		}
+
 		return nil
+	})
+}
+
+// webhookDispatchData builds the data map webhook.Dispatcher turns into an
+// envelope. The invoice fields come from the row the handler just wrote (read
+// back through tx so an in-flight transaction sees its own writes) rather
+// than from the event, so every documented payload field — status,
+// face_value, due_date and the lifecycle timestamps — is populated.
+func (l *EventListener) webhookDispatchData(ctx context.Context, tx db.Querier, eventName string, event SorobanEvent, ledgerClosedAt int64, logData map[string]interface{}) map[string]interface{} {
+	data := make(map[string]interface{}, len(logData)+16)
+	for k, v := range logData {
+		data[k] = v
+	}
+	data["event_id"] = event.ID
+	data["ledger"] = event.Ledger
+	data["contract_id"] = event.ContractID
+	// occurred_at in the envelope is derived from this, not from wall-clock
+	// time, so a re-indexed historical event keeps its on-chain timestamp.
+	data["ledger_closed_at"] = ledgerClosedAt
+
+	invoiceID, _ := data["invoice_id"].(string)
+	if invoiceID == "" {
+		return data
 	}
 
+	invoice, err := db.GetInvoiceByID(ctx, tx, invoiceID)
 	if err != nil {
-		return fmt.Errorf("handler for %s failed: %w", eventName, err)
+		slog.Error("Failed to load invoice for webhook payload", "invoice_id", invoiceID, "error", err)
+	} else if invoice != nil {
+		addInvoiceFields(data, invoice)
 	}
 
-	// Log event in database to prevent double processing
-	err = db.LogEvent(ctx, event.ID, event.ContractID, event.Ledger, ledgerClosedAt, eventName, event.Value)
-	if err != nil {
-		slog.Error("Failed to log event in DB", "eventId", event.ID, "error", err)
-	}
+	return data
+}
 
-	return nil
+// addInvoiceFields copies the persisted invoice columns into the dispatch data
+// under the keys webhook.BuildEnvelope reads.
+func addInvoiceFields(data map[string]interface{}, invoice *db.DbInvoice) {
+	data["issuer"] = invoice.Issuer
+	data["buyer"] = invoice.Buyer
+	data["face_value"] = invoice.FaceValue
+	data["discount_bps"] = invoice.DiscountBps
+	data["funded_amount"] = invoice.FundedAmount
+	data["due_date"] = invoice.DueDate
+	data["status"] = invoice.Status
+	data["created_at"] = invoice.CreatedAt
+	data["funded_at"] = invoice.FundedAt
+	data["shipped_at"] = invoice.ShippedAt
+	data["buyer_confirmed_at"] = invoice.BuyerConfirmedAt
+	data["repaid_at"] = invoice.RepaidAt
 }

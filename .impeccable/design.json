@@ -4,23 +4,152 @@
   "title": "Design System: TrusTrove Terminal",
   "extensions": {
     "colorMeta": {
-      "primary": { "role": "primary", "displayName": "Electric Teal", "canonical": "oklch(82.68% 0.189 168.45)", "tonalRamp": ["#001a14", "#003328", "#004d3d", "#006651", "#00d4aa", "#40dfc2", "#9ff0e1", "#dcfaf5"] },
-      "primary-hover": { "role": "primary", "displayName": "Electric Teal Hover", "canonical": "oklch(76.42% 0.181 169.21)", "tonalRamp": ["#00140f", "#00291e", "#003d2e", "#00523e", "#00b38f", "#33ccab", "#94edd9", "#d4faf2"] },
-      "accent-active": { "role": "accent", "displayName": "Ocean Blue", "canonical": "oklch(60.16% 0.208 256.78)", "tonalRamp": ["#001a4d", "#002b80", "#0040b3", "#0059e6", "#3b82f6", "#6699ff", "#b3ccff", "#e6f0ff"] },
-      "accent-success": { "role": "accent", "displayName": "Success Emerald", "canonical": "oklch(72.77% 0.169 152.05)", "tonalRamp": ["#00331a", "#004d26", "#006633", "#008040", "#10b981", "#40df9f", "#9ff0cc", "#dcfaf0"] },
-      "accent-warning": { "role": "accent", "displayName": "Risk Amber", "canonical": "oklch(75.54% 0.181 72.84)", "tonalRamp": ["#331d00", "#4d2b00", "#663a00", "#804800", "#f59e0b", "#ffbf40", "#ffe39f", "#fff6e0"] },
-      "neutral-bg": { "role": "neutral", "displayName": "Void Background", "canonical": "oklch(14.82% 0.015 250.23)", "tonalRamp": ["#010204", "#040608", "#080c10", "#101820", "#1a2530", "#304153", "#566e86", "#9cb2c9"] },
-      "neutral-card": { "role": "neutral", "displayName": "Terminal Card", "canonical": "oklch(19.56% 0.018 249.81)", "tonalRamp": ["#020305", "#05070a", "#0d131a", "#161f2b", "#233042", "#3a4d66", "#617796", "#a6b8d1"] },
-      "border": { "role": "neutral", "displayName": "Grid Border", "canonical": "oklch(26.11% 0.022 251.04)", "tonalRamp": ["#070a0d", "#0d1117", "#1a2330", "#283447", "#394a63", "#526785", "#7992b4", "#b9c7db"] }
+      "primary": {
+        "role": "primary",
+        "displayName": "Electric Teal",
+        "canonical": "oklch(82.68% 0.189 168.45)",
+        "tonalRamp": [
+          "#001a14",
+          "#003328",
+          "#004d3d",
+          "#006651",
+          "#00d4aa",
+          "#40dfc2",
+          "#9ff0e1",
+          "#dcfaf5"
+        ]
+      },
+      "primary-hover": {
+        "role": "primary",
+        "displayName": "Electric Teal Hover",
+        "canonical": "oklch(76.42% 0.181 169.21)",
+        "tonalRamp": [
+          "#00140f",
+          "#00291e",
+          "#003d2e",
+          "#00523e",
+          "#00b38f",
+          "#33ccab",
+          "#94edd9",
+          "#d4faf2"
+        ]
+      },
+      "accent-active": {
+        "role": "accent",
+        "displayName": "Ocean Blue",
+        "canonical": "oklch(60.16% 0.208 256.78)",
+        "tonalRamp": [
+          "#001a4d",
+          "#002b80",
+          "#0040b3",
+          "#0059e6",
+          "#3b82f6",
+          "#6699ff",
+          "#b3ccff",
+          "#e6f0ff"
+        ]
+      },
+      "accent-success": {
+        "role": "accent",
+        "displayName": "Success Emerald",
+        "canonical": "oklch(72.77% 0.169 152.05)",
+        "tonalRamp": [
+          "#00331a",
+          "#004d26",
+          "#006633",
+          "#008040",
+          "#10b981",
+          "#40df9f",
+          "#9ff0cc",
+          "#dcfaf0"
+        ]
+      },
+      "accent-warning": {
+        "role": "accent",
+        "displayName": "Risk Amber",
+        "canonical": "oklch(75.54% 0.181 72.84)",
+        "tonalRamp": [
+          "#331d00",
+          "#4d2b00",
+          "#663a00",
+          "#804800",
+          "#f59e0b",
+          "#ffbf40",
+          "#ffe39f",
+          "#fff6e0"
+        ]
+      },
+      "neutral-bg": {
+        "role": "neutral",
+        "displayName": "Void Background",
+        "canonical": "oklch(14.82% 0.015 250.23)",
+        "tonalRamp": [
+          "#010204",
+          "#040608",
+          "#080c10",
+          "#101820",
+          "#1a2530",
+          "#304153",
+          "#566e86",
+          "#9cb2c9"
+        ]
+      },
+      "neutral-card": {
+        "role": "neutral",
+        "displayName": "Terminal Card",
+        "canonical": "oklch(19.56% 0.018 249.81)",
+        "tonalRamp": [
+          "#020305",
+          "#05070a",
+          "#0d131a",
+          "#161f2b",
+          "#233042",
+          "#3a4d66",
+          "#617796",
+          "#a6b8d1"
+        ]
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Grid Border",
+        "canonical": "oklch(26.11% 0.022 251.04)",
+        "tonalRamp": [
+          "#070a0d",
+          "#0d1117",
+          "#1a2330",
+          "#283447",
+          "#394a63",
+          "#526785",
+          "#7992b4",
+          "#b9c7db"
+        ]
+      }
     },
     "typographyMeta": {
-      "display": { "displayName": "Display Sans", "purpose": "Titles and major metrics." },
-      "body": { "displayName": "Body Sans", "purpose": "Descriptions and labels." },
-      "mono": { "displayName": "Value Mono", "purpose": "Financial amounts, address keys, status logs." }
+      "display": {
+        "displayName": "Display Sans",
+        "purpose": "Titles and major metrics."
+      },
+      "body": {
+        "displayName": "Body Sans",
+        "purpose": "Descriptions and labels."
+      },
+      "mono": {
+        "displayName": "Value Mono",
+        "purpose": "Financial amounts, address keys, status logs."
+      }
     },
     "shadows": [
-      { "name": "teal-glow-hover", "value": "0 0 24px rgba(0, 212, 170, 0.15)", "purpose": "Active liquidity indicator glow when hovered." },
-      { "name": "focus-ring", "value": "0 0 0 2px rgba(0, 212, 170, 0.2)", "purpose": "Glowing focus boundary around input cursors." }
+      {
+        "name": "teal-glow-hover",
+        "value": "0 0 24px rgba(0, 212, 170, 0.15)",
+        "purpose": "Active liquidity indicator glow when hovered."
+      },
+      {
+        "name": "focus-ring",
+        "value": "0 0 0 2px rgba(0, 212, 170, 0.2)",
+        "purpose": "Glowing focus boundary around input cursors."
+      }
     ]
   },
   "components": [
@@ -51,8 +180,16 @@
       "Hover states project a bright teal glow (0 0 24px rgba(0,212,170,0.15)) representing active liquidity."
     ],
     "rules": [
-      { "name": "The State Map Rule", "body": "The INVOICE STATUS COLOR MAP must be implemented uniformly across the entire app interface.", "section": "colors" },
-      { "name": "The Flat Grid Rule", "body": "Surfaces are flat and share the same visual plane. Hover states do not raise cards; they activate the teal border and emit a glowing aura to denote active liquidity.", "section": "elevation" }
+      {
+        "name": "The State Map Rule",
+        "body": "The INVOICE STATUS COLOR MAP must be implemented uniformly across the entire app interface.",
+        "section": "colors"
+      },
+      {
+        "name": "The Flat Grid Rule",
+        "body": "Surfaces are flat and share the same visual plane. Hover states do not raise cards; they activate the teal border and emit a glowing aura to denote active liquidity.",
+        "section": "elevation"
+      }
     ],
     "dos": [
       "Do format all financial figures in JetBrains Mono with comma separators and the USDC suffix (e.g. 50,000.00 USDC).",

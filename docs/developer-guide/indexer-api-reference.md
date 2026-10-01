@@ -1,6 +1,6 @@
 # Indexer API Reference
 
-The Go indexer runs at `https://trusttrove-app.onrender.com` in production 
+The Go indexer runs at `https://trusttrove-app.onrender.com` in production
 and `http://localhost:8080` in local development.
 
 All amounts are returned as strings to preserve u128 precision.
@@ -18,12 +18,14 @@ Health check. Returns 200 if the indexer is running.
 Returns invoices with optional filtering.
 
 **Query parameters:**
+
 - `status` — filter by status: `Created`, `Listed`, `Funded`, `Active`, `Confirmed`, `Repaid`, `Defaulted`
 - `issuer` — filter by issuer Stellar address
 - `page` — page number (default: 1)
 - `limit` — results per page (default: 20, max: 100)
 
 **Response:**
+
 ```json
 {
   "data": [
@@ -92,4 +94,129 @@ Protocol-level aggregated statistics for the landing page.
   "average_yield_bps": 210,
   "pool_utilization_bps": 7500
 }
+```
+
+How the aggregates are derived from invoice `status`:
+
+| Field                  | Statuses included                                                  |
+| ---------------------- | ------------------------------------------------------------------ |
+| `total_usdc_financed`  | `Funded`, `Active`, `Confirmed`, `Repaid` (sum of `funded_amount`) |
+| `active_invoice_count` | `Funded`, `Active`, `Confirmed` (capital deployed, not yet repaid) |
+| `total_repaid`         | `Repaid`                                                           |
+| `total_defaulted`      | `Defaulted`                                                        |
+| `average_yield_bps`    | `Funded`, `Active`, `Confirmed`, `Repaid` (mean `discount_bps`)    |
+
+## GET /auth
+
+Requests a SEP-10 authentication challenge for a Stellar account. No JWT required.
+
+**Query parameters:**
+
+- `address` — the Stellar public key to authenticate (required)
+
+**Response:**
+
+```json
+{
+  "transaction": "AAAAAgAAA...",
+  "network_passphrase": "Test SDF Network ; September 2015"
+}
+```
+
+## POST /auth
+
+Exchanges a signed SEP-10 challenge transaction for a JWT. No JWT required.
+
+**Request body:**
+
+```json
+{
+  "transaction": "AAAAAgAAA...signed..."
+}
+```
+
+**Response:**
+
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "expires_in": 86400
+}
+```
+
+## POST /invoices
+
+Creates an off-chain/indexed invoice record. **Requires JWT** (`Authorization: Bearer <jwt>`).
+
+**Request body:**
+
+```json
+{
+  "buyer": "GBUYERAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+  "face_value": "10000000000",
+  "due_date": 1790000000,
+  "asset": "USDC"
+}
+```
+
+**Accepted ranges:**
+
+- `face_value` — decimal string, strictly positive, and at most `2^128 - 1`
+  (i.e. `340282366920938463463374607431768211455`). Values outside this range,
+  non-numeric strings, or strings longer than 40 digits are rejected with
+  `400 invalid face value`. The amount is in stroops (1 USDC = 10,000,000
+  stroops), matching the on-chain representation.
+- `due_date` — Unix timestamp in seconds. Must be in the future and no more
+  than 5 years (`maxDueDateHorizonSeconds`) from the time the request is
+  validated. Timestamps in the past or beyond the horizon are rejected with
+  `400 invalid due date`.
+
+**Response (201):**
+
+```json
+{
+  "invoice_id": "a3f8c1d27e904b6a8d5f0139c2e7ab64f0d8c3b19a6e52f7b4c0d91e8a2735bc",
+  "transaction_hash": "abc123...",
+  "status": "SUCCESS"
+}
+```
+
+## GET /events
+
+Returns the most recent indexed Soroban events. No JWT required.
+
+**Query parameters:**
+
+- `limit` — number of events to return (default: 20)
+
+**Response:**
+
+```json
+[
+  {
+    "id": 1,
+    "event_id": "abc123...",
+    "contract_id": "CABC...",
+    "ledger": 12345,
+    "ledger_closed_at": 1748000000,
+    "event_type": "invoice_created",
+    "data": {}
+  }
+]
+```
+
+## GET /pool/snapshots
+
+Returns historical pool snapshots used for charts and trend analysis. No JWT required.
+
+**Response:**
+
+```json
+[
+  {
+    "timestamp": 1748000000,
+    "utilizationRateBps": 7500,
+    "totalYieldDistributed": "15000000000000"
+  }
+]
 ```

@@ -1,10 +1,12 @@
-'use client';
+"use client";
 
-import React from 'react';
+import React from "react";
 
 export function SkeletonShimmer({ className }: { className: string }) {
   return (
-    <div className={`relative overflow-hidden bg-background-secondary rounded ${className}`}>
+    <div
+      className={`relative overflow-hidden bg-background-secondary rounded ${className}`}
+    >
       <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-teal-500/10 to-transparent" />
       <style jsx>{`
         @keyframes shimmer {
@@ -81,7 +83,10 @@ export function InvoiceFeedSkeleton() {
   return (
     <div className="space-y-3">
       {[1, 2, 3].map((i) => (
-        <div key={i} className="bg-card/25 border border-border/40 p-3.5 rounded flex items-center justify-between gap-4">
+        <div
+          key={i}
+          className="bg-card/25 border border-border/40 p-3.5 rounded flex items-center justify-between gap-4"
+        >
           <div className="flex items-center gap-2">
             <SkeletonShimmer className="w-5 h-5 rounded" />
             <div className="space-y-1">
@@ -117,12 +122,24 @@ export function InvoiceTableSkeleton() {
           <tbody className="divide-y divide-border/30">
             {[1, 2, 3, 4, 5].map((i) => (
               <tr key={i}>
-                <td className="px-5 py-3.5"><SkeletonShimmer className="h-3.5 w-28" /></td>
-                <td className="px-5 py-3.5"><SkeletonShimmer className="h-3.5 w-24" /></td>
-                <td className="px-5 py-3.5"><SkeletonShimmer className="h-3.5 w-20" /></td>
-                <td className="px-5 py-3.5"><SkeletonShimmer className="h-3.5 w-12" /></td>
-                <td className="px-5 py-3.5"><SkeletonShimmer className="h-3.5 w-16" /></td>
-                <td className="px-5 py-3.5"><SkeletonShimmer className="h-5 w-14 rounded-full" /></td>
+                <td className="px-5 py-3.5">
+                  <SkeletonShimmer className="h-3.5 w-28" />
+                </td>
+                <td className="px-5 py-3.5">
+                  <SkeletonShimmer className="h-3.5 w-24" />
+                </td>
+                <td className="px-5 py-3.5">
+                  <SkeletonShimmer className="h-3.5 w-20" />
+                </td>
+                <td className="px-5 py-3.5">
+                  <SkeletonShimmer className="h-3.5 w-12" />
+                </td>
+                <td className="px-5 py-3.5">
+                  <SkeletonShimmer className="h-3.5 w-16" />
+                </td>
+                <td className="px-5 py-3.5">
+                  <SkeletonShimmer className="h-5 w-14 rounded-full" />
+                </td>
               </tr>
             ))}
           </tbody>
@@ -167,7 +184,10 @@ export function ActivityTimelineSkeleton() {
       </div>
       <div className="space-y-3">
         {[1, 2, 3, 4, 5].map((i) => (
-          <div key={i} className="flex justify-between items-start gap-4 p-2 border-b border-border/20 last:border-0">
+          <div
+            key={i}
+            className="flex justify-between items-start gap-4 p-2 border-b border-border/20 last:border-0"
+          >
             <div className="space-y-1.5 flex-1">
               <SkeletonShimmer className="h-3 w-32" />
               <SkeletonShimmer className="h-2.5 w-56" />
