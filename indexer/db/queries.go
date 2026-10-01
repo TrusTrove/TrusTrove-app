@@ -58,12 +58,12 @@ type ProtocolStats struct {
 func GetProtocolStats(ctx context.Context) (*ProtocolStats, error) {
 	query := `
 		SELECT
-			COALESCE(SUM(funded_amount) FILTER (WHERE status IN ('funded', 'shipped', 'confirmed', 'repaid')), 0)::TEXT AS total_usdc_financed,
-			COUNT(*) FILTER (WHERE status IN ('funded', 'shipped', 'confirmed')) AS active_invoice_count,
+			COALESCE(SUM(funded_amount) FILTER (WHERE status IN ('Funded', 'Active', 'Confirmed', 'Repaid')), 0)::TEXT AS total_usdc_financed,
+			COUNT(*) FILTER (WHERE status IN ('Funded', 'Active', 'Confirmed')) AS active_invoice_count,
 			COUNT(*) AS total_invoices,
-			COUNT(*) FILTER (WHERE status = 'repaid') AS total_repaid,
-			COUNT(*) FILTER (WHERE status = 'defaulted') AS total_defaulted,
-			COALESCE(AVG(discount_bps) FILTER (WHERE status IN ('funded', 'shipped', 'confirmed', 'repaid')), 0)::INTEGER AS average_yield_bps,
+			COUNT(*) FILTER (WHERE status = 'Repaid') AS total_repaid,
+			COUNT(*) FILTER (WHERE status = 'Defaulted') AS total_defaulted,
+			COALESCE(AVG(discount_bps) FILTER (WHERE status IN ('Funded', 'Active', 'Confirmed', 'Repaid')), 0)::INTEGER AS average_yield_bps,
 			COALESCE((SELECT utilization_rate_bps FROM pool_snapshots WHERE id = 1), 0) AS pool_utilization_bps,
 			COUNT(DISTINCT issuer) AS registered_issuers
 		FROM invoices
