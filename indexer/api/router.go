@@ -211,9 +211,12 @@ func (rl *perClientRateLimiter) evictOldest() {
 	var oldestKey string
 	var oldestTime time.Time
 	for key, bucket := range rl.buckets {
-		if oldestKey == "" || bucket.last.Before(oldestTime) {
+		bucket.mu.Lock()
+		last := bucket.last
+		bucket.mu.Unlock()
+		if oldestKey == "" || last.Before(oldestTime) {
 			oldestKey = key
-			oldestTime = bucket.last
+			oldestTime = last
 		}
 	}
 	if oldestKey != "" {
