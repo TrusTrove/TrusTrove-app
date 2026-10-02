@@ -350,7 +350,10 @@ describe("InvoiceDetailClient", () => {
     fireEvent.click(screen.getByRole("button", { name: /^COPY$/ }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(BUYER));
 
-    expect(await screen.findAllByText("COPIED")).toHaveLength(2);
+    // Wait for React to commit both "copied" state updates: waitFor above
+    // can observe the clipboard write before the second button re-renders,
+    // so asserting immediately races the concurrent scheduler.
+    await waitFor(() => expect(screen.getAllByText("COPIED")).toHaveLength(2));
   });
 
   it("copies the invoice link to the clipboard once the URL is available", async () => {
