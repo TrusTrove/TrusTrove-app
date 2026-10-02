@@ -339,7 +339,7 @@ export default function ProfilePage() {
         isOpen={showPending}
         onClose={() => setShowPending(false)}
         txHash={pendingHash}
-        text={pendingText}
+        statusText={pendingText}
       />
     </PageLayout>
   );
