@@ -75,6 +75,7 @@ function NotificationPreferences({ address }: { address: string }) {
               <input
                 type="checkbox"
                 className="sr-only peer"
+                aria-label={`${category} notifications`}
                 checked={prefs[category] !== false}
                 onChange={() => toggleCategory(category)}
               />
