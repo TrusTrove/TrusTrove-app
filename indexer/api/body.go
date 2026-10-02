@@ -35,7 +35,7 @@ func decodeJSONBody(w http.ResponseWriter, r *http.Request, dst any, maxBytes in
 	err := dec.Decode(dst)
 	if err == nil {
 		// Reject a second value (e.g. `{}{}`) so the body is exactly one object.
-		if err = dec.Decode(&struct{}{}); err == io.EOF {
+		if err = dec.Decode(&struct{}{}); errors.Is(err, io.EOF) {
 			return true
 		}
 		if err == nil {

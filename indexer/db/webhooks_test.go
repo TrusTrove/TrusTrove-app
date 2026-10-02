@@ -38,8 +38,8 @@ func TestWebhookSubscriptionCRUD(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		if Pool != nil {
-			Pool.Exec(ctx, "DELETE FROM webhook_subscriptions WHERE id = $1", sub.ID)
-			Pool.Exec(ctx, "DELETE FROM webhook_deliveries WHERE subscription_id = $1", sub.ID)
+			_, _ = Pool.Exec(ctx, "DELETE FROM webhook_subscriptions WHERE id = $1", sub.ID)
+			_, _ = Pool.Exec(ctx, "DELETE FROM webhook_deliveries WHERE subscription_id = $1", sub.ID)
 		}
 	})
 
@@ -182,8 +182,8 @@ func TestWebhookDeliveryLifecycle(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		if Pool != nil {
-			Pool.Exec(ctx, "DELETE FROM webhook_subscriptions WHERE id = $1", sub.ID)
-			Pool.Exec(ctx, "DELETE FROM webhook_deliveries WHERE subscription_id = $1", sub.ID)
+			_, _ = Pool.Exec(ctx, "DELETE FROM webhook_subscriptions WHERE id = $1", sub.ID)
+			_, _ = Pool.Exec(ctx, "DELETE FROM webhook_deliveries WHERE subscription_id = $1", sub.ID)
 		}
 	})
 
@@ -343,8 +343,8 @@ func TestWebhookSubscriptionEventTypesIndex(t *testing.T) {
 		}
 		defer func(id uuid.UUID) {
 			if Pool != nil {
-				Pool.Exec(ctx, "DELETE FROM webhook_subscriptions WHERE id = $1", id)
-				Pool.Exec(ctx, "DELETE FROM webhook_deliveries WHERE subscription_id = $1", id)
+				_, _ = Pool.Exec(ctx, "DELETE FROM webhook_subscriptions WHERE id = $1", id)
+				_, _ = Pool.Exec(ctx, "DELETE FROM webhook_deliveries WHERE subscription_id = $1", id)
 			}
 		}(sub.ID)
 	}
@@ -408,8 +408,8 @@ func TestWebhookDeliveryPendingFilter(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		if Pool != nil {
-			Pool.Exec(ctx, "DELETE FROM webhook_subscriptions WHERE id = $1", sub.ID)
-			Pool.Exec(ctx, "DELETE FROM webhook_deliveries WHERE subscription_id = $1", sub.ID)
+			_, _ = Pool.Exec(ctx, "DELETE FROM webhook_subscriptions WHERE id = $1", sub.ID)
+			_, _ = Pool.Exec(ctx, "DELETE FROM webhook_deliveries WHERE subscription_id = $1", sub.ID)
 		}
 	})
 
@@ -480,8 +480,8 @@ func ExampleCreateWebhookSubscription() {
 		Active:        true,
 	}
 	if err := CreateWebhookSubscription(ctx, sub); err != nil {
-		fmt.Printf("Error: %v\n", err)
+		_, _ = fmt.Printf("Error: %v\n", err)
 		return
 	}
-	fmt.Printf("Created subscription: %s\n", sub.ID)
+	_, _ = fmt.Printf("Created subscription: %s\n", sub.ID)
 }

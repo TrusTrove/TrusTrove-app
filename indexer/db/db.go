@@ -119,7 +119,11 @@ func RunMigration(ctx context.Context) error {
 	if _, err := lockConn.Exec(ctx, "SELECT pg_advisory_lock($1)", migrationLockID); err != nil {
 		return fmt.Errorf("failed to acquire migration advisory lock: %w", err)
 	}
-	defer lockConn.Exec(ctx, "SELECT pg_advisory_unlock($1)", migrationLockID)
+	defer func() {
+		if _, err := lockConn.Exec(context.Background(), "SELECT pg_advisory_unlock($1)", migrationLockID); err != nil {
+			slog.Warn("db: failed to release migration advisory lock", "error", err)
+		}
+	}()
 
 	if err := ensureSchemaMigrationsTable(ctx); err != nil {
 		return fmt.Errorf("failed to ensure schema_migrations table: %w", err)

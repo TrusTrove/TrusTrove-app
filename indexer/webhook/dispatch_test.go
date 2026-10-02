@@ -343,8 +343,8 @@ func TestDispatchQueuesPopulatedEnvelope(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		if db.Pool != nil {
-			db.Pool.Exec(ctx, "DELETE FROM webhook_deliveries WHERE subscription_id = $1", sub.ID)
-			db.Pool.Exec(ctx, "DELETE FROM webhook_subscriptions WHERE id = $1", sub.ID)
+			_, _ = db.Pool.Exec(ctx, "DELETE FROM webhook_deliveries WHERE subscription_id = $1", sub.ID)
+			_, _ = db.Pool.Exec(ctx, "DELETE FROM webhook_subscriptions WHERE id = $1", sub.ID)
 		}
 	})
 

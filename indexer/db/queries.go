@@ -221,6 +221,9 @@ func GetInvoicesPage(ctx context.Context, status, issuer string, limit, offset i
 		}
 		invoices = append(invoices, &inv)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("queries: iterate invoices: %w", err)
+	}
 	return invoices, total, nil
 }
 
@@ -450,6 +453,9 @@ func GetRecentEvents(ctx context.Context, limit int) ([]*EventLog, error) {
 			return nil, fmt.Errorf("queries: scan event: %w", err)
 		}
 		events = append(events, &ev)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("queries: iterate recent events: %w", err)
 	}
 	return events, nil
 }

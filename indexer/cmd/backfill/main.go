@@ -18,5 +18,5 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	fmt.Printf("Starting backfill from %d to %d using DB: %s\n", *fromLedger, *toLedger, cfg.DatabaseURL)
+	_, _ = fmt.Printf("Starting backfill from %d to %d using DB: %s\n", *fromLedger, *toLedger, cfg.DatabaseURL)
 }

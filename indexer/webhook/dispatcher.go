@@ -305,8 +305,8 @@ func (d *Dispatcher) handleFailure(ctx context.Context, delivery *db.WebhookDeli
 // sign returns the HMAC-SHA256 hex digest of "<timestamp>.<payload>".
 func sign(secret, timestamp string, payload []byte) string {
 	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write([]byte(timestamp + "."))
-	mac.Write(payload)
+	_, _ = mac.Write([]byte(timestamp + "."))
+	_, _ = mac.Write(payload)
 	return hex.EncodeToString(mac.Sum(nil))
 }
 

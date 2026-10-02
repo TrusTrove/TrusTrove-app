@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -325,6 +326,36 @@ func TestPerClientRateLimiter_MaxSizeEviction(t *testing.T) {
 
 	// Bucket count should not exceed maxSize significantly
 	// (may be maxSize+1 due to race condition during eviction)
+	if bucketCount > maxSize+1 {
+		t.Errorf("bucket count %d exceeds maxSize %d", bucketCount, maxSize)
+	}
+}
+
+// TestPerClientRateLimiter_ConcurrentEviction drives allow() from many
+// goroutines against a small maxSize so evictOldest() runs concurrently with
+// token refills. Run with -race to detect unsynchronised bucket.last access.
+func TestPerClientRateLimiter_ConcurrentEviction(t *testing.T) {
+	maxSize := 8
+	rl := newPerClientRateLimiter(10, 20, maxSize)
+	defer rl.Stop()
+
+	const goroutines = 32
+	var wg sync.WaitGroup
+	for g := 0; g < goroutines; g++ {
+		wg.Add(1)
+		go func(g int) {
+			defer wg.Done()
+			for i := 0; i < 20; i++ {
+				rl.allow(fmt.Sprintf("ip:10.0.%d.%d", g, i))
+			}
+		}(g)
+	}
+	wg.Wait()
+
+	rl.mu.RLock()
+	bucketCount := len(rl.buckets)
+	rl.mu.RUnlock()
+
 	if bucketCount > maxSize+1 {
 		t.Errorf("bucket count %d exceeds maxSize %d", bucketCount, maxSize)
 	}

@@ -112,10 +112,18 @@ jobs:
       - name: Test Go Services
         run: |
           cd indexer
-          go test -v -coverprofile=coverage.out ./...
+          go test -race -v -coverprofile=coverage.out ./...
         env:
           TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/trusttrove_test?sslmode=disable
           INDEXER_MIGRATIONS_DIR: ${{ github.workspace }}/indexer/db/migrations
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.64.5
+          install-mode: goinstall
+          working-directory: indexer
+          args: --timeout=5m
 
       - name: Enforce indexer/db coverage threshold
         run: |

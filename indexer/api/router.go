@@ -122,7 +122,7 @@ func RecoveryMiddleware() func(http.Handler) http.Handler {
 
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusInternalServerError)
-					w.Write([]byte(`{"error": "internal server error"}`))
+					_, _ = w.Write([]byte(`{"error": "internal server error"}`))
 				}
 			}()
 			next.ServeHTTP(w, r)
@@ -208,12 +208,17 @@ func (rl *perClientRateLimiter) allow(clientKey string) bool {
 }
 
 func (rl *perClientRateLimiter) evictOldest() {
+	// rl.mu is held by the caller; bucket.mu must be taken before reading
+	// bucket.last so evictOldest never races with allow()'s refill updates.
 	var oldestKey string
 	var oldestTime time.Time
 	for key, bucket := range rl.buckets {
-		if oldestKey == "" || bucket.last.Before(oldestTime) {
+		bucket.mu.Lock()
+		last := bucket.last
+		bucket.mu.Unlock()
+		if oldestKey == "" || last.Before(oldestTime) {
 			oldestKey = key
-			oldestTime = bucket.last
+			oldestTime = last
 		}
 	}
 	if oldestKey != "" {
@@ -273,7 +278,6 @@ func NewRouter(h *APIHandler) *chi.Mux {
 
 	// Global middleware
 	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
 	r.Use(RecoveryMiddleware())
 	r.Use(CORSMiddleware(h.cfg.CORSAllowedOrigins))
@@ -293,11 +297,11 @@ func NewRouter(h *APIHandler) *chi.Mux {
 		defer cancel()
 		if err := h.CheckHealth(ctx); err != nil {
 			w.WriteHeader(http.StatusServiceUnavailable)
-			w.Write([]byte(`{"status": "degraded", "error": "listener or database unavailable"}`))
+			_, _ = w.Write([]byte(`{"status": "degraded", "error": "listener or database unavailable"}`))
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status": "ok"}`))
+		_, _ = w.Write([]byte(`{"status": "ok"}`))
 	})
 
 	// Unprotected authentication routes (rate limited)

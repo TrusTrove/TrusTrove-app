@@ -18,8 +18,8 @@ Before opening or requesting review of a pull request, confirm the following:
 
 - [ ] Code compiles without errors (`pnpm build` / `go build -v .`)
 - [ ] TypeScript type-checking passes with no errors (`pnpm typecheck`)
-- [ ] Linting passes (`pnpm --filter web lint` / `go vet ./...`)
-- [ ] All existing and new tests pass (`pnpm test` / `go test ./...`)
+- [ ] Linting passes (`pnpm --filter web lint` / `go vet ./...` and `golangci-lint run`)
+- [ ] All existing and new tests pass (`pnpm test` / `go test -race ./...`)
 - [ ] No `TODO`, stub, or placeholder code is present
 - [ ] TypeScript changes use strict types (no `any`)
 - [ ] New Go code is formatted with `gofmt`
@@ -84,10 +84,13 @@ Run linters on edited workspace directories:
 # Web application lint
 pnpm --filter web lint
 
-# Go linter
+# Go linter (static checks used by CI)
 cd indexer
 go vet ./...
+golangci-lint run
 ```
+
+`golangci-lint` runs the linters enabled in [`indexer/.golangci.yml`](indexer/.golangci.yml) (`errcheck`, `staticcheck`, `govet`, `ineffassign`, `unused`, `errorlint`) with a 5 minute timeout. Install it from <https://golangci-lint.run/welcome/install/> (CI pins the same version the workflow downloads), then run it from the `indexer/` directory. CI runs it on every pull request, so fix (or explicitly annotate with `//nolint:<linter> // <reason>`) every reported issue before opening a PR.
 
 ### 4. Testing
 
@@ -121,8 +124,10 @@ Time:        2.34 s
 **Go tests** (indexer, run from the `indexer/` directory):
 
 ```bash
-cd indexer && go test ./...
+cd indexer && go test -race ./...
 ```
+
+Always run the Go tests with `-race`; CI does the same, and the race detector catches shared-state bugs (for example concurrent map access in the rate limiter) that ordinary runs miss.
 
 Example output (all passing):
 

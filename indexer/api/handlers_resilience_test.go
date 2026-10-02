@@ -38,7 +38,7 @@ func TestTransactionPolling_RespectsContextCancellation(t *testing.T) {
 	// Setup mock Soroban RPC server that returns status = "PENDING" for getTransaction
 	mockRPC := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":{"status":"PENDING"}}`))
+		_, _ = w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":{"status":"PENDING"}}`))
 	}))
 	defer mockRPC.Close()
 
