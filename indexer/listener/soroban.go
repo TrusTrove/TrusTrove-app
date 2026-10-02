@@ -2,8 +2,10 @@ package listener
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"sync/atomic"
 	"time"
 
 	"trusttrove/indexer/api"
@@ -11,8 +13,33 @@ import (
 	"trusttrove/indexer/db"
 	"trusttrove/indexer/soroban"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stellar/go-stellar-sdk/keypair"
 )
+
+type permanentEventError struct {
+	err error
+}
+
+func (e *permanentEventError) Error() string { return e.err.Error() }
+
+func (e *permanentEventError) Unwrap() error { return e.err }
+
+func permanentEventErrorf(format string, args ...any) error {
+	return &permanentEventError{err: fmt.Errorf(format, args...)}
+}
+
+func isPermanentEventError(err error) bool {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+	var permanentErr *permanentEventError
+	if errors.As(err, &permanentErr) {
+		return true
+	}
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
 
 // SorobanEvent represents a normalized event emitted by a Soroban contract
 type SorobanEvent struct {
@@ -93,6 +120,9 @@ type EventListener struct {
 	getLatestProcessedLedgerFn func(context.Context) (int32, error)
 	upsertCheckpointFn         func(context.Context, int32) error
 	areEventsProcessedFn       func(context.Context, []string) (map[string]bool, error)
+	handleEventFn              func(context.Context, SorobanEvent) error
+	quarantineEventFn          func(context.Context, db.FailedEvent) (int, error)
+	quarantinedEvents          atomic.Uint64
 }
 
 const (
@@ -293,8 +323,40 @@ func (l *EventListener) pollEvents(ctx context.Context, startLedger int32) (int3
 				Value:          ev.Value.Xdr,
 			}
 
-			if err := l.handleEvent(ctx, sorobanEv); err != nil {
-				return startLedger, fmt.Errorf("handle event %s: %w", sorobanEv.ID, err)
+			handleEvent := l.handleEventFn
+			if handleEvent == nil {
+				handleEvent = l.handleEvent
+			}
+			if err := handleEvent(ctx, sorobanEv); err != nil {
+				eventErr := fmt.Errorf("handle event %s: %w", sorobanEv.ID, err)
+				if !isPermanentEventError(eventErr) {
+					return startLedger, eventErr
+				}
+
+				quarantine := l.quarantineEventFn
+				if quarantine == nil {
+					quarantine = db.QuarantineFailedEvent
+				}
+				attempts, quarantineErr := quarantine(ctx, db.FailedEvent{
+					EventID:    sorobanEv.ID,
+					ContractID: sorobanEv.ContractID,
+					Ledger:     sorobanEv.Ledger,
+					RawTopic:   sorobanEv.Topic,
+					RawValue:   sorobanEv.Value,
+					ErrorText:  eventErr.Error(),
+				})
+				if quarantineErr != nil {
+					return startLedger, fmt.Errorf("quarantine event %s: %w", sorobanEv.ID, quarantineErr)
+				}
+				quarantined := l.quarantinedEvents.Add(1)
+				slog.Error("Quarantined permanent Soroban event",
+					"eventId", sorobanEv.ID,
+					"contract", sorobanEv.ContractID,
+					"ledger", sorobanEv.Ledger,
+					"attempts", attempts,
+					"quarantinedEvents", quarantined,
+					"error", eventErr,
+				)
 			}
 		}
 		if res.Cursor != "" {

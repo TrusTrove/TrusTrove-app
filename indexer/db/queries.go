@@ -33,6 +33,15 @@ type DbInvoice struct {
 	AttestedAt         *int64  `json:"attested_at"`
 }
 
+type FailedEvent struct {
+	EventID    string
+	ContractID string
+	Ledger     int32
+	RawTopic   []string
+	RawValue   string
+	ErrorText  string
+}
+
 type DbPoolStats struct {
 	TotalDeposits         string    `json:"total_deposits"`
 	TotalFunded           string    `json:"total_funded"`
@@ -123,6 +132,37 @@ func InsertInvoice(ctx context.Context, inv *DbInvoice) error {
 		return fmt.Errorf("queries: insert invoice: %w", err)
 	}
 	return nil
+}
+
+func QuarantineFailedEvent(ctx context.Context, event FailedEvent) (int, error) {
+	rawTopic, err := json.Marshal(event.RawTopic)
+	if err != nil {
+		return 0, fmt.Errorf("queries: marshal failed event topic: %w", err)
+	}
+	const query = `
+		INSERT INTO failed_events (event_id, contract_id, ledger, raw_topic, raw_value, error_text)
+		VALUES ($1, $2, $3, $4::jsonb, $5, $6)
+		ON CONFLICT (event_id) DO UPDATE SET
+			contract_id = EXCLUDED.contract_id,
+			ledger = EXCLUDED.ledger,
+			raw_topic = EXCLUDED.raw_topic,
+			raw_value = EXCLUDED.raw_value,
+			error_text = EXCLUDED.error_text,
+			attempts = failed_events.attempts + 1
+		RETURNING attempts
+	`
+	var attempts int
+	if err := Pool.QueryRow(ctx, query,
+		event.EventID,
+		event.ContractID,
+		event.Ledger,
+		string(rawTopic),
+		event.RawValue,
+		event.ErrorText,
+	).Scan(&attempts); err != nil {
+		return 0, fmt.Errorf("queries: quarantine failed event: %w", err)
+	}
+	return attempts, nil
 }
 
 func GetInvoiceByID(ctx context.Context, id string) (*DbInvoice, error) {
