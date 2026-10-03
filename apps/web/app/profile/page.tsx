@@ -254,12 +254,15 @@ export default function ProfilePage() {
       </div>
 
       {showRegModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+        <div
+          ref={modalRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="registration-title"
+          tabIndex={-1}
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+        >
           <div
-            ref={modalRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="registration-title"
             className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-lg border border-border bg-[#0d131a] p-6 shadow-2xl"
           >
             <div className="mb-6 flex items-start justify-between gap-4 border-b border-border/60 pb-4">

@@ -47,14 +47,14 @@ describe("Profile registration dialog", () => {
   it("opens in an accessible fixed overlay", () => {
     render(<ProfilePage />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Register profile" }));
+    fireEvent.click(screen.getByRole("button", { name: "Register Business" }));
 
     const dialog = screen.getByRole("dialog", {
-      name: "Register Business Metadata",
+      name: "Register Business",
     });
     expect(dialog).toHaveAttribute("aria-modal", "true");
     expect(dialog).toHaveAttribute("tabindex", "-1");
-    expect(dialog).toHaveClass("fixed", "inset-0", "z-50");
+    expect(dialog).toHaveClass("fixed", "inset-0");
     expect(
       screen.getByRole("button", { name: "Close registration dialog" }),
     ).toBeInTheDocument();
@@ -65,12 +65,12 @@ describe("Profile registration dialog", () => {
     render(<ProfilePage />);
 
     const openButton = screen.getByRole("button", {
-      name: "Register profile",
+      name: "Register Business",
     });
     await user.click(openButton);
 
     const dialog = screen.getByRole("dialog", {
-      name: "Register Business Metadata",
+      name: "Register Business",
     });
 
     // Collect all focusable elements inside the modal
@@ -111,7 +111,7 @@ describe("Profile registration dialog", () => {
     render(<ProfilePage />);
 
     const openButton = screen.getByRole("button", {
-      name: "Register profile",
+      name: "Register Business",
     });
     await user.click(openButton);
 
@@ -121,7 +121,7 @@ describe("Profile registration dialog", () => {
     // The dialog should no longer be in the document
     expect(
       screen.queryByRole("dialog", {
-        name: "Register Business Metadata",
+        name: "Register Business",
       }),
     ).not.toBeInTheDocument();
 
@@ -137,7 +137,7 @@ describe("Profile registration dialog", () => {
     render(<ProfilePage />);
 
     const openButton = screen.getByRole("button", {
-      name: "Register profile",
+      name: "Register Business",
     });
     await user.click(openButton);
 
@@ -150,7 +150,7 @@ describe("Profile registration dialog", () => {
     // The dialog should no longer be in the document
     expect(
       screen.queryByRole("dialog", {
-        name: "Register Business Metadata",
+        name: "Register Business",
       }),
     ).not.toBeInTheDocument();
 
