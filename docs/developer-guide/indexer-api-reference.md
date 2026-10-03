@@ -13,6 +13,21 @@ Health check. Returns 200 if the indexer is running.
 { "status": "ok" }
 ```
 
+Returns 503 with `{"status": "degraded", "error": "..."}` when the listener or database is unavailable.
+
+## GET /metrics
+
+Prometheus-format metrics for the indexer service. No JWT required.
+
+## Error responses
+
+Error responses use `text/plain` format (via `http.Error`), not JSON:
+
+```
+invoice not found
+invalid face value
+```
+
 ## GET /invoices
 
 Returns invoices with optional filtering.
@@ -44,7 +59,7 @@ Returns invoices with optional filtering.
   "total": 47,
   "page": 1,
   "limit": 20,
-  "total_pages": 3
+  "totalPages": 3
 }
 ```
 
@@ -63,7 +78,9 @@ Returns current pool statistics aggregated from indexed events.
   "available_liquidity": "250000000000000",
   "utilization_rate_bps": 7500,
   "total_yield_distributed": "15000000000000",
-  "active_invoice_count": 12
+  "active_invoice_count": 12,
+  "total_shares": "1000000000000",
+  "updated_at": "2025-05-24T12:00:00Z"
 }
 ```
 
@@ -92,7 +109,8 @@ Protocol-level aggregated statistics for the landing page.
   "total_repaid": 31,
   "total_defaulted": 2,
   "average_yield_bps": 210,
-  "pool_utilization_bps": 7500
+  "pool_utilization_bps": 7500,
+  "registered_issuers": 8
 }
 ```
 
@@ -154,8 +172,7 @@ Creates an off-chain/indexed invoice record. **Requires JWT** (`Authorization: B
 {
   "buyer": "GBUYERAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
   "face_value": "10000000000",
-  "due_date": 1790000000,
-  "asset": "USDC"
+  "due_date": 1790000000
 }
 ```
 

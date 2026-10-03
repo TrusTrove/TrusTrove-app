@@ -35,6 +35,7 @@ type APIHandler struct {
 	// or Soroban RPC.
 	getInvoiceByIDFn   func(context.Context, string) (*db.DbInvoice, error)
 	getPoolStatsFn     func(context.Context) (*db.DbPoolStats, error)
+	getPoolSnapshotsFn func(context.Context, int) ([]*db.DbPoolSnapshotHistory, error)
 	getRecentEventsFn  func(context.Context, int) ([]*db.EventLog, error)
 	getProtocolStatsFn func(context.Context) (*db.ProtocolStats, error)
 	readContractFn     func(ctx context.Context, rpcURL string, contractID string, method string, args []xdr.ScVal, serverKP *keypair.Full) (xdr.ScVal, error)
@@ -54,6 +55,7 @@ func NewAPIHandler(cfg *config.Config) (*APIHandler, error) {
 			return db.GetInvoiceByID(ctx, db.Pool, id)
 		},
 		getPoolStatsFn:     db.GetPoolStats,
+		getPoolSnapshotsFn: db.GetPoolSnapshotHistory,
 		getRecentEventsFn:  db.GetRecentEvents,
 		getProtocolStatsFn: db.GetProtocolStats,
 		readContractFn:     soroban.ReadContract,

@@ -47,6 +47,22 @@ paths:
                 ok:
                   value:
                     status: ok
+        "503":
+          description: Service degraded (listener or database unavailable)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  error:
+                    type: string
+              examples:
+                degraded:
+                  value:
+                    status: degraded
+                    error: listener or database unavailable
 
   /auth:
     get:
@@ -122,7 +138,9 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Event"
+                  $ref: "#/components/schemas/EventLog"
+        "429":
+          $ref: "#/components/responses/RateLimited"
 
   /invoices:
     get:
@@ -156,6 +174,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PaginatedInvoices"
+        "429":
+          $ref: "#/components/responses/RateLimited"
     post:
       tags: [Invoices]
       summary: Create invoice
@@ -174,18 +194,19 @@ paths:
                   buyer: GBUYERAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
                   face_value: "10000000000"
                   due_date: 1790000000
-                  asset: USDC
       responses:
         "201":
           description: Invoice created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Invoice"
+                $ref: "#/components/schemas/CreateInvoiceResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/RateLimited"
 
   /invoices/{id}:
     get:
@@ -221,6 +242,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProtocolStats"
+        "429":
+          $ref: "#/components/responses/RateLimited"
 
   /pool/stats:
     get:
@@ -234,6 +257,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PoolStats"
+        "429":
+          $ref: "#/components/responses/RateLimited"
 
   /pool/position/{address}:
     get:
@@ -257,15 +282,38 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /metrics:
+    get:
+      tags: [Health]
+      summary: Prometheus metrics
+      description: Exposes Prometheus-format metrics for the indexer service.
+      security: []
+      responses:
+        "200":
+          description: Prometheus metrics
+          content:
+            text/plain:
+              schema:
+                type: string
+
   /pool/snapshots:
     get:
       tags: [Pool]
       summary: Historical pool snapshots
       description: Returns historical liquidity pool snapshots used for charts and trend analysis.
       security: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            maximum: 500
+          description: Maximum number of snapshots to return
       responses:
         "200":
-          description: Pool snapshots
+          description: Pool snapshots ordered by time (newest first)
           content:
             application/json:
               schema:
@@ -339,29 +387,37 @@ components:
     BadRequest:
       description: Bad request
       content:
-        application/json:
+        text/plain:
           schema:
-            $ref: "#/components/schemas/Error"
+            type: string
     Unauthorized:
-      description: Authentication required or invalid
+      description: Unauthorized
       content:
-        application/json:
+        text/plain:
           schema:
-            $ref: "#/components/schemas/Error"
+            type: string
     NotFound:
       description: Resource not found
       content:
-        application/json:
+        text/plain:
           schema:
-            $ref: "#/components/schemas/Error"
+            type: string
+    RateLimited:
+      description: Too many requests
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying
+          schema:
+            type: integer
+      content:
+        text/plain:
+          schema:
+            type: string
 
   schemas:
     Error:
-      type: object
-      properties:
-        error:
-          type: string
-      required: [error]
+      description: Plain-text error message (handlers use http.Error)
+      type: string
 
     HealthResponse:
       type: object
@@ -413,9 +469,21 @@ components:
           description: >-
             Unix timestamp in seconds. Must be in the future and no more than
             5 years from the time the request is validated.
-        asset:
+      required: [buyer, face_value, due_date]
+
+    CreateInvoiceResponse:
+      type: object
+      properties:
+        invoice_id:
           type: string
-      required: [buyer, face_value, due_date, asset]
+          description: Hexadecimal BytesN<32> invoice identifier.
+        transaction_hash:
+          type: string
+          description: Base64-encoded transaction hash.
+        status:
+          type: string
+          description: Transaction status (e.g. SUCCESS).
+      required: [invoice_id, transaction_hash, status]
 
     Invoice:
       type: object
@@ -430,6 +498,8 @@ components:
           type: string
         face_value:
           type: string
+        discount_bps:
+          type: integer
         funded_amount:
           type: string
         due_date:
@@ -441,6 +511,39 @@ components:
         created_at:
           type: integer
           format: int64
+        funded_at:
+          type: integer
+          format: int64
+          nullable: true
+        shipped_at:
+          type: integer
+          format: int64
+          nullable: true
+        issuer_confirmed:
+          type: boolean
+        buyer_confirmed:
+          type: boolean
+        buyer_confirmed_at:
+          type: integer
+          format: int64
+          nullable: true
+        repaid_at:
+          type: integer
+          format: int64
+          nullable: true
+        attestation_agent_id:
+          type: string
+          nullable: true
+        risk_score_bps:
+          type: integer
+          nullable: true
+        evidence_hash:
+          type: string
+          nullable: true
+        attested_at:
+          type: integer
+          format: int64
+          nullable: true
       required: [id, issuer, buyer, face_value, due_date, status]
 
     PaginatedInvoices:
@@ -460,24 +563,26 @@ components:
           type: integer
       required: [data, total, page, limit, totalPages]
 
-    Event:
+    EventLog:
       type: object
       properties:
         id:
+          type: integer
+        event_id:
           type: string
         contract_id:
           type: string
-        type:
-          type: string
         ledger:
           type: integer
+        ledger_closed_at:
+          type: integer
           format: int64
-        transaction_hash:
+        event_type:
           type: string
         data:
           type: object
           additionalProperties: true
-      required: [id, contract_id, type]
+      required: [id, event_id, contract_id, ledger, ledger_closed_at, event_type, data]
 
     ProtocolStats:
       type: object
@@ -496,36 +601,10 @@ components:
           type: integer
         pool_utilization_bps:
           type: integer
+        registered_issuers:
+          type: integer
 
     PoolStats:
-      type: object
-      properties:
-        total_deposits:
-          type: string
-        total_funded:
-          type: string
-        available_liquidity:
-          type: string
-        utilization_rate_bps:
-          type: integer
-        total_yield_distributed:
-          type: string
-        active_invoice_count:
-          type: integer
-
-    LPPosition:
-      type: object
-      properties:
-        shares:
-          type: string
-        usdc_value:
-          type: string
-        yield_earned:
-          type: string
-        deposit_count:
-          type: integer
-
-    PoolSnapshot:
       type: object
       properties:
         total_deposits:
@@ -545,3 +624,28 @@ components:
         updated_at:
           type: string
           format: date-time
+
+    LPPosition:
+      type: object
+      properties:
+        shares:
+          type: string
+        usdc_value:
+          type: string
+        yield_earned:
+          type: string
+        deposit_count:
+          type: integer
+
+    PoolSnapshot:
+      type: object
+      properties:
+        timestamp:
+          type: integer
+          description: Unix timestamp of the snapshot
+        utilizationRateBps:
+          type: integer
+          description: Pool utilization in basis points
+        totalYieldDistributed:
+          type: string
+          description: Cumulative yield distributed up to this snapshot

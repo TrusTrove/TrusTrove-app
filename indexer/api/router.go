@@ -315,6 +315,7 @@ func NewRouter(h *APIHandler) *chi.Mux {
 		r.Get("/invoices/{id}", h.HandleGetInvoiceByID)
 		r.Get("/invoices", h.HandleGetInvoices)
 		r.Get("/pool/stats", h.HandleGetPoolStats)
+		r.Get("/pool/snapshots", h.HandleGetPoolSnapshots)
 		r.Get("/pool/position/{address}", h.HandleGetLPPosition)
 	})
 
