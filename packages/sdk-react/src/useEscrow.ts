@@ -41,7 +41,14 @@ export function useLockedAmount(
   signerPublicKey: string,
   options: UseEscrowOptions,
 ): AsyncQueryState<bigint> {
-  const client = useMemo(() => escrowClient(options), [options]);
+  // Memoize on the option *contents* (client identity / contractId value), not
+  // the options object identity, so inline `{ contractId }` literals don't
+  // re-create the client — and re-trigger queries — on every render.
+  const client = useMemo(
+    () =>
+      escrowClient({ client: options.client, contractId: options.contractId }),
+    [options.client, options.contractId],
+  );
   return useAsyncQuery(
     () => client.getLocked(invoiceIdHex, signerPublicKey),
     [client, invoiceIdHex, signerPublicKey],
@@ -86,7 +93,14 @@ export function useEscrowMutations(
   signerPublicKey: string,
   options: UseEscrowMutationsOptions,
 ): EscrowMutationResult {
-  const client = useMemo(() => escrowClient(options), [options]);
+  // Memoize on the option *contents* (client identity / contractId value), not
+  // the options object identity, so inline `{ contractId }` literals don't
+  // re-create the client — and re-trigger queries — on every render.
+  const client = useMemo(
+    () =>
+      escrowClient({ client: options.client, contractId: options.contractId }),
+    [options.client, options.contractId],
+  );
 
   const lock = useAsyncMutation((invoiceIdHex: string, amount: bigint) =>
     client.lock(invoiceIdHex, amount, signerPublicKey),
