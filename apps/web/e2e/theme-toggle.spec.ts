@@ -34,7 +34,7 @@ test.describe("theme preference", () => {
       });
     });
 
-    await expect(page.goto("/")).resolves.toBeTruthy();
+    await page.goto("/");
     await page.getByRole("button", { name: "Switch to light theme" }).click();
     await expect(page.locator("html")).not.toHaveClass(/\bdark\b/);
     await expect(page.getByRole("button", { name: "Switch to dark theme" })).toBeVisible();
