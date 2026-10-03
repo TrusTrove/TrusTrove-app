@@ -295,7 +295,6 @@ export function Navbar() {
               notifications={notifications}
               onOpen={markAllAsRead}
             />
-            <ThemeToggle />
             <WalletConnect />
           </div>
         </div>

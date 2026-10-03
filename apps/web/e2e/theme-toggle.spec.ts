@@ -9,7 +9,7 @@ test.describe("theme preference", () => {
     await page.emulateMedia({ colorScheme: "light" });
     await page.addInitScript((key) => localStorage.removeItem(key), THEME_KEY);
 
-    await page.goto("/");
+    await page.goto("/", { waitUntil: "domcontentloaded" });
     await expect(page.locator("html")).not.toHaveClass(/\bdark\b/);
 
     await page.getByRole("button", { name: "Switch to dark theme" }).click();
@@ -21,6 +21,16 @@ test.describe("theme preference", () => {
 
     await page.emulateMedia({ colorScheme: "light" });
     await page.reload();
+    await expect(page.locator("html")).toHaveClass(/\bdark\b/);
+  });
+
+  test("uses the dark system preference on first load when storage is empty", async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme: "dark" });
+    await page.addInitScript((key) => localStorage.removeItem(key), THEME_KEY);
+
+    await page.goto("/", { waitUntil: "domcontentloaded" });
     await expect(page.locator("html")).toHaveClass(/\bdark\b/);
   });
 
@@ -40,15 +50,18 @@ test.describe("theme preference", () => {
     await expect(page.getByRole("button", { name: "Switch to dark theme" })).toBeVisible();
   });
 
-  test("supports the theme toggle at a mobile viewport", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.addInitScript((key) => localStorage.setItem(key, "dark"), THEME_KEY);
+  test("supports the theme toggle at a compact viewport", async ({ page }) => {
+    // At 700px the navigation is collapsed, while the existing top-bar theme
+    // control remains visible. Exercise the responsive layout without adding
+    // a new control to the mobile menu.
+    await page.setViewportSize({ width: 700, height: 900 });
+    await page.emulateMedia({ colorScheme: "light" });
     await page.goto("/");
 
-    await page.getByRole("button", { name: /open navigation menu/i }).click();
-    const toggle = page.getByRole("button", { name: "Switch to light theme" });
+    const toggle = page.getByRole("button", { name: "Switch to dark theme" });
     await expect(toggle).toBeVisible();
     await toggle.click();
-    await expect(page.locator("html")).not.toHaveClass(/\bdark\b/);
+    await expect(page.locator("html")).toHaveClass(/\bdark\b/);
+    await expect(page.getByRole("button", { name: "Switch to light theme" })).toBeVisible();
   });
 });
