@@ -28,6 +28,31 @@ Before opening or requesting review of a pull request, confirm the following:
 
 ---
 
+## Test command coverage
+
+`pnpm build` covers `@trusttrove/sdk`, `@trusttrove/sdk-react`, `@trusttrove/cli`, and `web`. `pnpm test` covers SDK, SDK React, and web Vitest suites; it does not run CLI or Go tests. `pnpm lint` covers web only, while `pnpm typecheck` checks every TypeScript workspace.
+
+Vitest reports `Test Files` and `Tests` (the counts vary by package and checkout). For example:
+
+```text
+> pnpm --filter web test
+
+ Test Files  18 passed (18)
+      Tests  126 passed (126)
+   Start at  14:32:10
+   Duration  8.42s
+```
+
+Go test output uses the module path `trusttrove/indexer` and its package paths. For example:
+
+```text
+> cd indexer && go test ./...
+ok   trusttrove/indexer/api      0.412s
+ok   trusttrove/indexer/config   0.018s
+```
+
+Database integration tests require `TEST_DATABASE_URL`; for Docker Compose use `postgres://postgres:<POSTGRES_PASSWORD>@localhost:5433/postgres?sslmode=disable`. Without that variable, those tests are skipped.
+
 ## Git Workflow Guidelines
 
 We follow a strict, linear git history workflow to ensure codebase traceability.
@@ -106,28 +131,12 @@ pnpm --filter web test
 pnpm --filter @trusttrove/sdk test
 ```
 
-> **Note:** `pnpm test` only covers the TypeScript packages (`@trusttrove/sdk` and `web`). It does **not** run the Go indexer tests.
-
-Example output (all passing):
-
-```text
-> pnpm test
-...
-Test Suites: 12 passed, 12 total
-Tests:       47 passed, 47 total
-Time:        2.34 s
-```
+> **Note:** `pnpm test` runs the `@trusttrove/sdk`, `@trusttrove/sdk-react`, and web Vitest suites. It does **not** run CLI or Go tests.
 
 **Go tests** (indexer, run from the `indexer/` directory):
 
 ```bash
 cd indexer && go test ./...
-```
-
-Example output (all passing):
-
-```text
-ok  	github.com/trusttrove/indexer	0.876s
 ```
 
 ---
