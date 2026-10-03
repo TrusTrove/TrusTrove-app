@@ -26,6 +26,21 @@ import {
 
 const registryContractID = process.env.NEXT_PUBLIC_REGISTRY_CONTRACT_ID || "";
 
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  if (typeof error === "object" && error !== null && "message" in error) {
+    const message = error.message;
+    if (typeof message === "string" && message.length > 0) {
+      return message;
+    }
+  }
+
+  return fallback;
+}
+
 export default function ProfilePage() {
   const { connected, address } = useWalletStore();
   const {
@@ -101,8 +116,7 @@ export default function ProfilePage() {
       }
       setShowRegModal(false);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      setLocalError(message || "Registration transaction failed");
+      setLocalError(getErrorMessage(err, "Registration transaction failed"));
       setShowPending(false);
     }
   };
@@ -110,6 +124,12 @@ export default function ProfilePage() {
   const formatAddress = (addr: string) => {
     return `${addr.slice(0, 10)}...${addr.slice(-10)}`;
   };
+
+  const displayedError =
+    localError ??
+    (registerError
+      ? getErrorMessage(registerError, "Registration transaction failed")
+      : null);
 
   if (!connected) {
     return (
@@ -336,10 +356,10 @@ export default function ProfilePage() {
                 </button>
               </div>
 
-              {localError && (
+              {displayedError && (
                 <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-mono p-3 rounded-lg flex items-start gap-2">
                   <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span>{localError}</span>
+                  <span>{displayedError}</span>
                 </div>
               )}
 
