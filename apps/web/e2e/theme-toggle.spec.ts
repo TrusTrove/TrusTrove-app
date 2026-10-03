@@ -42,11 +42,13 @@ test.describe("theme preference", () => {
 
   test("supports the theme toggle at a mobile viewport", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
+    await page.addInitScript((key) => localStorage.setItem(key, "dark"), THEME_KEY);
     await page.goto("/");
 
-    const toggle = page.getByRole("button", { name: /Switch to (light|dark) theme/ }).first();
+    await page.getByRole("button", { name: /open navigation menu/i }).click();
+    const toggle = page.getByRole("button", { name: "Switch to light theme" });
     await expect(toggle).toBeVisible();
     await toggle.click();
-    await expect(page.locator("html")).toHaveClass(/\bdark\b|^$/);
+    await expect(page.locator("html")).not.toHaveClass(/\bdark\b/);
   });
 });
