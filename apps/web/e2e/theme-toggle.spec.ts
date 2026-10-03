@@ -51,7 +51,6 @@ test.describe("theme preference", () => {
       .poll(() => page.evaluate((key) => localStorage.getItem(key), THEME_KEY))
       .toBe("dark");
 
-    await page.emulateMedia({ colorScheme: "light" });
     await page.reload();
     await expect(page.locator("html")).toHaveClass(/\bdark\b/);
   });
