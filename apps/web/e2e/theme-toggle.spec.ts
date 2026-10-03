@@ -1,16 +1,48 @@
 import { expect, test } from "@playwright/test";
 
 const THEME_KEY = "trusttrove:theme";
+const NEXT_SCRIPTS = "**/_next/static/**/*.js";
+
+async function expectSystemThemeBeforeHydration(
+  page: import("@playwright/test").Page,
+  colorScheme: "light" | "dark",
+) {
+  await page.emulateMedia({ colorScheme });
+  await page.addInitScript((key) => localStorage.removeItem(key), THEME_KEY);
+
+  let releaseScripts = () => {};
+  const scriptsMayLoad = new Promise<void>((resolve) => {
+    releaseScripts = resolve;
+  });
+  await page.route(NEXT_SCRIPTS, async (route) => {
+    await scriptsMayLoad;
+    await route.continue();
+  });
+
+  try {
+    await page.goto("/", { waitUntil: "commit" });
+    await page.waitForFunction(
+      (expectedScheme) => document.documentElement.style.colorScheme === expectedScheme,
+      colorScheme,
+    );
+
+    const root = page.locator("html");
+    if (colorScheme === "dark") {
+      await expect(root).toHaveClass(/\bdark\b/);
+    } else {
+      await expect(root).not.toHaveClass(/\bdark\b/);
+    }
+  } finally {
+    releaseScripts();
+    await page.unroute(NEXT_SCRIPTS);
+  }
+}
 
 test.describe("theme preference", () => {
   test("uses the system preference before hydration, then toggles and persists the choice", async ({
     page,
   }) => {
-    await page.emulateMedia({ colorScheme: "light" });
-    await page.addInitScript((key) => localStorage.removeItem(key), THEME_KEY);
-
-    await page.goto("/", { waitUntil: "domcontentloaded" });
-    await expect(page.locator("html")).not.toHaveClass(/\bdark\b/);
+    await expectSystemThemeBeforeHydration(page, "light");
 
     await page.getByRole("button", { name: "Switch to dark theme" }).click();
     await expect(page.locator("html")).toHaveClass(/\bdark\b/);
@@ -27,11 +59,7 @@ test.describe("theme preference", () => {
   test("uses the dark system preference on first load when storage is empty", async ({
     page,
   }) => {
-    await page.emulateMedia({ colorScheme: "dark" });
-    await page.addInitScript((key) => localStorage.removeItem(key), THEME_KEY);
-
-    await page.goto("/", { waitUntil: "domcontentloaded" });
-    await expect(page.locator("html")).toHaveClass(/\bdark\b/);
+    await expectSystemThemeBeforeHydration(page, "dark");
   });
 
   test("keeps the theme usable when local storage is blocked", async ({ page }) => {
