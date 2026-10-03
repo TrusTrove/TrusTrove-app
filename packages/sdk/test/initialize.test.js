@@ -12,7 +12,7 @@ const contractId = StrKey.encodeContract(new Uint8Array(32));
 function createClient(ClientClass) {
   return new (class extends ClientClass {
     constructor() {
-      super(contractId);
+      super("CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
     }
 
     async writeContract(method, args, publicKey) {
