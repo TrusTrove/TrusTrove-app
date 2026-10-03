@@ -283,8 +283,15 @@ func NewRouter(h *APIHandler) *chi.Mux {
 	// Max 1000 clients to bound memory usage
 	rl := newPerClientRateLimiter(h.cfg.RateLimitRPS, h.cfg.RateLimitRPS*2, 1000)
 
-	// Prometheus metrics
-	r.Get("/metrics", MetricsHandler().ServeHTTP)
+	// Prometheus metrics are public for local development, but deployments can
+	// require a bearer token without changing the scrape URL.
+	metrics := MetricsHandler().ServeHTTP
+	if h.cfg.MetricsToken == "" {
+		slog.Warn("metrics endpoint is unauthenticated; set METRICS_TOKEN in production")
+		r.Get("/metrics", metrics)
+	} else {
+		r.With(metricsTokenMiddleware(h.cfg.MetricsToken)).Get("/metrics", metrics)
+	}
 
 	// Health check
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -332,4 +339,16 @@ func NewRouter(h *APIHandler) *chi.Mux {
 	})
 
 	return r
+}
+
+func metricsTokenMiddleware(expected string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("Authorization") != "Bearer "+expected {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
