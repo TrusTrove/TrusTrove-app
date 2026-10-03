@@ -116,9 +116,13 @@ export default function ProfilePage() {
   const formatAddress = (value: string) =>
     `${value.slice(0, 10)}...${value.slice(-10)}`;
 
-  const displayedError = localError ??
+  const displayedError =
+    localError ??
     (registerError
-      ? getErrorMessage(registerError as unknown, "Registration transaction failed")
+      ? getErrorMessage(
+          registerError as unknown,
+          "Registration transaction failed",
+        )
       : null);
 
   if (!connected) {
@@ -133,7 +137,8 @@ export default function ProfilePage() {
           </h1>
           <p className="mb-8 font-mono text-xs leading-relaxed text-slate-400">
             Connect your Freighter wallet to check your on-chain verification
-            credentials, register a new business profile, or update your metadata.
+            credentials, register a new business profile, or update your
+            metadata.
           </p>
           <WalletConnect />
         </div>
@@ -177,7 +182,9 @@ export default function ProfilePage() {
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs uppercase tracking-wider text-slate-400">Role:</span>
+                      <span className="font-mono text-xs uppercase tracking-wider text-slate-400">
+                        Role:
+                      </span>
                       <span className="rounded bg-primary/10 px-2 py-0.5 font-mono text-xs font-bold uppercase text-primary">
                         {profile.role === "issuer" ? "SME / Issuer" : "Buyer"}
                       </span>
@@ -203,7 +210,9 @@ export default function ProfilePage() {
                   <span className="flex items-center gap-2 font-mono text-[10px] font-bold uppercase tracking-wider text-slate-500">
                     <Fingerprint className="h-3.5 w-3.5" /> Account Address
                   </span>
-                  <p className="mt-2 break-all font-mono text-xs text-slate-300">{profile.address}</p>
+                  <p className="mt-2 break-all font-mono text-xs text-slate-300">
+                    {profile.address}
+                  </p>
                 </div>
                 <div className="rounded-lg border border-border/60 bg-black/20 p-4">
                   <span className="flex items-center gap-2 font-mono text-[10px] font-bold uppercase tracking-wider text-slate-500">
@@ -226,7 +235,9 @@ export default function ProfilePage() {
                     <FileBadge2 className="h-3.5 w-3.5" /> Credential Status
                   </span>
                   <p className="mt-2 font-mono text-xs text-slate-300">
-                    {isVerified ? "Verified on-chain" : "Awaiting registry verification"}
+                    {isVerified
+                      ? "Verified on-chain"
+                      : "Awaiting registry verification"}
                   </p>
                 </div>
               </div>
@@ -234,10 +245,12 @@ export default function ProfilePage() {
           ) : (
             <div className="flex flex-col items-center rounded-lg border border-border bg-[#0d131a] p-10 text-center">
               <Building className="mb-4 h-10 w-10 text-slate-500" />
-              <h2 className="font-mono text-lg font-bold uppercase text-white">No Business Profile</h2>
+              <h2 className="font-mono text-lg font-bold uppercase text-white">
+                No Business Profile
+              </h2>
               <p className="mt-2 max-w-lg font-mono text-xs leading-relaxed text-slate-500">
-                Register your organization with the Registry contract to establish
-                an on-chain business identity.
+                Register your organization with the Registry contract to
+                establish an on-chain business identity.
               </p>
               <Button
                 className="mt-6 bg-primary font-mono font-bold text-black hover:bg-primary/90"
@@ -262,15 +275,18 @@ export default function ProfilePage() {
           tabIndex={-1}
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
         >
-          <div
-            className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-lg border border-border bg-[#0d131a] p-6 shadow-2xl"
-          >
+          <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-lg border border-border bg-[#0d131a] p-6 shadow-2xl">
             <div className="mb-6 flex items-start justify-between gap-4 border-b border-border/60 pb-4">
               <div>
-                <h2 id="registration-title" className="font-mono text-lg font-bold uppercase text-white">
+                <h2
+                  id="registration-title"
+                  className="font-mono text-lg font-bold uppercase text-white"
+                >
                   Register Business
                 </h2>
-                <p className="mt-1 font-mono text-xs text-slate-500">Create an on-chain Registry profile.</p>
+                <p className="mt-1 font-mono text-xs text-slate-500">
+                  Create an on-chain Registry profile.
+                </p>
               </div>
               <button
                 type="button"
@@ -284,10 +300,14 @@ export default function ProfilePage() {
 
             <form onSubmit={handleRegisterSubmit} className="space-y-4">
               <label className="block space-y-2">
-                <span className="font-mono text-xs font-bold uppercase text-slate-400">Business Role</span>
+                <span className="font-mono text-xs font-bold uppercase text-slate-400">
+                  Business Role
+                </span>
                 <select
                   value={regRole}
-                  onChange={(event) => setRegRole(event.target.value as "issuer" | "buyer")}
+                  onChange={(event) =>
+                    setRegRole(event.target.value as "issuer" | "buyer")
+                  }
                   className="w-full rounded-md border border-border bg-slate-950 px-3 py-2 font-mono text-sm text-white"
                 >
                   <option value="issuer">SME / Issuer</option>
@@ -296,28 +316,61 @@ export default function ProfilePage() {
               </label>
 
               <label className="block space-y-2">
-                <span className="flex items-center gap-1.5 font-mono text-xs font-bold uppercase text-slate-400"><Building className="h-3.5 w-3.5" /> Company Name *</span>
-                <input value={companyName} onChange={(event) => setCompanyName(event.target.value)} className="w-full rounded-md border border-border bg-slate-950 px-3 py-2 font-mono text-sm text-white" />
+                <span className="flex items-center gap-1.5 font-mono text-xs font-bold uppercase text-slate-400">
+                  <Building className="h-3.5 w-3.5" /> Company Name *
+                </span>
+                <input
+                  value={companyName}
+                  onChange={(event) => setCompanyName(event.target.value)}
+                  className="w-full rounded-md border border-border bg-slate-950 px-3 py-2 font-mono text-sm text-white"
+                />
               </label>
 
               <label className="block space-y-2">
-                <span className="flex items-center gap-1.5 font-mono text-xs font-bold uppercase text-slate-400"><FileText className="h-3.5 w-3.5" /> Tax ID / Registration Number *</span>
-                <input value={taxId} onChange={(event) => setTaxId(event.target.value)} className="w-full rounded-md border border-border bg-slate-950 px-3 py-2 font-mono text-sm text-white" />
+                <span className="flex items-center gap-1.5 font-mono text-xs font-bold uppercase text-slate-400">
+                  <FileText className="h-3.5 w-3.5" /> Tax ID / Registration
+                  Number *
+                </span>
+                <input
+                  value={taxId}
+                  onChange={(event) => setTaxId(event.target.value)}
+                  className="w-full rounded-md border border-border bg-slate-950 px-3 py-2 font-mono text-sm text-white"
+                />
               </label>
 
               <label className="block space-y-2">
-                <span className="flex items-center gap-1.5 font-mono text-xs font-bold uppercase text-slate-400"><Globe className="h-3.5 w-3.5" /> Country of Incorporation *</span>
-                <input value={country} onChange={(event) => setCountry(event.target.value)} className="w-full rounded-md border border-border bg-slate-950 px-3 py-2 font-mono text-sm text-white" />
+                <span className="flex items-center gap-1.5 font-mono text-xs font-bold uppercase text-slate-400">
+                  <Globe className="h-3.5 w-3.5" /> Country of Incorporation *
+                </span>
+                <input
+                  value={country}
+                  onChange={(event) => setCountry(event.target.value)}
+                  className="w-full rounded-md border border-border bg-slate-950 px-3 py-2 font-mono text-sm text-white"
+                />
               </label>
 
               <label className="block space-y-2">
-                <span className="flex items-center gap-1.5 font-mono text-xs font-bold uppercase text-slate-400"><Globe className="h-3.5 w-3.5" /> Website</span>
-                <input type="url" value={website} onChange={(event) => setWebsite(event.target.value)} className="w-full rounded-md border border-border bg-slate-950 px-3 py-2 font-mono text-sm text-white" />
+                <span className="flex items-center gap-1.5 font-mono text-xs font-bold uppercase text-slate-400">
+                  <Globe className="h-3.5 w-3.5" /> Website
+                </span>
+                <input
+                  type="url"
+                  value={website}
+                  onChange={(event) => setWebsite(event.target.value)}
+                  className="w-full rounded-md border border-border bg-slate-950 px-3 py-2 font-mono text-sm text-white"
+                />
               </label>
 
               <label className="block space-y-2">
-                <span className="flex items-center gap-1.5 font-mono text-xs font-bold uppercase text-slate-400"><Mail className="h-3.5 w-3.5" /> Contact Email</span>
-                <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="w-full rounded-md border border-border bg-slate-950 px-3 py-2 font-mono text-sm text-white" />
+                <span className="flex items-center gap-1.5 font-mono text-xs font-bold uppercase text-slate-400">
+                  <Mail className="h-3.5 w-3.5" /> Contact Email
+                </span>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  className="w-full rounded-md border border-border bg-slate-950 px-3 py-2 font-mono text-sm text-white"
+                />
               </label>
 
               {displayedError && (
@@ -328,8 +381,19 @@ export default function ProfilePage() {
               )}
 
               <div className="flex justify-end gap-3 border-t border-border/60 pt-5">
-                <Button type="button" variant="outline" onClick={() => setShowRegModal(false)} disabled={isRegistering}>Cancel</Button>
-                <Button type="submit" disabled={isRegistering} className="bg-primary font-bold text-black hover:bg-primary/90">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowRegModal(false)}
+                  disabled={isRegistering}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isRegistering}
+                  className="bg-primary font-bold text-black hover:bg-primary/90"
+                >
                   {isRegistering ? "Registering..." : "Submit Registration"}
                 </Button>
               </div>
