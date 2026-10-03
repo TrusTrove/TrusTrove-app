@@ -7,7 +7,7 @@ import { PoolPerformanceChart } from "@/components/shared/PoolPerformanceChart";
 import { SkeletonShimmer } from "@/components/shared/SkeletonLoader";
 import { useStats } from "@/hooks/useStats";
 
-function formatCompactUsdc(value: string | undefined): string | null {
+export function formatCompactUsdc(value: string | undefined): string | null {
   if (value === undefined) return null;
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return null;
