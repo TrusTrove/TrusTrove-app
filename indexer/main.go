@@ -135,7 +135,7 @@ func run() int {
 		return exitFailure
 	}
 
-	router := api.NewRouter(handler)
+	router, stopRouter := api.NewRouter(handler)
 	server := &http.Server{
 		Addr:              ":" + cfg.APIPort,
 		Handler:           router,
@@ -202,6 +202,7 @@ func run() int {
 			} else {
 				slog.Info("HTTP API server successfully shut down")
 			}
+			stopRouter()
 
 			// Do not close the pool while the listener or worker can still be
 			// finishing an event/delivery. Bound the drain so shutdown remains

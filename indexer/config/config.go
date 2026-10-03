@@ -9,34 +9,37 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/stellar/go-stellar-sdk/keypair"
 )
 
 type Config struct {
-	StellarNetwork        string
-	HorizonURL            string
-	SorobanRPCURL         string
-	NetworkPassphrase     string
-	RegistryContractID    string
-	InvoiceContractID     string
-	PoolContractID        string
-	EscrowContractID      string
-	USDCIssuer            string
-	USDCAssetCode         string
-	DatabaseURL           string
-	APIPort               string
-	IndexerPollIntervalMs int
-	JWTSecret             string
-	JWTSecretGenerated    bool
-	JWTExpiryHours        int
-	CORSAllowedOrigins    []string
-	RateLimitRPS          int
-	WebhookConcurrency    int
-	ServerSeed            string
-	ServerSeedGenerated   bool
-	SentryDSN             string
+	StellarNetwork         string
+	HorizonURL             string
+	SorobanRPCURL          string
+	NetworkPassphrase      string
+	RegistryContractID     string
+	InvoiceContractID      string
+	PoolContractID         string
+	EscrowContractID       string
+	USDCIssuer             string
+	USDCAssetCode          string
+	DatabaseURL            string
+	APIPort                string
+	IndexerPollIntervalMs  int
+	JWTSecret              string
+	JWTSecretGenerated     bool
+	JWTExpiryHours         int
+	CORSAllowedOrigins     []string
+	RateLimitRPS           int
+	InvoiceRateLimit       int
+	InvoiceRateLimitWindow time.Duration
+	WebhookConcurrency     int
+	ServerSeed             string
+	ServerSeedGenerated    bool
+	SentryDSN              string
 }
 
 func LoadConfig() (*Config, error) {
@@ -143,6 +146,20 @@ func LoadConfig() (*Config, error) {
 		}
 	}
 
+	invoiceRateLimit := 5
+	if limitStr := os.Getenv("INVOICE_RATE_LIMIT"); limitStr != "" {
+		if val, err := strconv.Atoi(limitStr); err == nil && val > 0 {
+			invoiceRateLimit = val
+		}
+	}
+
+	invoiceRateLimitWindow := time.Hour
+	if windowStr := strings.TrimSpace(os.Getenv("INVOICE_RATE_LIMIT_WINDOW")); windowStr != "" {
+		if val, err := time.ParseDuration(windowStr); err == nil && val > 0 {
+			invoiceRateLimitWindow = val
+		}
+	}
+
 	// Number of webhook deliveries attempted in parallel per batch. Keeping the
 	// default small avoids overwhelming subscriber endpoints that rate limit
 	// their inbound traffic.
@@ -154,28 +171,30 @@ func LoadConfig() (*Config, error) {
 	}
 
 	cfg := &Config{
-		StellarNetwork:        getRequired("STELLAR_NETWORK"),
-		HorizonURL:            getRequired("HORIZON_URL"),
-		SorobanRPCURL:         getRequired("SOROBAN_RPC_URL"),
-		NetworkPassphrase:     getRequired("NETWORK_PASSPHRASE"),
-		RegistryContractID:    getRequired("REGISTRY_CONTRACT_ID"),
-		InvoiceContractID:     getRequired("INVOICE_CONTRACT_ID"),
-		PoolContractID:        getRequired("POOL_CONTRACT_ID"),
-		EscrowContractID:      getRequired("ESCROW_CONTRACT_ID"),
-		USDCIssuer:            getRequired("USDC_ISSUER"),
-		USDCAssetCode:         getRequired("USDC_ASSET_CODE"),
-		DatabaseURL:           getRequired("DATABASE_URL"),
-		APIPort:               apiPort,
-		IndexerPollIntervalMs: pollIntervalMs,
-		JWTSecret:             jwtSecret,
-		JWTSecretGenerated:    jwtSecretGenerated,
-		JWTExpiryHours:        jwtExpiryHours,
-		CORSAllowedOrigins:    corsOrigins,
-		RateLimitRPS:          rateLimitRPS,
-		WebhookConcurrency:    webhookConcurrency,
-		ServerSeed:            serverSeed,
-		ServerSeedGenerated:   serverSeedGenerated,
-		SentryDSN:             strings.TrimSpace(os.Getenv("SENTRY_DSN")),
+		StellarNetwork:         getRequired("STELLAR_NETWORK"),
+		HorizonURL:             getRequired("HORIZON_URL"),
+		SorobanRPCURL:          getRequired("SOROBAN_RPC_URL"),
+		NetworkPassphrase:      getRequired("NETWORK_PASSPHRASE"),
+		RegistryContractID:     getRequired("REGISTRY_CONTRACT_ID"),
+		InvoiceContractID:      getRequired("INVOICE_CONTRACT_ID"),
+		PoolContractID:         getRequired("POOL_CONTRACT_ID"),
+		EscrowContractID:       getRequired("ESCROW_CONTRACT_ID"),
+		USDCIssuer:             getRequired("USDC_ISSUER"),
+		USDCAssetCode:          getRequired("USDC_ASSET_CODE"),
+		DatabaseURL:            getRequired("DATABASE_URL"),
+		APIPort:                apiPort,
+		IndexerPollIntervalMs:  pollIntervalMs,
+		JWTSecret:              jwtSecret,
+		JWTSecretGenerated:     jwtSecretGenerated,
+		JWTExpiryHours:         jwtExpiryHours,
+		CORSAllowedOrigins:     corsOrigins,
+		RateLimitRPS:           rateLimitRPS,
+		InvoiceRateLimit:       invoiceRateLimit,
+		InvoiceRateLimitWindow: invoiceRateLimitWindow,
+		WebhookConcurrency:     webhookConcurrency,
+		ServerSeed:             serverSeed,
+		ServerSeedGenerated:    serverSeedGenerated,
+		SentryDSN:              strings.TrimSpace(os.Getenv("SENTRY_DSN")),
 	}
 
 	if len(missing) > 0 {

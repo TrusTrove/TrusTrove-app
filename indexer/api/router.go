@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/golang-jwt/jwt/v5"
+	indexermiddleware "trusttrove/indexer/middleware"
 )
 
 func AuthMiddleware(jwtSecret string) func(http.Handler) http.Handler {
@@ -268,7 +269,7 @@ func RateLimitMiddleware(rl *perClientRateLimiter) func(http.Handler) http.Handl
 	}
 }
 
-func NewRouter(h *APIHandler) *chi.Mux {
+func NewRouter(h *APIHandler) (*chi.Mux, func()) {
 	r := chi.NewRouter()
 
 	// Global middleware
@@ -282,6 +283,7 @@ func NewRouter(h *APIHandler) *chi.Mux {
 	// Per-client rate limiter for auth and invoice creation
 	// Max 1000 clients to bound memory usage
 	rl := newPerClientRateLimiter(h.cfg.RateLimitRPS, h.cfg.RateLimitRPS*2, 1000)
+	invoiceLimiter := indexermiddleware.NewInvoiceRateLimiterWithConfig(h.cfg.InvoiceRateLimit, h.cfg.InvoiceRateLimitWindow)
 
 	// Prometheus metrics
 	r.Get("/metrics", MetricsHandler().ServeHTTP)
@@ -322,8 +324,16 @@ func NewRouter(h *APIHandler) *chi.Mux {
 	// Protected routes (rate limited)
 	r.Group(func(r chi.Router) {
 		r.Use(AuthMiddleware(h.cfg.JWTSecret))
+		r.Use(func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				if addr, ok := GetUserAddress(req.Context()); ok {
+					req = req.WithContext(indexermiddleware.WithClientAddress(req.Context(), addr))
+				}
+				next.ServeHTTP(w, req)
+			})
+		})
 		r.Use(RateLimitMiddleware(rl))
-		r.Post("/invoices", h.HandleCreateInvoice)
+		r.With(indexermiddleware.InvoiceRateLimitMiddleware(invoiceLimiter)).Post("/invoices", h.HandleCreateInvoice)
 
 		// Webhooks
 		r.Post("/webhooks", h.HandleCreateWebhook)
@@ -331,5 +341,8 @@ func NewRouter(h *APIHandler) *chi.Mux {
 		r.Delete("/webhooks/{id}", h.HandleDeleteWebhook)
 	})
 
-	return r
+	return r, func() {
+		rl.Stop()
+		invoiceLimiter.Stop()
+	}
 }

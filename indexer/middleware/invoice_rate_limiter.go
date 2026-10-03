@@ -2,8 +2,7 @@
 // This file implements per-client rate limiting for the POST /invoices endpoint
 // to prevent XLM fund drainage via spam invoice creation.
 //
-// Assignment: fix/indexer-invoice-rate-limiting
-// File touched: indexer/api/handlers.go:L486-671 (rate-limit middleware applied to POST /invoices)
+// The limiter is wired to the authenticated POST /invoices route by the API router.
 package middleware
 
 import (
@@ -47,10 +46,21 @@ type InvoiceRateLimiter struct {
 // and window, and starts a background goroutine that periodically evicts
 // stale per-client buckets to bound memory usage.
 func NewInvoiceRateLimiter() *InvoiceRateLimiter {
+	return NewInvoiceRateLimiterWithConfig(InvoiceRateLimit, InvoiceRateLimitWindow)
+}
+
+// NewInvoiceRateLimiterWithConfig constructs a limiter with runtime configuration.
+func NewInvoiceRateLimiterWithConfig(limit int, window time.Duration) *InvoiceRateLimiter {
+	if limit < 1 {
+		limit = InvoiceRateLimit
+	}
+	if window <= 0 {
+		window = InvoiceRateLimitWindow
+	}
 	rl := &InvoiceRateLimiter{
 		clients: make(map[string]*clientBucket),
-		limit:   InvoiceRateLimit,
-		window:  InvoiceRateLimitWindow,
+		limit:   limit,
+		window:  window,
 		done:    make(chan struct{}),
 	}
 	go rl.cleanupLoop()
@@ -191,7 +201,7 @@ func InvoiceRateLimitMiddleware(rl *InvoiceRateLimiter) func(http.Handler) http.
 				retryAfter = 0
 			}
 
-			w.Header().Set("X-RateLimit-Limit", itoa(InvoiceRateLimit))
+			w.Header().Set("X-RateLimit-Limit", itoa(rl.limit))
 			w.Header().Set("X-RateLimit-Reset", itoa(int(resetAt.Unix())))
 
 			if !rl.Allow(clientAddr) {
@@ -206,7 +216,7 @@ func InvoiceRateLimitMiddleware(rl *InvoiceRateLimiter) func(http.Handler) http.
 				w.Header().Set("Retry-After", itoa(retryAfter))
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusTooManyRequests)
-				w.Write([]byte(`{"error":"rate limit exceeded","message":"maximum 5 invoice creations per hour per client address"}`)) //nolint:errcheck
+				w.Write([]byte(`{"error":"rate limit exceeded","message":"invoice creation rate limit exceeded for this client address"}`)) //nolint:errcheck
 				return
 			}
 
