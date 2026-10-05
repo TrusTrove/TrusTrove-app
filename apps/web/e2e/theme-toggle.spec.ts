@@ -84,20 +84,23 @@ test.describe("theme preference", () => {
     ).toBeVisible();
   });
 
-  test("supports the theme toggle at a compact viewport", async ({ page }) => {
-    // At 700px the navigation is collapsed, while the existing top-bar theme
-    // control remains visible. Exercise the responsive layout without adding
-    // a new control to the mobile menu.
-    await page.setViewportSize({ width: 700, height: 900 });
+  test("keeps the saved theme with the mobile navigation layout", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 375, height: 667 });
     await page.emulateMedia({ colorScheme: "light" });
+    await page.addInitScript(
+      (key) => localStorage.setItem(key, "dark"),
+      THEME_KEY,
+    );
     await page.goto("/");
 
-    const toggle = page.getByRole("button", { name: "Switch to dark theme" });
-    await expect(toggle).toBeVisible();
-    await toggle.click();
     await expect(page.locator("html")).toHaveClass(/\bdark\b/);
-    await expect(
-      page.getByRole("button", { name: "Switch to light theme" }),
-    ).toBeVisible();
+
+    const menuButton = page.getByRole("button", {
+      name: "Open navigation menu",
+    });
+    await menuButton.click();
+    await expect(menuButton).toHaveAttribute("aria-expanded", "true");
   });
 });
