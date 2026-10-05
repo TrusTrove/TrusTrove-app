@@ -10,6 +10,69 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d trusttrove"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # Go indexer + REST API, built from indexer/Dockerfile. It applies pending
+  # database migrations on startup, so it waits for Postgres to accept
+  # connections before it is started.
+  indexer:
+    build:
+      context: ./indexer
+      dockerfile: Dockerfile
+    container_name: trusttrove-indexer
+    ports:
+      - "8080:8080"
+    # Compose-network values live in .env.docker — create it from
+    # .env.docker.example. `required: false` keeps `docker compose up db`
+    # working for contributors who only want Postgres.
+    env_file:
+      - path: .env.docker
+        required: false
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Next.js web app, built from apps/web/Dockerfile. NEXT_PUBLIC_* values are
+  # inlined into the client bundle at build time, so they are passed as build
+  # args (defaults mirror .env.example). Start the stack with
+  # `docker compose --env-file .env.docker up --build` to build against the
+  # values from .env.docker.
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_STELLAR_NETWORK: ${NEXT_PUBLIC_STELLAR_NETWORK:-testnet}
+        NEXT_PUBLIC_HORIZON_URL: ${NEXT_PUBLIC_HORIZON_URL:-https://horizon-testnet.stellar.org}
+        NEXT_PUBLIC_SOROBAN_RPC_URL: ${NEXT_PUBLIC_SOROBAN_RPC_URL:-https://soroban-testnet.stellar.org}
+        NEXT_PUBLIC_NETWORK_PASSPHRASE: ${NEXT_PUBLIC_NETWORK_PASSPHRASE:-Test SDF Network ; September 2015}
+        NEXT_PUBLIC_REGISTRY_CONTRACT_ID: ${NEXT_PUBLIC_REGISTRY_CONTRACT_ID:-CABGWVIZFF62FG67ZGFEP67NEEY4WYTMFURDMFTKKNRDAFPKPOJDTN4C}
+        NEXT_PUBLIC_INVOICE_CONTRACT_ID: ${NEXT_PUBLIC_INVOICE_CONTRACT_ID:-CA4O3MR7LWHRSUDBNU6FY6UDFFYBN7TGBZXBDZB4OYYXFYXIFJ6RJF6B}
+        NEXT_PUBLIC_POOL_CONTRACT_ID: ${NEXT_PUBLIC_POOL_CONTRACT_ID:-CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS}
+        NEXT_PUBLIC_ESCROW_CONTRACT_ID: ${NEXT_PUBLIC_ESCROW_CONTRACT_ID:-CAJWGUKDTTC3SKN4RAAY72J4DVIIYSCFHX6GIMNTT22ABMISJK4GBCEH}
+        NEXT_PUBLIC_USDC_ISSUER: ${NEXT_PUBLIC_USDC_ISSUER:-GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5}
+        NEXT_PUBLIC_USDC_ASSET_CODE: ${NEXT_PUBLIC_USDC_ASSET_CODE:-USDC}
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8080}
+    container_name: trusttrove-web
+    ports:
+      - "3000:3000"
+    env_file:
+      - path: .env.docker
+        required: false
+    environment:
+      # Server-rendered fetches run inside the web container, where localhost
+      # is the container itself — reach the API over the Compose network
+      # instead. The browser still uses the build-time value baked into the
+      # client bundle (http://localhost:8080).
+      NEXT_PUBLIC_API_BASE_URL: http://indexer:8080
+    depends_on:
+      - indexer
     restart: unless-stopped
 
 volumes:

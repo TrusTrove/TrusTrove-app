@@ -197,7 +197,7 @@ func GetInvoicesPage(ctx context.Context, status, issuer string, limit, offset i
 			funded_at, shipped_at, issuer_confirmed, buyer_confirmed, buyer_confirmed_at, repaid_at,
 			attestation_agent_id, risk_score_bps, evidence_hash, attested_at
 		FROM invoices%s
-		ORDER BY created_at DESC
+		ORDER BY created_at DESC, id DESC
 		LIMIT $%d OFFSET $%d
 	`, whereClause, limitPlaceholder, offsetPlaceholder)
 	queryArgs := append(append([]any{}, filterArgs...), limit, offset)
@@ -220,6 +220,9 @@ func GetInvoicesPage(ctx context.Context, status, issuer string, limit, offset i
 			return nil, 0, fmt.Errorf("queries: scan invoice: %w", err)
 		}
 		invoices = append(invoices, &inv)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("queries: iterate invoices: %w", err)
 	}
 	return invoices, total, nil
 }
@@ -363,7 +366,75 @@ func UpdatePoolStats(ctx context.Context, stats *DbPoolStats) error {
 	if err != nil {
 		return fmt.Errorf("queries: update pool stats: %w", err)
 	}
+	return insertPoolSnapshotHistory(ctx, stats)
+}
+
+type DbPoolSnapshotHistory struct {
+	RecordedAt            int64  `json:"recorded_at"`
+	TotalDeposits         string `json:"total_deposits"`
+	TotalFunded           string `json:"total_funded"`
+	AvailableLiquidity    string `json:"available_liquidity"`
+	UtilizationRateBps    int    `json:"utilization_rate_bps"`
+	TotalYieldDistributed string `json:"total_yield_distributed"`
+	ActiveInvoiceCount    int    `json:"active_invoice_count"`
+	TotalShares           string `json:"total_shares"`
+}
+
+func insertPoolSnapshotHistory(ctx context.Context, stats *DbPoolStats) error {
+	query := `
+		INSERT INTO pool_snapshot_history
+		    (recorded_at, total_deposits, total_funded, available_liquidity,
+		     utilization_rate_bps, total_yield_distributed, active_invoice_count, total_shares)
+		VALUES (EXTRACT(EPOCH FROM CURRENT_TIMESTAMP)::BIGINT, @total_deposits, @total_funded,
+		        @available_liquidity, @utilization_rate_bps, @total_yield_distributed,
+		        @active_invoice_count, @total_shares)
+	`
+	args := pgx.NamedArgs{
+		"total_deposits":          stats.TotalDeposits,
+		"total_funded":            stats.TotalFunded,
+		"available_liquidity":     stats.AvailableLiquidity,
+		"utilization_rate_bps":    stats.UtilizationRateBps,
+		"total_yield_distributed": stats.TotalYieldDistributed,
+		"active_invoice_count":    stats.ActiveInvoiceCount,
+		"total_shares":            stats.TotalShares,
+	}
+	if _, err := Pool.Exec(ctx, query, args); err != nil {
+		return fmt.Errorf("queries: insert pool snapshot history: %w", err)
+	}
 	return nil
+}
+
+func GetPoolSnapshotHistory(ctx context.Context, limit int) ([]*DbPoolSnapshotHistory, error) {
+	if limit <= 0 || limit > 500 {
+		limit = 100
+	}
+	query := `
+		SELECT recorded_at, total_deposits, total_funded, available_liquidity,
+		       utilization_rate_bps, total_yield_distributed, active_invoice_count, total_shares
+		FROM pool_snapshot_history
+		ORDER BY recorded_at DESC
+		LIMIT $1
+	`
+	rows, err := Pool.Query(ctx, query, limit)
+	if err != nil {
+		return nil, fmt.Errorf("queries: get pool snapshot history: %w", err)
+	}
+	defer rows.Close()
+
+	history := []*DbPoolSnapshotHistory{}
+	for rows.Next() {
+		var h DbPoolSnapshotHistory
+		if err := rows.Scan(&h.RecordedAt, &h.TotalDeposits, &h.TotalFunded,
+			&h.AvailableLiquidity, &h.UtilizationRateBps, &h.TotalYieldDistributed,
+			&h.ActiveInvoiceCount, &h.TotalShares); err != nil {
+			return nil, fmt.Errorf("queries: scan pool snapshot history: %w", err)
+		}
+		history = append(history, &h)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("queries: iterate pool snapshot history: %w", err)
+	}
+	return history, nil
 }
 
 func LogEvent(ctx context.Context, q Querier, eventID, contractID string, ledger int32, ledgerClosedAt int64, eventType string, data interface{}) error {
@@ -433,7 +504,7 @@ func GetRecentEvents(ctx context.Context, limit int) ([]*EventLog, error) {
 	query := `
 		SELECT id, event_id, contract_id, ledger, ledger_closed_at, event_type, data
 		FROM events_log
-		ORDER BY ledger_closed_at DESC
+		ORDER BY ledger_closed_at DESC, id DESC
 		LIMIT $1
 	`
 	rows, err := Pool.Query(ctx, query, limit)
@@ -450,6 +521,9 @@ func GetRecentEvents(ctx context.Context, limit int) ([]*EventLog, error) {
 			return nil, fmt.Errorf("queries: scan event: %w", err)
 		}
 		events = append(events, &ev)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("queries: iterate events: %w", err)
 	}
 	return events, nil
 }

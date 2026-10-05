@@ -2,9 +2,13 @@ package webhook
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -312,6 +316,9 @@ func TestBuildEnvelopeEventIDFallback(t *testing.T) {
 	if first.EventID == "" {
 		t.Fatal("event_id empty when data has no event_id")
 	}
+	// time.Now().UnixNano() can collide on platforms with coarse clock
+	// resolution (notably Windows); yield before the second build.
+	time.Sleep(2 * time.Millisecond)
 	second, err := BuildEnvelope("fund_invoice", data)
 	if err != nil {
 		t.Fatalf("BuildEnvelope: %v", err)
@@ -413,5 +420,93 @@ func TestDispatchWithoutSubscriptionsQueuesNothing(t *testing.T) {
 		if d.EventID == eventID {
 			t.Fatalf("delivery %d queued for untracked event %s", d.ID, eventID)
 		}
+	}
+}
+
+// TestMapInternalEventType covers every mapping in mapInternalEventType:
+// both the snake_case internal names the listener emits and the PascalCase
+// names the contract events use, plus the default passthrough for unknowns.
+func TestMapInternalEventType(t *testing.T) {
+	cases := []struct {
+		internal string
+		want     webhooks.EventType
+	}{
+		{"create", webhooks.EventInvoiceCreated},
+		{"InvoiceCreated", webhooks.EventInvoiceCreated},
+		{"list_for_financing", webhooks.EventInvoiceListed},
+		{"InvoiceListed", webhooks.EventInvoiceListed},
+		{"fund_invoice", webhooks.EventInvoiceFunded},
+		{"InvoiceFunded", webhooks.EventInvoiceFunded},
+		{"mark_shipped", webhooks.EventInvoiceShipped},
+		{"InvoiceShipped", webhooks.EventInvoiceShipped},
+		{"confirm_delivery", webhooks.EventInvoiceConfirmed},
+		{"DeliveryConfirmed", webhooks.EventInvoiceConfirmed},
+		{"repay", webhooks.EventInvoiceRepaid},
+		{"InvoiceRepaid", webhooks.EventInvoiceRepaid},
+		{"trigger_default", webhooks.EventInvoiceDefaulted},
+		{"InvoiceDefaulted", webhooks.EventInvoiceDefaulted},
+		{"deposit", webhooks.EventPoolDeposit},
+		{"PoolDeposit", webhooks.EventPoolDeposit},
+		{"withdraw", webhooks.EventPoolWithdrawal},
+		{"PoolWithdrawal", webhooks.EventPoolWithdrawal},
+		{"yield_distribution", webhooks.EventPoolYieldDistributed},
+		{"PoolYieldDistributed", webhooks.EventPoolYieldDistributed},
+		{"unknown_event", webhooks.EventType("unknown_event")},
+	}
+	for _, tc := range cases {
+		t.Run(tc.internal, func(t *testing.T) {
+			if got := mapInternalEventType(tc.internal); got != tc.want {
+				t.Errorf("mapInternalEventType(%q): got %q, want %q", tc.internal, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestSign pins the HMAC-SHA256 signature format: hex-encoded, lowercase,
+// computed over "<timestamp>.<payload>". The expected digest is computed
+// independently so a regression in sign() cannot hide behind a copy-paste
+// of the same implementation.
+func TestSign(t *testing.T) {
+	secret := "test-secret"
+	ts := "1700000000"
+	payload := []byte(`{"test":true}`)
+
+	// Independent computation of the expected digest.
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(ts + "."))
+	mac.Write(payload)
+	want := hex.EncodeToString(mac.Sum(nil))
+
+	got := sign(secret, ts, payload)
+	if got != want {
+		t.Errorf("sign(): got %q, want %q", got, want)
+	}
+
+	// Format checks: lowercase hex, even length, 64 chars (sha256 = 32 bytes).
+	if len(got) != 64 {
+		t.Errorf("sign() length: got %d, want 64", len(got))
+	}
+	if len(got)%2 != 0 {
+		t.Errorf("sign() length %d is odd; hex encoding must be even", len(got))
+	}
+	if got != strings.ToLower(got) {
+		t.Errorf("sign() is not lowercase hex: %q", got)
+	}
+	if _, err := hex.DecodeString(got); err != nil {
+		t.Errorf("sign() is not valid hex: %v", err)
+	}
+
+	// Different secrets must produce different signatures.
+	sig1 := sign("secret-a", ts, payload)
+	sig2 := sign("secret-b", ts, payload)
+	if sig1 == sig2 {
+		t.Errorf("different secrets produced the same signature: %q", sig1)
+	}
+
+	// Different timestamps must produce different signatures (replay protection).
+	sigTS1 := sign(secret, "1700000000", payload)
+	sigTS2 := sign(secret, "1700000001", payload)
+	if sigTS1 == sigTS2 {
+		t.Errorf("different timestamps produced the same signature: %q", sigTS1)
 	}
 }

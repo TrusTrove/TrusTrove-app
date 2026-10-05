@@ -300,7 +300,9 @@ func (l *EventListener) pollEvents(ctx context.Context, startLedger int32) (int3
 				Value:          ev.Value.Xdr,
 			}
 
-			if err := l.handleEvent(ctx, sorobanEv); err != nil {
+			// Once an event has entered processing, cancellation only stops new
+			// polls; the transaction and webhook enqueue may finish atomically.
+			if err := l.handleEvent(context.WithoutCancel(ctx), sorobanEv); err != nil {
 				return startLedger, fmt.Errorf("handle event %s: %w", sorobanEv.ID, err)
 			}
 		}

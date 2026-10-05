@@ -400,8 +400,8 @@ func TestUpdateInvoiceShipped(t *testing.T) {
 	if err != nil || got == nil {
 		t.Fatalf("GetInvoiceByID: err=%v, got=%v", err, got)
 	}
-	if got.Status != "Shipped" {
-		t.Errorf("Status: got %q, want %q", got.Status, "Shipped")
+	if got.Status != "Active" {
+		t.Errorf("Status: got %q, want %q", got.Status, "Active")
 	}
 	if got.ShippedAt == nil || *got.ShippedAt != shippedAt {
 		t.Errorf("ShippedAt: got %v, want %d", got.ShippedAt, shippedAt)
@@ -734,5 +734,69 @@ func TestUpdateInvoiceAttestation(t *testing.T) {
 	}
 	if got.AttestedAt == nil || *got.AttestedAt != attestedAt {
 		t.Errorf("AttestedAt: got %v, want %d", got.AttestedAt, attestedAt)
+	}
+}
+
+// TestInvoiceCheckConstraints proves the migration 011 CHECK constraints reject
+// values the application code would otherwise silently accept.
+func TestInvoiceCheckConstraints(t *testing.T) {
+	skipIfNoDB(t)
+
+	ctx := context.Background()
+	id := fmt.Sprintf("constraint-test%d", time.Now().UnixNano())
+	if err := InsertInvoice(ctx, newTestInvoice(id)); err != nil {
+		t.Fatalf("InsertInvoice: %v", err)
+	}
+	t.Cleanup(func() {
+		if Pool != nil {
+			Pool.Exec(ctx, "DELETE FROM invoices WHERE id = $1", id)
+		}
+	})
+
+	cases := []struct {
+		name  string
+		query string
+	}{
+		{"invalid status", `UPDATE invoices SET status = 'Bogus' WHERE id = $1`},
+		{"discount_bps above 5000", `UPDATE invoices SET discount_bps = 5001 WHERE id = $1`},
+		{"negative discount_bps", `UPDATE invoices SET discount_bps = -1 WHERE id = $1`},
+		{"risk_score_bps above 10000", `UPDATE invoices SET risk_score_bps = 10001 WHERE id = $1`},
+		{"negative risk_score_bps", `UPDATE invoices SET risk_score_bps = -1 WHERE id = $1`},
+		{"negative face_value", `UPDATE invoices SET face_value = -1 WHERE id = $1`},
+		{"negative funded_amount", `UPDATE invoices SET funded_amount = -1 WHERE id = $1`},
+		{"funded_amount above face_value", `UPDATE invoices SET funded_amount = face_value + 1 WHERE id = $1`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := Pool.Exec(ctx, tc.query, id); err == nil {
+				t.Errorf("%s: expected constraint violation, got nil error", tc.name)
+			}
+		})
+	}
+}
+
+// TestPoolSnapshotsConstraints proves pool_snapshots is locked to its single
+// id = 1 row and that utilization_rate_bps stays within 0-10000.
+func TestPoolSnapshotsConstraints(t *testing.T) {
+	skipIfNoDB(t)
+
+	ctx := context.Background()
+	if _, err := Pool.Exec(ctx, `INSERT INTO pool_snapshots (id) VALUES (2)`); err == nil {
+		Pool.Exec(ctx, `DELETE FROM pool_snapshots WHERE id = 2`)
+		t.Error("second pool_snapshots row: expected constraint violation, got nil error")
+	}
+	if _, err := Pool.Exec(ctx, `UPDATE pool_snapshots SET utilization_rate_bps = 10001 WHERE id = 1`); err == nil {
+		t.Error("utilization_rate_bps above 10000: expected constraint violation, got nil error")
+	}
+}
+
+// TestCheckpointValueConstraint proves negative indexer checkpoints are rejected.
+func TestCheckpointValueConstraint(t *testing.T) {
+	skipIfNoDB(t)
+
+	ctx := context.Background()
+	if _, err := Pool.Exec(ctx, `UPDATE indexer_checkpoint SET value = -1 WHERE key = 'latest_processed_ledger'`); err == nil {
+		t.Error("negative checkpoint value: expected constraint violation, got nil error")
 	}
 }

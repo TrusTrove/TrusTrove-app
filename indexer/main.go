@@ -150,7 +150,10 @@ func run() int {
 	workerCfg := webhooks.DefaultWorkerConfig()
 	workerCfg.Concurrency = cfg.WebhookConcurrency
 	webhookDeliveryWorker := webhooks.NewDeliveryWorker(workerCfg)
+	var background sync.WaitGroup
+	background.Add(2)
 	go func() {
+		defer background.Done()
 		slog.Info("Starting webhook delivery worker...")
 		if err := webhookDeliveryWorker.Start(ctx); err != nil && !errors.Is(err, context.Canceled) {
 			slog.Error("Webhook delivery worker exited with error", "error", err)
@@ -161,6 +164,7 @@ func run() int {
 	eventListener := listener.NewEventListener(cfg, handler.ListenerHealth(), webhookDispatcher)
 	listenerErrCh := make(chan error, 1)
 	go func() {
+		defer background.Done()
 		slog.Info("Starting Soroban Event Listener background task...")
 		if err := eventListener.Start(ctx); err != nil {
 			handler.ListenerHealth().MarkStopped()
@@ -197,6 +201,21 @@ func run() int {
 				slog.Error("HTTP API server graceful shutdown failed", "error", err)
 			} else {
 				slog.Info("HTTP API server successfully shut down")
+			}
+
+			// Do not close the pool while the listener or worker can still be
+			// finishing an event/delivery. Bound the drain so shutdown remains
+			// safe even if an external dependency is unavailable.
+			drained := make(chan struct{})
+			go func() {
+				background.Wait()
+				close(drained)
+			}()
+			select {
+			case <-drained:
+				slog.Info("background indexer components drained")
+			case <-time.After(5 * time.Second):
+				slog.Warn("background indexer drain timed out")
 			}
 
 			// Close DB connection pool

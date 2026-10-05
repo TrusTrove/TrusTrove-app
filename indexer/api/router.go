@@ -211,9 +211,12 @@ func (rl *perClientRateLimiter) evictOldest() {
 	var oldestKey string
 	var oldestTime time.Time
 	for key, bucket := range rl.buckets {
-		if oldestKey == "" || bucket.last.Before(oldestTime) {
+		bucket.mu.Lock()
+		last := bucket.last
+		bucket.mu.Unlock()
+		if oldestKey == "" || last.Before(oldestTime) {
 			oldestKey = key
-			oldestTime = bucket.last
+			oldestTime = last
 		}
 	}
 	if oldestKey != "" {
@@ -315,6 +318,7 @@ func NewRouter(h *APIHandler) *chi.Mux {
 		r.Get("/invoices/{id}", h.HandleGetInvoiceByID)
 		r.Get("/invoices", h.HandleGetInvoices)
 		r.Get("/pool/stats", h.HandleGetPoolStats)
+		r.Get("/pool/snapshots", h.HandleGetPoolSnapshots)
 		r.Get("/pool/position/{address}", h.HandleGetLPPosition)
 	})
 
@@ -323,6 +327,11 @@ func NewRouter(h *APIHandler) *chi.Mux {
 		r.Use(AuthMiddleware(h.cfg.JWTSecret))
 		r.Use(RateLimitMiddleware(rl))
 		r.Post("/invoices", h.HandleCreateInvoice)
+
+		// Webhooks
+		r.Post("/webhooks", h.HandleCreateWebhook)
+		r.Get("/webhooks", h.HandleGetWebhooks)
+		r.Delete("/webhooks/{id}", h.HandleDeleteWebhook)
 	})
 
 	return r

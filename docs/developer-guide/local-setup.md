@@ -66,10 +66,55 @@ Open [http://localhost:3000](http://localhost:3000), connect Freighter on testne
 ### 7. Build and test
 
 ```bash
-pnpm build             # SDK + web app
-pnpm test               # SDK + web app unit tests
+pnpm build             # SDK + CLI + web app
+pnpm test               # SDK + SDK-React + CLI + web app unit tests
 cd indexer && go test ./...   # Go indexer unit tests
 ```
+
+## Full local stack with Docker Compose
+
+[docker-compose.yml](../../docker-compose.yml) can run the whole stack — Postgres, the Go indexer (built from `indexer/Dockerfile`), and the Next.js web app (built from `apps/web/Dockerfile`) — so no Go or Node toolchain is needed on the host.
+
+1. Create the Compose-specific env file:
+
+   ```bash
+   cp .env.docker.example .env.docker
+   ```
+
+   It mirrors the root `.env.example`, with the values the Compose network changes: `DATABASE_URL` points at the `db` service hostname instead of `localhost`, and `INDEXER_MIGRATIONS_DIR` points at the migrations path baked into the indexer image. `.env.docker` is git-ignored.
+
+2. Build and start everything:
+
+   ```bash
+   docker compose --env-file .env.docker up --build
+   ```
+
+   `--env-file` supplies the web image's `NEXT_PUBLIC_*` build args, and the same file is loaded into the `indexer` and `web` containers via `env_file`.
+
+3. Open [http://localhost:3000](http://localhost:3000). The indexer API listens on [http://localhost:8080](http://localhost:8080) and serves `/health`.
+
+Useful commands:
+
+```bash
+docker compose up -d db         # Postgres only (the workflow above)
+docker compose logs -f indexer  # follow indexer/API logs
+docker compose down             # stop the stack
+docker compose down -v          # stop the stack and delete the Postgres volume
+```
+
+`.env.docker` is optional: if it does not exist, the `indexer` and `web` services are skipped in practice and `docker compose up -d db` keeps working for the non-Docker workflow.
+
+## Command-line interface
+
+`@trusttrove/cli` (`packages/cli`) wraps the SDK's read-only contract calls:
+
+```bash
+pnpm --filter @trusttrove/cli build
+node packages/cli/dist/index.js list-invoices --status Funded --public-key <G...>
+node packages/cli/dist/index.js list-invoices --issuer <G...> --public-key <G...>
+```
+
+`--public-key` falls back to `TRUSTTROVE_PUBLIC_KEY` and `--contract-id` to `INVOICE_CONTRACT_ID`, so once those are set in your `.env.local` (see step 2) the flags can be omitted.
 
 ## Analyzing the frontend bundle
 

@@ -18,6 +18,8 @@ import {
   Check,
   ArrowLeft,
   ChevronRight,
+  FileDown,
+  Loader2,
   Lock,
   Users,
   Activity,
@@ -26,6 +28,7 @@ import {
 } from "lucide-react";
 import { formatAmount } from "@/lib/assets";
 import { truncateAddress } from "@/lib/format";
+import { generateInvoicePdf } from "@/lib/invoicePdf";
 
 interface InvoiceDetailClientProps {
   invoiceId: string;
@@ -57,6 +60,8 @@ export default function InvoiceDetailClient({
   const [copiedBuyer, setCopiedBuyer] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [invoiceUrl, setInvoiceUrl] = useState("");
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -86,6 +91,27 @@ export default function InvoiceDetailClient({
         setCopiedLink(true);
         setTimeout(() => setCopiedLink(false), 2000);
         break;
+    }
+  };
+
+  /**
+   * Builds the invoice PDF client-side. Runs without a connected wallet, so
+   * the read-only public invoice pages can export a record too.
+   */
+  const downloadPdf = async () => {
+    if (!invoice || isExportingPdf) return;
+    setIsExportingPdf(true);
+    setPdfError(null);
+    try {
+      await generateInvoicePdf(invoice);
+    } catch (error) {
+      setPdfError(
+        error instanceof Error
+          ? error.message
+          : "Could not generate the invoice PDF.",
+      );
+    } finally {
+      setIsExportingPdf(false);
     }
   };
 
@@ -352,6 +378,27 @@ export default function InvoiceDetailClient({
                 Share Invoice
               </h3>
               <div className="space-y-3 text-xs font-mono">
+                <Button
+                  variant="outline"
+                  className="w-full justify-between"
+                  onClick={downloadPdf}
+                  disabled={isExportingPdf}
+                  aria-busy={isExportingPdf}
+                >
+                  <span>
+                    {isExportingPdf ? "Generating PDF..." : "Download PDF"}
+                  </span>
+                  {isExportingPdf ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin motion-reduce:animate-none" />
+                  ) : (
+                    <FileDown className="w-3.5 h-3.5" />
+                  )}
+                </Button>
+                {pdfError && (
+                  <p className="text-xs font-mono text-red-400" role="alert">
+                    {pdfError}
+                  </p>
+                )}
                 <Button
                   variant="outline"
                   className="w-full justify-between"
