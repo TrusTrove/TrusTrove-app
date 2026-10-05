@@ -8,12 +8,12 @@ access control.
 
 ### Deployed addresses (Stellar testnet)
 
-| Contract          | Address                                                    |
-| ----------------- | ---------------------------------------------------------- |
-| registry_contract | `CABGWVIZFF62FG67ZGFEP67NEEY4WYTMFURDMFTKKNRDAFPKPOJDTN4C` |
-| invoice_contract  | `CA4O3MR7LWHRSUDBNU6FY6UDFFYBN7TGBZXBDZB4OYYXFYXIFJ6RJF6B` |
-| escrow_contract   | `CAJWGUKDTTC3SKN4RAAY72J4DVIIYSCFHX6GIMNTT22ABMISJK4GBCEH` |
-| pool_contract     | `CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS` |
+| Contract                  | Address                                                                                                           |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| registry_contract         | `CABGWVIZFF62FG67ZGFEP67NEEY4WYTMFURDMFTKKNRDAFPKPOJDTN4C`                                                        |
+| invoice_contract          | `CA4O3MR7LWHRSUDBNU6FY6UDFFYBN7TGBZXBDZB4OYYXFYXIFJ6RJF6B`                                                        |
+| escrow_contract           | `CAJWGUKDTTC3SKN4RAAY72J4DVIIYSCFHX6GIMNTT22ABMISJK4GBCEH`                                                        |
+| pool_contract             | `CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS`                                                        |
 | agent-registry (external) | Set via `AGENT_REGISTRY_CONTRACT` — deployed from the separate `underwrite-contract` repo, not from this monorepo |
 
 ### Call graph
