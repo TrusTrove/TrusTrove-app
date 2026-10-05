@@ -392,7 +392,7 @@ func TestUpdateInvoiceShipped(t *testing.T) {
 	})
 
 	shippedAt := time.Now().Unix()
-	if err := UpdateInvoiceShipped(ctx, Pool, id, "Shipped", shippedAt); err != nil {
+	if err := UpdateInvoiceShipped(ctx, Pool, id, "Active", shippedAt); err != nil {
 		t.Fatalf("UpdateInvoiceShipped: %v", err)
 	}
 
