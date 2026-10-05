@@ -37,6 +37,7 @@ type Config struct {
 	ServerSeed            string
 	ServerSeedGenerated   bool
 	SentryDSN             string
+	MetricsToken          string
 }
 
 func LoadConfig() (*Config, error) {
@@ -176,6 +177,7 @@ func LoadConfig() (*Config, error) {
 		ServerSeed:            serverSeed,
 		ServerSeedGenerated:   serverSeedGenerated,
 		SentryDSN:             strings.TrimSpace(os.Getenv("SENTRY_DSN")),
+		MetricsToken:          strings.TrimSpace(os.Getenv("METRICS_TOKEN")),
 	}
 
 	if len(missing) > 0 {

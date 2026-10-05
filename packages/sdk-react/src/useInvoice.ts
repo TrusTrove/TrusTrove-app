@@ -39,7 +39,14 @@ function useInvoiceList(
   deps: unknown[],
   options: UseInvoiceOptions,
 ): AsyncQueryState<Invoice[]> {
-  const client = useMemo(() => invoiceClient(options), [options]);
+  // Memoize on the option *contents* (client identity / contractId value), not
+  // the options object identity, so inline `{ contractId }` literals don't
+  // re-create the client — and re-trigger queries — on every render.
+  const client = useMemo(
+    () =>
+      invoiceClient({ client: options.client, contractId: options.contractId }),
+    [options.client, options.contractId],
+  );
   return useAsyncQuery(() => fetch(client), [client, ...deps]);
 }
 
@@ -116,7 +123,14 @@ export function useInvoice(
   signerPublicKey: string,
   options: UseInvoiceOptions,
 ): AsyncQueryState<Invoice> {
-  const client = useMemo(() => invoiceClient(options), [options]);
+  // Memoize on the option *contents* (client identity / contractId value), not
+  // the options object identity, so inline `{ contractId }` literals don't
+  // re-create the client — and re-trigger queries — on every render.
+  const client = useMemo(
+    () =>
+      invoiceClient({ client: options.client, contractId: options.contractId }),
+    [options.client, options.contractId],
+  );
   return useAsyncQuery(
     () => client.get(invoiceIdHex, signerPublicKey),
     [client, invoiceIdHex, signerPublicKey],
@@ -172,7 +186,14 @@ export function useInvoiceMutations(
   signerPublicKey: string,
   options: UseInvoiceMutationsOptions,
 ): InvoiceMutationResult {
-  const client = useMemo(() => invoiceClient(options), [options]);
+  // Memoize on the option *contents* (client identity / contractId value), not
+  // the options object identity, so inline `{ contractId }` literals don't
+  // re-create the client — and re-trigger queries — on every render.
+  const client = useMemo(
+    () =>
+      invoiceClient({ client: options.client, contractId: options.contractId }),
+    [options.client, options.contractId],
+  );
 
   const create = useAsyncMutation(
     (issuer: string, buyer: string, faceValue: bigint, dueDate: number) =>

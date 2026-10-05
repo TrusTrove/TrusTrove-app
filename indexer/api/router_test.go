@@ -117,6 +117,41 @@ func TestHealthEndpoint_Returns200WhenListenerAndDBAreHealthy(t *testing.T) {
 	}
 }
 
+func TestMetricsEndpoint_RequiresConfiguredToken(t *testing.T) {
+	h := newTestHandler(t)
+	h.cfg.MetricsToken = "metrics-secret"
+	router := NewRouter(h)
+
+	for _, authorization := range []string{"", "Bearer wrong"} {
+		req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+		req.Header.Set("Authorization", authorization)
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+		if rr.Code != http.StatusUnauthorized {
+			t.Errorf("authorization %q: got %d, want %d", authorization, rr.Code, http.StatusUnauthorized)
+		}
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	req.Header.Set("Authorization", "Bearer metrics-secret")
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("valid token: got %d, want %d", rr.Code, http.StatusOK)
+	}
+}
+
+func TestMetricsEndpoint_RemainsPublicForLocalDevelopment(t *testing.T) {
+	h := newTestHandler(t)
+	h.cfg.MetricsToken = ""
+	router := NewRouter(h)
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("unset token: got %d, want %d", rr.Code, http.StatusOK)
+	}
+}
+
 func TestHealthEndpoint_Returns503WhenListenerStops(t *testing.T) {
 	h := newTestHandler(t)
 	h.dbHealthChecker = func(context.Context) error { return nil }

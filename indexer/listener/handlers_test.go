@@ -11,6 +11,8 @@ import (
 
 	"trusttrove/indexer/config"
 	"trusttrove/indexer/db"
+	"trusttrove/indexer/webhook"
+	"trusttrove/indexer/webhooks"
 
 	"github.com/stellar/go-stellar-sdk/keypair"
 	"github.com/stellar/go-stellar-sdk/strkey"
@@ -123,6 +125,300 @@ func makeInvoiceCreatedValue(rawIDBytes []byte, issuer, buyer string, faceValue,
 	inner := &scMap
 	mapVal := xdr.ScVal{Type: xdr.ScValTypeScvMap, Map: &inner}
 	return encodeScVal(mapVal)
+}
+
+// makeU128PairValue builds the base64-encoded XDR for the (amount, shares)
+// tuple pool deposit and withdraw events publish as an ScVec of two u128s.
+func makeU128PairValue(primary, secondary uint64) string {
+	primaryParts := xdr.UInt128Parts{Hi: 0, Lo: xdr.Uint64(primary)}
+	secondaryParts := xdr.UInt128Parts{Hi: 0, Lo: xdr.Uint64(secondary)}
+	primaryVal := xdr.ScVal{Type: xdr.ScValTypeScvU128, U128: &primaryParts}
+	secondaryVal := xdr.ScVal{Type: xdr.ScValTypeScvU128, U128: &secondaryParts}
+	vec := xdr.ScVec{primaryVal, secondaryVal}
+	inner := &vec
+	return encodeScVal(xdr.ScVal{Type: xdr.ScValTypeScvVec, Vec: &inner})
+}
+
+// recordingDispatcher captures the fan-out handleEvent performs so tests can
+// assert an event actually reached the webhook enqueue path without needing
+// webhook_subscriptions rows.
+type recordingDispatcher struct {
+	calls     int
+	eventType string
+	data      map[string]interface{}
+}
+
+func (r *recordingDispatcher) Dispatch(_ context.Context, eventType string, data map[string]interface{}) {
+	r.calls++
+	r.eventType = eventType
+	r.data = data
+}
+
+func (r *recordingDispatcher) EnqueueDeliveries(_ context.Context, _ db.Querier, eventType string, data map[string]interface{}) error {
+	r.calls++
+	r.eventType = eventType
+	r.data = data
+	return nil
+}
+
+// poolDepositEvent builds a synthetic pool deposit event in the shape
+// contracts/pool/src/events.rs publishes: topics ["lp_deposited", lp_address]
+// and value (usdc_amount, shares_issued).
+func poolDepositEvent(t *testing.T, id string, lp string, amount, shares uint64) SorobanEvent {
+	t.Helper()
+	return SorobanEvent{
+		ID:             id,
+		ContractID:     "CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS",
+		Ledger:         1300,
+		LedgerClosedAt: time.Now().Format(time.RFC3339),
+		Topic: []string{
+			encodeSymbol("lp_deposited"),
+			encodeScVal(makeAccountAddressScVal(lp)),
+		},
+		Value: makeU128PairValue(amount, shares),
+	}
+}
+
+// TestHandlePoolDepositParsesLPFields covers the parsing half of issue #878
+// without a database: the LP address and both u128s must land in the logData
+// the handleEvent tail persists and dispatches.
+func TestHandlePoolDepositParsesLPFields(t *testing.T) {
+	l := newTestListener()
+	const lp = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
+
+	event := poolDepositEvent(t, "event-pool-deposit-parse", lp, 2_500_000_000, 2_495_000_000)
+	logData := map[string]interface{}{}
+
+	if err := l.handlePoolDeposit(event, logData); err != nil {
+		t.Fatalf("handlePoolDeposit: %v", err)
+	}
+	if logData["account"] != lp {
+		t.Errorf("account: got %v, want %q", logData["account"], lp)
+	}
+	if logData["amount"] != "2500000000" {
+		t.Errorf("amount: got %v, want %q", logData["amount"], "2500000000")
+	}
+	if logData["shares"] != "2495000000" {
+		t.Errorf("shares: got %v, want %q", logData["shares"], "2495000000")
+	}
+}
+
+// TestHandlePoolWithdrawalParsesLPFields is the mirror test for withdraw:
+// same topic/value shape, shares_burned in the second tuple slot.
+func TestHandlePoolWithdrawalParsesLPFields(t *testing.T) {
+	l := newTestListener()
+	// The shared "buyer" fixture in this file is a 55-char string that is not
+	// a valid strkey, so generate a real address for the LP.
+	lpKP, err := keypair.Random()
+	if err != nil {
+		t.Fatalf("keypair.Random: %v", err)
+	}
+	lp := lpKP.Address()
+
+	event := SorobanEvent{
+		ID:             "event-pool-withdraw-parse",
+		ContractID:     "CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS",
+		Ledger:         1301,
+		LedgerClosedAt: time.Now().Format(time.RFC3339),
+		Topic: []string{
+			encodeSymbol("lp_withdrawn"),
+			encodeScVal(makeAccountAddressScVal(lp)),
+		},
+		Value: makeU128PairValue(750_000_000, 748_000_000),
+	}
+	logData := map[string]interface{}{}
+
+	if err := l.handlePoolWithdrawal(event, logData); err != nil {
+		t.Fatalf("handlePoolWithdrawal: %v", err)
+	}
+	if logData["account"] != lp {
+		t.Errorf("account: got %v, want %q", logData["account"], lp)
+	}
+	if logData["amount"] != "750000000" {
+		t.Errorf("amount: got %v, want %q", logData["amount"], "750000000")
+	}
+	if logData["shares"] != "748000000" {
+		t.Errorf("shares: got %v, want %q", logData["shares"], "748000000")
+	}
+}
+
+// TestHandlePoolYieldDistributedParsesAmounts covers receive_repayment's
+// (amount, lp_yield, protocol_cut) tuple: amount and yield_amount feed the
+// pool.yield_distributed envelope and the protocol's cut is ignored.
+func TestHandlePoolYieldDistributedParsesAmounts(t *testing.T) {
+	l := newTestListener()
+
+	// receive_repayment publishes (amount, lp_yield, protocol_cut); the third
+	// element must be ignored — the envelope has no field for it.
+	amountParts := xdr.UInt128Parts{Hi: 0, Lo: xdr.Uint64(1_050_000_000)}
+	yieldParts := xdr.UInt128Parts{Hi: 0, Lo: xdr.Uint64(35_000_000)}
+	cutParts := xdr.UInt128Parts{Hi: 0, Lo: xdr.Uint64(5_000_000)}
+	amountVal := xdr.ScVal{Type: xdr.ScValTypeScvU128, U128: &amountParts}
+	yieldVal := xdr.ScVal{Type: xdr.ScValTypeScvU128, U128: &yieldParts}
+	cutVal := xdr.ScVal{Type: xdr.ScValTypeScvU128, U128: &cutParts}
+	vec := xdr.ScVec{amountVal, yieldVal, cutVal}
+	inner := &vec
+
+	rawIDBytes := []byte("yield-invoice-id-32-bytes-000000")
+	idScBytes := xdr.ScBytes(rawIDBytes)
+	idTopic := encodeScVal(xdr.ScVal{Type: xdr.ScValTypeScvBytes, Bytes: &idScBytes})
+
+	event := SorobanEvent{
+		ID:             "event-pool-yield-parse",
+		ContractID:     "CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS",
+		Ledger:         1302,
+		LedgerClosedAt: time.Now().Format(time.RFC3339),
+		Topic: []string{
+			encodeSymbol("repayment_received"),
+			idTopic,
+		},
+		Value: encodeScVal(xdr.ScVal{Type: xdr.ScValTypeScvVec, Vec: &inner}),
+	}
+	logData := map[string]interface{}{}
+
+	if err := l.handlePoolYieldDistributed(event, logData); err != nil {
+		t.Fatalf("handlePoolYieldDistributed: %v", err)
+	}
+	if logData["amount"] != "1050000000" {
+		t.Errorf("amount: got %v, want %q", logData["amount"], "1050000000")
+	}
+	if logData["yield_amount"] != "35000000" {
+		t.Errorf("yield_amount: got %v, want %q", logData["yield_amount"], "35000000")
+	}
+}
+
+// TestHandlePoolDepositLoggedAndDispatched covers issue #878's acceptance
+// criteria end to end: a synthetic pool deposit must be persisted to
+// events_log and must reach the webhook dispatcher with data that builds the
+// pool.* envelope the webhook layer already supports. Before the fix the event
+// fell into handleEvent's default branch and was silently dropped.
+func TestHandlePoolDepositLoggedAndDispatched(t *testing.T) {
+	skipIfNoDB(t)
+
+	l := newTestListener()
+	rec := &recordingDispatcher{}
+	l.dispatcher = rec
+	ctx := context.Background()
+
+	const lp = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
+	eventID := fmt.Sprintf("event-pool-deposit-%d", time.Now().UnixNano())
+	t.Cleanup(func() {
+		if db.Pool != nil {
+			db.Pool.Exec(ctx, "DELETE FROM events_log WHERE event_id = $1", eventID)
+		}
+	})
+
+	event := poolDepositEvent(t, eventID, lp, 2_500_000_000, 2_495_000_000)
+	if err := l.handleEvent(ctx, event); err != nil {
+		t.Fatalf("handleEvent(lp_deposited): %v", err)
+	}
+
+	// 1. Logged: the events_log row marks the event processed.
+	processed, err := db.IsEventProcessed(ctx, eventID)
+	if err != nil {
+		t.Fatalf("IsEventProcessed: %v", err)
+	}
+	if !processed {
+		t.Fatal("pool deposit was not persisted to events_log — expected it to be handled, not skipped")
+	}
+
+	// 2. Dispatched: exactly one fan-out carrying the LP payload.
+	if rec.calls != 1 {
+		t.Fatalf("dispatcher calls: got %d, want 1", rec.calls)
+	}
+	if rec.eventType != "lp_deposited" {
+		t.Errorf("dispatched event type: got %q, want %q", rec.eventType, "lp_deposited")
+	}
+	if rec.data["account"] != lp {
+		t.Errorf("dispatched account: got %v, want %q", rec.data["account"], lp)
+	}
+	if rec.data["amount"] != "2500000000" {
+		t.Errorf("dispatched amount: got %v, want %q", rec.data["amount"], "2500000000")
+	}
+	if rec.data["shares"] != "2495000000" {
+		t.Errorf("dispatched shares: got %v, want %q", rec.data["shares"], "2495000000")
+	}
+
+	// 3. The dispatched name and data build the pool.deposit envelope the
+	//    webhook package already implements.
+	env, err := webhook.BuildEnvelope(rec.eventType, rec.data)
+	if err != nil {
+		t.Fatalf("BuildEnvelope: %v", err)
+	}
+	if env.EventType != webhooks.EventPoolDeposit {
+		t.Errorf("envelope event type: got %q, want %q", env.EventType, webhooks.EventPoolDeposit)
+	}
+}
+
+// TestHandlePoolWithdrawalLoggedAndDispatched is the withdraw mirror of the
+// deposit test above: logged in events_log, dispatched once, and mapped to
+// the existing pool.withdrawal envelope.
+func TestHandlePoolWithdrawalLoggedAndDispatched(t *testing.T) {
+	skipIfNoDB(t)
+
+	l := newTestListener()
+	rec := &recordingDispatcher{}
+	l.dispatcher = rec
+	ctx := context.Background()
+
+	lpKP, err := keypair.Random()
+	if err != nil {
+		t.Fatalf("keypair.Random: %v", err)
+	}
+	lp := lpKP.Address()
+	eventID := fmt.Sprintf("event-pool-withdraw-%d", time.Now().UnixNano())
+	t.Cleanup(func() {
+		if db.Pool != nil {
+			db.Pool.Exec(ctx, "DELETE FROM events_log WHERE event_id = $1", eventID)
+		}
+	})
+
+	event := SorobanEvent{
+		ID:             eventID,
+		ContractID:     "CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS",
+		Ledger:         1301,
+		LedgerClosedAt: time.Now().Format(time.RFC3339),
+		Topic: []string{
+			encodeSymbol("lp_withdrawn"),
+			encodeScVal(makeAccountAddressScVal(lp)),
+		},
+		Value: makeU128PairValue(750_000_000, 748_000_000),
+	}
+	if err := l.handleEvent(ctx, event); err != nil {
+		t.Fatalf("handleEvent(lp_withdrawn): %v", err)
+	}
+
+	processed, err := db.IsEventProcessed(ctx, eventID)
+	if err != nil {
+		t.Fatalf("IsEventProcessed: %v", err)
+	}
+	if !processed {
+		t.Fatal("pool withdrawal was not persisted to events_log — expected it to be handled, not skipped")
+	}
+
+	if rec.calls != 1 {
+		t.Fatalf("dispatcher calls: got %d, want 1", rec.calls)
+	}
+	if rec.eventType != "lp_withdrawn" {
+		t.Errorf("dispatched event type: got %q, want %q", rec.eventType, "lp_withdrawn")
+	}
+	if rec.data["account"] != lp {
+		t.Errorf("dispatched account: got %v, want %q", rec.data["account"], lp)
+	}
+	if rec.data["amount"] != "750000000" {
+		t.Errorf("dispatched amount: got %v, want %q", rec.data["amount"], "750000000")
+	}
+	if rec.data["shares"] != "748000000" {
+		t.Errorf("dispatched shares: got %v, want %q", rec.data["shares"], "748000000")
+	}
+
+	env, err := webhook.BuildEnvelope(rec.eventType, rec.data)
+	if err != nil {
+		t.Fatalf("BuildEnvelope: %v", err)
+	}
+	if env.EventType != webhooks.EventPoolWithdrawal {
+		t.Errorf("envelope event type: got %q, want %q", env.EventType, webhooks.EventPoolWithdrawal)
+	}
 }
 
 func TestHandleInvoiceCreated(t *testing.T) {
