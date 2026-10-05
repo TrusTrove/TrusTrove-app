@@ -334,7 +334,7 @@ func TestPollEvents_LookupFailureDoesNotReapplyInvoice(t *testing.T) {
 		t.Fatal("expected pollEvents to return the lookup error")
 	}
 
-	invoice, err := db.GetInvoiceByID(ctx, invoiceIDHex)
+	invoice, err := db.GetInvoiceByID(ctx, db.Pool, invoiceIDHex)
 	if err != nil {
 		t.Fatalf("GetInvoiceByID: %v", err)
 	}

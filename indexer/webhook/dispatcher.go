@@ -46,33 +46,44 @@ func (d *Dispatcher) SetHTTPTimeout(timeout time.Duration) {
 
 // Dispatch enqueues a delivery for every active subscription matching eventType.
 // It constructs the full webhook envelope (with schema_version, event_id, etc.)
-// and writes delivery rows to the database. Non-blocking.
+// and writes delivery rows to the database. Non-blocking: failures are logged,
+// not returned. Use EnqueueDeliveries when the delivery rows must be written
+// atomically with an event's state change.
 func (d *Dispatcher) Dispatch(ctx context.Context, eventType string, data map[string]interface{}) {
+	if err := d.EnqueueDeliveries(ctx, db.Pool, eventType, data); err != nil {
+		slog.Error("webhook: enqueue deliveries failed", "event_type", eventType, "error", err)
+	}
+}
+
+// EnqueueDeliveries writes one webhook_deliveries row per active subscription
+// matching eventType, executing every insert through q. Callers pass db.Pool
+// for standalone fan-out, or a pgx.Tx when the rows must commit (or roll back)
+// together with the event's state change and events_log row. It returns the
+// first error instead of swallowing it so a transactional caller can roll back.
+func (d *Dispatcher) EnqueueDeliveries(ctx context.Context, q db.Querier, eventType string, data map[string]interface{}) error {
 	subs, err := db.ListActiveWebhookSubscriptionsForEvent(ctx, eventType)
 	if err != nil {
-		slog.Error("webhook: list subscriptions failed", "event_type", eventType, "error", err)
-		return
+		return fmt.Errorf("webhook: list subscriptions: %w", err)
 	}
 	if len(subs) == 0 {
-		return
+		return nil
 	}
 
 	envelope, err := BuildEnvelope(eventType, data)
 	if err != nil {
-		slog.Error("webhook: build envelope failed", "event_type", eventType, "error", err)
-		return
+		return fmt.Errorf("webhook: build envelope: %w", err)
 	}
 	envelopeBytes, err := json.Marshal(envelope)
 	if err != nil {
-		slog.Error("webhook: marshal envelope failed", "event_type", eventType, "error", err)
-		return
+		return fmt.Errorf("webhook: marshal envelope: %w", err)
 	}
 
 	for _, sub := range subs {
-		if err := db.CreateWebhookDelivery(ctx, sub.ID, string(envelope.EventType), envelope.EventID, envelopeBytes); err != nil {
-			slog.Error("webhook: create delivery failed", "subscription_id", sub.ID, "error", err)
+		if err := db.CreateWebhookDelivery(ctx, q, sub.ID, string(envelope.EventType), envelope.EventID, envelopeBytes); err != nil {
+			return fmt.Errorf("webhook: create delivery for subscription %s: %w", sub.ID, err)
 		}
 	}
+	return nil
 }
 
 // BuildEnvelope converts the listener's internal event name and its dispatch

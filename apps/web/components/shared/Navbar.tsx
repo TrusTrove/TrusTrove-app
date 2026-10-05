@@ -44,6 +44,7 @@ const NAV_ITEMS = [
   { key: "marketplace", href: "/marketplace" },
   { key: "analytics", href: "/analytics" },
   { key: "profile", href: "/profile" },
+  { key: "help", href: "/help" },
 ] as const;
 
 function formatAmount(value: string) {
