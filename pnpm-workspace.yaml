@@ -19,6 +19,16 @@ auditConfig:
     - GHSA-p9j2-gv94-2wf4
     - GHSA-82x6-q7mm-w9cf
     - GHSA-v5mp-jgw5-2x6j
+    - GHSA-c29m-xwm3-cm6r
+    - GHSA-mghh-pgcx-3jjj
+    - GHSA-3pq3-5fj3-cg6v
+    - GHSA-542g-h47m-68v8
+    - GHSA-m8m8-qj5v-23w3
+    - GHSA-r4gj-5m52-g5wh
+    - GHSA-x97p-jq2g-jp4f
+    # braces: build-time only (tailwindcss/fast-glob/chokidar/micromatch); the
+    # advisory has no patched release yet, so there is nothing to override to
+    - GHSA-vfj7-8cjw-p6xm
 overrides:
   postcss: ">=8.5.18 <9"
   nanoid: ">=3.3.18 <4"
@@ -27,3 +37,4 @@ overrides:
   brace-expansion@1: ">=1.1.18 <2"
   brace-expansion@5: ">=5.0.9 <6"
   undici: ">=7.29.0 <8"
+  axios: ">=1.20.0 <2"

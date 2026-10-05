@@ -13,7 +13,7 @@ import (
 func TestHandleCreateInvoice_MissingContextKey(t *testing.T) {
 	h := newTestHandler(t)
 
-	reqBody := `{"buyer":"GBXXXXXXXXXX","face_value":"1000","due_date":1700000000}`
+	reqBody := `{"buyer":"GBXXXXXXXXXX","face_value":"1000","due_date":0}`
 	req := httptest.NewRequest(http.MethodPost, "/invoices", strings.NewReader(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()

@@ -5,6 +5,7 @@ import {
   checkPoolBalanceCommand,
   type CheckPoolBalanceOptions,
 } from "./commands/check-pool-balance.js";
+import { registerListInvoicesCommand } from "./commands/list-invoices.js";
 
 function readVersion(): string {
   try {
@@ -34,5 +35,7 @@ program
   .action(async (options: CheckPoolBalanceOptions) => {
     await checkPoolBalanceCommand(options);
   });
+
+registerListInvoicesCommand(program);
 
 await program.parseAsync(process.argv);

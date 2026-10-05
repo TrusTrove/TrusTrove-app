@@ -66,10 +66,55 @@ Open [http://localhost:3000](http://localhost:3000), connect Freighter on testne
 ### 7. Build and test
 
 ```bash
-pnpm build             # SDK + web app
-pnpm test               # SDK + web app unit tests
+pnpm build             # SDK + CLI + web app
+pnpm test               # SDK + SDK-React + CLI + web app unit tests
 cd indexer && go test ./...   # Go indexer unit tests
 ```
+
+## Full local stack with Docker Compose
+
+[docker-compose.yml](../../docker-compose.yml) can run the whole stack — Postgres, the Go indexer (built from `indexer/Dockerfile`), and the Next.js web app (built from `apps/web/Dockerfile`) — so no Go or Node toolchain is needed on the host.
+
+1. Create the Compose-specific env file:
+
+   ```bash
+   cp .env.docker.example .env.docker
+   ```
+
+   It mirrors the root `.env.example`, with the values the Compose network changes: `DATABASE_URL` points at the `db` service hostname instead of `localhost`, and `INDEXER_MIGRATIONS_DIR` points at the migrations path baked into the indexer image. `.env.docker` is git-ignored.
+
+2. Build and start everything:
+
+   ```bash
+   docker compose --env-file .env.docker up --build
+   ```
+
+   `--env-file` supplies the web image's `NEXT_PUBLIC_*` build args, and the same file is loaded into the `indexer` and `web` containers via `env_file`.
+
+3. Open [http://localhost:3000](http://localhost:3000). The indexer API listens on [http://localhost:8080](http://localhost:8080) and serves `/health`.
+
+Useful commands:
+
+```bash
+docker compose up -d db         # Postgres only (the workflow above)
+docker compose logs -f indexer  # follow indexer/API logs
+docker compose down             # stop the stack
+docker compose down -v          # stop the stack and delete the Postgres volume
+```
+
+`.env.docker` is optional: if it does not exist, the `indexer` and `web` services are skipped in practice and `docker compose up -d db` keeps working for the non-Docker workflow.
+
+## Command-line interface
+
+`@trusttrove/cli` (`packages/cli`) wraps the SDK's read-only contract calls:
+
+```bash
+pnpm --filter @trusttrove/cli build
+node packages/cli/dist/index.js list-invoices --status Funded --public-key <G...>
+node packages/cli/dist/index.js list-invoices --issuer <G...> --public-key <G...>
+```
+
+`--public-key` falls back to `TRUSTTROVE_PUBLIC_KEY` and `--contract-id` to `INVOICE_CONTRACT_ID`, so once those are set in your `.env.local` (see step 2) the flags can be omitted.
 
 ## Analyzing the frontend bundle
 
@@ -110,6 +155,24 @@ The indexer automatically applies pending migrations on startup by:
 1. Reading migration files from the `indexer/db/migrations` directory
 2. Tracking applied migrations in a `schema_migrations` table
 3. Executing only migrations that have not yet been applied
+
+### One number per migration
+
+Every migration gets its own number. Files are applied in filename order and recorded by their full name, so two files that share a number both run, in whatever order their descriptions happen to sort. That is how the `002_` and `009_` collisions reached `main`.
+
+- **Name:** `NNN_lowercase_description.sql`, matching `^\d{3}_[a-z0-9_]+\.sql$`: three digits, an underscore, then lowercase letters, digits and underscores (for example `011_add_invoice_currency.sql`).
+- **Numbering:** numbers run `001`, `002`, `003`, ... with no gaps and no reuse. Use the highest number on `main` plus one.
+- **Check right before merging:** another PR may have taken your number since you branched. Rebase on the latest `main` and confirm the number is still free.
+- **If two PRs pick the same number:** whichever merges second rebases and renumbers its migration to the next free number. Never edit or renumber a migration that is already on `main`; databases have recorded it by name.
+
+Two checks enforce this:
+
+- `TestMigrationsDir_NamesAreValid` (`indexer/db`, runs with `go test ./...`, no database needed) fails on a duplicate number, a name that doesn't match the pattern, or a gap in the sequence.
+- On startup, `RunMigration` refuses to apply anything if two files share a number or a name doesn't match the pattern, for example: `duplicate migration number 011: 011_add_a.sql, 011_add_b.sql (each migration needs a unique NNN_ prefix)`. A gap does not stop the indexer.
+
+The existing `009_add_webhook_subscriptions.sql` / `009_webhooks.sql` pair is the only tolerated duplicate, listed in `knownDuplicateMigrations` in `indexer/db/migration_names.go` until [#880](https://github.com/TrusTrove/TrusTrove-app/issues/880) resolves it. Don't add entries there; renumber the new migration instead.
+
+Two PRs can each pass CI on their own and still collide once both merge. Requiring branches to be up to date before merging (or using a merge queue) makes the check run against the combined result.
 
 ### Rolling back database changes
 
