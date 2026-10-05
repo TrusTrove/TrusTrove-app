@@ -22,7 +22,8 @@ async function expectSystemThemeBeforeHydration(
   try {
     await page.goto("/", { waitUntil: "commit" });
     await page.waitForFunction(
-      (expectedScheme) => document.documentElement.style.colorScheme === expectedScheme,
+      (expectedScheme) =>
+        document.documentElement.style.colorScheme === expectedScheme,
       colorScheme,
     );
 
@@ -46,7 +47,9 @@ test.describe("theme preference", () => {
 
     await page.getByRole("button", { name: "Switch to dark theme" }).click();
     await expect(page.locator("html")).toHaveClass(/\bdark\b/);
-    await expect(page.getByRole("button", { name: "Switch to light theme" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Switch to light theme" }),
+    ).toBeVisible();
     await expect
       .poll(() => page.evaluate((key) => localStorage.getItem(key), THEME_KEY))
       .toBe("dark");
@@ -61,7 +64,9 @@ test.describe("theme preference", () => {
     await expectSystemThemeBeforeHydration(page, "dark");
   });
 
-  test("keeps the theme usable when local storage is blocked", async ({ page }) => {
+  test("keeps the theme usable when local storage is blocked", async ({
+    page,
+  }) => {
     await page.addInitScript(() => {
       Object.defineProperty(window, "localStorage", {
         configurable: true,
@@ -74,7 +79,9 @@ test.describe("theme preference", () => {
     await page.goto("/");
     await page.getByRole("button", { name: "Switch to light theme" }).click();
     await expect(page.locator("html")).not.toHaveClass(/\bdark\b/);
-    await expect(page.getByRole("button", { name: "Switch to dark theme" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Switch to dark theme" }),
+    ).toBeVisible();
   });
 
   test("supports the theme toggle at a compact viewport", async ({ page }) => {
@@ -89,6 +96,8 @@ test.describe("theme preference", () => {
     await expect(toggle).toBeVisible();
     await toggle.click();
     await expect(page.locator("html")).toHaveClass(/\bdark\b/);
-    await expect(page.getByRole("button", { name: "Switch to light theme" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Switch to light theme" }),
+    ).toBeVisible();
   });
 });
