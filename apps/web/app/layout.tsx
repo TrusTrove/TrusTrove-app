@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
+import { headers } from "next/headers";
 import { NextIntlClientProvider } from "next-intl";
 import "./globals.css";
 import Providers from "./providers";
@@ -8,6 +9,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import { cn } from "@/lib/utils";
 import enMessages from "../messages/en.json";
 import { THEME_BOOTSTRAP_SCRIPT } from "@/lib/theme";
+import { NONCE_HEADER } from "@/lib/security-headers.mjs";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -51,12 +53,20 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Per-request CSP nonce from middleware.ts. Reading request headers makes
+  // every route render dynamically, which the nonce requires anyway.
+  const nonce = headers().get(NONCE_HEADER) ?? undefined;
+
   return (
     // `suppressHydrationWarning` is required because the bootstrap script below
     // may swap the `dark` class before React hydrates (see lib/theme.ts).
     <html lang="en" className="dark" suppressHydrationWarning>
       <head>
         <script
+          nonce={nonce}
+          // Browsers blank the nonce attribute after parsing (so it cannot be
+          // read back by injected code), which React reports as a mismatch.
+          suppressHydrationWarning
           // Runs before first paint so a saved (or system) light preference is
           // applied without a flash of the server-rendered dark theme.
           dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP_SCRIPT }}

@@ -147,6 +147,7 @@ export function WalletConnect() {
                   your wallet.
                 </span>
               </span>
+              {networkSwitchError && <span>{networkSwitchError}</span>}
               <a
                 href="https://www.freighter.app/"
                 target="_blank"

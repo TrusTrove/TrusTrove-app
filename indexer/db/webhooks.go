@@ -206,13 +206,16 @@ func DisableWebhookSubscription(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-// CreateWebhookDelivery creates a new webhook delivery record.
-func CreateWebhookDelivery(ctx context.Context, subscriptionID uuid.UUID, eventType, eventID string, payload []byte) error {
+// CreateWebhookDelivery creates a new webhook delivery record. The q
+// parameter lets the listener enqueue delivery rows on the same transaction
+// that applies the event's state change, so an event's webhook fan-out either
+// commits with the event or not at all.
+func CreateWebhookDelivery(ctx context.Context, q Querier, subscriptionID uuid.UUID, eventType, eventID string, payload []byte) error {
 	query := `
 		INSERT INTO webhook_deliveries (subscription_id, event_type, event_id, payload)
 		VALUES ($1, $2, $3, $4)
 	`
-	_, err := Pool.Exec(ctx, query, subscriptionID, eventType, eventID, payload)
+	_, err := q.Exec(ctx, query, subscriptionID, eventType, eventID, payload)
 	if err != nil {
 		return fmt.Errorf("db: create webhook delivery: %w", err)
 	}

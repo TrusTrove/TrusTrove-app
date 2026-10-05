@@ -1,7 +1,6 @@
 package api
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -42,7 +41,9 @@ func (h *APIHandler) HandleGetStats(w http.ResponseWriter, r *http.Request) {
 	stats, err := h.getProtocolStatsFn(r.Context())
 	if err != nil {
 		h.statsMu.Unlock()
-		http.Error(w, fmt.Sprintf("failed to retrieve protocol stats: %s", err.Error()), http.StatusInternalServerError)
+		// The raw DB error can disclose table/column names; log it and return
+		// a generic message (issue #921).
+		internalError(w, r, "failed to retrieve protocol stats", err)
 		return
 	}
 
@@ -57,7 +58,9 @@ func (h *APIHandler) HandleGetStats(w http.ResponseWriter, r *http.Request) {
 func (h *APIHandler) HandleGetPoolStats(w http.ResponseWriter, r *http.Request) {
 	stats, err := h.getPoolStatsFn(r.Context())
 	if err != nil {
-		http.Error(w, fmt.Sprintf("failed to retrieve pool statistics: %s", err.Error()), http.StatusInternalServerError)
+		// The raw DB error can disclose table/column names; log it and return
+		// a generic message (issue #921).
+		internalError(w, r, "failed to retrieve pool statistics", err)
 		return
 	}
 
@@ -88,7 +91,9 @@ func (h *APIHandler) HandleGetEvents(w http.ResponseWriter, r *http.Request) {
 
 	events, err := h.getRecentEventsFn(r.Context(), limit)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("failed to retrieve events: %s", err.Error()), http.StatusInternalServerError)
+		// The raw DB error can disclose table/column names; log it and return
+		// a generic message (issue #921).
+		internalError(w, r, "failed to retrieve events", err)
 		return
 	}
 
@@ -97,6 +102,41 @@ func (h *APIHandler) HandleGetEvents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, events)
+}
+
+// GET /pool/snapshots
+func (h *APIHandler) HandleGetPoolSnapshots(w http.ResponseWriter, r *http.Request) {
+	limit := 100
+	if s := r.URL.Query().Get("limit"); s != "" {
+		if parsed, err := strconv.Atoi(s); err == nil && parsed > 0 && parsed <= 500 {
+			limit = parsed
+		}
+	}
+
+	history, err := h.getPoolSnapshotsFn(r.Context(), limit)
+	if err != nil {
+		internalError(w, r, "failed to retrieve pool snapshots", err)
+		return
+	}
+
+	// Response shape matches apps/web/types/index.ts PoolSnapshot:
+	// { timestamp, utilizationRateBps, totalYieldDistributed }
+	type poolSnapshot struct {
+		Timestamp             int64  `json:"timestamp"`
+		UtilizationRateBps    int    `json:"utilizationRateBps"`
+		TotalYieldDistributed string `json:"totalYieldDistributed"`
+	}
+
+	snapshots := make([]poolSnapshot, 0, len(history))
+	for _, h := range history {
+		snapshots = append(snapshots, poolSnapshot{
+			Timestamp:             h.RecordedAt,
+			UtilizationRateBps:    h.UtilizationRateBps,
+			TotalYieldDistributed: h.TotalYieldDistributed,
+		})
+	}
+
+	writeJSON(w, http.StatusOK, snapshots)
 }
 
 // GET /pool/position/{address}
@@ -120,7 +160,9 @@ func (h *APIHandler) HandleGetLPPosition(w http.ResponseWriter, r *http.Request)
 
 	scValResult, err := h.readContractFn(r.Context(), h.cfg.SorobanRPCURL, h.cfg.PoolContractID, "get_lp_position", []xdr.ScVal{addrVal}, h.serverKP)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("failed to read LP position from pool: %s", err.Error()), http.StatusInternalServerError)
+		// The RPC error can embed the full RPC URL (and any API key in it);
+		// log it and return a generic message (issue #921).
+		internalError(w, r, "failed to read LP position from pool", err)
 		return
 	}
 
