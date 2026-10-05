@@ -28,6 +28,31 @@ Before opening or requesting review of a pull request, confirm the following:
 
 ---
 
+## Test command coverage
+
+`pnpm build` covers `@trusttrove/sdk`, `@trusttrove/sdk-react`, `@trusttrove/cli`, and `web`. `pnpm test` runs the Vitest suites for those four packages; it does not run Go tests. `pnpm lint` covers SDK and web, while `pnpm typecheck` builds SDK, SDK React, and CLI before checking TypeScript across the workspaces.
+
+Vitest reports `Test Files` and `Tests` (the counts vary by package and checkout). For example:
+
+```text
+> pnpm --filter web test
+
+ Test Files  18 passed (18)
+      Tests  126 passed (126)
+   Start at  14:32:10
+   Duration  8.42s
+```
+
+Go test output uses the module path `trusttrove/indexer` and its package paths. For example:
+
+```text
+> cd indexer && go test ./...
+ok   trusttrove/indexer/api      0.412s
+ok   trusttrove/indexer/config   0.018s
+```
+
+Database integration tests require `TEST_DATABASE_URL`; for Docker Compose use `postgres://postgres:<POSTGRES_PASSWORD>@localhost:5433/postgres?sslmode=disable`. Without that variable, those tests are skipped.
+
 ## Git Workflow Guidelines
 
 We follow a strict, linear git history workflow to ensure codebase traceability.
@@ -57,7 +82,7 @@ Follow Conventional Commits format:
 Verify compilation across all monorepo packages before submitting code:
 
 ```bash
-# Compile SDK and Next.js frontend
+# Build all TypeScript workspace packages
 pnpm install
 pnpm build
 
@@ -78,11 +103,10 @@ This runs `tsc --noEmit` recursively over every TypeScript package in the monore
 
 ### 3. Linting & Code Quality
 
-Run linters on edited workspace directories:
+The root `pnpm lint` command lints the SDK and web workspaces. Run Go vet separately:
 
 ```bash
-# Web application lint
-pnpm --filter web lint
+pnpm lint
 
 # Go linter
 cd indexer
@@ -93,7 +117,7 @@ go vet ./...
 
 The test suite is split across two runtimes. Both must pass before opening a PR.
 
-**TypeScript tests** (SDK + web, run from the repo root):
+**TypeScript tests** (SDK, SDK React, CLI, and web, run from the repo root):
 
 ```bash
 # Run all TypeScript workspace tests
@@ -106,28 +130,12 @@ pnpm --filter web test
 pnpm --filter @trusttrove/sdk test
 ```
 
-> **Note:** `pnpm test` only covers the TypeScript packages (`@trusttrove/sdk` and `web`). It does **not** run the Go indexer tests.
-
-Example output (all passing):
-
-```text
-> pnpm test
-...
-Test Suites: 12 passed, 12 total
-Tests:       47 passed, 47 total
-Time:        2.34 s
-```
+> **Note:** `pnpm test` runs the `@trusttrove/sdk`, `@trusttrove/sdk-react`, `@trusttrove/cli`, and web Vitest suites. It does **not** run Go tests.
 
 **Go tests** (indexer, run from the `indexer/` directory):
 
 ```bash
 cd indexer && go test ./...
-```
-
-Example output (all passing):
-
-```text
-ok  	github.com/trusttrove/indexer	0.876s
 ```
 
 ---

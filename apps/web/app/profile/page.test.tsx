@@ -1,7 +1,7 @@
 import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import ProfilePage from "@/app/profile/page";
 
 vi.mock("@/store/wallet", () => ({
@@ -43,14 +43,67 @@ vi.mock("@/components/shared/TransactionPending", () => ({
   TransactionPending: () => null,
 }));
 
+describe("Notification preference toggles", () => {
+  // Must mirror the category list rendered by NotificationPreferences.
+  const categories = [
+    "Invoice Created",
+    "Invoice Listed",
+    "Invoice Funded",
+    "Invoice Shipped",
+    "Delivery Confirmed",
+    "Invoice Repaid",
+    "Invoice Defaulted",
+  ];
+
+  beforeEach(() => {
+    // Prefs persist in localStorage, so reset between tests to keep each
+    // mount on the documented default (every category on).
+    localStorage.clear();
+  });
+
+  it("gives every toggle an accessible name tied to its category", () => {
+    render(<ProfilePage />);
+
+    const toggles = screen.getAllByRole("checkbox");
+    expect(toggles).toHaveLength(categories.length);
+
+    for (const category of categories) {
+      // The category text sits outside the <label>, so the accessible name
+      // must come from aria-label (issue #875).
+      expect(
+        screen.getByRole("checkbox", { name: `${category} notifications` }),
+      ).toBeInTheDocument();
+    }
+  });
+
+  it("exposes checked state and flips it on click", async () => {
+    const user = userEvent.setup();
+    render(<ProfilePage />);
+
+    const toggle = screen.getByRole("checkbox", {
+      name: "Invoice Created notifications",
+    });
+    // Defaults are "on" until the user opts out.
+    expect(toggle).toBeChecked();
+
+    await user.click(toggle);
+    expect(toggle).not.toBeChecked();
+
+    await user.click(toggle);
+    expect(toggle).toBeChecked();
+  });
+});
+
 describe("Profile registration dialog", () => {
   it("opens in an accessible fixed overlay", () => {
     render(<ProfilePage />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Register profile" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Register Business Profile" }),
+    );
 
     const dialog = screen.getByRole("dialog", {
-      name: "Register Business Metadata",
+      name: "Register Corporate Profile",
     });
     expect(dialog).toHaveAttribute("aria-modal", "true");
     expect(dialog).toHaveAttribute("tabindex", "-1");
@@ -65,12 +118,12 @@ describe("Profile registration dialog", () => {
     render(<ProfilePage />);
 
     const openButton = screen.getByRole("button", {
-      name: "Register profile",
+      name: "Register Business Profile",
     });
     await user.click(openButton);
 
     const dialog = screen.getByRole("dialog", {
-      name: "Register Business Metadata",
+      name: "Register Corporate Profile",
     });
 
     // Collect all focusable elements inside the modal
@@ -111,7 +164,7 @@ describe("Profile registration dialog", () => {
     render(<ProfilePage />);
 
     const openButton = screen.getByRole("button", {
-      name: "Register profile",
+      name: "Register Business Profile",
     });
     await user.click(openButton);
 
@@ -121,7 +174,7 @@ describe("Profile registration dialog", () => {
     // The dialog should no longer be in the document
     expect(
       screen.queryByRole("dialog", {
-        name: "Register Business Metadata",
+        name: "Register Corporate Profile",
       }),
     ).not.toBeInTheDocument();
 
@@ -137,7 +190,7 @@ describe("Profile registration dialog", () => {
     render(<ProfilePage />);
 
     const openButton = screen.getByRole("button", {
-      name: "Register profile",
+      name: "Register Business Profile",
     });
     await user.click(openButton);
 

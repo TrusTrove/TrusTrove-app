@@ -353,6 +353,126 @@ func (l *EventListener) handleRegistrationEvent(ctx context.Context, tx db.Queri
 	return nil
 }
 
+// --- pool_contract event handlers ------------------------------------------
+//
+// Pool events change no invoice row, so these handlers only decode the topics
+// and value into logData. The handleEvent tail then persists that data to
+// events_log and enqueues the webhook deliveries in the same transaction as
+// everything else — which is what finally lets the pool.* envelopes the
+// webhook package already builds actually fire (issue #878).
+//
+// Topic/value layouts follow the contract event catalog
+// (TrusTrove-contract: docs/EVENTS.md and contracts/pool/src/events.rs). Each
+// event accepts both the published symbol (lp_deposited, lp_withdrawn,
+// repayment_received, invoice_defaulted) and the function-style name the
+// listener historically matched on, so renaming either side cannot silently
+// drop the event again.
+
+// handlePoolDeposit parses a pool deposit. Topic format:
+// ["deposit"/"lp_deposited", lp_address]; value: (usdc_amount, shares_issued).
+func (l *EventListener) handlePoolDeposit(event SorobanEvent, logData map[string]interface{}) error {
+	account, amount, shares, err := parsePoolLPEvent(event, "deposit")
+	if err != nil {
+		return err
+	}
+	logData["account"] = account
+	logData["amount"] = amount
+	logData["shares"] = shares
+	slog.Info("Indexed event: PoolDeposit", "account", account, "amount", amount, "shares", shares)
+	return nil
+}
+
+// handlePoolWithdrawal parses a pool withdrawal. Topic format:
+// ["withdraw"/"lp_withdrawn", lp_address]; value: (usdc_amount, shares_burned).
+func (l *EventListener) handlePoolWithdrawal(event SorobanEvent, logData map[string]interface{}) error {
+	account, amount, shares, err := parsePoolLPEvent(event, "withdraw")
+	if err != nil {
+		return err
+	}
+	logData["account"] = account
+	logData["amount"] = amount
+	logData["shares"] = shares
+	slog.Info("Indexed event: PoolWithdrawal", "account", account, "amount", amount, "shares", shares)
+	return nil
+}
+
+// handlePoolYieldDistributed parses the yield-distribution event emitted by
+// receive_repayment(). Topic format: ["receive_repayment"/
+// "repayment_received", invoice_id]; value: (amount, lp_yield[,
+// protocol_cut]). The third tuple element is deliberately ignored — the
+// pool.yield_distributed envelope has no field for the protocol's cut.
+// invoice_id in topic[1] is picked up by the handleEvent tail.
+func (l *EventListener) handlePoolYieldDistributed(event SorobanEvent, logData map[string]interface{}) error {
+	var val xdr.ScVal
+	if err := xdr.SafeUnmarshalBase64(event.Value, &val); err != nil {
+		return fmt.Errorf("parse pool yield value: %w", err)
+	}
+	amount, yieldAmount := parseU128Pair(val)
+	logData["amount"] = amount
+	logData["yield_amount"] = yieldAmount
+	slog.Info("Indexed event: PoolYieldDistributed", "amount", amount, "yield", yieldAmount)
+	return nil
+}
+
+// handlePoolDefault parses the pool's default-handling event: handle_default()
+// publishes "invoice_defaulted" with the pool's loss. Topic format:
+// ["invoice_defaulted", invoice_id]; value: u128 loss amount. invoice_id in
+// topic[1] is picked up by the handleEvent tail.
+func (l *EventListener) handlePoolDefault(event SorobanEvent, logData map[string]interface{}) error {
+	var val xdr.ScVal
+	if err := xdr.SafeUnmarshalBase64(event.Value, &val); err != nil {
+		return fmt.Errorf("parse pool default value: %w", err)
+	}
+	loss, _ := parseU128Pair(val)
+	logData["amount"] = loss
+	slog.Info("Indexed event: PoolDefaultHandled", "loss", loss)
+	return nil
+}
+
+// parsePoolLPEvent decodes the shape the pool's deposit and withdraw events
+// share: topic[1] is the LP address and the value is a 2-tuple of u128s
+// (amount, shares issued/burned).
+func parsePoolLPEvent(event SorobanEvent, kind string) (account, amount, shares string, err error) {
+	if len(event.Topic) < 2 {
+		return "", "", "", fmt.Errorf("invalid topic length for pool %s event", kind)
+	}
+	var addrVal xdr.ScVal
+	if err := xdr.SafeUnmarshalBase64(event.Topic[1], &addrVal); err != nil {
+		return "", "", "", fmt.Errorf("parse pool %s lp topic: %w", kind, err)
+	}
+	account = xdrutil.ParseAddress(addrVal)
+	if account == "" {
+		return "", "", "", fmt.Errorf("pool %s event: topic lp address is not a valid address", kind)
+	}
+	var val xdr.ScVal
+	if err := xdr.SafeUnmarshalBase64(event.Value, &val); err != nil {
+		return "", "", "", fmt.Errorf("parse pool %s value: %w", kind, err)
+	}
+	amount, shares = parseU128Pair(val)
+	return account, amount, shares, nil
+}
+
+// parseU128Pair reads the (primary, secondary) u128 pair the pool contract
+// publishes as an ScVec tuple. A scalar u128 (primary only) and a missing
+// secondary element are tolerated: xdrutil returns "0"/"" for anything that
+// is not a u128, so an event whose contract reported fewer fields still
+// indexes instead of wedging the poller on a retry loop.
+func parseU128Pair(val xdr.ScVal) (string, string) {
+	if val.Type != xdr.ScValTypeScvVec || val.Vec == nil || *val.Vec == nil {
+		return xdrutil.ParseU128(val), ""
+	}
+	elems := **val.Vec
+	primary := ""
+	if len(elems) > 0 {
+		primary = xdrutil.ParseU128(elems[0])
+	}
+	secondary := ""
+	if len(elems) > 1 {
+		secondary = xdrutil.ParseU128(elems[1])
+	}
+	return primary, secondary
+}
+
 // handleEvent applies one contract event atomically. The event's state
 // change (invoice insert/update), its events_log row — which is what marks
 // the event as processed for de-duplication — and its webhook_deliveries
@@ -391,6 +511,12 @@ func (l *EventListener) handleEvent(ctx context.Context, event SorobanEvent) err
 	_ = json.Unmarshal([]byte(event.Value), &data) // Unmarshal if it's JSON, ignore if it fails
 
 	return db.WithTx(ctx, func(tx pgx.Tx) error {
+		// logData is the structured payload persisted with the event in
+		// events_log and handed to the webhook dispatcher. Pool handlers fill
+		// it while parsing; for invoice events the keys are extracted after
+		// the switch below.
+		logData := map[string]interface{}{}
+
 		switch eventName {
 		case "create", "InvoiceCreated":
 			err = l.handleInvoiceCreated(ctx, tx, event, ledgerClosedAt)
@@ -413,6 +539,14 @@ func (l *EventListener) handleEvent(ctx context.Context, event SorobanEvent) err
 			// via events_log inside this transaction but have no invoice
 			// fan-out, so they short-circuit the tail below.
 			return l.handleRegistrationEvent(ctx, tx, event, ledgerClosedAt, eventName)
+		case "deposit", "lp_deposited":
+			err = l.handlePoolDeposit(event, logData)
+		case "withdraw", "lp_withdrawn":
+			err = l.handlePoolWithdrawal(event, logData)
+		case "receive_repayment", "repayment_received", "yield_distribution":
+			err = l.handlePoolYieldDistributed(event, logData)
+		case "handle_default", "invoice_defaulted":
+			err = l.handlePoolDefault(event, logData)
 		default:
 			slog.Debug("Skipping unhandled contract event", "name", eventName)
 			return nil
@@ -420,9 +554,6 @@ func (l *EventListener) handleEvent(ctx context.Context, event SorobanEvent) err
 		if err != nil {
 			return fmt.Errorf("handler for %s failed: %w", eventName, err)
 		}
-
-		// Build structured data for the event log
-		logData := map[string]interface{}{}
 
 		// Try to extract invoice_id from topic[1] for events that carry it
 		if len(event.Topic) >= 2 && eventName != "create" && eventName != "InvoiceCreated" {
@@ -461,8 +592,8 @@ func (l *EventListener) handleEvent(ctx context.Context, event SorobanEvent) err
 
 		// Enqueue webhook deliveries on the same transaction (issue #925):
 		// the fan-out either commits with the event or is retried with it.
-		// The non-transactional dispatch paths (pool events, unknown events)
-		// are unaffected.
+		// Events the switch above does not recognise never reach this point —
+		// the default branch skips them before any row is written.
 		if l.dispatcher != nil {
 			if err := l.dispatcher.EnqueueDeliveries(ctx, tx, eventName, l.webhookDispatchData(ctx, tx, eventName, event, ledgerClosedAt, logData)); err != nil {
 				return fmt.Errorf("enqueue webhook deliveries: %w", err)
