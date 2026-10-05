@@ -1,7 +1,6 @@
 package api
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -20,7 +19,9 @@ func (h *APIHandler) HandleGetInvoiceByID(w http.ResponseWriter, r *http.Request
 
 	invoice, err := h.getInvoiceByIDFn(r.Context(), id)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("failed to retrieve invoice: %s", err.Error()), http.StatusInternalServerError)
+		// The raw DB error can disclose table/column names; log it and return
+		// a generic message (issue #921).
+		internalError(w, r, "failed to retrieve invoice", err)
 		return
 	}
 
@@ -67,7 +68,9 @@ func (h *APIHandler) HandleGetInvoices(w http.ResponseWriter, r *http.Request) {
 
 	invoices, total, err := db.GetInvoicesPage(r.Context(), status, issuer, limit, offset)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("failed to retrieve invoices: %s", err.Error()), http.StatusInternalServerError)
+		// The raw DB error can disclose table/column names; log it and return
+		// a generic message (issue #921).
+		internalError(w, r, "failed to retrieve invoices", err)
 		return
 	}
 

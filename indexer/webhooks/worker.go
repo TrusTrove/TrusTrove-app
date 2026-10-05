@@ -179,7 +179,9 @@ func (w *DeliveryWorker) attemptDelivery(ctx context.Context, delivery *db.Webho
 	bodyStr := string(body)
 
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		if dbErr := db.MarkDeliverySuccess(ctx, delivery.ID, resp.StatusCode, bodyStr); dbErr != nil {
+		writeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if dbErr := db.MarkDeliverySuccess(writeCtx, delivery.ID, resp.StatusCode, bodyStr); dbErr != nil {
 			slog.Error("webhook worker: mark success failed", "delivery_id", delivery.ID, "error", dbErr)
 		}
 		slog.Info("webhook worker: delivered", "delivery_id", delivery.ID, "endpoint", delivery.EndpointURL, "status", resp.StatusCode)
@@ -192,6 +194,8 @@ func (w *DeliveryWorker) attemptDelivery(ctx context.Context, delivery *db.Webho
 
 // handleFailure processes a failed delivery attempt, scheduling retry or dead-lettering.
 func (w *DeliveryWorker) handleFailure(ctx context.Context, delivery *db.WebhookDelivery, statusCode *int, errMsg string) {
+	writeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	nextAttempt := delivery.Attempts + 1
 	slog.Warn("webhook worker: delivery failed",
 		"delivery_id", delivery.ID,
@@ -202,7 +206,7 @@ func (w *DeliveryWorker) handleFailure(ctx context.Context, delivery *db.Webhook
 	)
 
 	if nextAttempt >= delivery.MaxAttempts {
-		if err := db.MarkDeliveryDeadLetter(ctx, delivery.ID, errMsg); err != nil {
+		if err := db.MarkDeliveryDeadLetter(writeCtx, delivery.ID, errMsg); err != nil {
 			slog.Error("webhook worker: mark dead_letter failed", "delivery_id", delivery.ID, "error", err)
 		}
 		slog.Error("webhook worker: delivery dead-lettered", "delivery_id", delivery.ID, "endpoint", delivery.EndpointURL)
@@ -212,7 +216,7 @@ func (w *DeliveryWorker) handleFailure(ctx context.Context, delivery *db.Webhook
 	// Exponential backoff: backoffBase * 2^attempt (10s, 20s, 40s, 80s)
 	delay := backoffBase * (1 << uint(nextAttempt))
 	nextAt := time.Now().Add(delay)
-	if err := db.MarkDeliveryRetry(ctx, delivery.ID, nextAt, statusCode, errMsg); err != nil {
+	if err := db.MarkDeliveryRetry(writeCtx, delivery.ID, nextAt, statusCode, errMsg); err != nil {
 		slog.Error("webhook worker: mark retry failed", "delivery_id", delivery.ID, "error", err)
 	}
 }

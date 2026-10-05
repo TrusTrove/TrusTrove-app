@@ -98,7 +98,14 @@ type GetEventsParams struct {
 // WebhookDispatcher is the interface the listener uses to fan out events.
 // The concrete implementation lives in the webhook package.
 type WebhookDispatcher interface {
+	// Dispatch fans out an event without any transaction (pool events and
+	// other non-invoice fan-out paths). Failures are logged, not returned.
 	Dispatch(ctx context.Context, eventType string, data map[string]interface{})
+
+	// EnqueueDeliveries writes the webhook_deliveries rows for an event
+	// through q so the listener can commit them atomically with the event's
+	// state change (issue #925). It returns the first error encountered.
+	EnqueueDeliveries(ctx context.Context, q db.Querier, eventType string, data map[string]interface{}) error
 }
 
 type EventListener struct {
@@ -323,40 +330,10 @@ func (l *EventListener) pollEvents(ctx context.Context, startLedger int32) (int3
 				Value:          ev.Value.Xdr,
 			}
 
-			handleEvent := l.handleEventFn
-			if handleEvent == nil {
-				handleEvent = l.handleEvent
-			}
-			if err := handleEvent(ctx, sorobanEv); err != nil {
-				eventErr := fmt.Errorf("handle event %s: %w", sorobanEv.ID, err)
-				if !isPermanentEventError(eventErr) {
-					return startLedger, eventErr
-				}
-
-				quarantine := l.quarantineEventFn
-				if quarantine == nil {
-					quarantine = db.QuarantineFailedEvent
-				}
-				attempts, quarantineErr := quarantine(ctx, db.FailedEvent{
-					EventID:    sorobanEv.ID,
-					ContractID: sorobanEv.ContractID,
-					Ledger:     sorobanEv.Ledger,
-					RawTopic:   sorobanEv.Topic,
-					RawValue:   sorobanEv.Value,
-					ErrorText:  eventErr.Error(),
-				})
-				if quarantineErr != nil {
-					return startLedger, fmt.Errorf("quarantine event %s: %w", sorobanEv.ID, quarantineErr)
-				}
-				quarantined := l.quarantinedEvents.Add(1)
-				slog.Error("Quarantined permanent Soroban event",
-					"eventId", sorobanEv.ID,
-					"contract", sorobanEv.ContractID,
-					"ledger", sorobanEv.Ledger,
-					"attempts", attempts,
-					"quarantinedEvents", quarantined,
-					"error", eventErr,
-				)
+			// Once an event has entered processing, cancellation only stops new
+			// polls; the transaction and webhook enqueue may finish atomically.
+			if err := l.handleEvent(context.WithoutCancel(ctx), sorobanEv); err != nil {
+				return startLedger, fmt.Errorf("handle event %s: %w", sorobanEv.ID, err)
 			}
 		}
 		if res.Cursor != "" {

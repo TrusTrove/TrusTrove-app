@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -148,7 +149,7 @@ func TestHandleInvoiceCreated(t *testing.T) {
 		Value:          makeInvoiceCreatedValue(rawIDBytes, issuer, buyer, 1000000000, dueDate),
 	}
 
-	err := l.handleInvoiceCreated(ctx, event, time.Now().Unix())
+	err := l.handleInvoiceCreated(ctx, db.Pool, event, time.Now().Unix())
 	if err != nil {
 		t.Fatalf("handleInvoiceCreated: %v", err)
 	}
@@ -158,7 +159,7 @@ func TestHandleInvoiceCreated(t *testing.T) {
 		}
 	})
 
-	got, err := db.GetInvoiceByID(ctx, invoiceIDHex)
+	got, err := db.GetInvoiceByID(ctx, db.Pool, invoiceIDHex)
 	if err != nil {
 		t.Fatalf("GetInvoiceByID: %v", err)
 	}
@@ -197,7 +198,7 @@ func TestHandleInvoiceListed(t *testing.T) {
 		Status:       "Created",
 		CreatedAt:    time.Now().Unix(),
 	}
-	if err := db.InsertInvoice(ctx, inv); err != nil {
+	if err := db.InsertInvoice(ctx, db.Pool, inv); err != nil {
 		t.Fatalf("setup InsertInvoice: %v", err)
 	}
 	t.Cleanup(func() {
@@ -221,11 +222,11 @@ func TestHandleInvoiceListed(t *testing.T) {
 		Value:          encodeScVal(discountVal),
 	}
 
-	if err := l.handleInvoiceListed(ctx, event); err != nil {
+	if err := l.handleInvoiceListed(ctx, db.Pool, event); err != nil {
 		t.Fatalf("handleInvoiceListed: %v", err)
 	}
 
-	got, err := db.GetInvoiceByID(ctx, invoiceIDHex)
+	got, err := db.GetInvoiceByID(ctx, db.Pool, invoiceIDHex)
 	if err != nil || got == nil {
 		t.Fatalf("GetInvoiceByID after listing: err=%v, got=%v", err, got)
 	}
@@ -260,7 +261,7 @@ func TestHandleInvoiceShipped(t *testing.T) {
 		Status:       "Funded",
 		CreatedAt:    time.Now().Unix(),
 	}
-	if err := db.InsertInvoice(ctx, inv); err != nil {
+	if err := db.InsertInvoice(ctx, db.Pool, inv); err != nil {
 		t.Fatalf("setup InsertInvoice: %v", err)
 	}
 	t.Cleanup(func() {
@@ -280,11 +281,11 @@ func TestHandleInvoiceShipped(t *testing.T) {
 		Value:          encodeSymbol("mark_shipped"),
 	}
 
-	if err := l.handleInvoiceShipped(ctx, event, time.Now().Unix()); err != nil {
+	if err := l.handleInvoiceShipped(ctx, db.Pool, event, time.Now().Unix()); err != nil {
 		t.Fatalf("handleInvoiceShipped: %v", err)
 	}
 
-	got, err := db.GetInvoiceByID(ctx, invoiceIDHex)
+	got, err := db.GetInvoiceByID(ctx, db.Pool, invoiceIDHex)
 	if err != nil || got == nil {
 		t.Fatalf("GetInvoiceByID after shipped: err=%v, got=%v", err, got)
 	}
@@ -316,7 +317,7 @@ func TestHandleDeliveryConfirmed(t *testing.T) {
 		Status:       "Active",
 		CreatedAt:    time.Now().Unix(),
 	}
-	if err := db.InsertInvoice(ctx, inv); err != nil {
+	if err := db.InsertInvoice(ctx, db.Pool, inv); err != nil {
 		t.Fatalf("setup InsertInvoice: %v", err)
 	}
 	t.Cleanup(func() {
@@ -336,11 +337,11 @@ func TestHandleDeliveryConfirmed(t *testing.T) {
 		Value:          encodeSymbol("confirm_delivery"),
 	}
 
-	if err := l.handleDeliveryConfirmed(ctx, event, time.Now().Unix()); err != nil {
+	if err := l.handleDeliveryConfirmed(ctx, db.Pool, event, time.Now().Unix()); err != nil {
 		t.Fatalf("handleDeliveryConfirmed: %v", err)
 	}
 
-	got, err := db.GetInvoiceByID(ctx, invoiceIDHex)
+	got, err := db.GetInvoiceByID(ctx, db.Pool, invoiceIDHex)
 	if err != nil || got == nil {
 		t.Fatalf("GetInvoiceByID after confirmed: err=%v, got=%v", err, got)
 	}
@@ -372,7 +373,7 @@ func TestHandleAttestationSubmitted(t *testing.T) {
 		Status:       "Created",
 		CreatedAt:    time.Now().Unix(),
 	}
-	if err := db.InsertInvoice(ctx, inv); err != nil {
+	if err := db.InsertInvoice(ctx, db.Pool, inv); err != nil {
 		t.Fatalf("setup InsertInvoice: %v", err)
 	}
 	t.Cleanup(func() {
@@ -401,11 +402,11 @@ func TestHandleAttestationSubmitted(t *testing.T) {
 		Value:          encodeScVal(riskVal),
 	}
 
-	if err := l.handleAttestationSubmitted(ctx, event, time.Now().Unix()); err != nil {
+	if err := l.handleAttestationSubmitted(ctx, db.Pool, event, time.Now().Unix()); err != nil {
 		t.Fatalf("handleAttestationSubmitted: %v", err)
 	}
 
-	got, err := db.GetInvoiceByID(ctx, invoiceIDHex)
+	got, err := db.GetInvoiceByID(ctx, db.Pool, invoiceIDHex)
 	if err != nil || got == nil {
 		t.Fatalf("GetInvoiceByID after attestation: err=%v, got=%v", err, got)
 	}
@@ -431,7 +432,7 @@ func TestHandleAttestationSubmitted_ShortTopic(t *testing.T) {
 		Value:          encodeScVal(xdr.ScVal{Type: xdr.ScValTypeScvVoid}),
 	}
 
-	err := l.handleAttestationSubmitted(ctx, event, time.Now().Unix())
+	err := l.handleAttestationSubmitted(ctx, db.Pool, event, time.Now().Unix())
 	if err == nil {
 		t.Fatal("expected error for short topic, got nil")
 	}
@@ -537,5 +538,164 @@ func TestHandleRegistrationEvent_ShortTopic(t *testing.T) {
 
 	if err := l.handleEvent(ctx, event); err == nil {
 		t.Fatal("expected error for registration event with no address topic, got nil")
+	}
+}
+
+// TestHandleEventAtomicRollbackOnLogEventFailure covers issue #925's acceptance
+// criterion: a failure after the invoice state change must leave neither the
+// invoice update nor the events_log row behind. The forced failure is a real
+// database error on the events_log insert — events_log.event_id is
+// VARCHAR(128), so an over-length event id makes that statement fail after the
+// UPDATE invoices statement in the same transaction has already succeeded.
+func TestHandleEventAtomicRollbackOnLogEventFailure(t *testing.T) {
+	skipIfNoDB(t)
+
+	l := newTestListener()
+	ctx := context.Background()
+
+	const (
+		issuer = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
+		buyer  = "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN"
+	)
+	rawIDBytes := []byte(fmt.Sprintf("rollback%d", time.Now().UnixNano()))
+	invoiceIDHex := fmt.Sprintf("%x", rawIDBytes)
+
+	inv := &db.DbInvoice{
+		ID:           invoiceIDHex,
+		Issuer:       issuer,
+		Buyer:        buyer,
+		FaceValue:    "1000000000",
+		FundedAmount: "1000000000",
+		DueDate:      time.Now().Add(30 * 24 * time.Hour).Unix(),
+		Status:       "Funded",
+		CreatedAt:    time.Now().Unix(),
+	}
+	if err := db.InsertInvoice(ctx, db.Pool, inv); err != nil {
+		t.Fatalf("setup InsertInvoice: %v", err)
+	}
+	t.Cleanup(func() {
+		if db.Pool != nil {
+			db.Pool.Exec(ctx, "DELETE FROM invoices WHERE id = $1", invoiceIDHex)
+		}
+	})
+
+	idScBytes := xdr.ScBytes(rawIDBytes)
+	idTopic := encodeScVal(xdr.ScVal{Type: xdr.ScValTypeScvBytes, Bytes: &idScBytes})
+
+	// The event id exceeds events_log.event_id's VARCHAR(128): the invoice
+	// UPDATE succeeds, then the events_log INSERT fails inside the same
+	// transaction.
+	oversizedEventID := strings.Repeat("x", 200)
+	event := SorobanEvent{
+		ID:             oversizedEventID,
+		ContractID:     "CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS",
+		Ledger:         1200,
+		LedgerClosedAt: time.Now().Format(time.RFC3339),
+		Topic:          []string{encodeSymbol("mark_shipped"), idTopic},
+		Value:          encodeSymbol("mark_shipped"),
+	}
+
+	err := l.handleEvent(ctx, event)
+	if err == nil {
+		t.Fatal("expected handleEvent to return the LogEvent failure, got nil")
+	}
+
+	// The invoice state change must have been rolled back with the failed
+	// events_log insert, not committed ahead of it.
+	got, err := db.GetInvoiceByID(ctx, db.Pool, invoiceIDHex)
+	if err != nil {
+		t.Fatalf("GetInvoiceByID after rollback: %v", err)
+	}
+	if got == nil {
+		t.Fatal("GetInvoiceByID: returned nil, want invoice record")
+	}
+	if got.Status != "Funded" {
+		t.Errorf("Status after rolled-back event: got %q, want \"Funded\" (state change must not persist)", got.Status)
+	}
+	if got.ShippedAt != nil {
+		t.Errorf("ShippedAt after rolled-back event: got %v, want nil", *got.ShippedAt)
+	}
+	if got.IssuerConfirmed {
+		t.Error("IssuerConfirmed after rolled-back event: got true, want false")
+	}
+
+	// The events_log row must not exist either, so the event is eligible for
+	// reprocessing rather than being marked processed without its effects.
+	processed, err := db.IsEventProcessed(ctx, oversizedEventID)
+	if err != nil {
+		t.Fatalf("IsEventProcessed: %v", err)
+	}
+	if processed {
+		t.Error("IsEventProcessed: got true, want false (events_log row must be rolled back)")
+	}
+}
+
+// TestHandleEventCommitsStateAndLogTogether pins the complementary half of the
+// #925 transaction: on success the invoice state change and the events_log row
+// become visible together through the normal handleEvent path.
+func TestHandleEventCommitsStateAndLogTogether(t *testing.T) {
+	skipIfNoDB(t)
+
+	l := newTestListener()
+	ctx := context.Background()
+
+	const (
+		issuer = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
+		buyer  = "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN"
+	)
+	rawIDBytes := []byte(fmt.Sprintf("atomichappy%d", time.Now().UnixNano()))
+	invoiceIDHex := fmt.Sprintf("%x", rawIDBytes)
+	eventID := fmt.Sprintf("event-atomic-happy-%d", time.Now().UnixNano())
+
+	t.Cleanup(func() {
+		if db.Pool != nil {
+			db.Pool.Exec(ctx, "DELETE FROM invoices WHERE id = $1", invoiceIDHex)
+			db.Pool.Exec(ctx, "DELETE FROM events_log WHERE event_id = $1", eventID)
+		}
+	})
+
+	inv := &db.DbInvoice{
+		ID:           invoiceIDHex,
+		Issuer:       issuer,
+		Buyer:        buyer,
+		FaceValue:    "1000000000",
+		FundedAmount: "1000000000",
+		DueDate:      time.Now().Add(30 * 24 * time.Hour).Unix(),
+		Status:       "Funded",
+		CreatedAt:    time.Now().Unix(),
+	}
+	if err := db.InsertInvoice(ctx, db.Pool, inv); err != nil {
+		t.Fatalf("setup InsertInvoice: %v", err)
+	}
+
+	idScBytes := xdr.ScBytes(rawIDBytes)
+	idTopic := encodeScVal(xdr.ScVal{Type: xdr.ScValTypeScvBytes, Bytes: &idScBytes})
+	event := SorobanEvent{
+		ID:             eventID,
+		ContractID:     "CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS",
+		Ledger:         1201,
+		LedgerClosedAt: time.Now().Format(time.RFC3339),
+		Topic:          []string{encodeSymbol("mark_shipped"), idTopic},
+		Value:          encodeSymbol("mark_shipped"),
+	}
+
+	if err := l.handleEvent(ctx, event); err != nil {
+		t.Fatalf("handleEvent(mark_shipped): %v", err)
+	}
+
+	got, err := db.GetInvoiceByID(ctx, db.Pool, invoiceIDHex)
+	if err != nil || got == nil {
+		t.Fatalf("GetInvoiceByID after commit: err=%v, got=%v", err, got)
+	}
+	if got.Status != "Active" {
+		t.Errorf("Status after committed event: got %q, want %q", got.Status, "Active")
+	}
+
+	processed, err := db.IsEventProcessed(ctx, eventID)
+	if err != nil {
+		t.Fatalf("IsEventProcessed: %v", err)
+	}
+	if !processed {
+		t.Error("IsEventProcessed: got false, want true (events_log row must commit with the state change)")
 	}
 }

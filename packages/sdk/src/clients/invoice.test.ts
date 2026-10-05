@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { Address } from "@stellar/stellar-sdk";
 import { InvoiceClient } from "./invoice.js";
-import { BaseContractClient } from "../base.js";
 
 vi.mock("../base.js", () => {
   return {
@@ -22,6 +22,26 @@ describe("InvoiceClient", () => {
     client = new InvoiceClient(
       "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
     );
+  });
+
+  describe("initialize", () => {
+    it("calls writeContract with correct arguments", async () => {
+      vi.mocked(client["writeContract"]).mockResolvedValue("mock-hash");
+
+      const adminAddress =
+        "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB";
+      const signerPublicKey =
+        "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB";
+
+      const result = await client.initialize(adminAddress, signerPublicKey);
+
+      expect(result).toBe("mock-hash");
+      expect(client["writeContract"]).toHaveBeenCalledWith(
+        "initialize",
+        [new Address(adminAddress).toScVal()],
+        signerPublicKey,
+      );
+    });
   });
 
   describe("create", () => {

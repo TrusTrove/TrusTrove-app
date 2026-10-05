@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -144,6 +146,38 @@ func TestHandleGetInvoiceByID_DBErrorReturns500(t *testing.T) {
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf("expected 500 on db error, got %d", rr.Code)
+	}
+}
+
+// TestHandleGetInvoiceByID_InternalErrorDoesNotLeakErrorText covers issue
+// #921: a backend failure must reach the operator's logs, not the client. The
+// injected fn fails with an error carrying a sentinel secret (the kind of
+// text pgx or *url.Error produce, e.g. an RPC URL with an API key); the
+// response must stay generic, include a request id, and never contain the
+// sentinel.
+func TestHandleGetInvoiceByID_InternalErrorDoesNotLeakErrorText(t *testing.T) {
+	h := readonlyTestHandler(t)
+
+	const sentinel = "SUPER-SECRET-INTERNAL-DETAIL-postgres://user:pass@db/idx"
+	h.getInvoiceByIDFn = func(_ context.Context, _ string) (*db.DbInvoice, error) {
+		return nil, fmt.Errorf("pq: relation \"invoices\" missing: %s", sentinel)
+	}
+
+	rr := httptest.NewRecorder()
+	req := withURLParams(httptest.NewRequest(http.MethodGet, "/invoices/anything", nil), map[string]string{"id": "anything"})
+	h.HandleGetInvoiceByID(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d; body: %s", rr.Code, rr.Body.String())
+	}
+	if strings.Contains(rr.Body.String(), sentinel) {
+		t.Fatalf("response leaked internal error text: %s", rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "failed to retrieve invoice") {
+		t.Fatalf("expected generic failure message, got %q", rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "request id:") {
+		t.Fatalf("expected a request id in the response, got %q", rr.Body.String())
 	}
 }
 
@@ -411,6 +445,114 @@ func TestHandleGetStats_DBErrorReturns500(t *testing.T) {
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/stats", nil)
 	h.HandleGetStats(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500 on db error, got %d", rr.Code)
+	}
+}
+
+func TestHandleGetPoolSnapshots_EmptyHistory(t *testing.T) {
+	h := readonlyTestHandler(t)
+	h.getPoolSnapshotsFn = func(_ context.Context, _ int) ([]*db.DbPoolSnapshotHistory, error) {
+		return []*db.DbPoolSnapshotHistory{}, nil
+	}
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/pool/snapshots", nil)
+	h.HandleGetPoolSnapshots(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+
+	var result []map[string]interface{}
+	if err := json.Unmarshal(rr.Body.Bytes(), &result); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if len(result) != 0 {
+		t.Errorf("expected empty array, got %d items", len(result))
+	}
+}
+
+func TestHandleGetPoolSnapshots_ReturnsCamelCaseShape(t *testing.T) {
+	h := readonlyTestHandler(t)
+	h.getPoolSnapshotsFn = func(_ context.Context, _ int) ([]*db.DbPoolSnapshotHistory, error) {
+		return []*db.DbPoolSnapshotHistory{
+			{RecordedAt: 1748000000, UtilizationRateBps: 7500, TotalYieldDistributed: "15000000000000"},
+			{RecordedAt: 1747000000, UtilizationRateBps: 5000, TotalYieldDistributed: "10000000000000"},
+		}, nil
+	}
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/pool/snapshots", nil)
+	h.HandleGetPoolSnapshots(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+
+	var result []map[string]interface{}
+	if err := json.Unmarshal(rr.Body.Bytes(), &result); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if len(result) != 2 {
+		t.Fatalf("expected 2 snapshots, got %d", len(result))
+	}
+
+	first := result[0]
+	if _, ok := first["timestamp"]; !ok {
+		t.Error("missing timestamp field")
+	}
+	if _, ok := first["utilizationRateBps"]; !ok {
+		t.Error("missing utilizationRateBps field")
+	}
+	if _, ok := first["totalYieldDistributed"]; !ok {
+		t.Error("missing totalYieldDistributed field")
+	}
+
+	if got := first["timestamp"].(float64); got != 1748000000 {
+		t.Errorf("timestamp: got %v, want 1748000000", got)
+	}
+	if got := first["utilizationRateBps"].(float64); got != 7500 {
+		t.Errorf("utilizationRateBps: got %v, want 7500", got)
+	}
+	if got := first["totalYieldDistributed"].(string); got != "15000000000000" {
+		t.Errorf("totalYieldDistributed: got %v, want 15000000000000", got)
+	}
+}
+
+func TestHandleGetPoolSnapshots_LimitParameter(t *testing.T) {
+	h := readonlyTestHandler(t)
+	var gotLimit int
+	h.getPoolSnapshotsFn = func(_ context.Context, limit int) ([]*db.DbPoolSnapshotHistory, error) {
+		gotLimit = limit
+		return []*db.DbPoolSnapshotHistory{}, nil
+	}
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/pool/snapshots", nil)
+	h.HandleGetPoolSnapshots(rr, req)
+	if gotLimit != 100 {
+		t.Errorf("default limit: got %d, want 100", gotLimit)
+	}
+
+	rr = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/pool/snapshots?limit=50", nil)
+	h.HandleGetPoolSnapshots(rr, req)
+	if gotLimit != 50 {
+		t.Errorf("custom limit: got %d, want 50", gotLimit)
+	}
+}
+
+func TestHandleGetPoolSnapshots_DBErrorReturns500(t *testing.T) {
+	h := readonlyTestHandler(t)
+	h.getPoolSnapshotsFn = func(_ context.Context, _ int) ([]*db.DbPoolSnapshotHistory, error) {
+		return nil, errors.New("snapshot query failed")
+	}
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/pool/snapshots", nil)
+	h.HandleGetPoolSnapshots(rr, req)
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf("expected 500 on db error, got %d", rr.Code)

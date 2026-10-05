@@ -15,6 +15,7 @@ import (
 	"trusttrove/indexer/db"
 	"trusttrove/indexer/soroban"
 
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/stellar/go-stellar-sdk/keypair"
 	"github.com/stellar/go-stellar-sdk/xdr"
 )
@@ -34,6 +35,7 @@ type APIHandler struct {
 	// or Soroban RPC.
 	getInvoiceByIDFn   func(context.Context, string) (*db.DbInvoice, error)
 	getPoolStatsFn     func(context.Context) (*db.DbPoolStats, error)
+	getPoolSnapshotsFn func(context.Context, int) ([]*db.DbPoolSnapshotHistory, error)
 	getRecentEventsFn  func(context.Context, int) ([]*db.EventLog, error)
 	getProtocolStatsFn func(context.Context) (*db.ProtocolStats, error)
 	readContractFn     func(ctx context.Context, rpcURL string, contractID string, method string, args []xdr.ScVal, serverKP *keypair.Full) (xdr.ScVal, error)
@@ -45,12 +47,15 @@ func NewAPIHandler(cfg *config.Config) (*APIHandler, error) {
 		return nil, fmt.Errorf("invalid server seed: %w", err)
 	}
 	return &APIHandler{
-		cfg:                cfg,
-		serverKP:           kp,
-		listenerHealth:     NewListenerHealth(),
-		dbHealthChecker:    defaultDBHealthChecker,
-		getInvoiceByIDFn:   db.GetInvoiceByID,
+		cfg:             cfg,
+		serverKP:        kp,
+		listenerHealth:  NewListenerHealth(),
+		dbHealthChecker: defaultDBHealthChecker,
+		getInvoiceByIDFn: func(ctx context.Context, id string) (*db.DbInvoice, error) {
+			return db.GetInvoiceByID(ctx, db.Pool, id)
+		},
 		getPoolStatsFn:     db.GetPoolStats,
+		getPoolSnapshotsFn: db.GetPoolSnapshotHistory,
 		getRecentEventsFn:  db.GetRecentEvents,
 		getProtocolStatsFn: db.GetProtocolStats,
 		readContractFn:     soroban.ReadContract,
@@ -92,15 +97,33 @@ func httpErrorf(status int, format string, args ...interface{}) *httpError {
 	return &httpError{status: status, message: fmt.Sprintf(format, args...)}
 }
 
+// internalError logs the full error server-side and responds with a generic,
+// client-safe message. Raw error text from the database, Soroban RPC or any
+// other backend can disclose internals (table and constraint names,
+// connection strings, or an RPC URL carrying a provider API key), so it must
+// never reach the response body — operators correlate via the request ID and
+// the log entry instead.
+func internalError(w http.ResponseWriter, r *http.Request, msg string, err error) {
+	slog.ErrorContext(r.Context(), msg,
+		"error", err,
+		"request_id", middleware.GetReqID(r.Context()),
+		"method", r.Method,
+		"path", r.URL.Path,
+	)
+	http.Error(w, msg+" (request id: "+middleware.GetReqID(r.Context())+")", http.StatusInternalServerError)
+}
+
 // writeHTTPError serves err as a plain-text error response, using the status
-// code carried by an *httpError and falling back to 500 for anything else.
-func writeHTTPError(w http.ResponseWriter, err error) {
+// code carried by an *httpError. Only httpError values reach the client; any
+// other error is a potential leak of backend internals, so it is logged and
+// answered with a generic 500 message instead of err.Error().
+func writeHTTPError(w http.ResponseWriter, r *http.Request, err error) {
 	var he *httpError
 	if errors.As(err, &he) {
 		http.Error(w, he.message, he.status)
 		return
 	}
-	http.Error(w, err.Error(), http.StatusInternalServerError)
+	internalError(w, r, "internal server error", err)
 }
 
 func (h *APIHandler) ListenerHealth() *ListenerHealth {

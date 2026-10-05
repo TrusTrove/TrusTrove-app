@@ -12,6 +12,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/prometheus/client_golang v1.24.1
 	github.com/stellar/go-stellar-sdk v0.6.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
