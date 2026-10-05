@@ -7,6 +7,9 @@ allowBuilds:
   unrs-resolver: true
 auditConfig:
   ignoreGhsas:
+    # braces has no patched npm release as of 2026-10-03; it is currently pulled only
+    # through the web app's Tailwind build tooling. Remove this exception once upstream ships a fix.
+    - GHSA-vfj7-8cjw-p6xm
     - GHSA-p293-qw3h-jr36
     - GHSA-2xp9-vwfh-vxw4
     - GHSA-h25m-26qc-wcjf

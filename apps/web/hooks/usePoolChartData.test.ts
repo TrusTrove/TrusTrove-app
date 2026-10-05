@@ -31,9 +31,12 @@ describe("usePoolChartData", () => {
     const { result } = renderHook(() => usePoolChartData({ data }));
 
     expect(result.current.points).toHaveLength(1);
-    expect(result.current.linePath).toBe(
-      `M ${20 + (500 - 40) / 2} ${20 + (200 - 40) - ((42 - 42) / 1) * (200 - 40)}`,
-    );
+    expect(result.current.points[0]).toMatchObject({
+      x: 250,
+      y: 100,
+      value: 42,
+    });
+    expect(result.current.linePath).toBe("M 250 100");
 
     // No NaN in points
     result.current.points.forEach((pt) => {
