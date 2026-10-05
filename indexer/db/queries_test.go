@@ -737,14 +737,14 @@ func TestUpdateInvoiceAttestation(t *testing.T) {
 	}
 }
 
-// TestInvoiceCheckConstraints proves the migration 011 CHECK constraints reject
+// TestInvoiceCheckConstraints proves the migration 012 CHECK constraints reject
 // values the application code would otherwise silently accept.
 func TestInvoiceCheckConstraints(t *testing.T) {
 	skipIfNoDB(t)
 
 	ctx := context.Background()
 	id := fmt.Sprintf("constraint-test%d", time.Now().UnixNano())
-	if err := InsertInvoice(ctx, newTestInvoice(id)); err != nil {
+	if err := InsertInvoice(ctx, Pool, newTestInvoice(id)); err != nil {
 		t.Fatalf("InsertInvoice: %v", err)
 	}
 	t.Cleanup(func() {
