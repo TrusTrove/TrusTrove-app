@@ -83,7 +83,7 @@ func (l *EventListener) handleInvoiceCreated(ctx context.Context, tx db.Querier,
 	var val xdr.ScVal
 	err := xdr.SafeUnmarshalBase64(event.Value, &val)
 	if err != nil {
-		return fmt.Errorf("parse value: %w", err)
+		return permanentEventErrorf("parse value: %w", err)
 	}
 
 	// Parse invoice struct/map fields
@@ -110,7 +110,7 @@ func (l *EventListener) handleInvoiceCreated(ctx context.Context, tx db.Querier,
 	}
 
 	if id == "" || issuer == "" || buyer == "" {
-		return fmt.Errorf("event value missing required invoice fields: id=%s, issuer=%s, buyer=%s", id, issuer, buyer)
+		return permanentEventErrorf("event value missing required invoice fields: id=%s, issuer=%s, buyer=%s", id, issuer, buyer)
 	}
 
 	dbInvoice := &db.DbInvoice{
@@ -139,20 +139,20 @@ func (l *EventListener) handleInvoiceCreated(ctx context.Context, tx db.Querier,
 func (l *EventListener) handleInvoiceListed(ctx context.Context, tx db.Querier, event SorobanEvent) error {
 	// Topic format: ["InvoiceListed" / "list_for_financing", invoice_id_bytes]
 	if len(event.Topic) < 2 {
-		return fmt.Errorf("invalid topic length for list event")
+		return permanentEventErrorf("invalid topic length for list event")
 	}
 
 	var idVal xdr.ScVal
 	err := xdr.SafeUnmarshalBase64(event.Topic[1], &idVal)
 	if err != nil {
-		return fmt.Errorf("parse topic invoice_id: %w", err)
+		return permanentEventErrorf("parse topic invoice_id: %w", err)
 	}
 	invoiceID := xdrutil.ParseBytes(idVal)
 
 	var val xdr.ScVal
 	err = xdr.SafeUnmarshalBase64(event.Value, &val)
 	if err != nil {
-		return fmt.Errorf("parse value: %w", err)
+		return permanentEventErrorf("parse value: %w", err)
 	}
 	discountBps := int(xdrutil.ParseU32(val))
 
@@ -168,20 +168,20 @@ func (l *EventListener) handleInvoiceListed(ctx context.Context, tx db.Querier, 
 func (l *EventListener) handleInvoiceFunded(ctx context.Context, tx db.Querier, event SorobanEvent, serverKP *keypair.Full, ledgerClosedAt int64) error {
 	// Topic format: ["InvoiceFunded" / "fund_invoice", invoice_id_bytes]
 	if len(event.Topic) < 2 {
-		return fmt.Errorf("invalid topic length for funded event")
+		return permanentEventErrorf("invalid topic length for funded event")
 	}
 
 	var idVal xdr.ScVal
 	err := xdr.SafeUnmarshalBase64(event.Topic[1], &idVal)
 	if err != nil {
-		return fmt.Errorf("parse topic invoice_id: %w", err)
+		return permanentEventErrorf("parse topic invoice_id: %w", err)
 	}
 	invoiceID := xdrutil.ParseBytes(idVal)
 
 	var val xdr.ScVal
 	err = xdr.SafeUnmarshalBase64(event.Value, &val)
 	if err != nil {
-		return fmt.Errorf("parse value: %w", err)
+		return permanentEventErrorf("parse value: %w", err)
 	}
 	fundedAmount := xdrutil.ParseU128(val)
 
@@ -199,13 +199,13 @@ func (l *EventListener) handleInvoiceFunded(ctx context.Context, tx db.Querier, 
 
 func (l *EventListener) handleInvoiceShipped(ctx context.Context, tx db.Querier, event SorobanEvent, ledgerClosedAt int64) error {
 	if len(event.Topic) < 2 {
-		return fmt.Errorf("invalid topic length for shipped event")
+		return permanentEventErrorf("invalid topic length for shipped event")
 	}
 
 	var idVal xdr.ScVal
 	err := xdr.SafeUnmarshalBase64(event.Topic[1], &idVal)
 	if err != nil {
-		return fmt.Errorf("parse topic invoice_id: %w", err)
+		return permanentEventErrorf("parse topic invoice_id: %w", err)
 	}
 	invoiceID := xdrutil.ParseBytes(idVal)
 
@@ -220,13 +220,13 @@ func (l *EventListener) handleInvoiceShipped(ctx context.Context, tx db.Querier,
 
 func (l *EventListener) handleDeliveryConfirmed(ctx context.Context, tx db.Querier, event SorobanEvent, ledgerClosedAt int64) error {
 	if len(event.Topic) < 2 {
-		return fmt.Errorf("invalid topic length for confirmed event")
+		return permanentEventErrorf("invalid topic length for confirmed event")
 	}
 
 	var idVal xdr.ScVal
 	err := xdr.SafeUnmarshalBase64(event.Topic[1], &idVal)
 	if err != nil {
-		return fmt.Errorf("parse topic invoice_id: %w", err)
+		return permanentEventErrorf("parse topic invoice_id: %w", err)
 	}
 	invoiceID := xdrutil.ParseBytes(idVal)
 
@@ -241,13 +241,13 @@ func (l *EventListener) handleDeliveryConfirmed(ctx context.Context, tx db.Queri
 
 func (l *EventListener) handleInvoiceRepaid(ctx context.Context, tx db.Querier, event SorobanEvent, serverKP *keypair.Full, ledgerClosedAt int64) error {
 	if len(event.Topic) < 2 {
-		return fmt.Errorf("invalid topic length for repaid event")
+		return permanentEventErrorf("invalid topic length for repaid event")
 	}
 
 	var idVal xdr.ScVal
 	err := xdr.SafeUnmarshalBase64(event.Topic[1], &idVal)
 	if err != nil {
-		return fmt.Errorf("parse topic invoice_id: %w", err)
+		return permanentEventErrorf("parse topic invoice_id: %w", err)
 	}
 	invoiceID := xdrutil.ParseBytes(idVal)
 
@@ -265,13 +265,13 @@ func (l *EventListener) handleInvoiceRepaid(ctx context.Context, tx db.Querier, 
 
 func (l *EventListener) handleInvoiceDefaulted(ctx context.Context, tx db.Querier, event SorobanEvent, serverKP *keypair.Full) error {
 	if len(event.Topic) < 2 {
-		return fmt.Errorf("invalid topic length for default event")
+		return permanentEventErrorf("invalid topic length for default event")
 	}
 
 	var idVal xdr.ScVal
 	err := xdr.SafeUnmarshalBase64(event.Topic[1], &idVal)
 	if err != nil {
-		return fmt.Errorf("parse topic invoice_id: %w", err)
+		return permanentEventErrorf("parse topic invoice_id: %w", err)
 	}
 	invoiceID := xdrutil.ParseBytes(idVal)
 
@@ -291,13 +291,13 @@ func (l *EventListener) handleAttestationSubmitted(ctx context.Context, tx db.Qu
 	// Topic format: ["AttestationSubmitted" / "submit_attestation", invoice_id_bytes, agent_id_symbol]
 	// Value: risk_score (u32)
 	if len(event.Topic) < 2 {
-		return fmt.Errorf("invalid topic length for attestation event")
+		return permanentEventErrorf("invalid topic length for attestation event")
 	}
 
 	var idVal xdr.ScVal
 	err := xdr.SafeUnmarshalBase64(event.Topic[1], &idVal)
 	if err != nil {
-		return fmt.Errorf("parse topic invoice_id: %w", err)
+		return permanentEventErrorf("parse topic invoice_id: %w", err)
 	}
 	invoiceID := xdrutil.ParseBytes(idVal)
 
@@ -306,7 +306,10 @@ func (l *EventListener) handleAttestationSubmitted(ctx context.Context, tx db.Qu
 	if len(event.Topic) >= 3 {
 		var agentVal xdr.ScVal
 		err = xdr.SafeUnmarshalBase64(event.Topic[2], &agentVal)
-		if err == nil && agentVal.Sym != nil {
+		if err != nil {
+			return permanentEventErrorf("parse topic agent_id: %w", err)
+		}
+		if agentVal.Sym != nil {
 			agentID = string(*agentVal.Sym)
 		}
 	}
@@ -315,9 +318,10 @@ func (l *EventListener) handleAttestationSubmitted(ctx context.Context, tx db.Qu
 	riskScoreBps := 0
 	var val xdr.ScVal
 	err = xdr.SafeUnmarshalBase64(event.Value, &val)
-	if err == nil {
-		riskScoreBps = int(xdrutil.ParseU32(val))
+	if err != nil {
+		return permanentEventErrorf("parse value: %w", err)
 	}
+	riskScoreBps = int(xdrutil.ParseU32(val))
 
 	err = db.UpdateInvoiceAttestation(ctx, tx, invoiceID, agentID, "", riskScoreBps, ledgerClosedAt)
 	if err != nil {
@@ -330,16 +334,16 @@ func (l *EventListener) handleAttestationSubmitted(ctx context.Context, tx db.Qu
 func (l *EventListener) handleRegistrationEvent(ctx context.Context, tx db.Querier, event SorobanEvent, ledgerClosedAt int64, eventName string) error {
 	// Topic format: ["issuer_registered" / "buyer_registered", account_address]
 	if len(event.Topic) < 2 {
-		return fmt.Errorf("invalid topic length for registration event")
+		return permanentEventErrorf("invalid topic length for registration event")
 	}
 
 	var addrVal xdr.ScVal
 	if err := xdr.SafeUnmarshalBase64(event.Topic[1], &addrVal); err != nil {
-		return fmt.Errorf("parse registration address topic: %w", err)
+		return permanentEventErrorf("parse registration address topic: %w", err)
 	}
 	address := xdrutil.ParseAddress(addrVal)
 	if address == "" {
-		return fmt.Errorf("registration event value: topic address is not a valid address")
+		return permanentEventErrorf("registration event value: topic address is not a valid address")
 	}
 
 	logData := map[string]interface{}{
@@ -361,16 +365,16 @@ func (l *EventListener) handleRegistrationEvent(ctx context.Context, tx db.Queri
 // poller retries the ledger instead of advancing past a half-processed event.
 func (l *EventListener) handleEvent(ctx context.Context, event SorobanEvent) error {
 	if len(event.Topic) == 0 {
-		return fmt.Errorf("event topic is empty")
+		return permanentEventErrorf("event topic is empty")
 	}
 
 	var topicVal xdr.ScVal
 	err := xdr.SafeUnmarshalBase64(event.Topic[0], &topicVal)
 	if err != nil {
-		return fmt.Errorf("parse first topic: %w", err)
+		return permanentEventErrorf("parse first topic: %w", err)
 	}
 	if topicVal.Sym == nil {
-		return fmt.Errorf("first topic is not a symbol")
+		return permanentEventErrorf("first topic is not a symbol")
 	}
 	eventName := string(*topicVal.Sym)
 

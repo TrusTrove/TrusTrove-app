@@ -16,6 +16,7 @@ import (
 	"trusttrove/indexer/config"
 	"trusttrove/indexer/db"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stellar/go-stellar-sdk/keypair"
 )
 
@@ -254,6 +255,7 @@ func TestPollEvents_BatchLookupRunsOncePerPage(t *testing.T) {
 	l := newTestEventListener(t, func(c *config.Config) {
 		c.SorobanRPCURL = server.URL
 		c.RegistryContractID = contractID
+		c.IndexerPollIntervalMs = 5
 	})
 
 	var lookups int32
@@ -276,6 +278,101 @@ func TestPollEvents_BatchLookupRunsOncePerPage(t *testing.T) {
 	}
 	if strings.Join(gotIDs, ",") != strings.Join(eventIDs, ",") {
 		t.Errorf("expected the whole page in one call, got %v", gotIDs)
+	}
+}
+
+func TestPollEvents_QuarantinesMalformedEventAndContinues(t *testing.T) {
+	const (
+		contractID   = "CABGWVIZFF62FG67ZGFEP67NEEY4WYTMFURDMFTKKNRDAFPKPOJDTN4C"
+		latestLedger = int32(320)
+	)
+	server := stubSorobanRPC(t, func(method string) (any, int) {
+		if method != "getEvents" {
+			return map[string]any{"sequence": latestLedger}, http.StatusOK
+		}
+		badEvent := rpcEventFor("320-000002", "issuer_registered")
+		badEvent["ledger"] = latestLedger
+		badEvent["topic"] = []string{"not-valid-xdr"}
+		return map[string]any{
+			"events": []any{
+				rpcEventFor("320-000001", "issuer_registered"),
+				badEvent,
+				rpcEventFor("320-000003", "issuer_registered"),
+			},
+			"latestLedger": uint32(latestLedger),
+			"cursor":       "",
+		}, http.StatusOK
+	})
+
+	l := newTestEventListener(t, func(c *config.Config) {
+		c.SorobanRPCURL = server.URL
+		c.RegistryContractID = contractID
+		c.IndexerPollIntervalMs = 5
+	})
+	var indexed []string
+	l.handleEventFn = func(ctx context.Context, event SorobanEvent) error {
+		if event.ID == "320-000002" {
+			return l.handleEvent(ctx, event)
+		}
+		indexed = append(indexed, event.ID)
+		return nil
+	}
+	var quarantined db.FailedEvent
+	l.quarantineEventFn = func(_ context.Context, event db.FailedEvent) (int, error) {
+		quarantined = event
+		return 1, nil
+	}
+
+	l.getCheckpointFn = func(context.Context) (int32, error) { return 320, nil }
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var checkpoint int32
+	l.upsertCheckpointFn = func(_ context.Context, ledger int32) error {
+		checkpoint = ledger
+		cancel()
+		return nil
+	}
+	if err := l.Start(ctx); err != nil {
+		t.Fatalf("Start returned error for malformed event: %v", err)
+	}
+	if checkpoint != latestLedger+1 {
+		t.Errorf("persisted checkpoint = %d, want %d", checkpoint, latestLedger+1)
+	}
+	if strings.Join(indexed, ",") != "320-000001,320-000003" {
+		t.Errorf("indexed surrounding events = %v", indexed)
+	}
+	if quarantined.EventID != "320-000002" || quarantined.ContractID != contractID || quarantined.Ledger != latestLedger {
+		t.Errorf("quarantined event metadata = %+v", quarantined)
+	}
+	if len(quarantined.RawTopic) != 1 || quarantined.RawTopic[0] != "not-valid-xdr" || quarantined.RawValue == "" {
+		t.Errorf("quarantined raw payload = %+v", quarantined)
+	}
+	if !strings.Contains(quarantined.ErrorText, "parse first topic") {
+		t.Errorf("quarantined error = %q", quarantined.ErrorText)
+	}
+}
+
+func TestIsPermanentEventErrorClassification(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "decode failure", err: permanentEventErrorf("invalid XDR"), want: true},
+		{name: "transient storage failure", err: errors.New("database unavailable"), want: false},
+		{name: "context cancellation", err: context.Canceled, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isPermanentEventError(tt.err); got != tt.want {
+				t.Errorf("isPermanentEventError(%v) = %t, want %t", tt.err, got, tt.want)
+			}
+		})
+	}
+
+	duplicateErr := fmt.Errorf("insert invoice: %w", &pgconn.PgError{Code: "23505"})
+	if !isPermanentEventError(duplicateErr) {
+		t.Error("expected PostgreSQL duplicate-key error to be permanent")
 	}
 }
 
