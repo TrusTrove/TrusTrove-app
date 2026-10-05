@@ -55,32 +55,48 @@ describe("AnalyticsClient", () => {
   });
 
   it("shows a skeleton for each statistic while loading", () => {
-    useStatsMock.mockReturnValue({ stats: undefined, isLoading: true, error: null });
+    useStatsMock.mockReturnValue({
+      stats: undefined,
+      isLoading: true,
+      error: null,
+    });
     const { container } = render(<AnalyticsClient />);
 
     expect(container.querySelectorAll(".h-7.w-24")).toHaveLength(8);
   });
 
   it("shows an em dash for every tile and an error note when stats fail", () => {
-    useStatsMock.mockReturnValue({ stats: undefined, isLoading: false, error: new Error("offline") });
-    render(<AnalyticsClient />);
-
-    expect(screen.getAllByText("—")).toHaveLength(8);
-    expect(screen.getByText(/Live stats are temporarily unavailable/)).toBeInTheDocument();
-  });
-
-  it.each(["abc", undefined])("returns null for invalid USDC amount %s", (value) => {
-    expect(formatCompactUsdc(value)).toBeNull();
-  });
-
-  it.each(["abc", undefined])("renders an em dash for USDC amount %s", (total_usdc_financed) => {
     useStatsMock.mockReturnValue({
-      stats: { ...stats, total_usdc_financed },
+      stats: undefined,
       isLoading: false,
-      error: null,
+      error: new Error("offline"),
     });
     render(<AnalyticsClient />);
 
-    expect(screen.getAllByText("—")).toHaveLength(1);
+    expect(screen.getAllByText("—")).toHaveLength(8);
+    expect(
+      screen.getByText(/Live stats are temporarily unavailable/),
+    ).toBeInTheDocument();
   });
+
+  it.each(["abc", undefined])(
+    "returns null for invalid USDC amount %s",
+    (value) => {
+      expect(formatCompactUsdc(value)).toBeNull();
+    },
+  );
+
+  it.each(["abc", undefined])(
+    "renders an em dash for USDC amount %s",
+    (total_usdc_financed) => {
+      useStatsMock.mockReturnValue({
+        stats: { ...stats, total_usdc_financed },
+        isLoading: false,
+        error: null,
+      });
+      render(<AnalyticsClient />);
+
+      expect(screen.getAllByText("—")).toHaveLength(1);
+    },
+  );
 });

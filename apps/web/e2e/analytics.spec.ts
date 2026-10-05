@@ -32,7 +32,9 @@ async function mockAnalyticsEndpoints(
     await route.fulfill({
       status: statsStatus,
       contentType: "application/json",
-      body: JSON.stringify(statsStatus === 200 ? statsPayload : { error: "offline" }),
+      body: JSON.stringify(
+        statsStatus === 200 ? statsPayload : { error: "offline" },
+      ),
     });
   });
   await page.route("**/pool/snapshots", async (route) => {
@@ -45,24 +47,38 @@ async function mockAnalyticsEndpoints(
 }
 
 test.describe("public analytics page", () => {
-  test("renders stats and the pool chart without connecting a wallet", async ({ page }) => {
+  test("renders stats and the pool chart without connecting a wallet", async ({
+    page,
+  }) => {
     await mockAnalyticsEndpoints(page);
     await page.goto("/analytics");
 
-    await expect(page.getByRole("heading", { name: "Protocol Analytics" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Protocol Analytics" }),
+    ).toBeVisible();
     await expect(page.getByText("72.5%")).toBeVisible();
     await expect(page.getByText("8.12%")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Pool Performance" })).toBeVisible();
-    await expect(page.getByRole("img", { name: /pool utilization is currently/i })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Pool Performance" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("img", { name: /pool utilization is currently/i }),
+    ).toBeVisible();
     await expect(page.getByText(/GB[A-Z0-9]{8,}/)).toHaveCount(0);
   });
 
-  test("shows stats placeholders on an API failure without crashing the chart", async ({ page }) => {
+  test("shows stats placeholders on an API failure without crashing the chart", async ({
+    page,
+  }) => {
     await mockAnalyticsEndpoints(page, 500);
     await page.goto("/analytics");
 
-    await expect(page.getByText(/Live stats are temporarily unavailable/)).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Pool Performance" })).toBeVisible();
+    await expect(
+      page.getByText(/Live stats are temporarily unavailable/),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Pool Performance" }),
+    ).toBeVisible();
     await expect(page.getByText("—")).toHaveCount(8);
   });
 
@@ -75,6 +91,8 @@ test.describe("public analytics page", () => {
     await analyticsLink.click();
 
     await expect(page).toHaveURL(/\/analytics$/);
-    await expect(page.getByRole("heading", { name: "Protocol Analytics" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Protocol Analytics" }),
+    ).toBeVisible();
   });
 });
