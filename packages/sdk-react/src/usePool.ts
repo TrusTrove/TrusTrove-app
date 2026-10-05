@@ -43,7 +43,8 @@ export function usePoolStats(
   // the options object identity, so inline `{ contractId }` literals don't
   // re-create the client — and re-trigger queries — on every render.
   const client = useMemo(
-    () => poolClient({ client: options.client, contractId: options.contractId }),
+    () =>
+      poolClient({ client: options.client, contractId: options.contractId }),
     [options.client, options.contractId],
   );
   return useAsyncQuery(
@@ -68,7 +69,8 @@ export function useLPPosition(
   // the options object identity, so inline `{ contractId }` literals don't
   // re-create the client — and re-trigger queries — on every render.
   const client = useMemo(
-    () => poolClient({ client: options.client, contractId: options.contractId }),
+    () =>
+      poolClient({ client: options.client, contractId: options.contractId }),
     [options.client, options.contractId],
   );
   return useAsyncQuery(
@@ -93,7 +95,8 @@ export function useUtilizationRate(
   // the options object identity, so inline `{ contractId }` literals don't
   // re-create the client — and re-trigger queries — on every render.
   const client = useMemo(
-    () => poolClient({ client: options.client, contractId: options.contractId }),
+    () =>
+      poolClient({ client: options.client, contractId: options.contractId }),
     [options.client, options.contractId],
   );
   return useAsyncQuery(
@@ -154,7 +157,8 @@ export function usePoolMutations(
   // the options object identity, so inline `{ contractId }` literals don't
   // re-create the client — and re-trigger queries — on every render.
   const client = useMemo(
-    () => poolClient({ client: options.client, contractId: options.contractId }),
+    () =>
+      poolClient({ client: options.client, contractId: options.contractId }),
     [options.client, options.contractId],
   );
 

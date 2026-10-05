@@ -47,7 +47,10 @@ export function useIsVerified(
   // re-create the client — and re-trigger queries — on every render.
   const client = useMemo(
     () =>
-      registryClient({ client: options.client, contractId: options.contractId }),
+      registryClient({
+        client: options.client,
+        contractId: options.contractId,
+      }),
     [options.client, options.contractId],
   );
   return useAsyncQuery(
@@ -73,7 +76,10 @@ export function useProfile(
   // re-create the client — and re-trigger queries — on every render.
   const client = useMemo(
     () =>
-      registryClient({ client: options.client, contractId: options.contractId }),
+      registryClient({
+        client: options.client,
+        contractId: options.contractId,
+      }),
     [options.client, options.contractId],
   );
   return useAsyncQuery(
@@ -127,7 +133,10 @@ export function useRegistryMutations(
   // re-create the client — and re-trigger queries — on every render.
   const client = useMemo(
     () =>
-      registryClient({ client: options.client, contractId: options.contractId }),
+      registryClient({
+        client: options.client,
+        contractId: options.contractId,
+      }),
     [options.client, options.contractId],
   );
 
