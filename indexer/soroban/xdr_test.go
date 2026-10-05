@@ -104,12 +104,69 @@ func TestMakeU128ScVal_SplitsHiLoHalves(t *testing.T) {
 	val := new(big.Int).Lsh(big.NewInt(1), 64)
 	val.Add(val, big.NewInt(7))
 
-	got := MakeU128ScVal(val)
+	got, err := MakeU128ScVal(val)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if got.Type != xdr.ScValTypeScvU128 || got.U128 == nil {
 		t.Fatalf("expected u128 ScVal, got %v", got.Type)
 	}
 	if got.U128.Hi != 1 || got.U128.Lo != 7 {
 		t.Errorf("expected Hi=1 Lo=7, got Hi=%d Lo=%d", got.U128.Hi, got.U128.Lo)
+	}
+}
+
+// TestMakeU128ScVal_RangeChecks pins the u128 ceiling: 2^128 - 1 is the largest
+// representable value and must succeed; anything at or above 2^128 (or negative)
+// must fail instead of silently truncating to value mod 2^128.
+func TestMakeU128ScVal_RangeChecks(t *testing.T) {
+	maxU128 := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 128), big.NewInt(1))
+
+	got, err := MakeU128ScVal(maxU128)
+	if err != nil {
+		t.Fatalf("expected 2^128 - 1 to be accepted, got error: %v", err)
+	}
+	if got.U128 == nil || got.U128.Hi != xdr.Uint64(0xffffffffffffffff) || got.U128.Lo != xdr.Uint64(0xffffffffffffffff) {
+		t.Fatalf("expected Hi and Lo to be u64 max for 2^128 - 1")
+	}
+
+	tests := []struct {
+		name    string
+		val     *big.Int
+		wantErr string
+	}{
+		{
+			name:    "2^128 exceeds u128",
+			val:     new(big.Int).Lsh(big.NewInt(1), 128),
+			wantErr: "exceeds the u128 range",
+		},
+		{
+			name:    "2^128 + 5 exceeds u128",
+			val:     new(big.Int).Add(new(big.Int).Lsh(big.NewInt(1), 128), big.NewInt(5)),
+			wantErr: "exceeds the u128 range",
+		},
+		{
+			name:    "negative value",
+			val:     big.NewInt(-5),
+			wantErr: "must be non-negative",
+		},
+		{
+			name:    "nil value",
+			val:     nil,
+			wantErr: "u128 value is nil",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := MakeU128ScVal(tt.val)
+			if err == nil {
+				t.Fatalf("expected error for %s, got ScVal %+v", tt.val, got)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("expected error containing %q, got %q", tt.wantErr, err.Error())
+			}
+		})
 	}
 }
 

@@ -13,6 +13,21 @@ Health check. Returns 200 if the indexer is running.
 { "status": "ok" }
 ```
 
+Returns 503 with `{"status": "degraded", "error": "..."}` when the listener or database is unavailable.
+
+## GET /metrics
+
+Prometheus-format metrics for the indexer service. No JWT required.
+
+## Error responses
+
+Error responses use `text/plain` format (via `http.Error`), not JSON:
+
+```
+invoice not found
+invalid face value
+```
+
 ## GET /invoices
 
 Returns invoices with optional filtering.
@@ -44,7 +59,7 @@ Returns invoices with optional filtering.
   "total": 47,
   "page": 1,
   "limit": 20,
-  "total_pages": 3
+  "totalPages": 3
 }
 ```
 
@@ -63,7 +78,9 @@ Returns current pool statistics aggregated from indexed events.
   "available_liquidity": "250000000000000",
   "utilization_rate_bps": 7500,
   "total_yield_distributed": "15000000000000",
-  "active_invoice_count": 12
+  "active_invoice_count": 12,
+  "total_shares": "1000000000000",
+  "updated_at": "2025-05-24T12:00:00Z"
 }
 ```
 
@@ -92,9 +109,20 @@ Protocol-level aggregated statistics for the landing page.
   "total_repaid": 31,
   "total_defaulted": 2,
   "average_yield_bps": 210,
-  "pool_utilization_bps": 7500
+  "pool_utilization_bps": 7500,
+  "registered_issuers": 8
 }
 ```
+
+How the aggregates are derived from invoice `status`:
+
+| Field                  | Statuses included                                                  |
+| ---------------------- | ------------------------------------------------------------------ |
+| `total_usdc_financed`  | `Funded`, `Active`, `Confirmed`, `Repaid` (sum of `funded_amount`) |
+| `active_invoice_count` | `Funded`, `Active`, `Confirmed` (capital deployed, not yet repaid) |
+| `total_repaid`         | `Repaid`                                                           |
+| `total_defaulted`      | `Defaulted`                                                        |
+| `average_yield_bps`    | `Funded`, `Active`, `Confirmed`, `Repaid` (mean `discount_bps`)    |
 
 ## GET /auth
 
@@ -143,11 +171,22 @@ Creates an off-chain/indexed invoice record. **Requires JWT** (`Authorization: B
 ```json
 {
   "buyer": "GBUYERAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-  "face_value": "1000.00",
-  "due_date": 1735689600,
-  "asset": "USDC"
+  "face_value": "10000000000",
+  "due_date": 1790000000
 }
 ```
+
+**Accepted ranges:**
+
+- `face_value` — decimal string, strictly positive, and at most `2^128 - 1`
+  (i.e. `340282366920938463463374607431768211455`). Values outside this range,
+  non-numeric strings, or strings longer than 40 digits are rejected with
+  `400 invalid face value`. The amount is in stroops (1 USDC = 10,000,000
+  stroops), matching the on-chain representation.
+- `due_date` — Unix timestamp in seconds. Must be in the future and no more
+  than 5 years (`maxDueDateHorizonSeconds`) from the time the request is
+  validated. Timestamps in the past or beyond the horizon are rejected with
+  `400 invalid due date`.
 
 **Response (201):**
 

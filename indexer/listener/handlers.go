@@ -13,6 +13,7 @@ import (
 	"trusttrove/indexer/soroban"
 	"trusttrove/indexer/xdrutil"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/stellar/go-stellar-sdk/keypair"
 	"github.com/stellar/go-stellar-sdk/xdr"
 )
@@ -78,7 +79,7 @@ func SyncPoolStats(ctx context.Context, cfg *config.Config, serverKP *keypair.Fu
 
 // Event-specific handlers called by the listener loop
 
-func (l *EventListener) handleInvoiceCreated(ctx context.Context, event SorobanEvent, ledgerClosedAt int64) error {
+func (l *EventListener) handleInvoiceCreated(ctx context.Context, tx db.Querier, event SorobanEvent, ledgerClosedAt int64) error {
 	var val xdr.ScVal
 	err := xdr.SafeUnmarshalBase64(event.Value, &val)
 	if err != nil {
@@ -126,7 +127,7 @@ func (l *EventListener) handleInvoiceCreated(ctx context.Context, event SorobanE
 		BuyerConfirmed:  false,
 	}
 
-	err = db.InsertInvoice(ctx, dbInvoice)
+	err = db.InsertInvoice(ctx, tx, dbInvoice)
 	if err != nil {
 		return err
 	}
@@ -135,7 +136,7 @@ func (l *EventListener) handleInvoiceCreated(ctx context.Context, event SorobanE
 	return nil
 }
 
-func (l *EventListener) handleInvoiceListed(ctx context.Context, event SorobanEvent) error {
+func (l *EventListener) handleInvoiceListed(ctx context.Context, tx db.Querier, event SorobanEvent) error {
 	// Topic format: ["InvoiceListed" / "list_for_financing", invoice_id_bytes]
 	if len(event.Topic) < 2 {
 		return fmt.Errorf("invalid topic length for list event")
@@ -155,7 +156,7 @@ func (l *EventListener) handleInvoiceListed(ctx context.Context, event SorobanEv
 	}
 	discountBps := int(xdrutil.ParseU32(val))
 
-	err = db.UpdateInvoiceListed(ctx, invoiceID, "Listed", discountBps)
+	err = db.UpdateInvoiceListed(ctx, tx, invoiceID, "Listed", discountBps)
 	if err != nil {
 		return err
 	}
@@ -164,7 +165,7 @@ func (l *EventListener) handleInvoiceListed(ctx context.Context, event SorobanEv
 	return nil
 }
 
-func (l *EventListener) handleInvoiceFunded(ctx context.Context, event SorobanEvent, serverKP *keypair.Full, ledgerClosedAt int64) error {
+func (l *EventListener) handleInvoiceFunded(ctx context.Context, tx db.Querier, event SorobanEvent, serverKP *keypair.Full, ledgerClosedAt int64) error {
 	// Topic format: ["InvoiceFunded" / "fund_invoice", invoice_id_bytes]
 	if len(event.Topic) < 2 {
 		return fmt.Errorf("invalid topic length for funded event")
@@ -184,7 +185,7 @@ func (l *EventListener) handleInvoiceFunded(ctx context.Context, event SorobanEv
 	}
 	fundedAmount := xdrutil.ParseU128(val)
 
-	err = db.UpdateInvoiceFunded(ctx, invoiceID, "Funded", fundedAmount, ledgerClosedAt)
+	err = db.UpdateInvoiceFunded(ctx, tx, invoiceID, "Funded", fundedAmount, ledgerClosedAt)
 	if err != nil {
 		return err
 	}
@@ -196,7 +197,7 @@ func (l *EventListener) handleInvoiceFunded(ctx context.Context, event SorobanEv
 	return nil
 }
 
-func (l *EventListener) handleInvoiceShipped(ctx context.Context, event SorobanEvent, ledgerClosedAt int64) error {
+func (l *EventListener) handleInvoiceShipped(ctx context.Context, tx db.Querier, event SorobanEvent, ledgerClosedAt int64) error {
 	if len(event.Topic) < 2 {
 		return fmt.Errorf("invalid topic length for shipped event")
 	}
@@ -208,7 +209,7 @@ func (l *EventListener) handleInvoiceShipped(ctx context.Context, event SorobanE
 	}
 	invoiceID := xdrutil.ParseBytes(idVal)
 
-	err = db.UpdateInvoiceShipped(ctx, invoiceID, "Active", ledgerClosedAt)
+	err = db.UpdateInvoiceShipped(ctx, tx, invoiceID, "Active", ledgerClosedAt)
 	if err != nil {
 		return err
 	}
@@ -217,7 +218,7 @@ func (l *EventListener) handleInvoiceShipped(ctx context.Context, event SorobanE
 	return nil
 }
 
-func (l *EventListener) handleDeliveryConfirmed(ctx context.Context, event SorobanEvent, ledgerClosedAt int64) error {
+func (l *EventListener) handleDeliveryConfirmed(ctx context.Context, tx db.Querier, event SorobanEvent, ledgerClosedAt int64) error {
 	if len(event.Topic) < 2 {
 		return fmt.Errorf("invalid topic length for confirmed event")
 	}
@@ -229,7 +230,7 @@ func (l *EventListener) handleDeliveryConfirmed(ctx context.Context, event Sorob
 	}
 	invoiceID := xdrutil.ParseBytes(idVal)
 
-	err = db.UpdateInvoiceDeliveryConfirmed(ctx, invoiceID, "Confirmed", ledgerClosedAt)
+	err = db.UpdateInvoiceDeliveryConfirmed(ctx, tx, invoiceID, "Confirmed", ledgerClosedAt)
 	if err != nil {
 		return err
 	}
@@ -238,7 +239,7 @@ func (l *EventListener) handleDeliveryConfirmed(ctx context.Context, event Sorob
 	return nil
 }
 
-func (l *EventListener) handleInvoiceRepaid(ctx context.Context, event SorobanEvent, serverKP *keypair.Full, ledgerClosedAt int64) error {
+func (l *EventListener) handleInvoiceRepaid(ctx context.Context, tx db.Querier, event SorobanEvent, serverKP *keypair.Full, ledgerClosedAt int64) error {
 	if len(event.Topic) < 2 {
 		return fmt.Errorf("invalid topic length for repaid event")
 	}
@@ -250,7 +251,7 @@ func (l *EventListener) handleInvoiceRepaid(ctx context.Context, event SorobanEv
 	}
 	invoiceID := xdrutil.ParseBytes(idVal)
 
-	err = db.UpdateInvoiceRepaid(ctx, invoiceID, "Repaid", ledgerClosedAt)
+	err = db.UpdateInvoiceRepaid(ctx, tx, invoiceID, "Repaid", ledgerClosedAt)
 	if err != nil {
 		return err
 	}
@@ -262,7 +263,7 @@ func (l *EventListener) handleInvoiceRepaid(ctx context.Context, event SorobanEv
 	return nil
 }
 
-func (l *EventListener) handleInvoiceDefaulted(ctx context.Context, event SorobanEvent, serverKP *keypair.Full) error {
+func (l *EventListener) handleInvoiceDefaulted(ctx context.Context, tx db.Querier, event SorobanEvent, serverKP *keypair.Full) error {
 	if len(event.Topic) < 2 {
 		return fmt.Errorf("invalid topic length for default event")
 	}
@@ -274,7 +275,7 @@ func (l *EventListener) handleInvoiceDefaulted(ctx context.Context, event Soroba
 	}
 	invoiceID := xdrutil.ParseBytes(idVal)
 
-	err = db.UpdateInvoiceStatus(ctx, invoiceID, "Defaulted")
+	err = db.UpdateInvoiceStatus(ctx, tx, invoiceID, "Defaulted")
 	if err != nil {
 		return err
 	}
@@ -286,7 +287,7 @@ func (l *EventListener) handleInvoiceDefaulted(ctx context.Context, event Soroba
 	return nil
 }
 
-func (l *EventListener) handleAttestationSubmitted(ctx context.Context, event SorobanEvent, ledgerClosedAt int64) error {
+func (l *EventListener) handleAttestationSubmitted(ctx context.Context, tx db.Querier, event SorobanEvent, ledgerClosedAt int64) error {
 	// Topic format: ["AttestationSubmitted" / "submit_attestation", invoice_id_bytes, agent_id_symbol]
 	// Value: risk_score (u32)
 	if len(event.Topic) < 2 {
@@ -318,7 +319,7 @@ func (l *EventListener) handleAttestationSubmitted(ctx context.Context, event So
 		riskScoreBps = int(xdrutil.ParseU32(val))
 	}
 
-	err = db.UpdateInvoiceAttestation(ctx, invoiceID, agentID, "", riskScoreBps, ledgerClosedAt)
+	err = db.UpdateInvoiceAttestation(ctx, tx, invoiceID, agentID, "", riskScoreBps, ledgerClosedAt)
 	if err != nil {
 		return err
 	}
@@ -326,7 +327,7 @@ func (l *EventListener) handleAttestationSubmitted(ctx context.Context, event So
 	slog.Info("Indexed event: AttestationSubmitted", "id", invoiceID, "agentID", agentID, "riskScoreBps", riskScoreBps)
 	return nil
 }
-func (l *EventListener) handleRegistrationEvent(ctx context.Context, event SorobanEvent, ledgerClosedAt int64, eventName string) error {
+func (l *EventListener) handleRegistrationEvent(ctx context.Context, tx db.Querier, event SorobanEvent, ledgerClosedAt int64, eventName string) error {
 	// Topic format: ["issuer_registered" / "buyer_registered", account_address]
 	if len(event.Topic) < 2 {
 		return fmt.Errorf("invalid topic length for registration event")
@@ -344,7 +345,7 @@ func (l *EventListener) handleRegistrationEvent(ctx context.Context, event Sorob
 	logData := map[string]interface{}{
 		"address": address,
 	}
-	if err := db.LogEvent(ctx, event.ID, event.ContractID, event.Ledger, ledgerClosedAt, eventName, logData); err != nil {
+	if err := db.LogEvent(ctx, tx, event.ID, event.ContractID, event.Ledger, ledgerClosedAt, eventName, logData); err != nil {
 		return err
 	}
 
@@ -352,6 +353,12 @@ func (l *EventListener) handleRegistrationEvent(ctx context.Context, event Sorob
 	return nil
 }
 
+// handleEvent applies one contract event atomically. The event's state
+// change (invoice insert/update), its events_log row — which is what marks
+// the event as processed for de-duplication — and its webhook_deliveries
+// rows are all written in a single transaction (issue #925). Any failure
+// rolls the whole unit of work back and is returned to the caller, so the
+// poller retries the ledger instead of advancing past a half-processed event.
 func (l *EventListener) handleEvent(ctx context.Context, event SorobanEvent) error {
 	if len(event.Topic) == 0 {
 		return fmt.Errorf("event topic is empty")
@@ -383,86 +390,95 @@ func (l *EventListener) handleEvent(ctx context.Context, event SorobanEvent) err
 	var data map[string]interface{}
 	_ = json.Unmarshal([]byte(event.Value), &data) // Unmarshal if it's JSON, ignore if it fails
 
-	switch eventName {
-	case "create", "InvoiceCreated":
-		err = l.handleInvoiceCreated(ctx, event, ledgerClosedAt)
-	case "list_for_financing", "InvoiceListed":
-		err = l.handleInvoiceListed(ctx, event)
-	case "fund_invoice", "InvoiceFunded":
-		err = l.handleInvoiceFunded(ctx, event, serverKP, ledgerClosedAt)
-	case "mark_shipped", "InvoiceShipped":
-		err = l.handleInvoiceShipped(ctx, event, ledgerClosedAt)
-	case "confirm_delivery", "DeliveryConfirmed":
-		err = l.handleDeliveryConfirmed(ctx, event, ledgerClosedAt)
-	case "repay", "InvoiceRepaid":
-		err = l.handleInvoiceRepaid(ctx, event, serverKP, ledgerClosedAt)
-	case "trigger_default", "InvoiceDefaulted":
-		err = l.handleInvoiceDefaulted(ctx, event, serverKP)
-	case "submit_attestation", "AttestationSubmitted":
-		err = l.handleAttestationSubmitted(ctx, event, ledgerClosedAt)
-	case "issuer_registered", "buyer_registered":
-		// Registry contract registrations are logged (and de-duplicated) via
-		// events_log but have no invoice fan-out, so they short-circuit the
-		// generic tail below.
-		return l.handleRegistrationEvent(ctx, event, ledgerClosedAt, eventName)
-	default:
-		slog.Debug("Skipping unhandled contract event", "name", eventName)
+	return db.WithTx(ctx, func(tx pgx.Tx) error {
+		switch eventName {
+		case "create", "InvoiceCreated":
+			err = l.handleInvoiceCreated(ctx, tx, event, ledgerClosedAt)
+		case "list_for_financing", "InvoiceListed":
+			err = l.handleInvoiceListed(ctx, tx, event)
+		case "fund_invoice", "InvoiceFunded":
+			err = l.handleInvoiceFunded(ctx, tx, event, serverKP, ledgerClosedAt)
+		case "mark_shipped", "InvoiceShipped":
+			err = l.handleInvoiceShipped(ctx, tx, event, ledgerClosedAt)
+		case "confirm_delivery", "DeliveryConfirmed":
+			err = l.handleDeliveryConfirmed(ctx, tx, event, ledgerClosedAt)
+		case "repay", "InvoiceRepaid":
+			err = l.handleInvoiceRepaid(ctx, tx, event, serverKP, ledgerClosedAt)
+		case "trigger_default", "InvoiceDefaulted":
+			err = l.handleInvoiceDefaulted(ctx, tx, event, serverKP)
+		case "submit_attestation", "AttestationSubmitted":
+			err = l.handleAttestationSubmitted(ctx, tx, event, ledgerClosedAt)
+		case "issuer_registered", "buyer_registered":
+			// Registry contract registrations are logged (and de-duplicated)
+			// via events_log inside this transaction but have no invoice
+			// fan-out, so they short-circuit the tail below.
+			return l.handleRegistrationEvent(ctx, tx, event, ledgerClosedAt, eventName)
+		default:
+			slog.Debug("Skipping unhandled contract event", "name", eventName)
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("handler for %s failed: %w", eventName, err)
+		}
+
+		// Build structured data for the event log
+		logData := map[string]interface{}{}
+
+		// Try to extract invoice_id from topic[1] for events that carry it
+		if len(event.Topic) >= 2 && eventName != "create" && eventName != "InvoiceCreated" {
+			var topicVal xdr.ScVal
+			if err := xdr.SafeUnmarshalBase64(event.Topic[1], &topicVal); err == nil {
+				invoiceID := xdrutil.ParseBytes(topicVal)
+				if invoiceID != "" {
+					logData["invoice_id"] = invoiceID
+				}
+			}
+		}
+
+		// For InvoiceCreated, extract from the value payload
+		if eventName == "create" || eventName == "InvoiceCreated" {
+			var val xdr.ScVal
+			if err := xdr.SafeUnmarshalBase64(event.Value, &val); err == nil {
+				if idVal, ok := xdrutil.GetMapVal(val, "id"); ok {
+					logData["invoice_id"] = xdrutil.ParseBytes(idVal)
+				}
+				if issuerVal, ok := xdrutil.GetMapVal(val, "issuer"); ok {
+					logData["issuer"] = xdrutil.ParseAddress(issuerVal)
+				}
+				if buyerVal, ok := xdrutil.GetMapVal(val, "buyer"); ok {
+					logData["buyer"] = xdrutil.ParseAddress(buyerVal)
+				}
+			}
+		}
+
+		// Mark the event processed in the same transaction as the state
+		// change: a failed insert must roll the state change back (and vice
+		// versa) so the poller re-processes a consistent unit of work instead
+		// of advancing past a half-applied event.
+		if err := db.LogEvent(ctx, tx, event.ID, event.ContractID, event.Ledger, ledgerClosedAt, eventName, logData); err != nil {
+			return fmt.Errorf("log event: %w", err)
+		}
+
+		// Enqueue webhook deliveries on the same transaction (issue #925):
+		// the fan-out either commits with the event or is retried with it.
+		// The non-transactional dispatch paths (pool events, unknown events)
+		// are unaffected.
+		if l.dispatcher != nil {
+			if err := l.dispatcher.EnqueueDeliveries(ctx, tx, eventName, l.webhookDispatchData(ctx, tx, eventName, event, ledgerClosedAt, logData)); err != nil {
+				return fmt.Errorf("enqueue webhook deliveries: %w", err)
+			}
+		}
+
 		return nil
-	}
-
-	if err != nil {
-		return fmt.Errorf("handler for %s failed: %w", eventName, err)
-	}
-
-	// Build structured data for the event log
-	logData := map[string]interface{}{}
-
-	// Try to extract invoice_id from topic[1] for events that carry it
-	if len(event.Topic) >= 2 && eventName != "create" && eventName != "InvoiceCreated" {
-		var topicVal xdr.ScVal
-		if err := xdr.SafeUnmarshalBase64(event.Topic[1], &topicVal); err == nil {
-			invoiceID := xdrutil.ParseBytes(topicVal)
-			if invoiceID != "" {
-				logData["invoice_id"] = invoiceID
-			}
-		}
-	}
-
-	// For InvoiceCreated, extract from the value payload
-	if eventName == "create" || eventName == "InvoiceCreated" {
-		var val xdr.ScVal
-		if err := xdr.SafeUnmarshalBase64(event.Value, &val); err == nil {
-			if idVal, ok := xdrutil.GetMapVal(val, "id"); ok {
-				logData["invoice_id"] = xdrutil.ParseBytes(idVal)
-			}
-			if issuerVal, ok := xdrutil.GetMapVal(val, "issuer"); ok {
-				logData["issuer"] = xdrutil.ParseAddress(issuerVal)
-			}
-			if buyerVal, ok := xdrutil.GetMapVal(val, "buyer"); ok {
-				logData["buyer"] = xdrutil.ParseAddress(buyerVal)
-			}
-		}
-	}
-
-	// Log event in database to prevent double processing
-	err = db.LogEvent(ctx, event.ID, event.ContractID, event.Ledger, ledgerClosedAt, eventName, logData)
-	if err != nil {
-		slog.Error("Failed to log event in DB", "eventId", event.ID, "error", err)
-	}
-
-	// Fan out to webhook subscribers (non-blocking: failures are logged, not returned)
-	if l.dispatcher != nil {
-		l.dispatchWebhookEvent(ctx, eventName, event, ledgerClosedAt, logData)
-	}
-
-	return nil
+	})
 }
 
-// dispatchWebhookEvent builds the data map webhook.Dispatcher turns into an
-// envelope. The invoice fields come from the row the handler just updated
-// rather than from the event, so every documented payload field — status,
+// webhookDispatchData builds the data map webhook.Dispatcher turns into an
+// envelope. The invoice fields come from the row the handler just wrote (read
+// back through tx so an in-flight transaction sees its own writes) rather
+// than from the event, so every documented payload field — status,
 // face_value, due_date and the lifecycle timestamps — is populated.
-func (l *EventListener) dispatchWebhookEvent(ctx context.Context, eventName string, event SorobanEvent, ledgerClosedAt int64, logData map[string]interface{}) {
+func (l *EventListener) webhookDispatchData(ctx context.Context, tx db.Querier, eventName string, event SorobanEvent, ledgerClosedAt int64, logData map[string]interface{}) map[string]interface{} {
 	data := make(map[string]interface{}, len(logData)+16)
 	for k, v := range logData {
 		data[k] = v
@@ -476,18 +492,17 @@ func (l *EventListener) dispatchWebhookEvent(ctx context.Context, eventName stri
 
 	invoiceID, _ := data["invoice_id"].(string)
 	if invoiceID == "" {
-		l.dispatcher.Dispatch(ctx, eventName, data)
-		return
+		return data
 	}
 
-	invoice, err := db.GetInvoiceByID(ctx, invoiceID)
+	invoice, err := db.GetInvoiceByID(ctx, tx, invoiceID)
 	if err != nil {
 		slog.Error("Failed to load invoice for webhook payload", "invoice_id", invoiceID, "error", err)
 	} else if invoice != nil {
 		addInvoiceFields(data, invoice)
 	}
 
-	l.dispatcher.Dispatch(ctx, eventName, data)
+	return data
 }
 
 // addInvoiceFields copies the persisted invoice columns into the dispatch data

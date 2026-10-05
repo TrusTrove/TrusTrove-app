@@ -191,7 +191,7 @@ func TestWebhookDeliveryLifecycle(t *testing.T) {
 	payload := json.RawMessage(`{"test": "data"}`)
 	eventType := "invoice.created"
 	eventID := "evt_test_123"
-	if err := CreateWebhookDelivery(ctx, sub.ID, eventType, eventID, payload); err != nil {
+	if err := CreateWebhookDelivery(ctx, Pool, sub.ID, eventType, eventID, payload); err != nil {
 		t.Fatalf("CreateWebhookDelivery: %v", err)
 	}
 
@@ -245,7 +245,7 @@ func TestWebhookDeliveryLifecycle(t *testing.T) {
 	}
 
 	// Create another delivery for retry test
-	if err := CreateWebhookDelivery(ctx, sub.ID, eventType, eventID+"_2", payload); err != nil {
+	if err := CreateWebhookDelivery(ctx, Pool, sub.ID, eventType, eventID+"_2", payload); err != nil {
 		t.Fatalf("CreateWebhookDelivery 2: %v", err)
 	}
 	deliveries, err = GetPendingDeliveries(ctx, 10)
@@ -287,7 +287,7 @@ func TestWebhookDeliveryLifecycle(t *testing.T) {
 	}
 
 	// Create another for dead letter test
-	if err := CreateWebhookDelivery(ctx, sub.ID, eventType, eventID+"_3", payload); err != nil {
+	if err := CreateWebhookDelivery(ctx, Pool, sub.ID, eventType, eventID+"_3", payload); err != nil {
 		t.Fatalf("CreateWebhookDelivery 3: %v", err)
 	}
 	deliveries, err = GetPendingDeliveries(ctx, 10)
@@ -415,7 +415,7 @@ func TestWebhookDeliveryPendingFilter(t *testing.T) {
 
 	// Delivery with next_attempt_at in future - should not appear in pending
 	futurePayload := json.RawMessage(`{"future": true}`)
-	if err := CreateWebhookDelivery(ctx, sub.ID, "invoice.created", "evt_future", futurePayload); err != nil {
+	if err := CreateWebhookDelivery(ctx, Pool, sub.ID, "invoice.created", "evt_future", futurePayload); err != nil {
 		t.Fatalf("Create future delivery: %v", err)
 	}
 	// Manually update next_attempt_at to future
@@ -426,7 +426,7 @@ func TestWebhookDeliveryPendingFilter(t *testing.T) {
 
 	// Delivery with next_attempt_at in past - should appear
 	pastPayload := json.RawMessage(`{"past": true}`)
-	if err := CreateWebhookDelivery(ctx, sub.ID, "invoice.created", "evt_past", pastPayload); err != nil {
+	if err := CreateWebhookDelivery(ctx, Pool, sub.ID, "invoice.created", "evt_past", pastPayload); err != nil {
 		t.Fatalf("Create past delivery: %v", err)
 	}
 	_, err = Pool.Exec(ctx, "UPDATE webhook_deliveries SET next_attempt_at = $1 WHERE event_id = $2", time.Now().Add(-1*time.Hour), "evt_past")
@@ -436,7 +436,7 @@ func TestWebhookDeliveryPendingFilter(t *testing.T) {
 
 	// Delivery with non-pending status - should not appear
 	donePayload := json.RawMessage(`{"done": true}`)
-	if err := CreateWebhookDelivery(ctx, sub.ID, "invoice.created", "evt_done", donePayload); err != nil {
+	if err := CreateWebhookDelivery(ctx, Pool, sub.ID, "invoice.created", "evt_done", donePayload); err != nil {
 		t.Fatalf("Create done delivery: %v", err)
 	}
 	_, err = Pool.Exec(ctx, "UPDATE webhook_deliveries SET status = 'delivered' WHERE event_id = $1", "evt_done")
@@ -454,7 +454,7 @@ func TestWebhookDeliveryPendingFilter(t *testing.T) {
 	if err := CreateWebhookSubscription(ctx, inactiveSub); err != nil {
 		t.Fatalf("Create inactive subscription: %v", err)
 	}
-	if err := CreateWebhookDelivery(ctx, inactiveSub.ID, "invoice.created", "evt_inactive", json.RawMessage(`{}`)); err != nil {
+	if err := CreateWebhookDelivery(ctx, Pool, inactiveSub.ID, "invoice.created", "evt_inactive", json.RawMessage(`{}`)); err != nil {
 		t.Fatalf("Create inactive delivery: %v", err)
 	}
 

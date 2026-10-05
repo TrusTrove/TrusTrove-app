@@ -48,7 +48,7 @@ func queueClaimTestDeliveries(t *testing.T, ctx context.Context, sub *WebhookSub
 	for i := 0; i < count; i++ {
 		eventID := fmt.Sprintf("%s-evt-%d-%d", tag, i, time.Now().UnixNano())
 		payload := json.RawMessage(fmt.Sprintf(`{"n":%d}`, i))
-		if err := CreateWebhookDelivery(ctx, sub.ID, sub.EventTypes[0], eventID, payload); err != nil {
+		if err := CreateWebhookDelivery(ctx, Pool, sub.ID, sub.EventTypes[0], eventID, payload); err != nil {
 			t.Fatalf("CreateWebhookDelivery: %v", err)
 		}
 		var id int64

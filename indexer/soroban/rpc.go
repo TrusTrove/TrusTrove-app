@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/stellar/go-stellar-sdk/keypair"
@@ -91,6 +92,21 @@ func sleepOrDone(ctx context.Context, d time.Duration) error {
 	}
 }
 
+// rpcTransportError normalizes a transport-layer failure so the returned error
+// never contains the request URL. net/http wraps transport failures in
+// *url.Error, whose Error() embeds the full request URL — and hosted Soroban
+// RPC providers commonly put an API key in the URL path or query string, so
+// propagating the raw error would hand those credentials to whoever sees it
+// (issue #921). The JSON-RPC operation and the underlying cause are enough to
+// diagnose a transport failure; the URL itself stays out of every error.
+func rpcTransportError(method string, err error) error {
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		return fmt.Errorf("soroban RPC %s request failed: %w", method, urlErr.Err)
+	}
+	return fmt.Errorf("soroban RPC %s request failed: %w", method, err)
+}
+
 // CallSorobanRPC issues a JSON-RPC call against rpcURL and decodes the result
 // field into result. A JSON-RPC error envelope is returned as a Go error.
 //
@@ -121,7 +137,8 @@ func CallSorobanRPC(ctx context.Context, rpcURL string, method string, params in
 
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, rpcURL, bytes.NewBuffer(bodyBytes))
 		if err != nil {
-			return err
+			// A malformed URL must not leak the URL itself into the error.
+			return rpcTransportError(method, err)
 		}
 		req.Header.Set("Content-Type", "application/json")
 
@@ -132,7 +149,9 @@ func CallSorobanRPC(ctx context.Context, rpcURL string, method string, params in
 			if ctx.Err() != nil {
 				return err
 			}
-			lastErr = fmt.Errorf("soroban RPC request failed: %w", err)
+			// Unwrap *url.Error so the request URL (which may carry a
+			// provider API key) never reaches the error text (issue #921).
+			lastErr = rpcTransportError(method, err)
 			continue
 		}
 
