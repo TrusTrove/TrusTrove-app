@@ -98,10 +98,12 @@ describe("Profile registration dialog", () => {
   it("opens in an accessible fixed overlay", () => {
     render(<ProfilePage />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Register profile" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Register Business Profile" }),
+    );
 
     const dialog = screen.getByRole("dialog", {
-      name: "Register Business Metadata",
+      name: "Register Corporate Profile",
     });
     expect(dialog).toHaveAttribute("aria-modal", "true");
     expect(dialog).toHaveAttribute("tabindex", "-1");
@@ -116,12 +118,12 @@ describe("Profile registration dialog", () => {
     render(<ProfilePage />);
 
     const openButton = screen.getByRole("button", {
-      name: "Register profile",
+      name: "Register Business Profile",
     });
     await user.click(openButton);
 
     const dialog = screen.getByRole("dialog", {
-      name: "Register Business Metadata",
+      name: "Register Corporate Profile",
     });
 
     // Collect all focusable elements inside the modal
@@ -162,7 +164,7 @@ describe("Profile registration dialog", () => {
     render(<ProfilePage />);
 
     const openButton = screen.getByRole("button", {
-      name: "Register profile",
+      name: "Register Business Profile",
     });
     await user.click(openButton);
 
@@ -172,7 +174,7 @@ describe("Profile registration dialog", () => {
     // The dialog should no longer be in the document
     expect(
       screen.queryByRole("dialog", {
-        name: "Register Business Metadata",
+        name: "Register Corporate Profile",
       }),
     ).not.toBeInTheDocument();
 
@@ -188,7 +190,7 @@ describe("Profile registration dialog", () => {
     render(<ProfilePage />);
 
     const openButton = screen.getByRole("button", {
-      name: "Register profile",
+      name: "Register Business Profile",
     });
     await user.click(openButton);
 
