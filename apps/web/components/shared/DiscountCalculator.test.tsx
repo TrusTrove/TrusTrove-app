@@ -12,7 +12,7 @@ import { useSmeDerivedValues } from "./SmeCalculator";
 import { useLpDerivedValues } from "./LpCalculator";
 
 describe("DiscountCalculator", () => {
-  it("renders the default SME financing calculation", () => {
+  it("renders the default SME financing calculator", () => {
     const { container } = render(<DiscountCalculator />);
 
     expect(

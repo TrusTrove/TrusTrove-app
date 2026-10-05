@@ -7,12 +7,12 @@ import { InvoiceClient } from "../dist/clients/invoice.js";
 import { EscrowClient } from "../dist/clients/escrow.js";
 
 const adminAddress = Keypair.random().publicKey();
-const contractId = StrKey.encodeContract(new Uint8Array(32));
+const TEST_CONTRACT_ID = "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4";
 
 function createClient(ClientClass) {
   return new (class extends ClientClass {
     constructor() {
-      super(contractId);
+      super(TEST_CONTRACT_ID);
     }
 
     async writeContract(method, args, publicKey) {
