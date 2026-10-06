@@ -7,7 +7,7 @@ import { PageLayout } from "@/components/shared/PageLayout";
 import { InvoiceTable } from "@/components/invoice/InvoiceTable";
 import { InvoiceCard } from "@/components/invoice/InvoiceCard";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
-import { useInvoiceList } from "@/hooks/useInvoices";
+import { useInvoiceList, useInvoiceStats } from "@/hooks/useInvoices";
 import { useRecentEvents } from "@/hooks/useEvents";
 import { useWalletStore } from "@/store/wallet";
 import { useProfile } from "@/hooks/useProfile";
@@ -46,6 +46,9 @@ export default function SMEDashboard() {
     page: invoicePage,
     limit: invoiceLimit,
   });
+  // Headline stats come from the issuer's complete invoice set (all pages),
+  // keyed only by address, so they stay stable while paging the table (issue #874).
+  const { stats } = useInvoiceStats(address || undefined);
   const { events, isLoading: eventsLoading } = useRecentEvents(10);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -58,16 +61,13 @@ export default function SMEDashboard() {
     setSelectedInvoice(null);
   }, [invoicePage, invoiceLimit, address]);
 
-  // Compute stats
-  const totalFunded = invoices.reduce((sum, inv) => sum + inv.fundedAmount, 0n);
-  const totalInvoicesCreated = invoices.length;
-  const totalListed = invoices.filter((i) => i.status === "Listed").length;
-  const totalFundedActive = invoices.filter(
-    (i) =>
-      i.status === "Funded" ||
-      i.status === "Active" ||
-      i.status === "Confirmed",
-  ).length;
+  const {
+    totalFunded,
+    totalInvoicesCreated,
+    totalListed,
+    totalFundedActive,
+    totalRepaid,
+  } = stats;
 
   const handlePageChange = (page: number) => {
     setInvoicePage(page);
@@ -318,7 +318,7 @@ export default function SMEDashboard() {
               Total Repaid
             </span>
             <span className="text-lg font-bold text-emerald-400 block mt-1">
-              {invoices.filter((i) => i.status === "Repaid").length}
+              {totalRepaid}
             </span>
             <span className="text-[9px] text-slate-600">Settle invoices</span>
           </div>
