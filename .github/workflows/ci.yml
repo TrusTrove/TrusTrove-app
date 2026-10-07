@@ -73,7 +73,7 @@ jobs:
 
   verify-go-indexer:
     name: Verify Go Indexer & API
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     services:
       postgres:
@@ -98,6 +98,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "1.25"
+          cache-dependency-path: indexer/go.sum
 
       - name: Get Dependencies
         run: |
