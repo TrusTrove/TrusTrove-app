@@ -7,7 +7,8 @@ import { InvoiceClient } from "../dist/clients/invoice.js";
 import { EscrowClient } from "../dist/clients/escrow.js";
 
 const adminAddress = Keypair.random().publicKey();
-const TEST_CONTRACT_ID = "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4";
+const TEST_CONTRACT_ID =
+  "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4";
 
 function createClient(ClientClass) {
   return new (class extends ClientClass {
