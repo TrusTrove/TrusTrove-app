@@ -19,6 +19,9 @@ auditConfig:
     - GHSA-p9j2-gv94-2wf4
     - GHSA-82x6-q7mm-w9cf
     - GHSA-v5mp-jgw5-2x6j
+    # No patched braces 3.x release is available yet; this is transitive via
+    # Tailwind CSS 3's chokidar dependency, so upgrading Tailwind is a major change.
+    - GHSA-vfj7-8cjw-p6xm
 overrides:
   postcss: ">=8.5.18 <9"
   nanoid: ">=3.3.18 <4"
