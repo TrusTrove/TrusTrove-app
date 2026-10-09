@@ -359,19 +359,14 @@ func TestDispatchQueuesPopulatedEnvelope(t *testing.T) {
 
 	NewDispatcher().Dispatch(ctx, "fund_invoice", data)
 
-	claimed, err := db.GetPendingDeliveries(ctx, 50)
-	if err != nil {
-		t.Fatalf("GetPendingDeliveries: %v", err)
-	}
+	// Read this test's row directly rather than claiming: a claim takes any
+	// pending rows, including rows another package's tests are claiming in the
+	// same database at the same time.
 	var payload []byte
-	for _, d := range claimed {
-		if d.EventID == eventID && d.SubscriptionID == sub.ID {
-			payload = d.Payload
-			break
-		}
-	}
-	if payload == nil {
-		t.Fatalf("Dispatch wrote no delivery row for event %s (claimed %d rows)", eventID, len(claimed))
+	if err := db.Pool.QueryRow(ctx,
+		"SELECT payload FROM webhook_deliveries WHERE event_id = $1 AND subscription_id = $2", eventID, sub.ID,
+	).Scan(&payload); err != nil {
+		t.Fatalf("Dispatch wrote no delivery row for event %s: %v", eventID, err)
 	}
 
 	var env webhooks.WebhookEnvelope
@@ -452,14 +447,16 @@ func TestDispatchWithoutSubscriptionsQueuesNothing(t *testing.T) {
 
 	NewDispatcher().Dispatch(ctx, "fund_invoice", data)
 
-	claimed, err := db.GetPendingDeliveries(ctx, 200)
-	if err != nil {
-		t.Fatalf("GetPendingDeliveries: %v", err)
+	// Count this test's rows directly rather than claiming, for the same reason
+	// as TestDispatchQueuesPopulatedEnvelope.
+	var queued int
+	if err := db.Pool.QueryRow(ctx,
+		"SELECT COUNT(*) FROM webhook_deliveries WHERE event_id = $1", eventID,
+	).Scan(&queued); err != nil {
+		t.Fatalf("count deliveries: %v", err)
 	}
-	for _, d := range claimed {
-		if d.EventID == eventID {
-			t.Fatalf("delivery %d queued for untracked event %s", d.ID, eventID)
-		}
+	if queued != 0 {
+		t.Fatalf("%d deliveries queued for untracked event %s", queued, eventID)
 	}
 }
 
