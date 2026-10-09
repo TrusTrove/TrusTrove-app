@@ -45,6 +45,7 @@
 - [SDK Reference](developer-guide/sdk-reference.md)
 - [Indexer API Reference](developer-guide/indexer-api-reference.md)
 - [Security Headers](developer-guide/security-headers.md)
+- [Internationalization (i18n)](developer-guide/i18n.md)
 
 ## Contributing
 
