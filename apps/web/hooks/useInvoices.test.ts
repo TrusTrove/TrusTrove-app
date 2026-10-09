@@ -1,11 +1,24 @@
 import { renderHook, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { useInvoiceList, useInvoiceActions, useInvoice } from "./useInvoices";
+import {
+  useInvoiceList,
+  useInvoiceStats,
+  useInvoiceActions,
+  useInvoice,
+  computeInvoiceStats,
+  EMPTY_INVOICE_STATS,
+} from "./useInvoices";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getInvoices, getInvoiceByID, createInvoice } from "@/lib/api";
+import {
+  getInvoices,
+  getAllInvoices,
+  getInvoiceByID,
+  createInvoice,
+} from "@/lib/api";
 import { InvoiceClient, PoolClient } from "@trusttrove/sdk";
 import { useWalletStore } from "@/store/wallet";
 import * as toast from "@/lib/toast";
+import type { Invoice } from "@/types";
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: vi.fn(),
@@ -15,6 +28,7 @@ vi.mock("@tanstack/react-query", () => ({
 
 vi.mock("@/lib/api", () => ({
   getInvoices: vi.fn(),
+  getAllInvoices: vi.fn(),
   getInvoiceByID: vi.fn(),
   createInvoice: vi.fn(),
 }));
@@ -149,6 +163,9 @@ describe("useInvoices", () => {
     );
     expect(mockInvalidateQueries).toHaveBeenCalledWith({
       queryKey: ["invoices"],
+    });
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["invoiceStats"],
     });
     expect(toast.showSuccessToast).toHaveBeenCalled();
   });
@@ -489,5 +506,147 @@ describe("useInvoice", () => {
     expect(vi.mocked(useQuery)).toHaveBeenCalledWith(
       expect.objectContaining({ enabled: false }),
     );
+  });
+});
+
+/** Builds a minimal invoice for stats aggregation tests. */
+function makeInvoice(
+  id: string,
+  status: Invoice["status"],
+  fundedAmount = 0n,
+): Invoice {
+  return { id, status, fundedAmount } as unknown as Invoice;
+}
+
+// 250 invoices spread over what would be multiple table pages: 120 Listed,
+// 50 Funded, 60 Repaid, and 110 funded with 1_000_000 stroops each.
+const FULL_SET: Invoice[] = [
+  ...Array.from({ length: 80 }, (_, i) => makeInvoice(`inv-${i}`, "Listed")),
+  ...Array.from({ length: 20 }, (_, i) =>
+    makeInvoice(`inv-${80 + i}`, "Created"),
+  ),
+  ...Array.from({ length: 50 }, (_, i) =>
+    makeInvoice(`inv-${100 + i}`, "Funded", 1_000_000n),
+  ),
+  ...Array.from({ length: 60 }, (_, i) =>
+    makeInvoice(`inv-${150 + i}`, "Repaid", 1_000_000n),
+  ),
+  ...Array.from({ length: 40 }, (_, i) =>
+    makeInvoice(`inv-${210 + i}`, "Listed"),
+  ),
+];
+
+describe("computeInvoiceStats", () => {
+  it("aggregates an invoice set spanning more than one table page", () => {
+    const stats = computeInvoiceStats(FULL_SET);
+
+    expect(stats.totalInvoicesCreated).toBe(250);
+    expect(stats.totalListed).toBe(120);
+    expect(stats.totalFundedActive).toBe(50);
+    expect(stats.totalRepaid).toBe(60);
+    expect(stats.totalFunded).toBe(110_000_000n);
+  });
+
+  it("counts Active and Confirmed as funded & active", () => {
+    const stats = computeInvoiceStats([
+      makeInvoice("a", "Active"),
+      makeInvoice("b", "Confirmed"),
+      makeInvoice("c", "Funded"),
+      makeInvoice("d", "Defaulted"),
+    ]);
+
+    expect(stats.totalFundedActive).toBe(3);
+    expect(stats.totalInvoicesCreated).toBe(4);
+    expect(stats.totalRepaid).toBe(0);
+  });
+
+  it("returns zeroed stats for an empty set", () => {
+    expect(computeInvoiceStats([])).toEqual(EMPTY_INVOICE_STATS);
+  });
+});
+
+describe("useInvoiceStats", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(useQuery).mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+  });
+
+  const lastQueryOptions = () =>
+    vi.mocked(useQuery).mock.calls.at(-1)![0] as any;
+
+  it("aggregates the full unpaged set via getAllInvoices, not a page slice", async () => {
+    vi.mocked(getAllInvoices).mockResolvedValue(FULL_SET);
+
+    renderHook(() => useInvoiceStats("GISSUER"));
+    const options = lastQueryOptions();
+
+    expect(options.enabled).toBe(true);
+    const stats = await options.queryFn();
+    expect(getAllInvoices).toHaveBeenCalledWith({ issuer: "GISSUER" });
+    expect(stats).toEqual({
+      totalInvoicesCreated: 250,
+      totalListed: 120,
+      totalFundedActive: 50,
+      totalRepaid: 60,
+      totalFunded: 110_000_000n,
+    });
+  });
+
+  it("keys the stats query by issuer only, independent of table pagination", () => {
+    const statsKey = () => {
+      renderHook(() => useInvoiceStats("GISSUER"));
+      return lastQueryOptions().queryKey;
+    };
+
+    const before = statsKey();
+    // The user pages the table around — the list query key changes…
+    renderHook(() => useInvoiceList({ issuer: "GISSUER", page: 1, limit: 20 }));
+    const listKeyPage1 = lastQueryOptions().queryKey;
+    renderHook(() => useInvoiceList({ issuer: "GISSUER", page: 3, limit: 50 }));
+    const listKeyPage3 = lastQueryOptions().queryKey;
+    expect(listKeyPage1).not.toEqual(listKeyPage3);
+
+    // …but the stats query key must not (issue #874).
+    const after = statsKey();
+    expect(after).toEqual(before);
+    expect(after).toEqual(["invoiceStats", "GISSUER"]);
+  });
+
+  it("is disabled until an issuer address is known", () => {
+    renderHook(() => useInvoiceStats(undefined));
+    expect(vi.mocked(useQuery)).toHaveBeenCalledWith(
+      expect.objectContaining({ enabled: false }),
+    );
+  });
+
+  it("returns zeroed stats while loading", () => {
+    const { result } = renderHook(() => useInvoiceStats("GISSUER"));
+    expect(result.current.stats).toEqual(EMPTY_INVOICE_STATS);
+    expect(result.current.isLoading).toBe(true);
+  });
+
+  it("returns cached stats once loaded", () => {
+    vi.mocked(useQuery).mockReturnValue({
+      data: {
+        totalInvoicesCreated: 250,
+        totalListed: 120,
+        totalFundedActive: 50,
+        totalRepaid: 60,
+        totalFunded: 110_000_000n,
+      },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+
+    const { result } = renderHook(() => useInvoiceStats("GISSUER"));
+    expect(result.current.stats.totalInvoicesCreated).toBe(250);
+    expect(result.current.stats.totalRepaid).toBe(60);
+    expect(result.current.isLoading).toBe(false);
   });
 });
