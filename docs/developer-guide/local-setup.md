@@ -71,7 +71,7 @@ pnpm test               # SDK + SDK React + CLI + web app unit tests
 cd indexer && go test ./...   # Go indexer unit tests
 ```
 
-Command coverage: `pnpm build` builds SDK, SDK React, CLI, and web; `pnpm test` runs tests for those packages; `pnpm lint` covers SDK and web; and `pnpm typecheck` builds SDK, SDK React, and CLI before checking TypeScript across the workspaces. Go database integration tests require `TEST_DATABASE_URL`. For the local Compose database use `postgres://postgres:<POSTGRES_PASSWORD>@localhost:5433/postgres?sslmode=disable`.
+Command coverage: `pnpm build` builds SDK, SDK React, CLI, and web; `pnpm test` runs tests for those packages; `pnpm lint` covers SDK and web; and `pnpm typecheck` builds SDK, SDK React, and CLI before checking TypeScript across the workspaces. Go database integration tests require `TEST_DATABASE_URL`. For the local Compose database use `postgresql://postgres:<POSTGRES_PASSWORD>@localhost:5432/trusttrove?sslmode=disable` — Compose publishes `5432` and creates the `trusttrove` database (see [Troubleshooting](troubleshooting.md)).
 
 ## Full local stack with Docker Compose
 
