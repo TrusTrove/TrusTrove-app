@@ -4,6 +4,11 @@ import React, { useState, useEffect, useCallback } from "react";
 import { PageLayout } from "@/components/shared/PageLayout";
 import { useWalletStore } from "@/store/wallet";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
+import {
+  NOTIFICATION_CATEGORIES,
+  prefsStorageKey,
+  readStoredPrefs,
+} from "@/lib/notification-preferences";
 import { Shield, Bell, Database, Palette, Monitor, Layers } from "lucide-react";
 
 export default function SettingsPage() {
@@ -370,28 +375,18 @@ export default function SettingsPage() {
 }
 
 function NotificationPreferences({ address }: { address: string }) {
-  const categories = [
-    "Invoice Created",
-    "Invoice Listed",
-    "Invoice Funded",
-    "Invoice Shipped",
-    "Delivery Confirmed",
-    "Invoice Repaid",
-    "Invoice Defaulted",
-  ];
+  const storageKey = prefsStorageKey(address);
+  const [prefs, setPrefs] = useState<Record<string, boolean>>(() =>
+    readStoredPrefs(storageKey),
+  );
 
-  const storageKey = `trusttrove_prefs_${address}`;
-  const [prefs, setPrefs] = useState<Record<string, boolean>>(() => {
-    try {
-      const stored = localStorage.getItem(storageKey);
-      if (stored) return JSON.parse(stored);
-    } catch {
-      // Ignore storage errors
-    }
-    const initial: Record<string, boolean> = {};
-    categories.forEach((c) => (initial[c] = true));
-    return initial;
-  });
+  // React reuses this instance when the connected wallet changes, and the
+  // storage key is derived from the address, so the new wallet's own stored
+  // preferences must be re-read. Without this the previous account's toggles
+  // stay on screen and the next click writes them into the new key.
+  useEffect(() => {
+    setPrefs(readStoredPrefs(storageKey));
+  }, [storageKey]);
 
   const toggleCategory = (category: string) => {
     const nextPrefs = { ...prefs, [category]: !prefs[category] };
@@ -405,7 +400,7 @@ function NotificationPreferences({ address }: { address: string }) {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 font-mono text-xs">
-      {categories.map((category) => (
+      {NOTIFICATION_CATEGORIES.map((category) => (
         <div
           key={category}
           className="flex items-center justify-between p-3 rounded-lg border border-border bg-[#0d131a]/50"
@@ -415,6 +410,9 @@ function NotificationPreferences({ address }: { address: string }) {
             <input
               type="checkbox"
               className="sr-only peer"
+              // The category text sits in the outer label, so the accessible
+              // name must come from aria-label — as on the profile page (#875).
+              aria-label={`${category} notifications`}
               checked={prefs[category] !== false}
               onChange={() => toggleCategory(category)}
             />
