@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
 import { Address, scValToNative, xdr } from "@stellar/stellar-sdk";
 import { InvoiceClient } from "./invoice.js";
 
@@ -102,17 +103,34 @@ describe("InvoiceClient", () => {
 
       const adminAddress =
         "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB";
+      const registryContractAddress =
+        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4";
       const signerPublicKey =
         "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB";
 
-      const result = await client.initialize(adminAddress, signerPublicKey);
+      const result = await client.initialize(
+        adminAddress,
+        registryContractAddress,
+        signerPublicKey,
+      );
 
       expect(result).toBe("mock-hash");
       expect(client["writeContract"]).toHaveBeenCalledWith(
         "initialize",
-        [new Address(adminAddress).toScVal()],
+        [
+          new Address(adminAddress).toScVal(),
+          new Address(registryContractAddress).toScVal(),
+        ],
         signerPublicKey,
       );
+
+      const args = vi.mocked(client["writeContract"]).mock
+        .calls[0][1] as xdr.ScVal[];
+      expect(args).toHaveLength(2);
+      expect(
+        args.map((arg) => arg.switch()),
+        "initialize encodes admin then registry_contract, both Address ScVals",
+      ).toEqual([xdr.ScValType.scvAddress(), xdr.ScValType.scvAddress()]);
     });
   });
 
@@ -307,5 +325,137 @@ describe("InvoiceClient", () => {
         expect.any(Function),
       );
     });
+  });
+});
+
+const DOC_PATH = new URL(
+  "../../../../docs/smart-contracts/invoice-contract.md",
+  import.meta.url,
+);
+
+/**
+ * Returns the parameter list inside the first balanced `(...)` of a
+ * declaration, or null when the fence holds no call signature.
+ */
+function parametersOf(declaration: string): string | null {
+  const open = declaration.indexOf("(");
+  if (open === -1) return null;
+  let depth = 0;
+  for (let index = open; index < declaration.length; index += 1) {
+    if (declaration[index] === "(") depth += 1;
+    else if (declaration[index] === ")") {
+      depth -= 1;
+      if (depth === 0) return declaration.slice(open + 1, index);
+    }
+  }
+  return null;
+}
+
+/** Split on commas that sit outside nested `<>`, `()`, `[]` and `{}`. */
+function splitParameters(inner: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let current = "";
+  for (const char of inner) {
+    if ("([{<".includes(char)) depth += 1;
+    else if (")]}>".includes(char)) depth -= 1;
+    if (char === "," && depth === 0) {
+      parts.push(current);
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  parts.push(current);
+  return parts
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0 && !/^env\s*:\s*Env$/.test(part));
+}
+
+/**
+ * On-chain function name -> argument count the docs declare, with the leading
+ * `env: Env` host parameter removed (it is never encoded by the SDK).
+ */
+function documentedSignatures(markdown: string): Map<string, number> {
+  const signatures = new Map<string, number>();
+  for (const section of markdown.split(/^### /m).slice(1)) {
+    const name = section.split("\n", 1)[0].trim();
+    const fence = section.match(/```rust\n([\s\S]*?)```/);
+    if (!fence) continue;
+    const declaration = fence[1].replace(/\s+/g, " ").trim();
+    if (!declaration.startsWith(name)) continue;
+    const inner = parametersOf(declaration);
+    if (inner === null) continue;
+    signatures.set(name, splitParameters(inner).length);
+  }
+  return signatures;
+}
+
+const SIGNATURES = documentedSignatures(readFileSync(DOC_PATH, "utf8"));
+
+describe("InvoiceClient contract signature consistency", () => {
+  const ADMIN = "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB";
+  const REGISTRY = "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4";
+  const INVOICE_ID_HEX = "ab".repeat(32);
+
+  let client: InvoiceClient;
+  /** On-chain function name -> how many ScVals the wrapper actually encoded. */
+  let encoded: Map<string, number>;
+
+  beforeEach(async () => {
+    client = new InvoiceClient(REGISTRY);
+    vi.mocked(client["writeContract"]).mockResolvedValue("mock-hash");
+    vi.mocked(client["readContract"]).mockResolvedValue([]);
+
+    await client.initialize(ADMIN, REGISTRY, ADMIN);
+    await client.create(ADMIN, ADMIN, 1000n, 1_700_000_000, ADMIN);
+    await client.listForFinancing(INVOICE_ID_HEX, 500, ADMIN);
+    await client.markShipped(INVOICE_ID_HEX, ADMIN);
+    await client.confirmDelivery(INVOICE_ID_HEX, ADMIN, ADMIN);
+    await client.repay(INVOICE_ID_HEX, ADMIN);
+    await client.triggerDefault(INVOICE_ID_HEX, ADMIN);
+    await client.get(INVOICE_ID_HEX, ADMIN);
+    await client.getByStatus("Funded", ADMIN);
+    await client.getByIssuer(ADMIN, ADMIN);
+    await client.getByBuyer(ADMIN, ADMIN);
+
+    encoded = new Map();
+    const calls = [
+      ...vi.mocked(client["writeContract"]).mock.calls,
+      ...vi.mocked(client["readContract"]).mock.calls,
+    ];
+    for (const call of calls) {
+      const [method, args] = call as [string, xdr.ScVal[]];
+      encoded.set(method, args.length);
+    }
+  });
+
+  it("documents every on-chain function the SDK calls", () => {
+    for (const method of encoded.keys()) {
+      expect(
+        SIGNATURES.has(method),
+        `${method} is called by the SDK but has no documented signature`,
+      ).toBe(true);
+    }
+  });
+
+  it("encodes exactly the documented argument count per function", () => {
+    expect(
+      SIGNATURES.size,
+      "the invoice doc should declare call signatures",
+    ).toBeGreaterThan(0);
+    for (const [method, count] of encoded) {
+      expect(
+        SIGNATURES.get(method),
+        `${method}: the SDK encodes ${count} argument(s) but docs/smart-contracts/invoice-contract.md declares ${SIGNATURES.get(method)}`,
+      ).toBe(count);
+    }
+  });
+
+  it("declares initialize with both the admin and the registry contract", () => {
+    expect(
+      SIGNATURES.get("initialize"),
+      "initialize(env, admin: Address, registry_contract: Address) has two encoded args",
+    ).toBe(2);
   });
 });

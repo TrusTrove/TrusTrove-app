@@ -10,20 +10,32 @@ import { parseInvoice } from "../types/schemas.js";
 
 export class InvoiceClient extends BaseContractClient {
   /**
-   * Initializes the invoice contract with its admin address.
-   * Side effect: stores the admin address on-chain. Can only be called once —
-   * a second call panics.
+   * Initializes the invoice contract with its admin and registry contract.
+   * Side effect: stores both addresses on-chain, plus the invoice counter. Can
+   * only be called once — a second call panics.
    *
-   * @param adminAddress - The Stellar address to set as the contract admin.
+   * Mirrors the contract's
+   * `initialize(env: Env, admin: Address, registry_contract: Address)`.
+   * `registry_contract` is the registry that `create` checks issuer and buyer
+   * against. The Underwrite agent-registry that `submit_attestation` verifies
+   * signatures with is wired separately after deployment, through the contract's
+   * admin-only `set_agent_registry_contract`.
+   *
+   * @param adminAddress - The Stellar address to set as the contract admin. Must sign.
+   * @param registryContractAddress - The registry contract address the invoice contract stores as `RegistryContract`.
    * @param signerPublicKey - The Stellar public key that will sign the transaction. Must be the deployer/admin.
    * @returns The transaction hash of the on-chain submission.
    * @throws If the contract is already initialized, the transaction simulation fails, or on-chain submission errors.
    */
   async initialize(
     adminAddress: string,
+    registryContractAddress: string,
     signerPublicKey: string,
   ): Promise<string> {
-    const args = [new Address(adminAddress).toScVal()];
+    const args = [
+      new Address(adminAddress).toScVal(),
+      new Address(registryContractAddress).toScVal(),
+    ];
     return this.writeContract("initialize", args, signerPublicKey);
   }
 
