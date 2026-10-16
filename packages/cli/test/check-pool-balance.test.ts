@@ -91,4 +91,57 @@ describe("checkPoolBalanceCommand", () => {
     expect(mockGetStats).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
+
+  describe("pool contract ID resolution", () => {
+    const POOL_ENV_KEYS = [
+      "TRUSTTROVE_POOL_CONTRACT_ID",
+      "NEXT_PUBLIC_POOL_CONTRACT_ID",
+      "POOL_CONTRACT_ID",
+    ];
+    const originalEnv = new Map(
+      POOL_ENV_KEYS.map((key) => [key, process.env[key]] as const),
+    );
+
+    beforeEach(() => {
+      for (const key of POOL_ENV_KEYS) delete process.env[key];
+      mockGetStats.mockResolvedValue({
+        totalDeposits: 0n,
+        availableLiquidity: 0n,
+        utilizationRateBps: 0,
+        totalYieldDistributed: 0n,
+      });
+      vi.spyOn(console, "log").mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      for (const [key, value] of originalEnv) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    });
+
+    it("uses POOL_CONTRACT_ID, the name .env.example documents", async () => {
+      process.env.POOL_CONTRACT_ID = "CBENVPOOL";
+
+      await checkPoolBalanceCommand({ publicKey: PUBLIC_KEY });
+
+      expect(mockGetStats).toHaveBeenCalledWith(PUBLIC_KEY, "CBENVPOOL");
+      expect(process.exitCode).toBe(0);
+    });
+
+    it("keeps TRUSTTROVE_POOL_CONTRACT_ID ahead of POOL_CONTRACT_ID", async () => {
+      process.env.TRUSTTROVE_POOL_CONTRACT_ID = "CBTRUSTTROVEPOOL";
+      process.env.POOL_CONTRACT_ID = "CBENVPOOL";
+
+      await checkPoolBalanceCommand({ publicKey: PUBLIC_KEY });
+
+      expect(mockGetStats).toHaveBeenCalledWith(PUBLIC_KEY, "CBTRUSTTROVEPOOL");
+    });
+
+    it("falls back to the SDK default when no pool variable is set", async () => {
+      await checkPoolBalanceCommand({ publicKey: PUBLIC_KEY });
+
+      expect(mockGetStats).toHaveBeenCalledWith(PUBLIC_KEY, "CBDEFAULTPOOL");
+    });
+  });
 });

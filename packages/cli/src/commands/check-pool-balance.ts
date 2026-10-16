@@ -14,6 +14,13 @@ export interface CheckPoolBalanceOptions {
   poolContractId?: string;
 }
 
+/** Env vars that can stand in for `--pool-contract-id`, in precedence order. */
+export const POOL_CONTRACT_ID_ENV_VARS = [
+  "TRUSTTROVE_POOL_CONTRACT_ID",
+  "NEXT_PUBLIC_POOL_CONTRACT_ID",
+  "POOL_CONTRACT_ID",
+] as const;
+
 export async function checkPoolBalanceCommand(
   options: CheckPoolBalanceOptions = {},
 ): Promise<void> {
@@ -35,11 +42,13 @@ export async function checkPoolBalanceCommand(
     options.poolContractId ??
     process.env.TRUSTTROVE_POOL_CONTRACT_ID ??
     process.env.NEXT_PUBLIC_POOL_CONTRACT_ID ??
+    process.env.POOL_CONTRACT_ID ??
     getConfig().contractIds.pool;
 
   if (!poolContractId) {
     console.error(
-      "Missing pool contract ID. Provide --pool-contract-id or set TRUSTTROVE_POOL_CONTRACT_ID.",
+      `Missing pool contract ID. Provide --pool-contract-id or set ` +
+        `${POOL_CONTRACT_ID_ENV_VARS.join(", ")} (see .env.example).`,
     );
     process.exitCode = 1;
     return;

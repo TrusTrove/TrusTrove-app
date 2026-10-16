@@ -51,7 +51,7 @@ ok   trusttrove/indexer/api      0.412s
 ok   trusttrove/indexer/config   0.018s
 ```
 
-Database integration tests require `TEST_DATABASE_URL`; for Docker Compose use `postgres://postgres:<POSTGRES_PASSWORD>@localhost:5433/postgres?sslmode=disable`. Without that variable, those tests are skipped.
+Database integration tests require `TEST_DATABASE_URL`; for Docker Compose use `postgresql://postgres:<POSTGRES_PASSWORD>@localhost:5432/trusttrove?sslmode=disable`, matching the `5432:5432` port mapping and the `trusttrove` database that `docker-compose.yml` creates and `.env.example` uses. Without that variable, those tests are skipped.
 
 ## Git Workflow Guidelines
 
