@@ -9,7 +9,9 @@
       "lp": "LP Portal",
       "marketplace": "Marketplace",
       "analytics": "Analytics",
-      "profile": "Profile"
+      "profile": "Profile",
+      "settings": "Settings",
+      "help": "Help"
     },
     "verifiedProfile": "Verified Profile",
     "getTestnetUsdc": "Get testnet USDC",

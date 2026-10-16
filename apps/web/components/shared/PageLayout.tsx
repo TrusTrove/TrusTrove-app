@@ -15,7 +15,11 @@ export function PageLayout({ children }: PageLayoutProps) {
 
       <main
         id="main-content"
-        className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow w-full z-10 relative"
+        // The root layout's skip link points here. A `<main>` is not focusable
+        // on its own, so activating the link scrolls without moving keyboard
+        // focus, and the user's next Tab returns to the top of the page.
+        tabIndex={-1}
+        className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow w-full z-10 relative focus:outline-none"
       >
         {children}
       </main>
