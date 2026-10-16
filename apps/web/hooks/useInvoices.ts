@@ -10,7 +10,7 @@ import { useWalletStore } from "@/store/wallet";
 import { showSuccessToast } from "@/lib/toast";
 import { createErrorHandler } from "@/lib/errors";
 import { useTokenAllowance } from "./useTokenAllowance";
-import type { AssetType } from "@/types";
+import type { AssetType, Invoice } from "@/types";
 import type { InvoiceClient, PoolClient } from "@trusttrove/sdk";
 
 const { handleMutationError } = createErrorHandler("useInvoices");
@@ -346,12 +346,25 @@ export function useInvoices(filters?: {
   };
 }
 
-export function useInvoice(id: string) {
+export function useInvoice(
+  id: string,
+  options?: {
+    /**
+     * Invoice already fetched for this same page view (the server render of
+     * `/invoice/[invoiceId]` needs it for `generateMetadata`). Seeding the
+     * cache means the client does not issue a second request for data it was
+     * handed, and the fresh timestamp keeps `staleTime` in charge of the next
+     * refetch.
+     */
+    initialData?: Invoice;
+  },
+) {
   const invoiceQuery = useQuery({
     queryKey: ["invoice", id],
     queryFn: () => getInvoiceByID(id),
     enabled: !!id,
     staleTime: 60000,
+    initialData: options?.initialData,
   });
 
   return {

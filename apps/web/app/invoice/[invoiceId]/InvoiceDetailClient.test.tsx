@@ -134,6 +134,45 @@ describe("InvoiceDetailClient", () => {
     }) as any);
   });
 
+  // #1118: the server render hands over the invoice it already fetched.
+  // Forwarding it as `initialData` is what removes the client's second
+  // no-store round-trip; the raw JSON is re-parsed here because `faceValue`
+  // and `fundedAmount` are BigInts and cannot cross the prop boundary.
+  it("seeds the query from a server-fetched invoice", () => {
+    render(
+      <InvoiceDetailClient
+        invoiceId={INVOICE_ID}
+        initialInvoice={{
+          id: INVOICE_ID,
+          issuer: ISSUER,
+          buyer: BUYER,
+          face_value: "10000000000",
+          asset: "USDC",
+          discount_bps: 200,
+          funded_amount: "8000000000",
+          due_date: nowSecs + 86400,
+          status: "Funded",
+          created_at: nowSecs,
+        }}
+      />,
+    );
+
+    expect(vi.mocked(useInvoice)).toHaveBeenCalledWith(INVOICE_ID, {
+      initialData: expect.objectContaining({
+        id: INVOICE_ID,
+        faceValue: 10000000000n,
+      }),
+    });
+  });
+
+  it("seeds nothing when the server had no invoice to hand over", () => {
+    render(<InvoiceDetailClient invoiceId={INVOICE_ID} />);
+
+    expect(vi.mocked(useInvoice)).toHaveBeenCalledWith(INVOICE_ID, {
+      initialData: undefined,
+    });
+  });
+
   it("renders the loading state while the invoice is being fetched", () => {
     vi.mocked(useInvoice).mockReturnValue({
       invoice: undefined,

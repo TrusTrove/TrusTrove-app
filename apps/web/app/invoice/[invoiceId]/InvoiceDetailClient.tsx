@@ -28,20 +28,39 @@ import {
 } from "lucide-react";
 import { formatAmount } from "@/lib/assets";
 import { truncateAddress } from "@/lib/format";
+import { parseInvoiceResponse } from "@/lib/parsers";
 import { generateInvoicePdf } from "@/lib/invoicePdf";
 
 interface InvoiceDetailClientProps {
   invoiceId: string;
+  /**
+   * The invoice payload the page already fetched server-side for
+   * `generateMetadata`, forwarded as-is (plain JSON). Seeding the query with it
+   * removes the second no-store round-trip and the "Fetching invoice state"
+   * flash (#1118).
+   */
+  initialInvoice?: unknown;
 }
 
 export default function InvoiceDetailClient({
   invoiceId,
+  initialInvoice,
 }: InvoiceDetailClientProps) {
   const router = useRouter();
   const connected = useWalletStore((s) => s.connected);
   const role = useWalletStore((s) => s.role);
 
-  const { invoice, isLoading, refetch } = useInvoice(invoiceId);
+  const seedInvoice = useMemo(
+    () =>
+      initialInvoice === undefined
+        ? undefined
+        : parseInvoiceResponse(initialInvoice),
+    [initialInvoice],
+  );
+
+  const { invoice, isLoading, refetch } = useInvoice(invoiceId, {
+    initialData: seedInvoice,
+  });
   const {
     submitting,
     error,
