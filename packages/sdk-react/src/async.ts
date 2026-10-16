@@ -16,9 +16,16 @@ export interface AsyncMutationState<TArgs extends unknown[], TResult> {
 /**
  * Runs an async query whenever `deps` change, exposing
  * loading/error/data state plus a `refetch` trigger.
+ *
+ * Each run gets its own `AbortSignal` and generation number. Starting a run
+ * aborts the previous one, and the effect cleanup aborts and invalidates it
+ * too, so a request that settles after its deps changed — or after unmount —
+ * cannot write state. `queryFn` receives the signal so callers that can cancel
+ * (fetch, RPC simulation) do; ignoring it is safe, the generation check still
+ * keeps their late result out of the state.
  */
 export function useAsyncQuery<T>(
-  queryFn: () => Promise<T>,
+  queryFn: (signal: AbortSignal) => Promise<T>,
   deps: unknown[],
 ): AsyncQueryState<T> {
   const [data, setData] = useState<T | null>(null);
@@ -28,21 +35,39 @@ export function useAsyncQuery<T>(
   const queryFnRef = useRef(queryFn);
   queryFnRef.current = queryFn;
 
+  const generationRef = useRef(0);
+  const controllerRef = useRef<AbortController | null>(null);
+
   const run = useCallback(async () => {
+    controllerRef.current?.abort();
+    const controller = new AbortController();
+    controllerRef.current = controller;
+    const generation = ++generationRef.current;
+    // Read at settle time, not captured: any newer run or an unmount cleanup
+    // advances the counter, and only the newest run may write state.
+    const isCurrent = () => generation === generationRef.current;
+
     setIsLoading(true);
     setError(null);
     try {
-      const result = await queryFnRef.current();
+      const result = await queryFnRef.current(controller.signal);
+      if (!isCurrent()) return;
       setData(result);
     } catch (err) {
+      if (!isCurrent()) return;
       setError(err instanceof Error ? err : new Error(String(err)));
     } finally {
-      setIsLoading(false);
+      if (isCurrent()) setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
     void run();
+    return () => {
+      generationRef.current += 1;
+      controllerRef.current?.abort();
+      controllerRef.current = null;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 
