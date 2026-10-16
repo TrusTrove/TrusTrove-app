@@ -45,10 +45,7 @@ describe("clearAppStorage", () => {
     localStorage.setItem("trusttrove:theme", "dark");
     localStorage.setItem("trusttrove:display", '{"density":"compact"}');
     localStorage.setItem("trusttrove:marketplace:filters", "{}");
-    localStorage.setItem(
-      prefsStorageKey(ADDRESS),
-      '{"Invoice Listed":false}',
-    );
+    localStorage.setItem(prefsStorageKey(ADDRESS), '{"Invoice Listed":false}');
     localStorage.setItem(notificationHistoryKey(ADDRESS), "[]");
 
     const removed = clearAppStorage().sort();

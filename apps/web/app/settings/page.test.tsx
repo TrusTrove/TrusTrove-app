@@ -2,7 +2,8 @@ import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import SettingsPage from "@/app/settings/page";
-import { notificationHistoryKey, notificationPrefsKey } from "@/lib/storage";
+import { notificationHistoryKey } from "@/lib/storage";
+import { prefsStorageKey } from "@/lib/notification-preferences";
 
 const ADDRESS = "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB";
 
@@ -31,10 +32,7 @@ function seedLocalStorage() {
   localStorage.setItem("trusttrove:display", '{"density":"compact"}');
   localStorage.setItem("trusttrove:marketplace:filters", "{}");
   localStorage.setItem("trusttrove:marketplace:presets", "[]");
-  localStorage.setItem(
-    notificationPrefsKey(ADDRESS),
-    '{"Invoice Listed":false}',
-  );
+  localStorage.setItem(prefsStorageKey(ADDRESS), '{"Invoice Listed":false}');
   localStorage.setItem(notificationHistoryKey(ADDRESS), '[{"id":"n1"}]');
   localStorage.setItem("not-ours:key", "keep me");
 }
@@ -78,7 +76,7 @@ describe("Settings — Clear All Local Data", () => {
     // Regression for #1110: the sweep used to match "trusttrove:" only, so the
     // underscore-style notification keys survived and the button silently
     // kept every preference and the whole notification history.
-    expect(localStorage.getItem(notificationPrefsKey(ADDRESS))).toBeNull();
+    expect(localStorage.getItem(prefsStorageKey(ADDRESS))).toBeNull();
     expect(localStorage.getItem(notificationHistoryKey(ADDRESS))).toBeNull();
   });
 
@@ -104,7 +102,7 @@ describe("Settings — Clear All Local Data", () => {
       screen.getByRole("button", { name: /clear all local data/i }),
     );
 
-    expect(localStorage.getItem(notificationPrefsKey(ADDRESS))).not.toBeNull();
+    expect(localStorage.getItem(prefsStorageKey(ADDRESS))).not.toBeNull();
     expect(reloadMock).not.toHaveBeenCalled();
 
     confirmMock.mockReturnValue(true);
