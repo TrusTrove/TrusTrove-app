@@ -67,7 +67,12 @@ export function useAsyncMutation<TArgs extends unknown[], TResult>(
   const mutationFnRef = useRef(mutationFn);
   mutationFnRef.current = mutationFn;
 
+  // Counted rather than a boolean: concurrent calls must not let the first one
+  // to settle report idle while another is still running.
+  const inFlightRef = useRef(0);
+
   const mutate = useCallback(async (...args: TArgs): Promise<TResult> => {
+    inFlightRef.current += 1;
     setIsPending(true);
     setError(null);
     try {
@@ -76,7 +81,8 @@ export function useAsyncMutation<TArgs extends unknown[], TResult>(
       setError(err instanceof Error ? err : new Error(String(err)));
       throw err;
     } finally {
-      setIsPending(false);
+      inFlightRef.current -= 1;
+      if (inFlightRef.current === 0) setIsPending(false);
     }
   }, []);
 
