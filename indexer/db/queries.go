@@ -499,16 +499,45 @@ type EventLog struct {
 	LedgerClosedAt int64           `json:"ledger_closed_at"`
 	EventType      string          `json:"event_type"`
 	Data           json.RawMessage `json:"data"`
+	// InvoiceIssuer is the issuer of the invoice the event refers to, resolved
+	// from the invoices table. It is empty for events that are not about a
+	// known invoice (pool and registry events).
+	InvoiceIssuer string `json:"invoice_issuer,omitempty"`
 }
 
-func GetRecentEvents(ctx context.Context, limit int) ([]*EventLog, error) {
-	query := `
-		SELECT id, event_id, contract_id, ledger, ledger_closed_at, event_type, data
-		FROM events_log
-		ORDER BY ledger_closed_at DESC, id DESC
-		LIMIT $1
-	`
-	rows, err := Pool.Query(ctx, query, limit)
+// GetRecentEvents returns the most recent indexed events, newest first.
+//
+// events_log has no issuer column, so an issuer filter is resolved through the
+// invoice the event refers to (issue #1115): only events whose
+// data->>'invoice_id' belongs to an invoice issued by that account are
+// returned. Passing an empty issuer keeps the previous protocol-wide behaviour.
+func GetRecentEvents(ctx context.Context, limit int, issuer string) ([]*EventLog, error) {
+	const selectColumns = `
+		SELECT e.id, e.event_id, e.contract_id, e.ledger, e.ledger_closed_at,
+		       e.event_type, e.data, COALESCE(i.issuer, '')`
+
+	// Two statements rather than one with an optional predicate: the filtered
+	// one drives off idx_invoices_issuer, and an `OR $2 = ''` alternative would
+	// stop the planner from using it.
+	const allEventsQuery = selectColumns + `
+		FROM events_log e
+		LEFT JOIN invoices i ON i.id = e.data ->> 'invoice_id'
+		ORDER BY e.ledger_closed_at DESC, e.id DESC
+		LIMIT $1`
+
+	const issuerEventsQuery = selectColumns + `
+		FROM events_log e
+		JOIN invoices i ON i.id = e.data ->> 'invoice_id'
+		WHERE i.issuer = $2
+		ORDER BY e.ledger_closed_at DESC, e.id DESC
+		LIMIT $1`
+
+	query, args := allEventsQuery, []any{limit}
+	if issuer != "" {
+		query, args = issuerEventsQuery, []any{limit, issuer}
+	}
+
+	rows, err := Pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("queries: get recent events: %w", err)
 	}
@@ -517,7 +546,10 @@ func GetRecentEvents(ctx context.Context, limit int) ([]*EventLog, error) {
 	var events []*EventLog
 	for rows.Next() {
 		var ev EventLog
-		err := rows.Scan(&ev.ID, &ev.EventID, &ev.ContractID, &ev.Ledger, &ev.LedgerClosedAt, &ev.EventType, &ev.Data)
+		err := rows.Scan(
+			&ev.ID, &ev.EventID, &ev.ContractID, &ev.Ledger, &ev.LedgerClosedAt,
+			&ev.EventType, &ev.Data, &ev.InvoiceIssuer,
+		)
 		if err != nil {
 			return nil, fmt.Errorf("queries: scan event: %w", err)
 		}

@@ -172,7 +172,9 @@ test.describe("Dashboard Smoke Test", () => {
     await expect(
       page.getByRole("heading", { name: /On-Chain Activity Logs/i }),
     ).toBeVisible();
-    await expect(page.getByText(/No events recorded yet/i)).toBeVisible();
+    await expect(
+      page.getByText(/No activity on your invoices yet/i),
+    ).toBeVisible();
 
     // Assert issued invoices section renders
     await expect(

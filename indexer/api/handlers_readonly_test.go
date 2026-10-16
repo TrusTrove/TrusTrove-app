@@ -261,7 +261,7 @@ func TestHandleGetEvents_HappyReturnsArray(t *testing.T) {
 		{ID: 2, EventID: "evt-2", EventType: "InvoiceListed", Ledger: 201},
 	}
 	var capturedLimit int
-	h.getRecentEventsFn = func(_ context.Context, limit int) ([]*db.EventLog, error) {
+	h.getRecentEventsFn = func(_ context.Context, limit int, _ string) ([]*db.EventLog, error) {
 		capturedLimit = limit
 		return want, nil
 	}
@@ -285,7 +285,7 @@ func TestHandleGetEvents_HappyReturnsArray(t *testing.T) {
 func TestHandleGetEvents_DefaultLimitIs20(t *testing.T) {
 	h := readonlyTestHandler(t)
 	var capturedLimit int
-	h.getRecentEventsFn = func(_ context.Context, limit int) ([]*db.EventLog, error) {
+	h.getRecentEventsFn = func(_ context.Context, limit int, _ string) ([]*db.EventLog, error) {
 		capturedLimit = limit
 		return nil, nil
 	}
@@ -304,7 +304,7 @@ func TestHandleGetEvents_DefaultLimitIs20(t *testing.T) {
 
 func TestHandleGetEvents_DBErrorReturns500(t *testing.T) {
 	h := readonlyTestHandler(t)
-	h.getRecentEventsFn = func(_ context.Context, _ int) ([]*db.EventLog, error) {
+	h.getRecentEventsFn = func(_ context.Context, _ int, _ string) ([]*db.EventLog, error) {
 		return nil, errors.New("db error")
 	}
 
@@ -315,6 +315,70 @@ func TestHandleGetEvents_DBErrorReturns500(t *testing.T) {
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf("expected 500 on db error, got %d", rr.Code)
 	}
+}
+
+// TestHandleGetEvents_IssuerParam (issue #1115) covers the optional `issuer`
+// filter: it must reach the store verbatim, an absent one must be forwarded as
+// "" so the protocol-wide feed is unchanged, and a malformed address must be
+// rejected before any query runs.
+func TestHandleGetEvents_IssuerParam(t *testing.T) {
+	t.Run("forwards issuer", func(t *testing.T) {
+		h := readonlyTestHandler(t)
+		kp, _ := keypair.Random()
+		var captured string
+		h.getRecentEventsFn = func(_ context.Context, _ int, issuer string) ([]*db.EventLog, error) {
+			captured = issuer
+			return []*db.EventLog{}, nil
+		}
+
+		rr := httptest.NewRecorder()
+		h.HandleGetEvents(rr, httptest.NewRequest(http.MethodGet, "/events?issuer="+kp.Address(), nil))
+
+		if rr.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d body %q", rr.Code, rr.Body.String())
+		}
+		if captured != kp.Address() {
+			t.Errorf("expected issuer %q forwarded, got %q", kp.Address(), captured)
+		}
+	})
+
+	t.Run("absent issuer is empty", func(t *testing.T) {
+		h := readonlyTestHandler(t)
+		var captured = "sentinel"
+		h.getRecentEventsFn = func(_ context.Context, _ int, issuer string) ([]*db.EventLog, error) {
+			captured = issuer
+			return []*db.EventLog{}, nil
+		}
+
+		rr := httptest.NewRecorder()
+		h.HandleGetEvents(rr, httptest.NewRequest(http.MethodGet, "/events", nil))
+
+		if rr.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rr.Code)
+		}
+		if captured != "" {
+			t.Errorf("expected empty issuer for an unscoped request, got %q", captured)
+		}
+	})
+
+	t.Run("invalid issuer is 400", func(t *testing.T) {
+		h := readonlyTestHandler(t)
+		called := false
+		h.getRecentEventsFn = func(_ context.Context, _ int, _ string) ([]*db.EventLog, error) {
+			called = true
+			return nil, nil
+		}
+
+		rr := httptest.NewRecorder()
+		h.HandleGetEvents(rr, httptest.NewRequest(http.MethodGet, "/events?issuer=not-a-stellar-address", nil))
+
+		if rr.Code != http.StatusBadRequest {
+			t.Errorf("expected 400 for a malformed issuer, got %d", rr.Code)
+		}
+		if called {
+			t.Error("expected no store call when the issuer fails validation")
+		}
+	})
 }
 
 // ------------------------------------------------------------------

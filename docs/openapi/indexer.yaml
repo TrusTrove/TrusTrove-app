@@ -131,6 +131,17 @@ paths:
       security: []
       parameters:
         - $ref: "#/components/parameters/Limit"
+        - name: issuer
+          in: query
+          required: false
+          description: >-
+            Stellar account to scope the feed to. Returns only events whose
+            `data.invoice_id` belongs to an invoice issued by that account, so
+            pool-level and registry events are excluded. Omit for the
+            protocol-wide feed.
+          schema:
+            type: string
+            pattern: "^G[A-Z2-7]{55}$"
       responses:
         "200":
           description: Indexed events
@@ -140,6 +151,12 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/EventLog"
+        "400":
+          description: issuer is not a valid Stellar account address
+          content:
+            text/plain:
+              schema:
+                type: string
         "429":
           $ref: "#/components/responses/RateLimited"
 
@@ -583,6 +600,11 @@ components:
         data:
           type: object
           additionalProperties: true
+        invoice_issuer:
+          type: string
+          description: >-
+            Issuer of the invoice named in `data.invoice_id`. Absent when the
+            event does not refer to an indexed invoice.
       required: [id, event_id, contract_id, ledger, ledger_closed_at, event_type, data]
 
     ProtocolStats:

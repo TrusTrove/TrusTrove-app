@@ -50,7 +50,11 @@ export default function SMEDashboard() {
     page: invoicePage,
     limit: invoiceLimit,
   });
-  const { events, isLoading: eventsLoading } = useRecentEvents(10);
+  // Scoped to the connected issuer, like the invoice table above it: the panel
+  // is this SME's own activity log, not the protocol's (#1115).
+  const { events, isLoading: eventsLoading } = useRecentEvents(10, {
+    issuer: address || undefined,
+  });
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const { isVerified } = useProfile();

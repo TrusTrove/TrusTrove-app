@@ -445,12 +445,21 @@ export async function getLPPosition(address: string): Promise<LPPosition> {
  * Fetches recent on-chain events, most recent first.
  *
  * @param limit - Optional maximum number of events to return.
+ * @param issuer - Optional Stellar account to scope the feed to. The indexer
+ *   resolves it through each event's invoice, so only that account's own
+ *   activity comes back (issue #1115). Omit it for the protocol-wide feed.
  * @returns A promise resolving to an `EventLog[]`; each entry is described by
  *   `parseRawEventLog` (`id`, `event_id`, `contract_id`, `ledger`,
  *   `ledger_closed_at`, `event_type`, `data`).
  */
-export async function getRecentEvents(limit?: number): Promise<EventLog[]> {
-  const query = limit ? `?limit=${limit}` : "";
+export async function getRecentEvents(
+  limit?: number,
+  issuer?: string,
+): Promise<EventLog[]> {
+  const params: string[] = [];
+  if (limit) params.push(`limit=${limit}`);
+  if (issuer) params.push(`issuer=${encodeURIComponent(issuer)}`);
+  const query = params.length > 0 ? `?${params.join("&")}` : "";
   const rawList = await apiFetch<RawEventLog[]>(`/events${query}`);
   return rawList.map(parseRawEventLog);
 }

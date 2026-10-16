@@ -642,7 +642,7 @@ func TestLogEventAndProcessedLookups(t *testing.T) {
 		t.Errorf("AreEventsProcessed (empty ids): got %d entries, want 0", len(empty))
 	}
 
-	events, err := GetRecentEvents(ctx, 10)
+	events, err := GetRecentEvents(ctx, 10, "")
 	if err != nil {
 		t.Fatalf("GetRecentEvents: %v", err)
 	}
@@ -665,6 +665,122 @@ func TestLogEventAndProcessedLookups(t *testing.T) {
 	}
 	if latest < ledger {
 		t.Errorf("GetLatestProcessedLedger: got %d, want >= %d", latest, ledger)
+	}
+}
+
+// TestGetRecentEventsIssuerScope covers the optional issuer filter added for
+// issue #1115: a filtered call returns only events on that account's own
+// invoices, an empty issuer still returns the protocol-wide feed, and an event
+// that refers to no invoice is never attributed to an issuer.
+func TestGetRecentEventsIssuerScope(t *testing.T) {
+	skipIfNoDB(t)
+
+	ctx := context.Background()
+	const (
+		issuerA = "GBV3KE6L2A6BTZEYCY24PLMKDRJLIQJHCTE3DQAZDD2GEEGOK4LYW4G6"
+		issuerB = "GAQYZGKFIEEO2CFFTP7AQMV6QUPZL3ZACKWRGBH7C7PW2ZNV52G2CO5A"
+	)
+
+	stamp := time.Now().UnixNano()
+	invoiceA := fmt.Sprintf("scope-a-%d", stamp)
+	invoiceB := fmt.Sprintf("scope-b-%d", stamp)
+	eventA := fmt.Sprintf("event-scope-a-%d", stamp)
+	eventB := fmt.Sprintf("event-scope-b-%d", stamp)
+	eventOrphan := fmt.Sprintf("event-scope-orphan-%d", stamp)
+
+	for _, seed := range []struct {
+		id, issuer string
+	}{{invoiceA, issuerA}, {invoiceB, issuerB}} {
+		inv := newTestInvoice(seed.id)
+		inv.Issuer = seed.issuer
+		if _, err := InsertInvoice(ctx, Pool, inv); err != nil {
+			t.Fatalf("InsertInvoice(%s): %v", seed.id, err)
+		}
+	}
+
+	contractID := "CABGWVIZFF62FG67ZGFEP67NEEY4WYTMFURDMFTKKNRDAFPKPOJDTN4C"
+	seedEvent := func(eventID, invoiceID string) {
+		t.Helper()
+		var data map[string]string
+		if invoiceID == "" {
+			// A pool-level event: no invoice reference at all.
+			data = map[string]string{"kind": "pool_deposit"}
+		} else {
+			data = map[string]string{"invoice_id": invoiceID}
+		}
+		if err := LogEvent(ctx, Pool, eventID, contractID, 500000, time.Now().Unix(), "invoice_funded", data); err != nil {
+			t.Fatalf("LogEvent(%s): %v", eventID, err)
+		}
+	}
+	seedEvent(eventA, invoiceA)
+	seedEvent(eventB, invoiceB)
+	seedEvent(eventOrphan, "")
+
+	t.Cleanup(func() {
+		if Pool == nil {
+			return
+		}
+		for _, id := range []string{eventA, eventB, eventOrphan} {
+			_, _ = Pool.Exec(ctx, "DELETE FROM events_log WHERE event_id = $1", id)
+		}
+		for _, id := range []string{invoiceA, invoiceB} {
+			_, _ = Pool.Exec(ctx, "DELETE FROM invoices WHERE id = $1", id)
+		}
+	})
+
+	byEventID := func(events []*EventLog) map[string]*EventLog {
+		out := make(map[string]*EventLog, len(events))
+		for _, ev := range events {
+			out[ev.EventID] = ev
+		}
+		return out
+	}
+
+	scoped, err := GetRecentEvents(ctx, 200, issuerA)
+	if err != nil {
+		t.Fatalf("GetRecentEvents(issuer=%q): %v", issuerA, err)
+	}
+	got := byEventID(scoped)
+	if _, ok := got[eventA]; !ok {
+		t.Errorf("issuer A: expected its own event %q in results", eventA)
+	}
+	if _, ok := got[eventB]; ok {
+		t.Errorf("issuer A: event on issuer B's invoice %q leaked into the feed", eventB)
+	}
+	if _, ok := got[eventOrphan]; ok {
+		t.Errorf("issuer A: invoice-less event %q leaked into the feed", eventOrphan)
+	}
+	if ev := got[eventA]; ev != nil && ev.InvoiceIssuer != issuerA {
+		t.Errorf("issuer A: got InvoiceIssuer %q, want %q", ev.InvoiceIssuer, issuerA)
+	}
+
+	wide, err := GetRecentEvents(ctx, 200, "")
+	if err != nil {
+		t.Fatalf("GetRecentEvents(issuer=\"\"): %v", err)
+	}
+	unscoped := byEventID(wide)
+	for _, eventID := range []string{eventA, eventB, eventOrphan} {
+		if _, ok := unscoped[eventID]; !ok {
+			t.Errorf("unscoped feed: expected %q to be present", eventID)
+		}
+	}
+	if ev := unscoped[eventOrphan]; ev != nil && ev.InvoiceIssuer != "" {
+		t.Errorf("unscoped feed: got InvoiceIssuer %q for an invoice-less event, want empty", ev.InvoiceIssuer)
+	}
+
+	// An issuer that has never issued an invoice gets an empty feed, not an
+	// error and not the protocol-wide list.
+	const issuerWithoutInvoices = "GCKNYAGAVRJWFHBFSS7DDRXOOODUEMRFQ5RE3P2R32YYOGBLNZ2ZBYZG"
+	none, err := GetRecentEvents(ctx, 200, issuerWithoutInvoices)
+	if err != nil {
+		t.Fatalf("GetRecentEvents(unknown issuer): %v", err)
+	}
+	if len(none) != 0 {
+		names := make([]string, 0, len(none))
+		for _, ev := range none {
+			names = append(names, ev.EventID+"@"+ev.InvoiceIssuer)
+		}
+		t.Errorf("unknown issuer: got %d events, want 0 (%v)", len(none), names)
 	}
 }
 

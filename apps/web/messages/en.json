@@ -133,7 +133,7 @@
     },
     "activity": {
       "title": "On-Chain Activity Logs",
-      "empty": "No events recorded yet.",
+      "empty": "No activity on your invoices yet.",
       "types": {
         "created": "Invoice Created",
         "listed": "Invoice Listed",

@@ -36,7 +36,7 @@ type APIHandler struct {
 	getInvoiceByIDFn   func(context.Context, string) (*db.DbInvoice, error)
 	getPoolStatsFn     func(context.Context) (*db.DbPoolStats, error)
 	getPoolSnapshotsFn func(context.Context, int) ([]*db.DbPoolSnapshotHistory, error)
-	getRecentEventsFn  func(context.Context, int) ([]*db.EventLog, error)
+	getRecentEventsFn  func(context.Context, int, string) ([]*db.EventLog, error)
 	getProtocolStatsFn func(context.Context) (*db.ProtocolStats, error)
 	readContractFn     func(ctx context.Context, rpcURL string, contractID string, method string, args []xdr.ScVal, serverKP *keypair.Full) (xdr.ScVal, error)
 }

@@ -268,15 +268,46 @@ describe("API functions", () => {
   });
 
   describe("getRecentEvents", () => {
-    it("should get recent events successfully", async () => {
-      const rawEvents = [{ id: "1" }, { id: "2" }];
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(rawEvents),
-      });
+    const mockEvents = [{ id: "1" }, { id: "2" }];
 
+    beforeEach(() => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockEvents),
+      });
+    });
+
+    it("should get recent events successfully", async () => {
       const result = await getRecentEvents(10);
       expect(result.length).toEqual(2);
+    });
+
+    it("omits the query string when neither limit nor issuer is given", async () => {
+      await getRecentEvents();
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/events"),
+        expect.anything(),
+      );
+      expect(mockFetch.mock.calls[0][0]).not.toContain("?");
+    });
+
+    it("sends limit only", async () => {
+      await getRecentEvents(10);
+      expect(mockFetch.mock.calls[0][0]).toContain("/events?limit=10");
+    });
+
+    // Issue #1115: the SME dashboard scopes its activity log server-side, so
+    // the address must reach the indexer as a query parameter.
+    it("sends the issuer scope", async () => {
+      await getRecentEvents(undefined, "GABC123");
+      expect(mockFetch.mock.calls[0][0]).toContain("/events?issuer=GABC123");
+    });
+
+    it("sends limit and issuer together", async () => {
+      await getRecentEvents(10, "GABC123");
+      expect(mockFetch.mock.calls[0][0]).toContain(
+        "/events?limit=10&issuer=GABC123",
+      );
     });
   });
 

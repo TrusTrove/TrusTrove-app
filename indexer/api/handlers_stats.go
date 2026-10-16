@@ -89,7 +89,18 @@ func (h *APIHandler) HandleGetEvents(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	events, err := h.getRecentEventsFn(r.Context(), limit)
+	// Optional issuer filter restricts the feed to events on that account's own
+	// invoices, which is what the SME dashboard needs (issue #1115). An empty
+	// value keeps the protocol-wide behaviour every other consumer relies on.
+	issuer := r.URL.Query().Get("issuer")
+	if issuer != "" {
+		if _, err := keypair.Parse(issuer); err != nil {
+			http.Error(w, "invalid issuer parameter: must be a Stellar account address", http.StatusBadRequest)
+			return
+		}
+	}
+
+	events, err := h.getRecentEventsFn(r.Context(), limit, issuer)
 	if err != nil {
 		// The raw DB error can disclose table/column names; log it and return
 		// a generic message (issue #921).

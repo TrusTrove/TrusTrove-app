@@ -9,6 +9,7 @@ import type { EventLog, Invoice } from "@/types";
 // helper throws on a missing key) and check the English output is unchanged.
 
 const NOW = 1_800_000_000;
+const WALLET_ADDRESS = "GABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 
 const state = vi.hoisted(() => ({
   wallet: {
@@ -19,6 +20,7 @@ const state = vi.hoisted(() => ({
   isVerified: false,
   invoices: [] as Invoice[],
   events: [] as EventLog[],
+  eventsCalls: [] as unknown[][],
 }));
 
 vi.mock("next/link", () => ({
@@ -57,7 +59,10 @@ vi.mock("@/hooks/useInvoices", () => ({
   }),
 }));
 vi.mock("@/hooks/useEvents", () => ({
-  useRecentEvents: () => ({ events: state.events, isLoading: false }),
+  useRecentEvents: (...args: unknown[]) => {
+    state.eventsCalls.push(args);
+    return { events: state.events, isLoading: false };
+  },
 }));
 
 import SMEDashboard from "@/app/dashboard/page";
@@ -104,7 +109,7 @@ function invoice(id: string, status: Invoice["status"]): Invoice {
 function connect(isVerified: boolean) {
   state.wallet = {
     connected: true,
-    address: "GABCDEFGHIJKLMNOPQRSTUVWXYZ234567",
+    address: WALLET_ADDRESS,
     role: "issuer",
   };
   state.isVerified = isVerified;
@@ -120,6 +125,7 @@ afterEach(() => {
   state.isVerified = false;
   state.invoices = [];
   state.events = [];
+  state.eventsCalls = [];
 });
 
 describe("SME dashboard translations", () => {
@@ -185,7 +191,9 @@ describe("SME dashboard translations", () => {
     ).toBeInTheDocument();
 
     // Activity log and management console empty states.
-    expect(screen.getByText("No events recorded yet.")).toBeInTheDocument();
+    expect(
+      screen.getByText("No activity on your invoices yet."),
+    ).toBeInTheDocument();
     expect(
       screen.getByText(
         "Select an obligation from the table to load actions in the operator console.",
@@ -193,6 +201,15 @@ describe("SME dashboard translations", () => {
     ).toBeInTheDocument();
 
     expect(container.textContent).not.toMatch(RAW_KEY);
+  });
+
+  // Issue #1115: the panel is the signed-in SME's activity log. Fetching the
+  // protocol-wide feed leaked every issuer's events into it.
+  it("requests the issuer-scoped event feed", () => {
+    connect(true);
+    renderWithProviders(<SMEDashboard />);
+
+    expect(state.eventsCalls.at(-1)).toEqual([10, { issuer: WALLET_ADDRESS }]);
   });
 
   it("interpolates activity log labels, details and relative times", () => {

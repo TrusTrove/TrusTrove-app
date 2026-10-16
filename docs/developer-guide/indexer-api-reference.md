@@ -200,11 +200,17 @@ Creates an off-chain/indexed invoice record. **Requires JWT** (`Authorization: B
 
 ## GET /events
 
-Returns the most recent indexed Soroban events. No JWT required.
+Returns the most recent indexed Soroban events, newest first. No JWT required.
 
 **Query parameters:**
 
 - `limit` — number of events to return (default: 20)
+- `issuer` — optional Stellar account address. When set, only events whose
+  `data.invoice_id` belongs to an invoice issued by that account are returned,
+  which is how the SME dashboard shows a user's own activity instead of the
+  whole protocol. Pool-level and registry events carry no invoice reference, so
+  they never appear in an issuer-scoped feed. A value that is not a valid
+  Stellar address is rejected with `400 invalid issuer parameter`.
 
 **Response:**
 
@@ -217,10 +223,14 @@ Returns the most recent indexed Soroban events. No JWT required.
     "ledger": 12345,
     "ledger_closed_at": 1748000000,
     "event_type": "invoice_created",
-    "data": {}
+    "data": {},
+    "invoice_issuer": "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
   }
 ]
 ```
+
+`invoice_issuer` is resolved from the `invoices` table and is omitted when the
+event does not refer to an indexed invoice.
 
 ## GET /pool/snapshots
 
