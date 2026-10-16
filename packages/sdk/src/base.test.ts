@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   BaseContractClient,
   SimulationError,
@@ -341,6 +341,95 @@ describe("BaseContractClient", () => {
           "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB",
         ),
       ).rejects.toBeInstanceOf(SimulationError);
+    });
+  });
+
+  describe("withRetry around the RPC calls", () => {
+    const ACCOUNT = "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB";
+
+    const read = () =>
+      client.testReadContract("test_method", [], ACCOUNT, (val) => val.u32());
+
+    beforeEach(() => {
+      mockServer.simulateTransaction.mockResolvedValue({
+        result: { retval: xdr.ScVal.scvU32(42) },
+      });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("retries getAccount once on a network error and then succeeds", async () => {
+      vi.useFakeTimers();
+      mockServer.getAccount.mockRejectedValueOnce(
+        new TypeError("fetch failed"),
+      );
+
+      const promise = read();
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      await expect(promise).resolves.toBe(42);
+      expect(mockServer.getAccount).toHaveBeenCalledTimes(2);
+      expect(mockServer.simulateTransaction).toHaveBeenCalledTimes(1);
+    });
+
+    it("waits baseDelay * 2^(attempt-1) between retries and stops at maxAttempts", async () => {
+      vi.useFakeTimers();
+      mockServer.getAccount.mockRejectedValue(new Error("network timeout"));
+
+      const promise = expect(read()).rejects.toThrow("network timeout");
+
+      // attempt 1 fails, schedules a 1_000 ms delay
+      await vi.advanceTimersByTimeAsync(999);
+      expect(mockServer.getAccount).toHaveBeenCalledTimes(1);
+
+      // attempt 2 fails after the first delay, schedules 2_000 ms
+      await vi.advanceTimersByTimeAsync(1);
+      expect(mockServer.getAccount).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(1_999);
+      expect(mockServer.getAccount).toHaveBeenCalledTimes(2);
+
+      // attempt 3 is the last one: it fails and the error surfaces
+      await vi.advanceTimersByTimeAsync(1);
+      expect(mockServer.getAccount).toHaveBeenCalledTimes(3);
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(mockServer.getAccount).toHaveBeenCalledTimes(3);
+
+      await promise;
+    });
+
+    it("does not retry an error that is not a network failure", async () => {
+      mockServer.getAccount.mockRejectedValue(
+        new Error("Account not found on ledger"),
+      );
+
+      await expect(read()).rejects.toThrow("Account not found on ledger");
+      expect(mockServer.getAccount).toHaveBeenCalledTimes(1);
+      expect(mockServer.simulateTransaction).not.toHaveBeenCalled();
+    });
+
+    it("treats a rejected simulation result as non-retryable", async () => {
+      mockServer.simulateTransaction.mockRejectedValue(
+        new Error("bad request payload"),
+      );
+
+      await expect(read()).rejects.toThrow("bad request payload");
+      expect(mockServer.getAccount).toHaveBeenCalledTimes(1);
+      expect(mockServer.simulateTransaction).toHaveBeenCalledTimes(1);
+    });
+
+    it("retries the simulation call itself before building the transaction", async () => {
+      vi.useFakeTimers();
+      mockServer.simulateTransaction
+        .mockRejectedValueOnce(new Error("socket hang up: etimedout"))
+        .mockResolvedValue({ result: { retval: xdr.ScVal.scvU32(42) } });
+
+      const promise = read();
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      await expect(promise).resolves.toBe(42);
+      expect(mockServer.simulateTransaction).toHaveBeenCalledTimes(2);
     });
   });
 });
