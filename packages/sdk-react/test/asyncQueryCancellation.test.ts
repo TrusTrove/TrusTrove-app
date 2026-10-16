@@ -87,10 +87,9 @@ describe("useAsyncQuery — cancellation and stale-response guard", () => {
     await act(async () => {
       first.resolve("dropped");
     });
-    expect(
-      result.current.isLoading,
-      "the current run is still in flight",
-    ).toBe(true);
+    expect(result.current.isLoading, "the current run is still in flight").toBe(
+      true,
+    );
 
     await act(async () => {
       second.resolve("final");
@@ -107,10 +106,13 @@ describe("useAsyncQuery — cancellation and stale-response guard", () => {
 
     const { result, rerender } = renderHook(
       ({ dep }: { dep: number }) =>
-        useAsyncQuery((signal) => {
-          signals.push(signal);
-          return pending;
-        }, [dep]),
+        useAsyncQuery(
+          (signal) => {
+            signals.push(signal);
+            return pending;
+          },
+          [dep],
+        ),
       { initialProps: { dep: 1 } },
     );
 
@@ -181,7 +183,8 @@ describe("useAsyncQuery — cancellation and stale-response guard", () => {
     let current = first.run;
 
     const { result, rerender } = renderHook(
-      ({ dep }: { dep: number }) => useAsyncQuery((signal) => current(signal), [dep]),
+      ({ dep }: { dep: number }) =>
+        useAsyncQuery((signal) => current(signal), [dep]),
       { initialProps: { dep: 1 } },
     );
 
