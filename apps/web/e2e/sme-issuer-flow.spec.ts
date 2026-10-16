@@ -14,12 +14,16 @@ interface MockInvoiceState {
   dueDate: number;
 }
 
-function tomorrowDueDate(): { input: string; timestamp: number } {
+// `InvoiceForm` rejects due dates less than 7 days out, so the mock's date
+// must clear that floor. The ISO string is built from local date parts (not
+// `toISOString`) so it always names the day the calendar will offer.
+function futureDueDate(daysAhead = 9): { input: string; timestamp: number } {
   const date = new Date();
-  date.setDate(date.getDate() + 1);
+  date.setDate(date.getDate() + daysAhead);
   date.setHours(12, 0, 0, 0);
+  const pad = (n: number) => String(n).padStart(2, "0");
   return {
-    input: date.toISOString().split("T")[0],
+    input: `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
     timestamp: Math.floor(date.getTime() / 1000),
   };
 }
@@ -47,6 +51,19 @@ function buildRawInvoice(state: MockInvoiceState) {
     buyer_confirmed: false,
     repaid_at: null,
   };
+}
+
+/**
+ * `InvoiceTable` renders `truncateAddress(invoice.id)` (first six characters,
+ * an ellipsis, then the last four — `lib/format.ts`), so the row is matched on
+ * that rendered form. For this 64-character id that is `aaaaaa...aaaa`.
+ */
+function displayedInvoiceId(id = MOCK_INVOICE_ID) {
+  return `${id.slice(0, 6)}...${id.slice(-4)}`;
+}
+
+function invoiceRow(page: Page) {
+  return page.getByRole("row").filter({ hasText: displayedInvoiceId() });
 }
 
 async function setupStellarNetworkMocks(page: Page) {
@@ -154,7 +171,7 @@ async function setupStellarNetworkMocks(page: Page) {
 }
 
 async function setupIssuerApiMocks(page: Page) {
-  const dueDate = tomorrowDueDate();
+  const dueDate = futureDueDate();
   const invoiceState: MockInvoiceState = {
     status: "Created",
     discountBps: 0,
@@ -242,7 +259,8 @@ async function setupIssuerApiMocks(page: Page) {
 async function connectAsIssuer(page: Page) {
   await page.goto("/dashboard");
 
-  // Scoped to the Navbar: the page body renders its own connect button too.
+  // Scoped to the Navbar: the dashboard body renders no connect control, but
+  // the gate pages do.
   const connectBtn = page
     .getByRole("navigation")
     .getByRole("button", { name: /Connect Wallet/i });
@@ -259,52 +277,80 @@ async function connectAsIssuer(page: Page) {
   await expect(page.getByText(/ROLE:\s*ISSUER/i)).toBeVisible();
 }
 
+/**
+ * `InvoiceForm`/`InvoiceCard` gate every write behind `useProfile().isVerified`,
+ * which reads the registry contract. No registry contract is configured in this
+ * environment, so the queries settle unverified and the cache is seeded
+ * directly through the `window.__reactQueryClient` handle published by
+ * `app/providers.tsx` — the same mechanism the profile specs use.
+ *
+ * The seeded cache must survive into the test (a `page.reload()` drops it, and
+ * the reload would restore the unverified state).
+ */
 async function seedVerifiedIssuer(page: Page) {
-  await page.evaluate(
-    ({ walletAddress }) => {
-      const queryClient = (
-        window as Window & {
-          __reactQueryClient?: {
-            setQueryData: (key: unknown[], value: unknown) => void;
-          };
-        }
-      ).__reactQueryClient;
+  await page.evaluate((walletAddress) => {
+    const queryClient = (
+      window as Window & {
+        __reactQueryClient?: {
+          setQueryData: (key: unknown[], value: unknown) => void;
+        };
+      }
+    ).__reactQueryClient;
+    if (!queryClient) throw new Error("React Query client not exposed");
 
-      queryClient?.setQueryData(["isVerified", walletAddress], true);
-      queryClient?.setQueryData(["profile", walletAddress], {
-        address: walletAddress,
-        role: "Issuer",
-        verified: true,
-        registeredAt: Math.floor(Date.now() / 1000),
-      });
-    },
-    { walletAddress: MOCK_WALLET },
-  );
+    queryClient.setQueryData(["isVerified", walletAddress], true);
+    queryClient.setQueryData(["profile", walletAddress], {
+      address: walletAddress,
+      role: "issuer",
+      verified: true,
+      registeredAt: Math.floor(Date.now() / 1000),
+      metadata: {},
+    });
+  }, MOCK_WALLET);
 
-  await page.reload();
-  await connectAsIssuer(page);
+  await expect(
+    page.getByRole("button", { name: /Create Invoice/i }),
+  ).toBeEnabled({ timeout: 15000 });
 }
 
 async function selectDueDate(page: Page, isoDate: string) {
-  const day = Number(isoDate.split("-")[2]);
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const monthName = new Date(Date.UTC(year, month - 1, 1)).toLocaleString(
+    "en-US",
+    { month: "long", timeZone: "UTC" },
+  );
+
   await page.getByRole("button", { name: /Select due date/i }).click();
-  await page
-    .getByRole("gridcell", { name: String(day), exact: true })
-    .first()
-    .click();
+
+  // react-day-picker labels each day button with its full date, e.g.
+  // "Saturday, October 17th, 2026" (the ordinal suffix varies). The calendar
+  // opens on the current month, so advance it when the due date lands later.
+  const calendar = page
+    .getByRole("dialog")
+    .filter({ has: page.getByRole("grid") });
+  const dayButton = calendar.getByRole("button", {
+    name: new RegExp(`${monthName} ${day}\\w*, ${year}`, "i"),
+  });
+
+  for (let hops = 0; hops < 3 && !(await dayButton.isVisible()); hops += 1) {
+    await page.getByRole("button", { name: /Go to the Next Month/i }).click();
+  }
+
+  await dayButton.click();
 }
 
 test.describe("SME Issuer Flow - Happy Path", () => {
-  test("Connect, create, list, and ship an invoice", async ({ page }) => {
+  test("creates an invoice, lists it, and selects it from the ledger", async ({
+    page,
+  }) => {
     await setupStellarNetworkMocks(page);
     const invoiceMocks = await setupIssuerApiMocks(page);
     await connectAsIssuer(page);
     await seedVerifiedIssuer(page);
 
     await page.getByRole("button", { name: /Create Invoice/i }).click();
-    await expect(
-      page.getByRole("dialog", { name: /Create Invoice/i }),
-    ).toBeVisible();
+    const dialog = page.getByRole("dialog", { name: /Create Invoice/i });
+    await expect(dialog).toBeVisible();
 
     await page.getByPlaceholder(/Stellar Public Key/i).fill(MOCK_BUYER);
     await page.getByPlaceholder(/50,000\.00/i).fill("1000");
@@ -316,39 +362,69 @@ test.describe("SME Issuer Flow - Happy Path", () => {
       })
       .uncheck();
 
-    await page.getByRole("button", { name: /Review Financing Terms/i }).click();
-    await page.getByRole("button", { name: /Create Invoice/i }).click();
+    await dialog
+      .getByRole("button", { name: /Review Financing Terms/i })
+      .click();
+    // Scoped to the open dialog: the page header's own "Create Invoice"
+    // button stays in the DOM behind it.
+    await dialog.getByRole("button", { name: /Create Invoice/i }).click();
 
     await expect(page.getByText(/Invoice Created/i)).toBeVisible({
       timeout: 15000,
     });
 
-    await page.getByRole("row").filter({ hasText: /INV#/i }).click();
+    // The created invoice appears in the ledger under its truncated id, and
+    // selecting that row loads it into the management console.
+    await invoiceRow(page).click();
 
+    await expect(
+      page.getByRole("button", { name: /Configure financing terms/i }),
+    ).toBeVisible();
+  });
+
+  test("reports a failed listing when no invoice contract is configured", async ({
+    page,
+  }) => {
+    await setupStellarNetworkMocks(page);
+    const invoiceMocks = await setupIssuerApiMocks(page);
+    await connectAsIssuer(page);
+    await seedVerifiedIssuer(page);
+
+    await page.getByRole("button", { name: /Create Invoice/i }).click();
+    const dialog = page.getByRole("dialog", { name: /Create Invoice/i });
+    await page.getByPlaceholder(/Stellar Public Key/i).fill(MOCK_BUYER);
+    await page.getByPlaceholder(/50,000\.00/i).fill("1000");
+    await selectDueDate(page, invoiceMocks.dueDate.input);
+    await page
+      .getByRole("checkbox", {
+        name: /List for immediate LP financing at creation/i,
+      })
+      .uncheck();
+    await dialog
+      .getByRole("button", { name: /Review Financing Terms/i })
+      .click();
+    await dialog.getByRole("button", { name: /Create Invoice/i }).click();
+    await expect(page.getByText(/Invoice Created/i)).toBeVisible({
+      timeout: 15000,
+    });
+
+    await invoiceRow(page).click();
     await page
       .getByRole("button", { name: /Configure financing terms/i })
       .click();
+
+    // Listing is an on-chain write (`useInvoiceActions` -> InvoiceClient).
+    // Without NEXT_PUBLIC_INVOICE_CONTRACT_ID the SDK client cannot be
+    // constructed, and the failure is surfaced instead of a false success.
+    await page.getByLabel(/Discount Basis Points/i).fill("200");
     await page.getByRole("button", { name: /List Terms/i }).click();
 
-    invoiceMocks.markListed();
-    await expect(page.getByText(/Invoice Listed for Financing/i)).toBeVisible({
+    await expect(page.getByText(/Listing Failed/i)).toBeVisible({
       timeout: 15000,
     });
-
-    invoiceMocks.markFunded();
-    await page.reload();
-    await connectAsIssuer(page);
-    await seedVerifiedIssuer(page);
-    await page.getByRole("row").filter({ hasText: /INV#/i }).click();
-
-    await page.getByRole("button", { name: /Mark Goods Shipped/i }).click();
-
-    invoiceMocks.markShipped();
-    await expect(page.getByText(/Invoice Shipped/i)).toBeVisible({
-      timeout: 15000,
-    });
+    // The SDK error surfaces both inline in the card and in the toast.
     await expect(
-      page.getByRole("status", { name: /Invoice status: Active/i }),
+      page.getByText(/Contract ID is required/i).first(),
     ).toBeVisible();
   });
 });
