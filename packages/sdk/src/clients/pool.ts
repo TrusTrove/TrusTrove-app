@@ -162,7 +162,11 @@ export class PoolClient extends BaseContractClient {
   /**
    * Gets the current pool utilization rate (read-only).
    * @param signerPublicKey - The public key for RPC account lookup
-   * @returns Utilization rate as a decimal (0-1)
+   * @returns Utilization rate in basis points, passed through exactly as the
+   * contract's `u32` reports it (`total_funded / total_deposits × 10_000`, so 5000
+   * is 50% and 10000 is 100%). Same unit as {@link getStats}'s
+   * `utilizationRateBps`; divide by 100 for a percentage. Returns 0 when the pool
+   * has no deposits.
    * @throws Error if simulation fails
    */
   async getUtilizationRate(signerPublicKey: string): Promise<number> {

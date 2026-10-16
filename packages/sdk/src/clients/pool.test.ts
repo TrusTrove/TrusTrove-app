@@ -206,5 +206,35 @@ describe("PoolClient", () => {
         expect.any(Function),
       );
     });
+
+    it("passes the contract's basis-point scalar through unchanged", async () => {
+      // readContract is mocked, so this drives the wrapper's own parse closure
+      // with the ScVal a real simulation returns.
+      vi.mocked(client["readContract"]).mockImplementation(
+        async (_method, _args, _publicKey, parse) =>
+          parse(xdr.ScVal.scvU32(5000)),
+      );
+
+      const result = await client.getUtilizationRate(
+        "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB",
+      );
+
+      expect(
+        result,
+        "5000 basis points (50%) must not be rescaled into a 0-1 decimal",
+      ).toBe(5000);
+    });
+
+    it("returns 0 for an empty pool rather than null or NaN", async () => {
+      vi.mocked(client["readContract"]).mockImplementation(
+        async (_method, _args, _publicKey, parse) => parse(xdr.ScVal.scvU32(0)),
+      );
+
+      const result = await client.getUtilizationRate(
+        "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB",
+      );
+
+      expect(result).toBe(0);
+    });
   });
 });
