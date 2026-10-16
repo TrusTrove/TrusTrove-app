@@ -53,18 +53,15 @@ export default function SettingsPage() {
     }
   }, [displayDensity, animationsEnabled, reducedMotion]);
 
+  // Publish the preferences on <html>, where app/globals.css consumes them;
+  // the `data-*`/class names here must match those selectors.
   useEffect(() => {
     saveDisplayPrefs();
-    document.documentElement.style.setProperty(
-      "--density",
-      displayDensity === "compact" ? "compact" : "comfortable",
-    );
+    const root = document.documentElement;
+    root.dataset.density = displayDensity;
+    root.dataset.animations = animationsEnabled ? "on" : "off";
+    root.classList.toggle("reduce-motion", reducedMotion);
   }, [displayDensity, animationsEnabled, reducedMotion, saveDisplayPrefs]);
-
-  // Apply reduced motion preference
-  useEffect(() => {
-    document.documentElement.classList.toggle("reduce-motion", reducedMotion);
-  }, [reducedMotion]);
 
   function AppearanceSection() {
     return (
