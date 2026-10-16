@@ -35,6 +35,29 @@ function mockMutation() {
   );
 }
 
+/** Serve a cached profile for the `["profile"]` query, verified for the other. */
+function mockRegisteredProfile(role: "issuer" | "buyer") {
+  vi.mocked(useQuery).mockImplementation(((args: any) =>
+    args.queryKey[0] === "profile"
+      ? {
+          data: {
+            address: "G123",
+            role,
+            verified: true,
+            registeredAt: 1000,
+          },
+          isLoading: false,
+          error: null,
+          refetch: vi.fn(),
+        }
+      : {
+          data: true,
+          isLoading: false,
+          error: null,
+          refetch: vi.fn(),
+        }) as any);
+}
+
 describe("useProfile", () => {
   let mockInvalidateQueries: ReturnType<typeof vi.fn>;
 
@@ -197,6 +220,64 @@ describe("useProfile", () => {
     expect(mockInvalidateQueries).toHaveBeenCalledWith({
       queryKey: ["isVerified", "G123"],
     });
+  });
+
+  it("refuses a second register call for an already registered buyer", async () => {
+    act(() => {
+      useWalletStore.getState().connect("G123", "testnet");
+    });
+    mockRegisteredProfile("buyer");
+
+    const mockRegisterIssuer = vi.fn();
+    const mockRegisterBuyer = vi.fn();
+    vi.mocked(RegistryClient).mockImplementation(function () {
+      return {
+        registerIssuer: mockRegisterIssuer,
+        registerBuyer: mockRegisterBuyer,
+      };
+    } as any);
+
+    const { result } = renderHook(() => useProfile());
+
+    // The old update path submitted role "issuer" for a buyer profile, which
+    // the contract answers with AlreadyRegistered (issue #1109).
+    await expect(
+      act(async () => {
+        await result.current.register({
+          role: "issuer",
+          metadata: { companyName: "Acme" },
+        });
+      }),
+    ).rejects.toThrow(/already registered as buyer/);
+
+    expect(mockRegisterIssuer).not.toHaveBeenCalled();
+    expect(mockRegisterBuyer).not.toHaveBeenCalled();
+    expect(mockInvalidateQueries).not.toHaveBeenCalled();
+  });
+
+  it("refuses a matching-role register for an existing profile", async () => {
+    act(() => {
+      useWalletStore.getState().connect("G123", "testnet");
+    });
+    mockRegisteredProfile("issuer");
+
+    const mockRegisterIssuer = vi.fn();
+    vi.mocked(RegistryClient).mockImplementation(function () {
+      return { registerIssuer: mockRegisterIssuer };
+    } as any);
+
+    const { result } = renderHook(() => useProfile());
+
+    await expect(
+      act(async () => {
+        await result.current.register({
+          role: "issuer",
+          metadata: { companyName: "Acme" },
+        });
+      }),
+    ).rejects.toThrow(/already registered as issuer/);
+
+    expect(mockRegisterIssuer).not.toHaveBeenCalled();
   });
 
   it("register mutation fails if no wallet", async () => {

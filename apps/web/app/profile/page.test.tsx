@@ -1,8 +1,20 @@
 import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ProfilePage from "@/app/profile/page";
+
+// Shared so individual tests can describe a registered wallet without
+// re-declaring the whole hook shape.
+const mocks = vi.hoisted(() => ({
+  register: vi.fn(),
+  profile: null as null | {
+    address: string;
+    role: "issuer" | "buyer";
+    verified: boolean;
+    registeredAt: number;
+  },
+}));
 
 vi.mock("@/store/wallet", () => ({
   useWalletStore: (selector: any) => {
@@ -13,11 +25,11 @@ vi.mock("@/store/wallet", () => ({
 
 vi.mock("@/hooks/useProfile", () => ({
   useProfile: () => ({
-    profile: null,
+    profile: mocks.profile,
     isProfileLoading: false,
     isVerified: false,
     isVerifiedLoading: false,
-    register: vi.fn(),
+    register: mocks.register,
     isRegistering: false,
     registerError: null,
   }),
@@ -212,5 +224,54 @@ describe("Profile registration dialog", () => {
 
     // Focus should return to the element that opened the modal
     expect(openButton).toHaveFocus();
+  });
+});
+
+describe("Metadata update for a registered profile", () => {
+  beforeEach(() => {
+    // A wallet that is already on the registry as a *buyer*: exactly the state
+    // the old "Update Metadata" modal defaulted its hidden role picker away
+    // from (issue #1109).
+    mocks.profile = {
+      address: "GTESTADDRESS",
+      role: "buyer",
+      verified: true,
+      registeredAt: 1700000000,
+    };
+    mocks.register.mockReset();
+  });
+
+  afterEach(() => {
+    mocks.profile = null;
+  });
+
+  it("explains why the on-chain profile cannot be updated", () => {
+    render(<ProfilePage />);
+
+    const button = screen.getByRole("button", { name: "Update Metadata" });
+    expect(button).toBeDisabled();
+    expect(button.getAttribute("aria-describedby")).toBe(
+      "metadata-update-note",
+    );
+    expect(
+      document.getElementById("metadata-update-note")?.textContent,
+    ).toMatch(/one-time/);
+  });
+
+  it("leaves no path that re-runs the one-time register call", () => {
+    render(<ProfilePage />);
+
+    // The registration CTA is not rendered for an existing profile either.
+    expect(
+      screen.queryByRole("button", { name: "Register Business Profile" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Update Metadata" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "SME / Issuer" }),
+    ).not.toBeInTheDocument();
+    expect(mocks.register).not.toHaveBeenCalled();
   });
 });

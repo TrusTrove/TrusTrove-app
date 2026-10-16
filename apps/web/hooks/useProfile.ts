@@ -59,6 +59,8 @@ function isProfileNotFoundError(error: unknown): boolean {
  *   - `isVerifiedLoading` — `true` while verification state is being fetched.
  *   - `isVerifiedError` — Fetch error for verification, or `null` if none.
  *   - `register` — Async mutation: register as an issuer or buyer on-chain.
+ *     Rejects without sending a transaction when the wallet already has a
+ *     profile, since the registry's registration is one-time.
  *   - `isRegistering` / `registerError` — State for the register mutation.
  *   - `refetchProfile` — Function to manually refresh all profile query data.
  */
@@ -123,6 +125,15 @@ export function useProfile() {
     }) => {
       if (!address) throw new Error("Wallet not connected");
       if (!registryClient) throw new Error("Registry client not available");
+      // `register_issuer` / `register_buyer` panic with AlreadyRegistered for an
+      // address that is already on the registry, so a second call for this
+      // wallet can only ever build a transaction that reverts. Refuse it here
+      // instead of asking the user to sign it.
+      if (profileQuery.data) {
+        throw new Error(
+          `This wallet is already registered as ${profileQuery.data.role}. Registration is one-time, so profile metadata cannot be updated.`,
+        );
+      }
       if (role === "issuer") {
         return registryClient.registerIssuer(address, metadata, address);
       } else {

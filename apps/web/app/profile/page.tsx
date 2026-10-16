@@ -262,15 +262,24 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col items-end gap-2">
                   <Button
                     variant="outline"
                     size="sm"
-                    className="font-mono text-xs border-border hover:bg-slate-900"
-                    onClick={() => setShowRegModal(true)}
+                    disabled
+                    aria-describedby="metadata-update-note"
+                    className="font-mono text-xs border-border"
                   >
                     Update Metadata
                   </Button>
+                  <p
+                    id="metadata-update-note"
+                    className="text-[10px] font-mono text-slate-500 leading-relaxed max-w-[16rem] text-right"
+                  >
+                    Registration on the Registry contract is a one-time action
+                    and the stored profile has no metadata fields, so an
+                    existing profile cannot be updated from here.
+                  </p>
                 </div>
               </div>
 
