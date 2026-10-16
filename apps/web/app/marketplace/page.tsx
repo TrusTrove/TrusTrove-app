@@ -188,15 +188,29 @@ export default function Marketplace() {
   // Multi-select state for comparison
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<string[]>([]);
 
-  // Presets state
+  // Presets state. Initialised for the address connected on first render and
+  // re-read below on every change, so an account switch can never leave the
+  // previous wallet's presets in memory.
   const [presets, setPresets] = useState<FilterPreset[]>(() =>
     readPresetsFromStorage(address ?? undefined),
   );
+  // The address `presets` was loaded for. Writes are gated on it so the
+  // render between an account switch and the re-read below cannot persist
+  // stale presets under the new wallet's key.
+  const [loadedPresetAddress, setLoadedPresetAddress] = useState<string | null>(
+    address ?? null,
+  );
+
+  useEffect(() => {
+    setPresets(readPresetsFromStorage(address ?? undefined));
+    setLoadedPresetAddress(address ?? null);
+  }, [address]);
 
   // Persist presets to localStorage on change
   useEffect(() => {
+    if (loadedPresetAddress !== (address ?? null)) return;
     writePresetsToStorage(presets, address ?? undefined);
-  }, [presets, address]);
+  }, [presets, address, loadedPresetAddress]);
 
   // Handle preset selection
   const applyPreset = (preset: FilterPreset) => {
