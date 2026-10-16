@@ -107,6 +107,28 @@ export class PoolClient extends BaseContractClient {
   }
 
   /**
+   * Applies an invoice default to the pool.
+   * Side effect: recovers any locked escrow funds and reduces total deposits by the
+   * funded amount, so the principal loss is shared across all LP shares.
+   *
+   * Normally invoked internally by `invoice_contract.trigger_default()`. It is exposed
+   * here for tooling and testing parity with `EscrowClient.handleDefault()`.
+   * @param invoiceIdHex - The hexadecimal ID of the defaulting invoice
+   * @param signerPublicKey - The public key that must sign the transaction
+   * @returns True if the default was handled successfully
+   * @throws Error if simulation fails or transaction submission fails
+   */
+  async handleDefault(
+    invoiceIdHex: string,
+    signerPublicKey: string,
+  ): Promise<boolean> {
+    const args = [xdr.ScVal.scvBytes(Buffer.from(invoiceIdHex, "hex"))];
+    return this.writeContract("handle_default", args, signerPublicKey).then(
+      () => true,
+    );
+  }
+
+  /**
    * Retrieves pool statistics (read-only, no on-chain auth required).
    * @param signerPublicKey - The public key for RPC account lookup
    * @returns Pool statistics including TVL, utilization, and APY

@@ -57,6 +57,37 @@ export class InvoiceClient extends BaseContractClient {
   }
 
   /**
+   * Records a risk attestation produced off-chain by a registered Underwrite agent.
+   * Side effect: stores an `Attestation` for the invoice and emits `AttestationSubmitted`.
+   * This is a precondition for `listForFinancing`, which fails with `VerificationRequired`
+   * until an attestation exists.
+   *
+   * The call is permissionless — there is no `require_auth` on the caller. Trust comes
+   * entirely from `signature`: the contract recovers the signer's public key and matches
+   * it against an active agent registered in the agent-registry contract.
+   *
+   * @param invoiceIdHex - The invoice ID as a 32-byte hex string.
+   * @param payload - The attested payload bytes, covering the domain separator, invoice ID, risk score, evidence hash, agent ID and nonce.
+   * @param signature - The recoverable secp256k1 signature over the payload. Must be exactly 65 bytes, the size the contract's `BytesN<65>` parameter expects.
+   * @param signerPublicKey - The Stellar public key that will sign the transaction. Any account may submit an attestation.
+   * @returns The transaction hash of the on-chain submission.
+   * @throws If the recovered key is not a registered active agent (`UntrustedSigner`), an attestation was already submitted for this invoice (`AlreadyAttested`), the transaction simulation fails, or on-chain submission errors.
+   */
+  async submitAttestation(
+    invoiceIdHex: string,
+    payload: Uint8Array,
+    signature: Uint8Array,
+    signerPublicKey: string,
+  ): Promise<string> {
+    const args = [
+      xdr.ScVal.scvBytes(Buffer.from(invoiceIdHex, "hex")),
+      xdr.ScVal.scvBytes(Buffer.from(payload)),
+      xdr.ScVal.scvBytes(Buffer.from(signature)),
+    ];
+    return this.writeContract("submit_attestation", args, signerPublicKey);
+  }
+
+  /**
    * Lists an existing invoice for public financing on the marketplace.
    * Side effect: the invoice status transitions to `Listed`.
    *

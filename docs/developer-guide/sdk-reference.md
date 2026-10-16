@@ -126,9 +126,9 @@ interface Agent {
 ```
 
 > **Note:** `getAgent` is a read-only (simulated) call with no on-chain side
-> effects, and `AgentRegistryClient` exposes no `initialize` method. There is
-> currently no `InvoiceClient` wrapper for `submit_attestation` (tracked in
-> #815) — attestations are submitted directly against the contract.
+> effects, and `AgentRegistryClient` exposes no `initialize` method.
+> Attestations are submitted through `InvoiceClient.submitAttestation` (see
+> Invoice Client below).
 
 ---
 
@@ -141,6 +141,16 @@ const txHash = await invoice.create(
   buyerPublicKey,
   BigInt(10_000_000_000), // 1000 USDC in stroops
   Math.floor(Date.now() / 1000) + 60 * 24 * 60 * 60, // 60 days
+  signerPublicKey,
+);
+
+// Record an Underwrite agent's off-chain attestation (returns tx hash).
+// Required before listForFinancing, which otherwise fails with
+// VerificationRequired.
+const attestationTx = await invoice.submitAttestation(
+  invoiceIdHex,
+  attestationPayload, // Uint8Array
+  signature65Bytes, // Uint8Array, exactly 65 bytes
   signerPublicKey,
 );
 
@@ -237,6 +247,9 @@ await pool.fundInvoice(invoiceIdHex, signerPublicKey);
 
 // Record a repayment back into the pool
 await pool.receiveRepayment(invoiceIdHex, repaymentAmount, signerPublicKey);
+
+// Handle an invoice default (normally called internally by triggerDefault)
+await pool.handleDefault(invoiceIdHex, signerPublicKey);
 ```
 
 ---

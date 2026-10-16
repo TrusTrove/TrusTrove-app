@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { Address } from "@stellar/stellar-sdk";
+import { Address, scValToNative, xdr } from "@stellar/stellar-sdk";
 import { InvoiceClient } from "./invoice.js";
 
 vi.mock("../base.js", () => {
@@ -22,6 +22,78 @@ describe("InvoiceClient", () => {
     client = new InvoiceClient(
       "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
     );
+  });
+
+  describe("submitAttestation", () => {
+    const invoiceIdHex =
+      "1111111111111111111111111111111111111111111111111111111111111111";
+    // 65 bytes, the size of the contract's `BytesN<65>` signature parameter.
+    const signature = new Uint8Array(65).fill(7);
+    const payload = new Uint8Array([1, 2, 3, 4, 5]);
+    const signerPublicKey =
+      "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB";
+
+    it("calls writeContract with submit_attestation and returns the tx hash", async () => {
+      vi.mocked(client["writeContract"]).mockResolvedValue("mock-hash");
+
+      const result = await client.submitAttestation(
+        invoiceIdHex,
+        payload,
+        signature,
+        signerPublicKey,
+      );
+
+      expect(result).toBe("mock-hash");
+      expect(client["writeContract"]).toHaveBeenCalledWith(
+        "submit_attestation",
+        expect.any(Array),
+        signerPublicKey,
+      );
+    });
+
+    it("encodes the invoice id, payload and signature as bytes arguments", async () => {
+      vi.mocked(client["writeContract"]).mockResolvedValue("mock-hash");
+
+      await client.submitAttestation(
+        invoiceIdHex,
+        payload,
+        signature,
+        signerPublicKey,
+      );
+
+      const args = vi.mocked(client["writeContract"]).mock
+        .calls[0][1] as xdr.ScVal[];
+
+      expect(args).toEqual([
+        xdr.ScVal.scvBytes(Buffer.from(invoiceIdHex, "hex")),
+        xdr.ScVal.scvBytes(Buffer.from(payload)),
+        xdr.ScVal.scvBytes(Buffer.from(signature)),
+      ]);
+    });
+
+    it("passes the signature bytes through intact and in contract argument order", async () => {
+      vi.mocked(client["writeContract"]).mockResolvedValue("mock-hash");
+
+      await client.submitAttestation(
+        invoiceIdHex,
+        payload,
+        signature,
+        signerPublicKey,
+      );
+
+      const args = vi.mocked(client["writeContract"]).mock
+        .calls[0][1] as xdr.ScVal[];
+
+      expect(Buffer.from(scValToNative(args[0]) as Uint8Array)).toEqual(
+        Buffer.from(invoiceIdHex, "hex"),
+      );
+      expect(Buffer.from(scValToNative(args[1]) as Uint8Array)).toEqual(
+        Buffer.from(payload),
+      );
+      expect(Buffer.from(scValToNative(args[2]) as Uint8Array)).toEqual(
+        Buffer.from(signature),
+      );
+    });
   });
 
   describe("initialize", () => {
