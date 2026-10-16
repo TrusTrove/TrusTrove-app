@@ -13,7 +13,7 @@ import { usePool } from "@/hooks/usePool";
 import { useWalletStore } from "@/store/wallet";
 import { useProfile } from "@/hooks/useProfile";
 import { Invoice } from "@/types";
-import { formatAmount } from "@/lib/assets";
+import { formatAmount, fundedValueStroops } from "@/lib/assets";
 import { ShieldAlert, RotateCcw, Save, Trash2, Menu } from "lucide-react";
 
 const MARKETPLACE_FILTERS_KEY = "trusttrove:marketplace:filters";
@@ -246,13 +246,6 @@ export default function Marketplace() {
     );
     setEditingPresetId(null);
     setEditingPresetName("");
-  };
-
-  // Calculate funded amount preview (face value - discount fee)
-  const calculateFundingValue = (faceValue: bigint, discountBps: number) => {
-    const value = Number(faceValue);
-    const fee = value * (discountBps / 10000);
-    return BigInt(Math.floor(value - fee));
   };
 
   // Get selected invoices for comparison
@@ -711,7 +704,7 @@ export default function Marketplace() {
                           </span>
                           <span>
                             {formatAmount(
-                              calculateFundingValue(
+                              fundedValueStroops(
                                 selectedInvoice.faceValue,
                                 selectedInvoice.discountBps,
                               ),
