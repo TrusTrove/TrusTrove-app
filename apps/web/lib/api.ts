@@ -415,6 +415,59 @@ export async function getInvoices(filters?: {
   };
 }
 
+/** Page size used by {@link getAllInvoices}. Matches the API's max `limit`. */
+const ALL_INVOICES_PAGE_SIZE = 100;
+
+/** Safety cap on how many pages {@link getAllInvoices} will fetch (10k rows). */
+const ALL_INVOICES_MAX_PAGES = 100;
+
+/**
+ * Fetches the complete, unpaged invoice set for the given filters by walking
+ * every server page. Use this for aggregate/summary calculations that must
+ * cover the whole set — never for rendering a paginated table.
+ *
+ * The API caps `limit` at 100, so a single request cannot return everything;
+ * this helper requests successive pages (deduplicating by id in case rows are
+ * inserted mid-walk) until `totalPages` is exhausted. The walk stops early on
+ * an empty page or after {@link ALL_INVOICES_MAX_PAGES} pages so a bad server
+ * response cannot loop forever.
+ *
+ * @param filters - Optional query filters:
+ *   - `status` — `string` filter by `InvoiceStatus`.
+ *   - `issuer` — `string` filter by issuer Stellar address.
+ * @returns A promise resolving to every matching `Invoice`, across all pages.
+ *
+ * @example
+ * ```ts
+ * const all = await getAllInvoices({ issuer: address });
+ * const totalFunded = all.reduce((sum, inv) => sum + inv.fundedAmount, 0n);
+ * ```
+ */
+export async function getAllInvoices(filters?: {
+  status?: string;
+  issuer?: string;
+}): Promise<Invoice[]> {
+  const byId = new Map<string, Invoice>();
+  let page = 1;
+  let totalPages = 1;
+
+  while (page <= totalPages && page <= ALL_INVOICES_MAX_PAGES) {
+    const res = await getInvoices({
+      ...filters,
+      page,
+      limit: ALL_INVOICES_PAGE_SIZE,
+    });
+    totalPages = res.totalPages || 1;
+    for (const invoice of res.data) {
+      byId.set(invoice.id, invoice);
+    }
+    if (res.data.length === 0) break;
+    page += 1;
+  }
+
+  return Array.from(byId.values());
+}
+
 /**
  * Fetches aggregate pool statistics for the liquidity pool.
  *

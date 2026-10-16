@@ -2,6 +2,7 @@ import { useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getInvoices,
+  getAllInvoices,
   getInvoiceByID,
   createInvoice,
   PaginatedInvoices,
@@ -10,7 +11,7 @@ import { useWalletStore } from "@/store/wallet";
 import { showSuccessToast } from "@/lib/toast";
 import { createErrorHandler } from "@/lib/errors";
 import { useTokenAllowance } from "./useTokenAllowance";
-import type { AssetType } from "@/types";
+import type { AssetType, Invoice } from "@/types";
 import type { InvoiceClient, PoolClient } from "@trusttrove/sdk";
 
 const { handleMutationError } = createErrorHandler("useInvoices");
@@ -23,10 +24,105 @@ function invalidateInvoiceQueries(
   address?: string | null,
 ) {
   queryClient.invalidateQueries({ queryKey: ["invoices"] });
+  queryClient.invalidateQueries({ queryKey: ["invoiceStats"] });
   queryClient.invalidateQueries({ queryKey: ["poolStats"] });
   if (address) {
     queryClient.invalidateQueries({ queryKey: ["lpPosition", address] });
   }
+}
+
+/**
+ * Headline totals for an issuer's complete invoice set (all pages), used by
+ * the SME dashboard summary stats row.
+ */
+export interface InvoiceStats {
+  /** Number of invoices the issuer has created, across every page. */
+  totalInvoicesCreated: number;
+  /** Invoices currently listed and awaiting financing. */
+  totalListed: number;
+  /** Invoices in Funded, Active, or Confirmed state. */
+  totalFundedActive: number;
+  /** Invoices that have been fully repaid. */
+  totalRepaid: number;
+  /** Sum of `fundedAmount` across every invoice, in stroops. */
+  totalFunded: bigint;
+}
+
+/** Zero-valued stats shown while the full-set query is loading. */
+export const EMPTY_INVOICE_STATS: InvoiceStats = {
+  totalInvoicesCreated: 0,
+  totalListed: 0,
+  totalFundedActive: 0,
+  totalRepaid: 0,
+  totalFunded: 0n,
+};
+
+/**
+ * Aggregates headline stats over an arbitrary set of invoices. Pass the
+ * issuer's *complete* invoice set (see `getAllInvoices`), not a paginated
+ * slice, so the totals never change as the user pages through a table.
+ *
+ * @param invoices - The full invoice set to aggregate.
+ * @returns An {@link InvoiceStats} with counts per status group and the total
+ *   funded amount summed as `bigint`.
+ */
+export function computeInvoiceStats(invoices: Invoice[]): InvoiceStats {
+  let totalFunded = 0n;
+  let totalListed = 0;
+  let totalFundedActive = 0;
+  let totalRepaid = 0;
+
+  for (const invoice of invoices) {
+    totalFunded += invoice.fundedAmount ?? 0n;
+    if (invoice.status === "Listed") totalListed += 1;
+    if (
+      invoice.status === "Funded" ||
+      invoice.status === "Active" ||
+      invoice.status === "Confirmed"
+    ) {
+      totalFundedActive += 1;
+    }
+    if (invoice.status === "Repaid") totalRepaid += 1;
+  }
+
+  return {
+    totalInvoicesCreated: invoices.length,
+    totalListed,
+    totalFundedActive,
+    totalRepaid,
+    totalFunded,
+  };
+}
+
+/**
+ * Fetches and aggregates the issuer's *complete* invoice set, independent of
+ * any table pagination. The query key contains only the issuer address, so
+ * changing `page`/`limit` elsewhere on the page never refetches or alters these
+ * stats (issue #874).
+ *
+ * @param issuer - The issuer's Stellar address; query is disabled without it.
+ * @returns An object containing:
+ *   - `stats` — {@link InvoiceStats} over the full set (zeros while loading).
+ *   - `isLoading` — `true` while the first full-set fetch is in flight.
+ *   - `error` — Fetch error, or `null` if none.
+ *   - `refetch` — Function to manually re-trigger the query.
+ */
+export function useInvoiceStats(issuer?: string) {
+  const statsQuery = useQuery<InvoiceStats>({
+    queryKey: ["invoiceStats", issuer],
+    queryFn: async () =>
+      computeInvoiceStats(await getAllInvoices({ issuer })),
+    enabled: !!issuer,
+    refetchInterval: 15000,
+    staleTime: 15000,
+  });
+
+  return {
+    stats: statsQuery.data ?? EMPTY_INVOICE_STATS,
+    isLoading: statsQuery.isLoading,
+    error: statsQuery.error,
+    refetch: statsQuery.refetch,
+  };
 }
 
 export function useInvoicesList(filters?: {
