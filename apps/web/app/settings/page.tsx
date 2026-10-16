@@ -10,6 +10,7 @@ import {
   readStoredPrefs,
 } from "@/lib/notification-preferences";
 import { Shield, Bell, Database, Palette, Monitor, Layers } from "lucide-react";
+import { clearAppStorage } from "@/lib/storage";
 
 export default function SettingsPage() {
   const connected = useWalletStore((s) => s.connected);
@@ -221,15 +222,11 @@ export default function SettingsPage() {
             onClick={() => {
               if (
                 confirm(
-                  "This will clear all locally stored preferences (theme, filters, saved searches, display settings). This cannot be undone.",
+                  "This will clear all locally stored data (theme, filters, saved searches, display settings, notification preferences and history). This cannot be undone.",
                 )
               ) {
                 try {
-                  Object.keys(window.localStorage).forEach((key) => {
-                    if (key.startsWith("trusttrove:")) {
-                      window.localStorage.removeItem(key);
-                    }
-                  });
+                  clearAppStorage();
                   alert("Local data cleared. Page will reload.");
                   window.location.reload();
                 } catch {
