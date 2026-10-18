@@ -161,4 +161,43 @@ describe("InvoiceStatusTimeline", () => {
     );
     expect(screen.getAllByText("No tx hash recorded")).toHaveLength(5);
   });
+
+  it("marks only the current step with aria-current=step (#1103)", () => {
+    const { container } = render(
+      <InvoiceStatusTimeline
+        invoice={makeInvoice({
+          status: "Funded",
+          fundedAt: 1_735_500_000,
+        })}
+      />,
+    );
+
+    const currentItems = container.querySelectorAll('li[aria-current="step"]');
+    expect(currentItems).toHaveLength(1);
+    expect(currentItems[0]).toHaveTextContent("Funded by Pool");
+
+    for (const li of Array.from(container.querySelectorAll("li"))) {
+      if (li !== currentItems[0]) {
+        expect(li).not.toHaveAttribute("aria-current");
+      }
+    }
+  });
+
+  it("exposes a non-colour state text for every step (#1103)", () => {
+    render(
+      <InvoiceStatusTimeline
+        invoice={makeInvoice({
+          status: "Funded",
+          fundedAt: 1_735_500_000,
+        })}
+      />,
+    );
+
+    // Steps before the current one are announced as completed...
+    expect(screen.getAllByText("Completed")).toHaveLength(2);
+    // ...the current step is announced explicitly rather than by colour...
+    expect(screen.getByText("Current step")).toBeInTheDocument();
+    // ...and future steps carry a textual state instead of opacity-40 alone.
+    expect(screen.getAllByText("Upcoming")).toHaveLength(4);
+  });
 });

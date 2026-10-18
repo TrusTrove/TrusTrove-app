@@ -55,8 +55,14 @@ export function InvoiceStatusTimeline({ invoice }: InvoiceStatusTimelineProps) {
         return (
           <li
             key={entry.key}
+            aria-current={isCurrent ? "step" : undefined}
             className={`relative grid grid-cols-[2rem_minmax(0,1fr)] gap-3 pb-6 last:pb-0 ${isFuture ? "opacity-40" : "opacity-100"}`}
           >
+            {/* Non-colour state text so screen readers and low-vision users
+                get the step status without relying on colour or opacity. */}
+            <span className="sr-only">
+              {isCurrent ? "Current step" : isComplete ? "Completed" : "Upcoming"}
+            </span>
             {index < entries.length - 1 && (
               <span
                 className={`absolute left-4 top-8 h-[calc(100%-2rem)] border-l ${
