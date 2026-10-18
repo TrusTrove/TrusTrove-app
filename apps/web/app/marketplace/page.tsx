@@ -19,6 +19,21 @@ import { ShieldAlert, RotateCcw, Save, Trash2, Menu } from "lucide-react";
 const MARKETPLACE_FILTERS_KEY = "trusttrove:marketplace:filters";
 const MARKETPLACE_PRESETS_KEY = "trusttrove:marketplace:presets";
 
+/**
+ * Converts a whole-unit filter input to stroops, rounding to the nearest
+ * stroop so `BigInt` never sees a fractional Number (it throws a RangeError
+ * on e.g. `0.123456789 * 10_000_000`). Empty, negative and non-finite input
+ * returns null and the filter is skipped.
+ */
+function parseFilterStroops(value: string): bigint | null {
+  if (!value.trim()) return null;
+  const parsed = parseFloat(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  const stroops = Math.round(parsed * 10_000_000);
+  if (!Number.isFinite(stroops)) return null;
+  return BigInt(stroops);
+}
+
 interface MarketplaceFilters {
   statusFilter: string;
   minAmount: string;
@@ -149,14 +164,14 @@ export default function Marketplace() {
     let result = [...invoices];
 
     // Filter by Min Amount
-    if (minAmount) {
-      const minStroops = BigInt(parseFloat(minAmount) * 10_000_000);
+    const minStroops = parseFilterStroops(minAmount);
+    if (minStroops !== null) {
       result = result.filter((inv) => inv.faceValue >= minStroops);
     }
 
     // Filter by Max Amount
-    if (maxAmount) {
-      const maxStroops = BigInt(parseFloat(maxAmount) * 10_000_000);
+    const maxStroops = parseFilterStroops(maxAmount);
+    if (maxStroops !== null) {
       result = result.filter((inv) => inv.faceValue <= maxStroops);
     }
 
