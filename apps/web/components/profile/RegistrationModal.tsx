@@ -4,7 +4,14 @@ import React, { useEffect, useState } from "react";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { TransactionPending } from "@/components/shared/TransactionPending";
-import { ShieldAlert, Building2, Globe, FileText, Lock } from "lucide-react";
+import {
+  ShieldAlert,
+  Building2,
+  Globe,
+  FileText,
+  Lock,
+  Mail,
+} from "lucide-react";
 import type { useProfile } from "@/hooks/useProfile";
 
 interface RegistrationModalProps {
@@ -25,11 +32,11 @@ export function RegistrationModal({
   const modalRef = useFocusTrap<HTMLDivElement>(isOpen, onClose);
 
   const [regRole, setRegRole] = useState<"issuer" | "buyer">("issuer");
-  const [companyName] = useState("");
+  const [companyName, setCompanyName] = useState("");
   const [taxId, setTaxId] = useState("");
   const [country, setCountry] = useState("");
   const [website, setWebsite] = useState("");
-  const [email] = useState("");
+  const [email, setEmail] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
 
   const [showPending, setShowPending] = useState(false);
@@ -166,6 +173,28 @@ export function RegistrationModal({
                   </div>
                 </div>
 
+                {/* Company Name */}
+                <div className="space-y-1">
+                  <label
+                    htmlFor="registration-company-name"
+                    className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider"
+                  >
+                    Company Name
+                  </label>
+                  <div className="relative">
+                    <Building2 className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
+                    <input
+                      id="registration-company-name"
+                      type="text"
+                      required
+                      placeholder="e.g. Acme Corporation"
+                      className="w-full bg-[#080c10] border border-border rounded pl-10 pr-3 py-2 text-white placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                    />
+                  </div>
+                </div>
+
                 {/* Tax ID & Country */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
@@ -216,6 +245,27 @@ export function RegistrationModal({
                       className="w-full bg-[#080c10] border border-border rounded pl-10 pr-3 py-2 text-white placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                       value={website}
                       onChange={(e) => setWebsite(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {/* Contact Email */}
+                <div className="space-y-1">
+                  <label
+                    htmlFor="registration-email"
+                    className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider"
+                  >
+                    Contact Email (Optional)
+                  </label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
+                    <input
+                      id="registration-email"
+                      type="email"
+                      placeholder="e.g. contact@acme.corp"
+                      className="w-full bg-[#080c10] border border-border rounded pl-10 pr-3 py-2 text-white placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
                     />
                   </div>
                 </div>
