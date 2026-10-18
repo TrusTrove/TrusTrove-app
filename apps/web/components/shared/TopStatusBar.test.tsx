@@ -166,4 +166,63 @@ describe("TopStatusBar", () => {
     expect(toggle.className).toContain("text-slate-400");
     expect(toggle.className).not.toContain("text-slate-500");
   });
+
+  it("renders a neutral placeholder, not an id-derived flag, for events differing only by id (#1105)", () => {
+    const now = Math.floor(Date.now() / 1000);
+    vi.mocked(useRecentEvents).mockReturnValue({
+      events: [
+        {
+          id: 1,
+          event_id: "evt_same",
+          contract_id: "contract_a",
+          ledger: 100,
+          ledger_closed_at: now - 30,
+          event_type: "InvoiceFunded",
+          data: {
+            funded_amount: "5000000000",
+            discount_bps: "200",
+            buyer: "GBUVPV52BHUVTRPSTODIB3VJJMV4YQRA275QKDBI6OYHR5TRMBMFX7AC",
+          },
+        },
+        {
+          id: 2,
+          event_id: "evt_same",
+          contract_id: "contract_a",
+          ledger: 100,
+          ledger_closed_at: now - 30,
+          event_type: "InvoiceFunded",
+          data: {
+            funded_amount: "5000000000",
+            discount_bps: "200",
+            buyer: "GBUVPV52BHUVTRPSTODIB3VJJMV4YQRA275QKDBI6OYHR5TRMBMFX7AC",
+          },
+        },
+      ],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(<TopStatusBar />);
+
+    // Both events (plus their aria-hidden marquee duplicates) show the
+    // neutral globe: 2 items x 2 copies = 4.
+    expect(screen.getAllByText("🌍")).toHaveLength(4);
+
+    // No fabricated per-event country flags remain in the ticker.
+    for (const flag of [
+      "🇳🇬",
+      "🇰🇪",
+      "🇬🇭",
+      "🇸🇳",
+      "🇺🇬",
+      "🇨🇮",
+      "🇹🇬",
+      "🇧🇯",
+      "🇸🇱",
+      "🇱🇷",
+    ]) {
+      expect(screen.queryByText(flag)).not.toBeInTheDocument();
+    }
+  });
 });

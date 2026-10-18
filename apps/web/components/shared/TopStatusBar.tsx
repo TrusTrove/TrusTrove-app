@@ -51,24 +51,11 @@ export function TopStatusBar() {
     else if (diff < 86400) time = `${Math.floor(diff / 3600)}h ago`;
     else time = `${Math.floor(diff / 86400)}d ago`;
 
-    // Determine country/flag based on issuer or buyer (simplified hash-based)
-    const flagMap: Record<string, string> = {
-      "0": "🇳🇬",
-      "1": "🇰🇪",
-      "2": "🇬🇭",
-      "3": "🇸🇳",
-      "4": "🇺🇬",
-      "5": "🇨🇮",
-      "6": "🇹🇬",
-      "7": "🇧🇯",
-      "8": "🇸🇱",
-      "9": "🇱🇷",
-    };
-    const hash = Array.from(event.id.toString()).reduce(
-      (acc, char) => acc + char.charCodeAt(0),
-      0,
-    );
-    const flag = flagMap[hash % 10] || "🌍";
+    // #1105: the flag used to be derived by hashing event.id into a flagMap,
+    // which fabricated country geography unrelated to any on-chain data.
+    // Events carry no issuer/buyer country metadata, so render the neutral
+    // placeholder globe for every event instead.
+    const flag = "🌍";
 
     // Generate SME name based on event data
     let sme = "Unknown SME";
