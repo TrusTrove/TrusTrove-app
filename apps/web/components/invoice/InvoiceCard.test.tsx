@@ -141,4 +141,26 @@ describe("InvoiceCard", () => {
     // Buyer can repay when delivered (in contract it's Confirmed)
     expect(screen.getByText(/REPAY INVOICE/i)).toBeInTheDocument();
   });
+
+  it("announces inline action failures via role=alert (#1106)", async () => {
+    renderWithQueryClient(
+      <InvoiceCard
+        invoice={{ ...mockInvoice, status: "Created" } as any}
+        role="issuer"
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /configure financing terms/i }),
+    );
+    fireEvent.change(screen.getByLabelText(/discount basis points/i), {
+      target: { value: "99999" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /list terms/i }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      /discount basis points must be between/i,
+    );
+  });
 });

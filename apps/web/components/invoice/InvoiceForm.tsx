@@ -351,7 +351,10 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
           </div>
 
           {error && (
-            <div className="p-3 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-start gap-2">
+            <div
+              role="alert"
+              className="p-3 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-start gap-2"
+            >
               <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
               <span className="font-mono">{error}</span>
             </div>
@@ -398,7 +401,10 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
             </div>
           </div>
           {error && (
-            <div className="p-3 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-start gap-2">
+            <div
+              role="alert"
+              className="p-3 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-start gap-2"
+            >
               <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
               <span className="font-mono">{error}</span>
             </div>

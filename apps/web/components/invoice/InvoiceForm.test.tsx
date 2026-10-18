@@ -90,6 +90,30 @@ describe("InvoiceForm Component Boundary Tests", () => {
     });
   });
 
+  it("announces the inline submission error via role=alert (#1106)", async () => {
+    renderWithProviders(<InvoiceForm />);
+
+    const buyerInput = screen.getByPlaceholderText(/stellar public key/i);
+    fireEvent.change(buyerInput, { target: { value: "invalid-address" } });
+
+    const dateInput = screen.getByTestId("date-picker") as HTMLInputElement;
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    fireEvent.change(dateInput, {
+      target: { value: tomorrow.toISOString().split("T")[0] },
+    });
+
+    fireEvent.change(screen.getByPlaceholderText(/50,000\.00/i), {
+      target: { value: "1500" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: /review financing terms/i }),
+    );
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/valid stellar public key/i);
+  });
+
   it("rejects a due date less than 7 days from today", async () => {
     renderWithProviders(<InvoiceForm />);
 

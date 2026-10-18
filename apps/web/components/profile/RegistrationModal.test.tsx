@@ -225,4 +225,37 @@ describe("RegistrationModal", () => {
       /registry contract rejected the tx/i,
     );
   });
+
+  // #1106: the inline validation error must land in the role=alert region,
+  // not just be visible text (the registerError half of this criterion is
+  // covered upstream by the "announces errors through an alert region" test
+  // added in #1153, so we keep only the validation-error assertion here).
+  it("announces inline validation errors inside the role=alert region (#1106)", async () => {
+    const { container } = render(
+      <RegistrationModal
+        isOpen={true}
+        onClose={vi.fn()}
+        register={vi.fn()}
+        isRegistering={false}
+        registerError={null}
+      />,
+    );
+
+    // Whitespace passes the native `required` check but not the trim check;
+    // submitting the form directly skips constraint validation either way
+    // (same technique as the #1153 validation test).
+    fireEvent.change(screen.getByLabelText(/company name/i), {
+      target: { value: "   " },
+    });
+    fireEvent.change(screen.getByLabelText(/tax id \/ registration no/i), {
+      target: { value: "TAX-123" },
+    });
+    fireEvent.change(screen.getByLabelText(/country of incorporation/i), {
+      target: { value: "Germany" },
+    });
+    fireEvent.submit(container.ownerDocument.querySelector("form")!);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/company name is required/i);
+  });
 });
