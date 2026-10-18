@@ -148,4 +148,22 @@ describe("TopStatusBar", () => {
 
     expect(screen.getByLabelText("Pause ticker")).toBeInTheDocument();
   });
+
+  it("gives the pause/play button a 24px target, a focus ring and an AA idle colour", () => {
+    vi.mocked(useRecentEvents).mockReturnValue({
+      events: [],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(<TopStatusBar />);
+
+    const toggle = screen.getByLabelText("Pause ticker");
+    expect(toggle.className).toContain("min-w-[24px]");
+    expect(toggle.className).toContain("min-h-[24px]");
+    expect(toggle.className).toContain("focus-visible:ring-2");
+    expect(toggle.className).toContain("text-slate-400");
+    expect(toggle.className).not.toContain("text-slate-500");
+  });
 });

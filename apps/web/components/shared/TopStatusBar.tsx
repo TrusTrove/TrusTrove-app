@@ -146,7 +146,7 @@ export function TopStatusBar() {
   }, [showPlaceholder]);
 
   return (
-    <div className="w-full bg-[#080c10] border-b border-border py-1.5 px-4 overflow-hidden relative z-40 flex items-center justify-between gap-4">
+    <div className="w-full bg-[#080c10] border-b border-border py-0.5 px-4 overflow-hidden relative z-40 flex items-center justify-between gap-4">
       {/* Network indicator */}
       <div className="flex items-center gap-2 shrink-0 border-r border-border pr-4">
         <span className="relative flex h-2 w-2">
@@ -167,7 +167,10 @@ export function TopStatusBar() {
       >
         <button
           onClick={() => setIsPaused(!isPaused)}
-          className="text-slate-500 hover:text-white focus:text-white shrink-0 z-10 transition-colors"
+          // 24x24 hit area (WCAG 2.5.8). The bar uses py-0.5 so its height stays
+          // 28px; the ring is inset so the overflow-hidden row cannot clip it.
+          // slate-400 is ~7:1 against the #080c10 bar.
+          className="inline-flex items-center justify-center min-w-[24px] min-h-[24px] rounded text-slate-400 hover:text-white focus:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary shrink-0 z-10 transition-colors"
           aria-label={isPaused ? "Play ticker" : "Pause ticker"}
         >
           {isPaused ? (
