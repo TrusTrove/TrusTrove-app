@@ -75,16 +75,16 @@ describe("RegistrationModal", () => {
       />,
     );
 
-    fireEvent.change(screen.getByPlaceholderText(/acme corporation/i), {
+    fireEvent.change(screen.getByLabelText(/company name/i), {
       target: { value: "  Acme Corporation  " },
     });
-    fireEvent.change(screen.getByPlaceholderText(/eu123456789/i), {
+    fireEvent.change(screen.getByLabelText(/tax id \/ registration no/i), {
       target: { value: "TAX-123" },
     });
-    fireEvent.change(screen.getByPlaceholderText(/germany/i), {
+    fireEvent.change(screen.getByLabelText(/country of incorporation/i), {
       target: { value: "Germany" },
     });
-    fireEvent.change(screen.getByPlaceholderText(/contact@acme\.corp/i), {
+    fireEvent.change(screen.getByLabelText(/contact email \(optional\)/i), {
       target: { value: "ops@acme.corp" },
     });
     fireEvent.click(screen.getByRole("button", { name: /register profile/i }));
@@ -116,13 +116,13 @@ describe("RegistrationModal", () => {
 
     // Whitespace passes the native `required` check but not the trim check.
     // Submitting the form directly skips constraint validation either way.
-    fireEvent.change(screen.getByPlaceholderText(/acme corporation/i), {
+    fireEvent.change(screen.getByLabelText(/company name/i), {
       target: { value: "   " },
     });
-    fireEvent.change(screen.getByPlaceholderText(/eu123456789/i), {
+    fireEvent.change(screen.getByLabelText(/tax id \/ registration no/i), {
       target: { value: "TAX-123" },
     });
-    fireEvent.change(screen.getByPlaceholderText(/germany/i), {
+    fireEvent.change(screen.getByLabelText(/country of incorporation/i), {
       target: { value: "Germany" },
     });
     fireEvent.submit(container.ownerDocument.querySelector("form")!);
@@ -164,7 +164,7 @@ describe("RegistrationModal", () => {
     expect(screen.getByRole("button", { name: /^cancel$/i })).toBeDisabled();
   });
 
-  it("switching the role toggle updates the selected button's styling", () => {
+  it("exposes the role picker as a labelled radio group", () => {
     render(
       <RegistrationModal
         isOpen={true}
@@ -175,13 +175,54 @@ describe("RegistrationModal", () => {
       />,
     );
 
-    const buyerButton = screen.getByRole("button", {
-      name: /obligor \/ buyer/i,
+    const group = screen.getByRole("group", {
+      name: /select on-chain business role/i,
     });
-    const issuerButton = screen.getByRole("button", { name: /sme \/ issuer/i });
+    expect(group).toBeInTheDocument();
 
-    expect(issuerButton.className).toContain("border-primary");
-    fireEvent.click(buyerButton);
-    expect(buyerButton.className).toContain("border-primary");
+    const issuer = screen.getByRole("radio", { name: /sme \/ issuer/i });
+    const buyer = screen.getByRole("radio", { name: /obligor \/ buyer/i });
+    expect(issuer).toBeChecked();
+    expect(buyer).not.toBeChecked();
+
+    fireEvent.click(buyer);
+    expect(buyer).toBeChecked();
+    expect(issuer).not.toBeChecked();
+  });
+
+  it("labels every text input, including the optional website field", () => {
+    render(
+      <RegistrationModal
+        isOpen={true}
+        onClose={vi.fn()}
+        register={vi.fn()}
+        isRegistering={false}
+        registerError={null}
+      />,
+    );
+
+    expect(screen.getByLabelText(/company name/i)).toHaveAttribute(
+      "id",
+      "registration-company-name",
+    );
+    expect(
+      screen.getByLabelText(/corporate website url \(optional\)/i),
+    ).toHaveAttribute("type", "url");
+  });
+
+  it("announces errors through an alert region", () => {
+    render(
+      <RegistrationModal
+        isOpen={true}
+        onClose={vi.fn()}
+        register={vi.fn()}
+        isRegistering={false}
+        registerError={new Error("Registry contract rejected the tx")}
+      />,
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      /registry contract rejected the tx/i,
+    );
   });
 });
