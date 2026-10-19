@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { PageLayout } from "@/components/shared/PageLayout";
 import { InvoiceTable } from "@/components/invoice/InvoiceTable";
 import { InvoiceCard } from "@/components/invoice/InvoiceCard";
+import { InvoiceFormLoader } from "@/components/invoice/InvoiceFormLoader";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { useInvoiceList } from "@/hooks/useInvoices";
 import { useRecentEvents } from "@/hooks/useEvents";
@@ -28,11 +29,7 @@ const InvoiceForm = dynamic(
   () => import("@/components/invoice/InvoiceForm").then((m) => m.InvoiceForm),
   {
     ssr: false,
-    loading: () => (
-      <div className="h-64 w-full flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary" />
-      </div>
-    ),
+    loading: () => <InvoiceFormLoader />,
   },
 );
 

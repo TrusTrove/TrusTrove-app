@@ -5,6 +5,7 @@ import React from "react";
 export function SkeletonShimmer({ className }: { className: string }) {
   return (
     <div
+      aria-hidden="true"
       className={`relative overflow-hidden bg-background-secondary rounded ${className}`}
     >
       <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-teal-500/10 to-transparent" />
@@ -19,9 +20,16 @@ export function SkeletonShimmer({ className }: { className: string }) {
   );
 }
 
+// Named skeletons are status regions: the shimmer blocks are decorative, so the
+// container's aria-label is the only thing assistive tech reads.
 export function InvoiceCardSkeleton() {
   return (
-    <div className="bg-card border border-border/60 rounded-lg p-5 space-y-4">
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label="Loading invoices"
+      className="bg-card border border-border/60 rounded-lg p-5 space-y-4"
+    >
       <div className="flex justify-between items-center">
         <div className="space-y-1">
           <SkeletonShimmer className="h-3.5 w-24" />
@@ -56,7 +64,12 @@ export function InvoiceCardSkeleton() {
 
 export function PoolStatsPanelSkeleton() {
   return (
-    <div className="bg-card border border-border rounded-lg p-6 flex flex-col md:flex-row items-center gap-8">
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label="Loading pool statistics"
+      className="bg-card border border-border rounded-lg p-6 flex flex-col md:flex-row items-center gap-8"
+    >
       {/* Gauge skeleton */}
       <div className="relative w-36 h-36 shrink-0 flex items-center justify-center">
         <div className="w-28 h-28 rounded-full border-[8px] border-slate-900" />
@@ -81,7 +94,12 @@ export function PoolStatsPanelSkeleton() {
 
 export function InvoiceFeedSkeleton() {
   return (
-    <div className="space-y-3">
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label="Loading recent activity"
+      className="space-y-3"
+    >
       {[1, 2, 3].map((i) => (
         <div
           key={i}
@@ -106,7 +124,12 @@ export function InvoiceFeedSkeleton() {
 
 export function InvoiceTableSkeleton() {
   return (
-    <div className="bg-card border border-border rounded-lg overflow-hidden">
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label="Loading invoices"
+      className="bg-card border border-border rounded-lg overflow-hidden"
+    >
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
@@ -151,7 +174,12 @@ export function InvoiceTableSkeleton() {
 
 export function LPPositionCardSkeleton() {
   return (
-    <div className="bg-[#0d131a] border border-border rounded-lg p-5 space-y-4">
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label="Loading your position"
+      className="bg-[#0d131a] border border-border rounded-lg p-5 space-y-4"
+    >
       <div className="flex items-center gap-1.5 border-b border-border/40 pb-2">
         <SkeletonShimmer className="w-3.5 h-3.5 rounded" />
         <SkeletonShimmer className="h-3 w-28" />
@@ -178,7 +206,12 @@ export function LPPositionCardSkeleton() {
 
 export function ActivityTimelineSkeleton() {
   return (
-    <div className="bg-card border border-border rounded-lg p-5 space-y-4">
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label="Loading activity timeline"
+      className="bg-card border border-border rounded-lg p-5 space-y-4"
+    >
       <div className="border-b border-border/40 pb-2">
         <SkeletonShimmer className="h-3 w-44" />
       </div>

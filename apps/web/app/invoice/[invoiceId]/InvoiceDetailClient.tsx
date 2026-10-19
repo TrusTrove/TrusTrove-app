@@ -150,7 +150,10 @@ export default function InvoiceDetailClient({
   if (isLoading) {
     return (
       <PageLayout>
-        <div className="flex flex-col items-center justify-center py-20 min-h-[50vh] font-mono text-xs text-primary animate-pulse uppercase">
+        <div
+          role="status"
+          className="flex flex-col items-center justify-center py-20 min-h-[50vh] font-mono text-xs text-primary animate-pulse uppercase"
+        >
           Fetching invoice state from ledger...
         </div>
       </PageLayout>
