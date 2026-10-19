@@ -11,8 +11,8 @@ import {
   getPoolSnapshots,
   parseRawPoolStats,
   parseRawLPPosition,
-  initApiClientWithToken,
   apiClient,
+  apiFetch,
 } from "./api";
 import { useWalletStore } from "@/store/wallet";
 
@@ -31,12 +31,10 @@ describe("apiFetch internal function", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (useWalletStore.getState as any).mockReturnValue({ token: null });
-    (apiClient as any).token = undefined;
   });
 
   it("should add Authorization header when token exists", async () => {
     (useWalletStore.getState as any).mockReturnValue({ token: "test-token" });
-    initApiClientWithToken();
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve({}),
@@ -325,5 +323,38 @@ describe("API functions", () => {
       const result = await getPoolSnapshots();
       expect(result).toEqual(mockSnapshots);
     });
+  });
+});
+
+describe("auth token source of truth (#1089)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({}),
+    });
+  });
+
+  it("apiClient holds no token state of its own", () => {
+    expect(apiClient).not.toHaveProperty("token");
+    expect(apiClient).not.toHaveProperty("setToken");
+  });
+
+  it("apiFetch reads the wallet store token on every request", async () => {
+    (useWalletStore.getState as any).mockReturnValue({ token: "first" });
+    await apiFetch("/stats");
+    expect(mockFetch.mock.calls[0][1].headers.get("Authorization")).toBe(
+      "Bearer first",
+    );
+
+    (useWalletStore.getState as any).mockReturnValue({ token: "second" });
+    await apiClient.fetch("/stats");
+    expect(mockFetch.mock.calls[1][1].headers.get("Authorization")).toBe(
+      "Bearer second",
+    );
+
+    (useWalletStore.getState as any).mockReturnValue({ token: null });
+    await apiClient.fetch("/stats");
+    expect(mockFetch.mock.calls[2][1].headers.has("Authorization")).toBe(false);
   });
 });

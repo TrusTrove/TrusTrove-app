@@ -83,22 +83,18 @@ const getApiUrl = () => {
   return process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
 };
 
+/**
+ * Thin client facade over {@link apiFetch}.
+ *
+ * It deliberately holds no auth state: the SEP-10 token lives in
+ * `useWalletStore` and `apiFetch` reads it on every request, so there is a
+ * single source of truth and nothing to keep in sync after login/logout.
+ */
 export const apiClient = {
-  token: undefined as string | undefined,
-  setToken(token: string | undefined): void {
-    this.token = token;
-  },
   async fetch<T>(path: string, options: RequestInit = {}): Promise<T> {
     return apiFetch<T>(path, options);
   },
 };
-
-function initApiClientWithToken(): void {
-  const token = useWalletStore.getState().token;
-  apiClient.setToken(token ?? undefined);
-}
-
-export { initApiClientWithToken };
 
 /**
  * Low-level helper that performs an authenticated `fetch` against the TrusTrove

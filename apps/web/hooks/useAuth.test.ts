@@ -12,7 +12,6 @@ vi.mock("@stellar/freighter-api", () => ({
 vi.mock("@/lib/api", () => ({
   fetchChallenge: vi.fn(),
   verifyChallenge: vi.fn(),
-  initApiClientWithToken: vi.fn(),
 }));
 
 describe("useAuth", () => {
