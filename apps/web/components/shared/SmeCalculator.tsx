@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useId } from "react";
 import { Sparkles } from "lucide-react";
 import { AnimatedValue } from "./DiscountCalculator";
 
@@ -20,6 +20,7 @@ export function SmeCalculator() {
   const [faceValue, setFaceValue] = useState<number>(50000);
   const [paymentTerms, setPaymentTerms] = useState<number>(60);
   const [discountRate, setDiscountRate] = useState<number>(2.0);
+  const paymentTermsId = useId();
 
   const { discountPaid, fundedAmount } = useSmeDerivedValues(
     faceValue,
@@ -86,10 +87,14 @@ export function SmeCalculator() {
 
         {/* Dropdown: Payment Terms */}
         <div className="space-y-2">
-          <label className="block text-xs font-mono text-slate-400">
+          <label
+            htmlFor={paymentTermsId}
+            className="block text-xs font-mono text-slate-400"
+          >
             Payment Due Terms
           </label>
           <select
+            id={paymentTermsId}
             value={paymentTerms}
             onChange={handlePaymentTermsChange}
             className="w-full bg-[#080c10] border border-border rounded px-3 py-2 text-slate-200 font-mono text-xs focus:outline-none focus:border-primary"
