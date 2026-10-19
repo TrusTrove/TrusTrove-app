@@ -1,4 +1,7 @@
-import { invoiceSchema } from "@trusttrove/sdk";
+// The schema subpath is a lightweight entry point: importing it does not pull
+// the contract clients (and their Stellar SDK dependency) into the bundle
+// (#995).
+import { invoiceSchema } from "@trusttrove/sdk/schemas";
 import type { Invoice, AssetType } from "@/types";
 
 type RawInvoice = Record<string, unknown>;

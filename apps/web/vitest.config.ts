@@ -6,6 +6,10 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
+      "@trusttrove/sdk/schemas": resolve(
+        __dirname,
+        "../../packages/sdk/src/schemas.ts",
+      ),
       "@trusttrove/sdk": resolve(__dirname, "../../packages/sdk/src/index.ts"),
     },
   },
@@ -20,6 +24,10 @@ export default defineConfig({
     globals: true,
     alias: {
       "@": resolve(__dirname, "./"),
+      "@trusttrove/sdk/schemas": resolve(
+        __dirname,
+        "../../packages/sdk/src/schemas.ts",
+      ),
       "@trusttrove/sdk": resolve(__dirname, "../../packages/sdk/src/index.ts"),
     },
     exclude: ["e2e/**", "node_modules/**"],

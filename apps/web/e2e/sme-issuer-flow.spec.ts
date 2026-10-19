@@ -320,7 +320,8 @@ async function selectDueDate(page: Page, isoDate: string) {
     { month: "long", timeZone: "UTC" },
   );
 
-  await page.getByRole("button", { name: /Select due date/i }).click();
+  // The trigger is labelled by the form's "Due Date" <label> (#998).
+  await page.getByRole("button", { name: /Due Date/i }).click();
 
   // react-day-picker labels each day button with its full date, e.g.
   // "Saturday, October 17th, 2026" (the ordinal suffix varies). The calendar
@@ -340,6 +341,43 @@ async function selectDueDate(page: Page, isoDate: string) {
 }
 
 test.describe("SME Issuer Flow - Happy Path", () => {
+  test("the create-invoice dialog does not scroll horizontally on phones", async ({
+    page,
+  }) => {
+    await setupStellarNetworkMocks(page);
+    await setupIssuerApiMocks(page);
+    await connectAsIssuer(page);
+    await seedVerifiedIssuer(page);
+
+    await page.getByRole("button", { name: /Create Invoice/i }).click();
+    const dialog = page.getByRole("dialog", { name: /Create Invoice/i });
+    await expect(dialog).toBeVisible();
+
+    // #999: the date trigger must fit its column and the modal must not gain a
+    // horizontal scrollbar at the two narrowest common phone widths.
+    for (const width of [320, 375]) {
+      await page.setViewportSize({ width, height: 800 });
+
+      const overflow = await dialog.evaluate((element) => {
+        const panel = element.querySelector<HTMLElement>(
+          ".overflow-y-auto",
+        );
+        return {
+          dialog: element.scrollWidth - element.clientWidth,
+          panel: panel ? panel.scrollWidth - panel.clientWidth : 0,
+        };
+      });
+
+      expect(overflow.dialog).toBeLessThanOrEqual(0);
+      expect(overflow.panel).toBeLessThanOrEqual(0);
+
+      const triggerFits = await dialog
+        .getByRole("button", { name: /Due Date/i })
+        .evaluate((element) => element.scrollWidth <= element.clientWidth + 1);
+      expect(triggerFits).toBe(true);
+    }
+  });
+
   test("creates an invoice, lists it, and selects it from the ledger", async ({
     page,
   }) => {

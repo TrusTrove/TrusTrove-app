@@ -21,17 +21,24 @@ vi.mock("@stellar/stellar-sdk", () => ({
   nativeToScVal: vi.fn(),
 }));
 
-// Mock DatePicker to simplify testing
+// Mock DatePicker to simplify testing. It forwards the same id/aria wiring the
+// real trigger receives so the labelled-field assertions below exercise it.
 vi.mock("@/components/ui/date-picker", () => ({
   DatePicker: ({
     value,
     onChange,
+    id,
+    "aria-describedby": ariaDescribedBy,
   }: {
     value?: string;
     onChange: (value: string) => void;
+    id?: string;
+    "aria-describedby"?: string;
   }) => (
     <input
       type="date"
+      id={id}
+      aria-describedby={ariaDescribedBy}
       data-testid="date-picker"
       value={value || ""}
       onChange={(e) => onChange(e.target.value)}
@@ -48,15 +55,18 @@ describe("InvoiceForm Component Boundary Tests", () => {
     fetchMock.mockReset();
   });
 
-  it("renders the invoice form with expected labels and submit button", () => {
+  it("renders the invoice form with labelled fields and submit button", () => {
     renderWithProviders(<InvoiceForm />);
 
-    expect(screen.getByText(/buyer wallet address/i)).toBeInTheDocument();
+    // Each of these controls is named by its <label>, not by a placeholder
+    // (#998).
+    expect(screen.getByLabelText(/buyer wallet address/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^asset$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^due date$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^due date$/i)).toHaveAccessibleDescription(
+      /select invoice maturity date/i,
+    );
     expect(screen.getByText(/face value/i)).toBeInTheDocument();
-    expect(screen.getByText(/asset/i)).toBeInTheDocument();
-    expect(
-      screen.getByText(/select invoice maturity date/i),
-    ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /review financing terms/i }),
     ).toBeInTheDocument();

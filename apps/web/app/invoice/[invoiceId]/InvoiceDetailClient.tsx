@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { PageLayout } from "@/components/shared/PageLayout";
 import { useInvoice } from "@/hooks/useInvoices";
@@ -15,6 +15,7 @@ import {
   ShieldAlert,
   Copy,
   Check,
+  CircleAlert,
   ArrowLeft,
   ChevronRight,
   FileDown,
@@ -72,10 +73,14 @@ export default function InvoiceDetailClient({
     markDefault,
   } = useInvoiceDetailActions(invoiceId, refetch);
 
-  const [copiedId, setCopiedId] = useState(false);
-  const [copiedIssuer, setCopiedIssuer] = useState(false);
-  const [copiedBuyer, setCopiedBuyer] = useState(false);
-  const [copiedLink, setCopiedLink] = useState(false);
+  // One key at a time keeps the "copied" feedback mutually exclusive, and a
+  // single timer makes the reset easy to clean up on unmount (and when another
+  // copy is triggered before the previous one expires).
+  type CopyKey = "id" | "issuer" | "buyer" | "link";
+  const [copiedKey, setCopiedKey] = useState<CopyKey | null>(null);
+  const [copyFailedKey, setCopyFailedKey] = useState<CopyKey | null>(null);
+  const [copyAnnouncement, setCopyAnnouncement] = useState("");
+  const copyResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [invoiceUrl, setInvoiceUrl] = useState("");
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
@@ -86,30 +91,42 @@ export default function InvoiceDetailClient({
     }
   }, []);
 
-  const copyToClipboard = async (
-    text: string,
-    type: "id" | "issuer" | "buyer" | "link",
-  ) => {
-    await navigator.clipboard.writeText(text);
-    switch (type) {
-      case "id":
-        setCopiedId(true);
-        setTimeout(() => setCopiedId(false), 2000);
-        break;
-      case "issuer":
-        setCopiedIssuer(true);
-        setTimeout(() => setCopiedIssuer(false), 2000);
-        break;
-      case "buyer":
-        setCopiedBuyer(true);
-        setTimeout(() => setCopiedBuyer(false), 2000);
-        break;
-      case "link":
-        setCopiedLink(true);
-        setTimeout(() => setCopiedLink(false), 2000);
-        break;
+  useEffect(
+    () => () => {
+      if (copyResetTimer.current) clearTimeout(copyResetTimer.current);
+    },
+    [],
+  );
+
+  const copyToClipboard = useCallback(async (text: string, key: CopyKey) => {
+    if (copyResetTimer.current) {
+      clearTimeout(copyResetTimer.current);
+      copyResetTimer.current = null;
     }
-  };
+
+    try {
+      // `navigator.clipboard` is undefined on insecure origins and writeText
+      // rejects when permission is denied, so both paths have to be handled.
+      if (!navigator.clipboard?.writeText) {
+        throw new Error("Clipboard API unavailable");
+      }
+      await navigator.clipboard.writeText(text);
+      setCopiedKey(key);
+      setCopyFailedKey(null);
+      setCopyAnnouncement("Copied");
+    } catch {
+      setCopiedKey(null);
+      setCopyFailedKey(key);
+      setCopyAnnouncement("Copy failed");
+    } finally {
+      copyResetTimer.current = setTimeout(() => {
+        setCopiedKey(null);
+        setCopyFailedKey(null);
+        setCopyAnnouncement("");
+        copyResetTimer.current = null;
+      }, 2000);
+    }
+  }, []);
 
   /**
    * Builds the invoice PDF client-side. Runs without a connected wallet, so
@@ -195,6 +212,11 @@ export default function InvoiceDetailClient({
   return (
     <PageLayout>
       <div className="space-y-6 py-4">
+        {/* Shared polite live region for every copy control on the page. */}
+        <p role="status" aria-live="polite" className="sr-only">
+          {copyAnnouncement}
+        </p>
+
         <nav
           aria-label="Breadcrumb"
           className="text-[10px] font-bold font-mono uppercase tracking-wider"
@@ -236,14 +258,23 @@ export default function InvoiceDetailClient({
                 HASH: <strong className="text-slate-400">{invoice.id}</strong>
               </span>
               <button
+                type="button"
                 onClick={() => copyToClipboard(invoice.id, "id")}
-                className="text-slate-600 hover:text-primary transition-colors flex-shrink-0"
+                className="inline-flex min-h-6 min-w-6 flex-shrink-0 items-center justify-center rounded p-1.5 -m-1.5 text-slate-600 transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 aria-label="Copy invoice ID"
               >
-                {copiedId ? (
-                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                {copyFailedKey === "id" ? (
+                  <CircleAlert
+                    className="w-3.5 h-3.5 text-rose-400"
+                    aria-hidden="true"
+                  />
+                ) : copiedKey === "id" ? (
+                  <Check
+                    className="w-3.5 h-3.5 text-emerald-400"
+                    aria-hidden="true"
+                  />
                 ) : (
-                  <Copy className="w-3.5 h-3.5" />
+                  <Copy className="w-3.5 h-3.5" aria-hidden="true" />
                 )}
               </button>
             </div>
@@ -284,15 +315,27 @@ export default function InvoiceDetailClient({
                     </span>
                   </div>
                   <button
+                    type="button"
                     onClick={() => copyToClipboard(invoice.issuer, "issuer")}
-                    className="self-end sm:self-center border border-border bg-[#0d131a] text-slate-400 hover:text-white px-2 py-1 rounded flex items-center gap-1"
+                    className="self-end sm:self-center border border-border bg-[#0d131a] text-slate-400 hover:text-white px-2 py-1 rounded flex items-center gap-1 min-h-[32px]"
+                    aria-label="Copy issuer address"
                   >
-                    {copiedIssuer ? (
-                      <Check className="w-3 h-3 text-emerald-400" />
+                    {copyFailedKey === "issuer" ? (
+                      <CircleAlert
+                        className="w-3 h-3 text-rose-400"
+                        aria-hidden="true"
+                      />
+                    ) : copiedKey === "issuer" ? (
+                      <Check
+                        className="w-3 h-3 text-emerald-400"
+                        aria-hidden="true"
+                      />
                     ) : (
-                      <Copy className="w-3 h-3" />
+                      <Copy className="w-3 h-3" aria-hidden="true" />
                     )}
-                    <span>{copiedIssuer ? "COPIED" : "COPY"}</span>
+                    <span aria-hidden="true">
+                      {copiedKey === "issuer" ? "COPIED" : "COPY"}
+                    </span>
                   </button>
                 </div>
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 p-2.5 bg-[#080c10]/40 rounded border border-border/30">
@@ -305,15 +348,27 @@ export default function InvoiceDetailClient({
                     </span>
                   </div>
                   <button
+                    type="button"
                     onClick={() => copyToClipboard(invoice.buyer, "buyer")}
-                    className="self-end sm:self-center border border-border bg-[#0d131a] text-slate-400 hover:text-white px-2 py-1 rounded flex items-center gap-1"
+                    className="self-end sm:self-center border border-border bg-[#0d131a] text-slate-400 hover:text-white px-2 py-1 rounded flex items-center gap-1 min-h-[32px]"
+                    aria-label="Copy buyer address"
                   >
-                    {copiedBuyer ? (
-                      <Check className="w-3 h-3 text-emerald-400" />
+                    {copyFailedKey === "buyer" ? (
+                      <CircleAlert
+                        className="w-3 h-3 text-rose-400"
+                        aria-hidden="true"
+                      />
+                    ) : copiedKey === "buyer" ? (
+                      <Check
+                        className="w-3 h-3 text-emerald-400"
+                        aria-hidden="true"
+                      />
                     ) : (
-                      <Copy className="w-3 h-3" />
+                      <Copy className="w-3 h-3" aria-hidden="true" />
                     )}
-                    <span>{copiedBuyer ? "COPIED" : "COPY"}</span>
+                    <span aria-hidden="true">
+                      {copiedKey === "buyer" ? "COPIED" : "COPY"}
+                    </span>
                   </button>
                 </div>
               </div>
@@ -436,7 +491,7 @@ export default function InvoiceDetailClient({
                   disabled={!invoiceUrl}
                 >
                   <span className="truncate">
-                    {copiedLink ? "LINK COPIED" : "Copy Invoice Link"}
+                    {copiedKey === "link" ? "LINK COPIED" : "Copy Invoice Link"}
                   </span>
                   <Copy className="w-3.5 h-3.5 flex-shrink-0" />
                 </Button>

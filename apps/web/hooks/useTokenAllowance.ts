@@ -1,8 +1,5 @@
 import { useCallback } from "react";
-import { TokenClient, getSorobanServer } from "@trusttrove/sdk";
 import { useWalletStore } from "@/store/wallet";
-// Ensures the SDK uses the web app's USDC issuer/RPC config (see #1090).
-import "@/lib/sdkConfig";
 
 /**
  * Default approval expiration offset in ledger sequences.
@@ -43,6 +40,16 @@ export function useTokenAllowance() {
   const ensureAllowance = useCallback(
     async (spenderContractId: string, amount: bigint): Promise<void> => {
       if (!address) throw new Error("Wallet not connected");
+
+      // Both imports are deferred so the SDK is only downloaded when an
+      // allowance actually has to be read or approved (#995). `sdkConfig` is
+      // imported here (rather than at module scope) so it still applies the
+      // web app's USDC issuer/RPC config before the client is constructed
+      // (#1090).
+      const [{ TokenClient, getSorobanServer }] = await Promise.all([
+        import("@trusttrove/sdk"),
+        import("@/lib/sdkConfig"),
+      ]);
 
       const tokenClient = TokenClient.forUSDC();
 

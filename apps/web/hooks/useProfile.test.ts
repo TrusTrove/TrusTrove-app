@@ -316,7 +316,7 @@ describe("useProfile", () => {
     ).rejects.toThrow("On-chain error");
   });
 
-  it("constructs exactly one RegistryClient instance per mount", async () => {
+  it("lazily constructs and reuses one RegistryClient instance per mount", async () => {
     act(() => {
       useWalletStore.getState().connect("G123", "testnet");
     });
@@ -332,12 +332,20 @@ describe("useProfile", () => {
 
     const { result, rerender, unmount } = renderHook(() => useProfile());
 
-    // Re-renders, refetches, and mutations must all reuse the memoized client.
+    // Mounting the hook (which the Navbar does on every route) must not import
+    // or construct the SDK client (#995).
+    expect(vi.mocked(RegistryClient)).not.toHaveBeenCalled();
+
+    // Re-renders, refetches, and every mutation reuse the memoized client.
     rerender();
     await act(async () => {
       await result.current.register({
         role: "issuer",
         metadata: { name: "Test Issuer" },
+      });
+      await result.current.register({
+        role: "issuer",
+        metadata: { name: "Second Attempt" },
       });
       await result.current.refetchProfile();
     });
@@ -347,10 +355,10 @@ describe("useProfile", () => {
       process.env.NEXT_PUBLIC_REGISTRY_CONTRACT_ID || "",
     );
 
-    // A fresh mount constructs a new (single) client instance.
+    // A fresh mount stays lazy too; it only builds a new client when used.
     unmount();
     renderHook(() => useProfile());
-    expect(vi.mocked(RegistryClient)).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(RegistryClient)).toHaveBeenCalledTimes(1);
   });
 
   it("refetchProfile refetches both queries", async () => {

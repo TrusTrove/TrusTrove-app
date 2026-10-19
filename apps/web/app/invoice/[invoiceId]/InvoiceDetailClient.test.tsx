@@ -414,6 +414,23 @@ describe("InvoiceDetailClient", () => {
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(INVOICE_ID));
   });
 
+  it("gives the issuer and buyer copy buttons distinct accessible names", () => {
+    render(<InvoiceDetailClient invoiceId={INVOICE_ID} />);
+
+    // #1003: both buttons show "COPY", so the accessible name must identify
+    // the address being copied.
+    const issuerButton = screen.getByRole("button", {
+      name: "Copy issuer address",
+    });
+    const buyerButton = screen.getByRole("button", {
+      name: "Copy buyer address",
+    });
+
+    expect(issuerButton).toHaveTextContent("COPY");
+    expect(buyerButton).toHaveTextContent("COPY");
+    expect(issuerButton).not.toBe(buyerButton);
+  });
+
   it("copies issuer and buyer addresses to the clipboard", async () => {
     const writeText = vi
       .mocked(navigator.clipboard.writeText)
@@ -421,25 +438,47 @@ describe("InvoiceDetailClient", () => {
 
     render(<InvoiceDetailClient invoiceId={INVOICE_ID} />);
 
-    const copyButtons = screen.getAllByRole("button", { name: /^COPY$/ });
-    expect(copyButtons).toHaveLength(2);
+    const issuerButton = screen.getByRole("button", {
+      name: "Copy issuer address",
+    });
+    const buyerButton = screen.getByRole("button", {
+      name: "Copy buyer address",
+    });
 
-    fireEvent.click(copyButtons[0]);
+    fireEvent.click(issuerButton);
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(ISSUER));
-    // The clipboard write resolves before React commits the "copied" state,
-    // so wait for the first button to actually relabel before selecting the
-    // second one (otherwise both still match /^COPY$/).
-    await waitFor(() =>
-      expect(screen.getAllByRole("button", { name: /^COPY$/ })).toHaveLength(1),
+    await waitFor(() => expect(issuerButton).toHaveTextContent("COPIED"));
+    expect(buyerButton).toHaveTextContent("COPY");
+
+    fireEvent.click(buyerButton);
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(BUYER));
+    await waitFor(() => expect(buyerButton).toHaveTextContent("COPIED"));
+    // The single copiedKey state means the previous button resets.
+    expect(issuerButton).toHaveTextContent("COPY");
+
+    // The shared live region (not the invoice-status badge, which is also a
+    // status role) carries the announcement.
+    expect(screen.getByText("Copied")).toBeInTheDocument();
+  });
+
+  it("announces a clipboard failure instead of rejecting", async () => {
+    vi.mocked(navigator.clipboard.writeText).mockRejectedValueOnce(
+      new Error("Clipboard permission denied"),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /^COPY$/ }));
-    await waitFor(() => expect(writeText).toHaveBeenCalledWith(BUYER));
+    render(<InvoiceDetailClient invoiceId={INVOICE_ID} />);
 
-    // Wait for React to commit both "copied" state updates: waitFor above
-    // can observe the clipboard write before the second button re-renders,
-    // so asserting immediately races the concurrent scheduler.
-    await waitFor(() => expect(screen.getAllByText("COPIED")).toHaveLength(2));
+    const issuerButton = screen.getByRole("button", {
+      name: "Copy issuer address",
+    });
+    fireEvent.click(issuerButton);
+
+    await waitFor(() =>
+      expect(screen.getByText("Copy failed")).toBeInTheDocument(),
+    );
+    // The short visible label is kept and the failure is conveyed by the
+    // shared live region, not by an unhandled rejection.
+    expect(issuerButton).toHaveTextContent("COPY");
   });
 
   it("copies the invoice link to the clipboard once the URL is available", async () => {
