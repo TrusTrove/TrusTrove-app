@@ -132,4 +132,21 @@ describe("Marketplace filter labels accessibility", () => {
     expect(label).toHaveAttribute("for", input.id);
     expect(input).toHaveAttribute("id");
   });
+
+  it("Maturity Status select has an accessible label and id", () => {
+    renderWithProviders(<Marketplace />);
+
+    // Verify the select can be found by its label text
+    const statusSelect = screen.getByLabelText(/Maturity Status/i);
+    expect(statusSelect).toBeInTheDocument();
+    expect(statusSelect.tagName).toBe("SELECT");
+
+    // Verify the select has the correct id
+    expect(statusSelect).toHaveAttribute("id", "marketplace-status");
+
+    // Verify the label is associated with the select
+    const statusLabel = screen.getByText(/Maturity Status/i);
+    expect(statusLabel.tagName).toBe("LABEL");
+    expect(statusLabel).toHaveAttribute("for", "marketplace-status");
+  });
 });

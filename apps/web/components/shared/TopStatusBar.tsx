@@ -19,7 +19,25 @@ export function TopStatusBar() {
   const isError = error !== null;
   const [tickerItems, setTickerItems] = useState<TickerItem[]>([]);
   const [isPaused, setIsPaused] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const showPlaceholder = !isLoading && !isError && !rawEvents?.length;
+
+  // Detect mobile screen size to hide ticker on small screens
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 640); // sm breakpoint
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  // Clear ticker items when switching to mobile to prevent unnecessary rendering
+  useEffect(() => {
+    if (isMobile) {
+      setTickerItems([]);
+    }
+  }, [isMobile]);
 
   // Format event for display in the ticker
   const formatEventForTicker = (event: EventLog): TickerItem => {
@@ -89,16 +107,18 @@ export function TopStatusBar() {
   };
 
   useEffect(() => {
-    if (rawEvents && rawEvents.length > 0) {
+    // Only fetch and set ticker items if not on mobile (performance optimization)
+    if (!isMobile && rawEvents && rawEvents.length > 0) {
       // Convert events to ticker items
       const items = rawEvents.map(formatEventForTicker);
       setTickerItems(items);
     }
-  }, [rawEvents]);
+  }, [rawEvents, isMobile]);
 
   // If no real data, show some placeholder items to maintain the ticker effect
   useEffect(() => {
-    if (showPlaceholder) {
+    // Only set placeholder items if not on mobile
+    if (!isMobile && showPlaceholder) {
       const placeholderItems: TickerItem[] = [
         {
           id: "1",
@@ -143,12 +163,19 @@ export function TopStatusBar() {
       ];
       setTickerItems(placeholderItems);
     }
-  }, [showPlaceholder]);
+  }, [showPlaceholder, isMobile]);
+
+  // Clear ticker items when switching to mobile to prevent unnecessary rendering
+  useEffect(() => {
+    if (isMobile) {
+      setTickerItems([]);
+    }
+  }, [isMobile]);
 
   return (
-    <div className="w-full bg-[#080c10] border-b border-border py-0.5 px-4 overflow-hidden relative z-40 flex items-center justify-between gap-4">
+    <div className="w-full bg-[#080c10] border-b border-border py-0.5 px-4 overflow-hidden relative z-40 flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-4">
       {/* Network indicator */}
-      <div className="flex items-center gap-2 shrink-0 border-r border-border pr-4">
+      <div className="flex items-center gap-2 shrink-0 border-r border-border pr-4 w-full sm:w-auto justify-center sm:justify-start">
         <span className="relative flex h-2 w-2">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
           <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
@@ -158,80 +185,82 @@ export function TopStatusBar() {
         </span>
       </div>
 
-      {/* Scrolling Ticker */}
-      <div
-        className="flex-1 flex items-center gap-2 overflow-hidden"
-        role="status"
-        aria-live="polite"
-        aria-label="Recent network activity"
-      >
-        <button
-          onClick={() => setIsPaused(!isPaused)}
-          // 24x24 hit area (WCAG 2.5.8). The bar uses py-0.5 so its height stays
-          // 28px; the ring is inset so the overflow-hidden row cannot clip it.
-          // slate-400 is ~7:1 against the #080c10 bar.
-          className="inline-flex items-center justify-center min-w-[24px] min-h-[24px] rounded text-slate-400 hover:text-white focus:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary shrink-0 z-10 transition-colors"
-          aria-label={isPaused ? "Play ticker" : "Pause ticker"}
+      {/* Scrolling Ticker - hidden on mobile */}
+      {!isMobile && (
+        <div
+          className="flex-1 flex items-center gap-2 overflow-hidden"
+          role="status"
+          aria-live="polite"
+          aria-label="Recent network activity"
         >
-          {isPaused ? (
-            <Play className="w-3 h-3" />
-          ) : (
-            <Pause className="w-3 h-3" />
-          )}
-        </button>
-        <div className="flex-1 overflow-hidden relative h-4 flex items-center group">
-          {isLoading ? (
-            <div className="inline-flex items-center gap-2 text-[10px] font-mono text-slate-300">
-              <span className="inline-block h-2 w-2 rounded-full bg-sky-400 animate-pulse" />
-              <span>Loading live network activity...</span>
-            </div>
-          ) : isError ? (
-            <div className="inline-flex items-center gap-2 text-[10px] font-mono text-amber-300">
-              <span className="inline-block h-2 w-2 rounded-full bg-amber-400" />
-              <span>Live feed unavailable</span>
-            </div>
-          ) : (
-            <div
-              className={`flex gap-12 whitespace-nowrap animate-[marquee_25s_linear_infinite] group-hover:[animation-play-state:paused] group-focus-within:[animation-play-state:paused] motion-reduce:animate-none ${isPaused ? "[animation-play-state:paused]" : ""}`}
-            >
-              {tickerItems.map((item, idx) => (
-                <div
-                  key={`${item.id}-${idx}`}
-                  className="inline-flex items-center gap-2 text-[10px] font-mono"
-                >
-                  <span className="text-slate-500">{item.country}</span>
-                  <span className="text-slate-300 font-bold">{item.sme}</span>
-                  <span className="text-primary font-bold">{item.amount}</span>
-                  <span className="text-slate-500">at</span>
-                  <span className="text-sky-400 font-semibold">
-                    {item.discount} discount
-                  </span>
-                  <span className="text-slate-600">({item.time})</span>
-                  <ArrowUpRight className="w-3 h-3 text-primary/45 shrink-0" />
-                </div>
-              ))}
-              {/* Duplicate for seamless scrolling, hidden from screen readers */}
-              {tickerItems.map((item, idx) => (
-                <div
-                  key={`dup-${item.id}-${idx}`}
-                  aria-hidden="true"
-                  className="inline-flex items-center gap-2 text-[10px] font-mono"
-                >
-                  <span className="text-slate-500">{item.country}</span>
-                  <span className="text-slate-300 font-bold">{item.sme}</span>
-                  <span className="text-primary font-bold">{item.amount}</span>
-                  <span className="text-slate-500">at</span>
-                  <span className="text-sky-400 font-semibold">
-                    {item.discount} discount
-                  </span>
-                  <span className="text-slate-600">({item.time})</span>
-                  <ArrowUpRight className="w-3 h-3 text-primary/45 shrink-0" />
-                </div>
-              ))}
-            </div>
-          )}
+          <button
+            onClick={() => setIsPaused(!isPaused)}
+            // 24x24 hit area (WCAG 2.5.8). The bar uses py-0.5 so its height stays
+            // 28px; the ring is inset so the overflow-hidden row cannot clip it.
+            // slate-400 is ~7:1 against the #080c10 bar.
+            className="inline-flex items-center justify-center min-w-[24px] min-h-[24px] rounded text-slate-400 hover:text-white focus:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary shrink-0 z-10 transition-colors"
+            aria-label={isPaused ? "Play ticker" : "Pause ticker"}
+          >
+            {isPaused ? (
+              <Play className="w-3 h-3" />
+            ) : (
+              <Pause className="w-3 h-3" />
+            )}
+          </button>
+          <div className="flex-1 overflow-hidden relative h-4 flex items-center group">
+            {isLoading ? (
+              <div className="inline-flex items-center gap-2 text-[10px] font-mono text-slate-300">
+                <span className="inline-block h-2 w-2 rounded-full bg-sky-400 animate-pulse" />
+                <span>Loading live network activity...</span>
+              </div>
+            ) : isError ? (
+              <div className="inline-flex items-center gap-2 text-[10px] font-mono text-amber-300">
+                <span className="inline-block h-2 w-2 rounded-full bg-amber-400" />
+                <span>Live feed unavailable</span>
+              </div>
+            ) : (
+              <div
+                className={`flex gap-12 whitespace-nowrap animate-[marquee_25s_linear_infinite] group-hover:[animation-play-state:paused] group-focus-within:[animation-play-state:paused] motion-reduce:animate-none ${isPaused ? "[animation-play-state:paused]" : ""}`}
+              >
+                {tickerItems.map((item, idx) => (
+                  <div
+                    key={`${item.id}-${idx}`}
+                    className="inline-flex items-center gap-2 text-[10px] font-mono"
+                  >
+                    <span className="text-slate-500">{item.country}</span>
+                    <span className="text-slate-300 font-bold">{item.sme}</span>
+                    <span className="text-primary font-bold">{item.amount}</span>
+                    <span className="text-slate-500">at</span>
+                    <span className="text-sky-400 font-semibold">
+                      {item.discount} discount
+                    </span>
+                    <span className="text-slate-600">({item.time})</span>
+                    <ArrowUpRight className="w-3 h-3 text-primary/45 shrink-0" />
+                  </div>
+                ))}
+                {/* Duplicate for seamless scrolling, hidden from screen readers */}
+                {tickerItems.map((item, idx) => (
+                  <div
+                    key={`dup-${item.id}-${idx}`}
+                    aria-hidden="true"
+                    className="inline-flex items-center gap-2 text-[10px] font-mono"
+                  >
+                    <span className="text-slate-500">{item.country}</span>
+                    <span className="text-slate-300 font-bold">{item.sme}</span>
+                    <span className="text-primary font-bold">{item.amount}</span>
+                    <span className="text-slate-500">at</span>
+                    <span className="text-sky-400 font-semibold">
+                      {item.discount} discount
+                    </span>
+                    <span className="text-slate-600">({item.time})</span>
+                    <ArrowUpRight className="w-3 h-3 text-primary/45 shrink-0" />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       <style jsx global>{`
         @keyframes marquee {

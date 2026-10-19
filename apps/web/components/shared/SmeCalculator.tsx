@@ -155,7 +155,7 @@ export function SmeCalculator() {
                 <span className="text-[10px] text-slate-500 font-mono block">
                   You receive:
                 </span>
-                <span className="text-md font-bold text-slate-300 font-mono">
+                <span className="text-base font-bold text-slate-300 font-mono">
                   {faceValue.toLocaleString()} USDC
                 </span>
                 <span className="text-[9px] text-slate-600 block leading-tight mt-1">
@@ -200,7 +200,7 @@ export function SmeCalculator() {
                 <span className="text-[10px] text-slate-500 font-mono block">
                   You receive today:
                 </span>
-                <span className="text-md font-bold text-emerald-400 font-mono">
+                <span className="text-base font-bold text-emerald-400 font-mono">
                   <AnimatedValue value={fundedAmount} suffix=" USDC" />
                 </span>
                 <span className="text-[9px] text-slate-500 block leading-tight mt-1">

@@ -101,12 +101,12 @@ export default function Home() {
         {/* How It Works Timeline */}
         <div className="space-y-8 border-t border-border/30 pt-16">
           <div className="text-center space-y-2">
-            <h2 className="text-xs font-bold font-mono text-primary uppercase tracking-widest">
+            <p className="text-xs font-bold font-mono text-primary uppercase tracking-widest" aria-hidden="true">
               PROTOCOL WORKFLOW
-            </h2>
-            <p className="text-xl font-bold font-mono text-white uppercase">
-              HOW TRUSTROVE ELIMINATES MIDDLEMEN
             </p>
+            <h2 className="text-xl font-bold font-mono text-white uppercase">
+              HOW TRUSTROVE ELIMINATES MIDDLEMEN
+            </h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 relative">
@@ -115,9 +115,9 @@ export default function Home() {
               <div className="w-8 h-8 rounded bg-primary/10 border border-primary/20 text-primary flex items-center justify-center mb-1">
                 <ShieldCheck className="w-4 h-4" />
               </div>
-              <h4 className="text-xs font-bold font-mono text-white uppercase tracking-wider">
+              <h3 className="text-xs font-bold font-mono text-white uppercase tracking-wider">
                 1. REGISTER AS SME
-              </h4>
+              </h3>
               <p className="text-[11px] text-slate-500 leading-relaxed">
                 Verify your business identity on-chain via the registry contract
                 to establish trusted credentials.
@@ -129,9 +129,9 @@ export default function Home() {
               <div className="w-8 h-8 rounded bg-primary/10 border border-primary/20 text-primary flex items-center justify-center mb-1">
                 <FileCheck2 className="w-4 h-4" />
               </div>
-              <h4 className="text-xs font-bold font-mono text-white uppercase tracking-wider">
+              <h3 className="text-xs font-bold font-mono text-white uppercase tracking-wider">
                 2. TOKENIZE INVOICE
-              </h4>
+              </h3>
               <p className="text-[11px] text-slate-500 leading-relaxed">
                 Generate a unique invoice cryptographic hash on-chain
                 representing your commercial shipment.
@@ -143,9 +143,9 @@ export default function Home() {
               <div className="w-8 h-8 rounded bg-primary/10 border border-primary/20 text-primary flex items-center justify-center mb-1">
                 <Coins className="w-4 h-4" />
               </div>
-              <h4 className="text-xs font-bold font-mono text-white uppercase tracking-wider">
+              <h3 className="text-xs font-bold font-mono text-white uppercase tracking-wider">
                 3. RECEIVE USDC LIQUIDITY
-              </h4>
+              </h3>
               <p className="text-[11px] text-slate-500 leading-relaxed">
                 Pool contract immediately funds the invoice at the agreed
                 discount rate directly into your wallet.
@@ -157,9 +157,9 @@ export default function Home() {
               <div className="w-8 h-8 rounded bg-primary/10 border border-primary/20 text-primary flex items-center justify-center mb-1">
                 <Landmark className="w-4 h-4" />
               </div>
-              <h4 className="text-xs font-bold font-mono text-white uppercase tracking-wider">
+              <h3 className="text-xs font-bold font-mono text-white uppercase tracking-wider">
                 4. BUYER MATURITY SETTLEMENT
-              </h4>
+              </h3>
               <p className="text-[11px] text-slate-500 leading-relaxed">
                 Buyer pays full invoice face value to the pool upon due date,
                 releasing escrow and yielding LP interest.
@@ -171,12 +171,12 @@ export default function Home() {
         {/* Three Protocol Pillars */}
         <div className="space-y-8 pt-8">
           <div className="text-center space-y-2">
-            <h2 className="text-xs font-bold font-mono text-primary uppercase tracking-widest">
+            <p className="text-xs font-bold font-mono text-primary uppercase tracking-widest" aria-hidden="true">
               SYSTEM ARCHITECTURE
-            </h2>
-            <p className="text-xl font-bold font-mono text-white uppercase">
-              SOROBAN SMART CONTRACT PIPELINE
             </p>
+            <h2 className="text-xl font-bold font-mono text-white uppercase">
+              SOROBAN SMART CONTRACT PIPELINE
+            </h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
@@ -239,12 +239,12 @@ export default function Home() {
         {/* Economic Calculator Section */}
         <div className="space-y-6 pt-8 pb-16">
           <div className="space-y-1">
-            <h2 className="text-xs font-bold font-mono text-primary uppercase tracking-widest">
+            <p className="text-xs font-bold font-mono text-primary uppercase tracking-widest" aria-hidden="true">
               FINANCIAL FEASIBILITY
-            </h2>
-            <p className="text-lg font-bold font-mono text-white uppercase">
-              INTERACTIVE ECONOMIC COMPILER
             </p>
+            <h2 className="text-lg font-bold font-mono text-white uppercase">
+              INTERACTIVE ECONOMIC COMPILER
+            </h2>
           </div>
           <HomeDiscountCalculator />
         </div>

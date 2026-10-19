@@ -322,7 +322,7 @@ export function RegistrationModal({
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 bg-primary hover:bg-primary-hover text-black font-bold uppercase py-2.5 rounded shadow-[0_0_15px_rgba(0,212,170,0.15)] flex items-center justify-center gap-1.5"
+                    className="flex-1 bg-primary hover:bg-primary/90 text-black font-bold uppercase py-2.5 rounded shadow-[0_0_15px_rgba(0,212,170,0.15)] flex items-center justify-center gap-1.5"
                     disabled={isRegistering}
                   >
                     {isRegistering ? "Signing..." : "Register Profile"}

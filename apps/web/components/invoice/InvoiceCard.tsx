@@ -279,7 +279,7 @@ export const InvoiceCard = React.memo(function InvoiceCard({
               <Button
                 className={`w-full font-bold uppercase tracking-wider text-xs rounded py-2 transition-all ${
                   isVerified
-                    ? "bg-primary hover:bg-primary-hover text-black shadow-[0_0_15px_rgba(0,212,170,0.1)]"
+                    ? "bg-primary hover:bg-primary/90 text-black shadow-[0_0_15px_rgba(0,212,170,0.1)]"
                     : "bg-neutral-800 text-slate-500 border border-neutral-700 cursor-not-allowed opacity-60"
                 }`}
                 onClick={() => {
@@ -323,7 +323,7 @@ export const InvoiceCard = React.memo(function InvoiceCard({
                 <Button
                   className={`flex-1 font-bold uppercase text-[10px] py-1 ${
                     isVerified
-                      ? "bg-primary hover:bg-primary-hover text-black"
+                      ? "bg-primary hover:bg-primary/90 text-black"
                       : "bg-neutral-800 text-slate-500 border border-neutral-700 cursor-not-allowed opacity-60"
                   }`}
                   onClick={handleList}

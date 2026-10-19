@@ -100,7 +100,7 @@ function InvoiceEmptyState({
   const actionNode = action?.href ? (
     <Link
       href={action.href}
-      className={`${actionClasses} bg-primary text-black hover:bg-primary-hover shadow-[0_0_15px_rgba(0,212,170,0.1)]`}
+      className={`${actionClasses} bg-primary text-black hover:bg-primary/90 shadow-[0_0_15px_rgba(0,212,170,0.1)]`}
     >
       <FilePlus2 className="w-4 h-4" />
       <span>{action.label}</span>
@@ -109,7 +109,7 @@ function InvoiceEmptyState({
     <Button
       type="button"
       onClick={action?.onClick}
-      className={`${actionClasses} bg-primary text-black hover:bg-primary-hover shadow-[0_0_15px_rgba(0,212,170,0.1)] border-0`}
+      className={`${actionClasses} bg-primary text-black hover:bg-primary/90 shadow-[0_0_15px_rgba(0,212,170,0.1)] border-0`}
     >
       <FilePlus2 className="w-4 h-4" />
       <span>{action?.label ?? "Create Your First Invoice"}</span>

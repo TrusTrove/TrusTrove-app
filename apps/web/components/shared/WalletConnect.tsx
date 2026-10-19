@@ -198,7 +198,7 @@ export function WalletConnect() {
           <Button
             onClick={connectWallet}
             disabled={loading}
-            className="bg-primary hover:bg-primary-hover text-black font-bold transition-all duration-200 flex items-center gap-2 rounded-lg px-4 py-2 shadow-[0_0_15px_rgba(0,212,170,0.15)]"
+            className="bg-primary hover:bg-primary/90 text-black font-bold transition-all duration-200 flex items-center gap-2 rounded-lg px-4 py-2 shadow-[0_0_15px_rgba(0,212,170,0.15)]"
           >
             {loading ? (
               <Loader2 className="h-4 w-4 animate-spin" />

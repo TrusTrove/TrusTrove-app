@@ -347,10 +347,14 @@ export default function Marketplace() {
         {/* Filter bar */}
         <div className="bg-[#0d131a] border border-border rounded-lg p-4 grid grid-cols-1 md:grid-cols-5 gap-4 font-mono text-xs items-end">
           <div className="space-y-1">
-            <span className="text-[10px] text-slate-500 font-bold uppercase">
+            <label
+              htmlFor="marketplace-status"
+              className="text-[10px] text-slate-500 font-bold uppercase"
+            >
               {t("filters.status.label")}
-            </span>
+            </label>
             <select
+              id="marketplace-status"
               value={statusFilter}
               onChange={(e) => {
                 setStatusFilter(e.target.value);
@@ -482,7 +486,7 @@ export default function Marketplace() {
                       type="button"
                       onClick={savePreset}
                       disabled={!newPresetName.trim() || presets.length >= 10}
-                      className="px-3 py-1.5 bg-primary text-black font-bold uppercase text-[10px] rounded hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                      className="px-3 py-1.5 bg-primary text-black font-bold uppercase text-[10px] rounded hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
                     >
                       <Save className="w-3.5 h-3.5" />
                     </button>
@@ -670,7 +674,7 @@ export default function Marketplace() {
                   type="button"
                   onClick={() => setShowCompareModal(true)}
                   disabled={selectedInvoiceIds.length > 4}
-                  className="px-4 py-2 bg-primary text-black font-bold uppercase tracking-wider rounded hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+                  className="px-4 py-2 bg-primary text-black font-bold uppercase tracking-wider rounded hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
                 >
                   <RotateCcw className="w-4 h-4" />
                   Compare Selected

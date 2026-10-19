@@ -358,7 +358,7 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
           )}
           <Button
             type="submit"
-            className="w-full bg-primary hover:bg-primary-hover text-black font-bold uppercase tracking-wider text-xs rounded py-2.5 min-h-[44px]"
+            className="w-full bg-primary hover:bg-primary/90 text-black font-bold uppercase tracking-wider text-xs rounded py-2.5 min-h-[44px]"
           >
             REVIEW FINANCING TERMS
           </Button>
@@ -418,7 +418,7 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
             </Button>
             <Button
               type="button"
-              className="flex-1 bg-primary hover:bg-primary-hover text-black font-bold"
+              className="flex-1 bg-primary hover:bg-primary/90 text-black font-bold"
               disabled={isBusy}
               onClick={handleCreate}
             >

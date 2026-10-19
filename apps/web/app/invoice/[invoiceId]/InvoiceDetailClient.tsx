@@ -163,7 +163,7 @@ export default function InvoiceDetailClient({
       <PageLayout>
         <div className="flex flex-col items-center justify-center py-20 min-h-[50vh] text-center max-w-sm mx-auto space-y-4">
           <ShieldAlert className="w-12 h-12 text-amber-500" />
-          <h1 className="text-md font-bold font-mono text-white uppercase">
+          <h1 className="text-base font-bold font-mono text-white uppercase">
             Ledger entry not found
           </h1>
           <p className="text-slate-500 text-xs font-mono">
@@ -226,7 +226,7 @@ export default function InvoiceDetailClient({
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/40 pb-5">
           <div className="space-y-1.5 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-md font-bold font-mono text-white truncate">
+              <h1 className="text-base font-bold font-mono text-white truncate">
                 INVOICE AUDIT LEDGER
               </h1>
               <InvoiceStatus status={invoice.status} />
@@ -329,7 +329,7 @@ export default function InvoiceDetailClient({
                   <span className="text-[10px] text-slate-500 font-bold uppercase block">
                     {invoice.asset} Locked in Escrow
                   </span>
-                  <span className="text-md font-bold text-sky-400 block mt-1">
+                  <span className="text-base font-bold text-sky-400 block mt-1">
                     {invoice.status === "Funded" ||
                     invoice.status === "Active" ||
                     invoice.status === "Confirmed"

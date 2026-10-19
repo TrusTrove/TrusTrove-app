@@ -203,7 +203,7 @@ export default function SMEDashboard() {
             disabled={!isVerified}
             className={`font-bold uppercase tracking-wider text-xs rounded px-4 py-2.5 flex items-center gap-1.5 transition-all ${
               isVerified
-                ? "bg-primary hover:bg-primary-hover text-black shadow-[0_0_15px_rgba(0,212,170,0.1)]"
+                ? "bg-primary hover:bg-primary/90 text-black shadow-[0_0_15px_rgba(0,212,170,0.1)]"
                 : "bg-neutral-800 text-slate-500 border border-neutral-700 cursor-not-allowed opacity-60"
             }`}
             title={!isVerified ? t("header.createInvoiceLocked") : undefined}
@@ -283,7 +283,7 @@ export default function SMEDashboard() {
             {/* CTA to profile registration page */}
             <Link
               href="/profile"
-              className="w-full mt-2 bg-primary hover:bg-primary-hover text-black font-bold uppercase tracking-wider text-xs rounded px-4 py-2.5 flex items-center justify-center gap-1.5 shadow-[0_0_15px_rgba(0,212,170,0.1)] transition-all"
+              className="w-full mt-2 bg-primary hover:bg-primary/90 text-black font-bold uppercase tracking-wider text-xs rounded px-4 py-2.5 flex items-center justify-center gap-1.5 shadow-[0_0_15px_rgba(0,212,170,0.1)] transition-all"
             >
               <span>{t("checklist.cta")}</span>
             </Link>

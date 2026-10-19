@@ -114,7 +114,7 @@ export function TransactionPending({
           />
         </div>
 
-        <h3 className="text-md font-bold font-mono tracking-wider text-white uppercase mb-2">
+        <h3 className="text-base font-bold font-mono tracking-wider text-white uppercase mb-2">
           TRANSACTION SIGNED
         </h3>
         <p className="text-slate-400 text-xs font-mono mb-6 flex items-center gap-1.5 justify-center">
