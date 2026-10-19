@@ -1,4 +1,5 @@
 import type { AssetType } from "@/types";
+import { USDC_ISSUER } from "./env";
 
 /**
  * Number of stroops per whole unit on Stellar (10^7 = 1 unit).
@@ -29,9 +30,7 @@ export const ASSET_INFO: Record<AssetType, AssetInfo> = {
     code: "USDC",
     label: "USDC",
     isNative: false,
-    issuer:
-      process.env.NEXT_PUBLIC_USDC_ISSUER ||
-      "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+    issuer: USDC_ISSUER,
     decimals: 7,
   },
   XLM: {

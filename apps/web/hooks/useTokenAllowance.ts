@@ -1,6 +1,8 @@
 import { useCallback } from "react";
 import { TokenClient, getSorobanServer } from "@trusttrove/sdk";
 import { useWalletStore } from "@/store/wallet";
+// Ensures the SDK uses the web app's USDC issuer/RPC config (see #1090).
+import "@/lib/sdkConfig";
 
 /**
  * Default approval expiration offset in ledger sequences.

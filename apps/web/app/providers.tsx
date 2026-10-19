@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "sonner";
 import { ConfirmationDialog } from "@/components/shared/ConfirmationDialog";
 import { ConfigBanner } from "@/components/shared/ConfigBanner";
+// Startup wiring of the SDK to the web app's NEXT_PUBLIC_* config.
+import "@/lib/sdkConfig";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(

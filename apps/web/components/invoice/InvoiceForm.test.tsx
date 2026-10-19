@@ -4,6 +4,7 @@ import { InvoiceForm } from "./InvoiceForm";
 import { renderWithProviders } from "@/test-utils/renderWithProviders";
 
 vi.mock("@trusttrove/sdk", () => ({
+  configureSDK: vi.fn(),
   InvoiceClient: vi.fn(function () {
     return { simulateTransaction: vi.fn().mockResolvedValue({}) };
   }),

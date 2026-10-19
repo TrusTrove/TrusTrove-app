@@ -5,6 +5,7 @@ import { useWalletStore } from "@/store/wallet";
 import { TokenClient, getSorobanServer } from "@trusttrove/sdk";
 
 vi.mock("@trusttrove/sdk", () => ({
+  configureSDK: vi.fn(),
   TokenClient: {
     forUSDC: vi.fn(),
   },
