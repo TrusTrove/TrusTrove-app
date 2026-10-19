@@ -50,6 +50,11 @@ vi.mock("@/components/shared/TransactionPending", () => ({
   TransactionPending: () => null,
 }));
 
+// TxHistory owns its react-query data flow and is covered by its own tests.
+vi.mock("@/components/shared/TxHistory", () => ({
+  TxHistory: () => null,
+}));
+
 const ADDRESS_A = "GAAAAAAAA";
 const ADDRESS_B = "GBBBBBBB";
 

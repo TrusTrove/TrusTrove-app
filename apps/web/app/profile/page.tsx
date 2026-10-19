@@ -13,6 +13,7 @@ import {
 import { WalletConnect } from "@/components/shared/WalletConnect";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { TransactionPending } from "@/components/shared/TransactionPending";
+import { TxHistory } from "@/components/shared/TxHistory";
 import { Button } from "@/components/ui/button";
 import {
   ShieldCheck,
@@ -380,6 +381,12 @@ export default function ProfilePage() {
         </ErrorBoundary>
 
         {address && <NotificationPreferences address={address} />}
+
+        {address && (
+          <ErrorBoundary context="TransactionHistory">
+            <TxHistory address={address} />
+          </ErrorBoundary>
+        )}
 
         {/* Registration / Update Modal */}
         {showRegModal && (

@@ -55,6 +55,11 @@ vi.mock("@/components/shared/TransactionPending", () => ({
   TransactionPending: () => null,
 }));
 
+// TxHistory owns its react-query data flow and is covered by its own tests.
+vi.mock("@/components/shared/TxHistory", () => ({
+  TxHistory: () => null,
+}));
+
 describe("Notification preference toggles", () => {
   // Must mirror the category list rendered by NotificationPreferences.
   const categories = [

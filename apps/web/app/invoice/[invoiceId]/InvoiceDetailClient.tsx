@@ -2,7 +2,6 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { PageLayout } from "@/components/shared/PageLayout";
 import { useInvoice } from "@/hooks/useInvoices";
 import { useInvoiceDetailActions } from "@/hooks/useInvoiceDetailActions";
@@ -46,7 +45,6 @@ export default function InvoiceDetailClient({
   invoiceId,
   initialInvoice,
 }: InvoiceDetailClientProps) {
-  const router = useRouter();
   const connected = useWalletStore((s) => s.connected);
   const role = useWalletStore((s) => s.role);
 
@@ -169,12 +167,12 @@ export default function InvoiceDetailClient({
             The invoice ID: {invoiceId} was not found on-chain. Please verify
             the address.
           </p>
-          <Button
-            className="border border-border text-slate-300 font-mono text-xs uppercase px-4 py-2 hover:bg-slate-900"
-            onClick={() => router.push("/dashboard")}
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center justify-center border border-border text-foreground font-mono text-xs uppercase px-4 py-2 rounded-md transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
             Return to Dashboard
-          </Button>
+          </Link>
         </div>
       </PageLayout>
     );
@@ -194,25 +192,33 @@ export default function InvoiceDetailClient({
   return (
     <PageLayout>
       <div className="space-y-6 py-4">
-        <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold font-mono uppercase tracking-wider">
-          <Link
-            href="/dashboard"
-            className="flex items-center gap-1.5 text-slate-500 transition-colors hover:text-white flex-shrink-0"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" /> Dashboard
-          </Link>
-          <ChevronRight className="w-3.5 h-3.5 text-slate-700 flex-shrink-0" />
-          <Link
-            href="/dashboard"
-            className="text-slate-500 transition-colors hover:text-white flex-shrink-0"
-          >
-            Invoices
-          </Link>
-          <ChevronRight className="w-3.5 h-3.5 text-slate-700 flex-shrink-0" />
-          <span className="text-slate-400 truncate">
-            Invoice #{truncateAddress(invoice.id)}
-          </span>
-        </div>
+        <nav
+          aria-label="Breadcrumb"
+          className="text-[10px] font-bold font-mono uppercase tracking-wider"
+        >
+          <ol className="flex flex-wrap items-center gap-2">
+            <li className="flex-shrink-0">
+              <Link
+                href="/dashboard"
+                className="flex items-center gap-1.5 text-muted-foreground transition-colors hover:text-foreground rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
+                Dashboard
+              </Link>
+            </li>
+            <li aria-hidden="true" className="flex-shrink-0">
+              <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
+            </li>
+            <li className="min-w-0">
+              <span
+                aria-current="page"
+                className="text-foreground truncate block"
+              >
+                Invoice #{truncateAddress(invoice.id)}
+              </span>
+            </li>
+          </ol>
+        </nav>
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/40 pb-5">
           <div className="space-y-1.5 min-w-0">
@@ -250,20 +256,20 @@ export default function InvoiceDetailClient({
         </div>
 
         <div className="bg-card border border-border rounded-lg p-5 space-y-4">
-          <h3 className="text-xs font-bold font-mono text-white uppercase tracking-wider flex items-center gap-1.5">
+          <h2 className="text-xs font-bold font-mono text-white uppercase tracking-wider flex items-center gap-1.5">
             <Activity className="w-3.5 h-3.5 text-primary" />
             Soroban Transaction Progress
-          </h3>
+          </h2>
           <InvoiceStatusTimeline invoice={invoice} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           <div className="lg:col-span-8 space-y-6">
             <div className="bg-card border border-border rounded-lg p-5 space-y-4">
-              <h3 className="text-xs font-bold font-mono text-white uppercase tracking-wider border-b border-border/40 pb-2 flex items-center gap-1.5">
+              <h2 className="text-xs font-bold font-mono text-white uppercase tracking-wider border-b border-border/40 pb-2 flex items-center gap-1.5">
                 <Users className="w-3.5 h-3.5 text-primary" />
                 Obligation Parties
-              </h3>
+              </h2>
               <div className="space-y-4 font-mono text-xs">
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 p-2.5 bg-[#080c10]/40 rounded border border-border/30">
                   <div className="space-y-0.5">
@@ -311,10 +317,10 @@ export default function InvoiceDetailClient({
             </div>
 
             <div className="bg-card border border-border rounded-lg p-5 space-y-4">
-              <h3 className="text-xs font-bold font-mono text-white uppercase tracking-wider border-b border-border/40 pb-2 flex items-center gap-1.5">
+              <h2 className="text-xs font-bold font-mono text-white uppercase tracking-wider border-b border-border/40 pb-2 flex items-center gap-1.5">
                 <Lock className="w-3.5 h-3.5 text-primary" />
                 Escrow Security Vault
-              </h3>
+              </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-mono text-xs">
                 <div className="bg-[#080c10] border border-border/40 p-3 rounded">
                   <span className="text-[10px] text-slate-500 font-bold uppercase block">
@@ -350,10 +356,10 @@ export default function InvoiceDetailClient({
 
           <div className="lg:col-span-4 space-y-6">
             <div className="bg-[#0d131a] border border-border rounded-lg p-5 space-y-4">
-              <h3 className="text-xs font-bold font-mono text-white uppercase tracking-wider border-b border-border/40 pb-2 flex items-center gap-1.5">
+              <h2 className="text-xs font-bold font-mono text-white uppercase tracking-wider border-b border-border/40 pb-2 flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5 text-primary" />
                 Maturity Parameters
-              </h3>
+              </h2>
               <div className="space-y-4 font-mono text-xs">
                 <div className="flex flex-wrap justify-between gap-2">
                   <span className="text-slate-500">Maturity Date:</span>
@@ -392,10 +398,10 @@ export default function InvoiceDetailClient({
             </div>
 
             <div className="bg-[#0d131a] border border-border rounded-lg p-5 space-y-4">
-              <h3 className="text-xs font-bold font-mono text-white uppercase tracking-wider border-b border-border/40 pb-2 flex items-center gap-1.5">
+              <h2 className="text-xs font-bold font-mono text-white uppercase tracking-wider border-b border-border/40 pb-2 flex items-center gap-1.5">
                 <Share2 className="w-3.5 h-3.5 text-primary" />
                 Share Invoice
-              </h3>
+              </h2>
               <div className="space-y-3 text-xs font-mono">
                 <Button
                   variant="outline"
@@ -454,10 +460,10 @@ export default function InvoiceDetailClient({
 
             {(canShip || canConfirm || canRepay || canDefault) && (
               <div className="bg-[#0d131a] border border-border rounded-lg p-5 space-y-3">
-                <h3 className="text-xs font-bold font-mono text-white uppercase tracking-wider flex items-center gap-1.5">
+                <h2 className="text-xs font-bold font-mono text-white uppercase tracking-wider flex items-center gap-1.5">
                   <TrendingUp className="w-3.5 h-3.5 text-primary" />
                   Available Action
-                </h3>
+                </h2>
                 {canShip && (
                   <Button
                     className="w-full"

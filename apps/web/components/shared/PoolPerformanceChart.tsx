@@ -108,10 +108,10 @@ export function PoolPerformanceChart({
   if (error) {
     return (
       <section aria-label={`${title} (error)`}>
-        <h2 className="text-sm font-bold uppercase tracking-wider text-white">
+        <h2 className="text-sm font-bold uppercase tracking-wider text-foreground">
           {title}
         </h2>
-        <p className="mt-3 rounded-lg border border-border bg-card p-6 text-center text-sm text-slate-400">
+        <p className="mt-3 rounded-lg border border-border bg-card p-6 text-center text-sm text-muted-foreground">
           Pool history is temporarily unavailable. Please try again later.
         </p>
       </section>
@@ -121,7 +121,7 @@ export function PoolPerformanceChart({
   if (isLoading) {
     return (
       <section aria-label={`${title} (loading)`}>
-        <h2 className="text-sm font-bold uppercase tracking-wider text-white">
+        <h2 className="text-sm font-bold uppercase tracking-wider text-foreground">
           {title}
         </h2>
         <div className="mt-3 space-y-2" data-testid="pool-chart-skeleton">
@@ -135,10 +135,10 @@ export function PoolPerformanceChart({
   if (points.length === 0) {
     return (
       <section aria-label={`${title} (empty)`}>
-        <h2 className="text-sm font-bold uppercase tracking-wider text-white">
+        <h2 className="text-sm font-bold uppercase tracking-wider text-foreground">
           {title}
         </h2>
-        <p className="mt-3 rounded-lg border border-border bg-card p-6 text-center text-sm text-slate-400">
+        <p className="mt-3 rounded-lg border border-border bg-card p-6 text-center text-sm text-muted-foreground">
           No pool snapshots yet. Performance history will appear here once the
           indexer records its first snapshot.
         </p>
@@ -148,7 +148,7 @@ export function PoolPerformanceChart({
 
   return (
     <section aria-label={title}>
-      <h2 className="text-sm font-bold uppercase tracking-wider text-white">
+      <h2 className="text-sm font-bold uppercase tracking-wider text-foreground">
         {title}
       </h2>
       {summary !== null && (
@@ -166,39 +166,50 @@ export function PoolPerformanceChart({
             data={points}
             margin={{ top: 8, right: 8, bottom: 8, left: 8 }}
           >
-            <CartesianGrid strokeDasharray="3 3" stroke="#1a2330" />
-            <XAxis dataKey="date" tick={{ fill: "#64748b", fontSize: 11 }} />
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke="hsl(var(--border))"
+            />
+            <XAxis
+              dataKey="date"
+              tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+            />
             <YAxis
               yAxisId="util"
-              tick={{ fill: "#64748b", fontSize: 11 }}
+              tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
               tickFormatter={(v: number) => `${v}%`}
               width={48}
             />
             <YAxis
               yAxisId="yield"
               orientation="right"
-              tick={{ fill: "#64748b", fontSize: 11 }}
+              tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
               width={56}
             />
             <Tooltip
               contentStyle={{
-                backgroundColor: "#0d131a",
-                border: "1px solid #1e293b",
+                backgroundColor: "hsl(var(--card))",
+                border: "1px solid hsl(var(--border))",
                 borderRadius: "8px",
+                color: "hsl(var(--card-foreground))",
                 fontSize: "12px",
               }}
+              labelStyle={{ color: "hsl(var(--card-foreground))" }}
+              itemStyle={{ color: "hsl(var(--card-foreground))" }}
               formatter={(value, name) => {
                 if (name === "Utilization") return [`${value}%`, name];
                 return [`${value} USDC`, name];
               }}
             />
-            <Legend />
+            <Legend
+              wrapperStyle={{ color: "hsl(var(--foreground))" }}
+            />
             <Line
               yAxisId="util"
               type="monotone"
               dataKey="utilizationPct"
               name="Utilization"
-              stroke="#00d4aa"
+              stroke="hsl(var(--primary))"
               strokeWidth={2}
               dot={false}
             />
@@ -207,7 +218,7 @@ export function PoolPerformanceChart({
               type="monotone"
               dataKey="yieldUsdc"
               name="Yield distributed"
-              stroke="#38bdf8"
+              stroke="hsl(var(--secondary))"
               strokeWidth={2}
               dot={false}
             />

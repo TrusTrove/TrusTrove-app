@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useId, useState } from "react";
 import {
   ExternalLink,
   CheckCircle,
@@ -18,7 +18,7 @@ interface TxHistoryProps {
 
 function TxRowSkeleton() {
   return (
-    <div className="flex justify-between items-center bg-slate-950/45 border border-slate-900 rounded-xl p-4">
+    <div className="flex justify-between items-center bg-muted/40 border border-border rounded-xl p-4">
       <div className="flex items-center gap-3">
         <SkeletonShimmer className="w-5 h-5 rounded-full" />
         <div className="space-y-1.5">
@@ -47,6 +47,7 @@ export function TxHistory({ address }: TxHistoryProps) {
     refetch,
   } = useTxHistory(address);
   const [copiedHash, setCopiedHash] = useState<string | null>(null);
+  const headingId = useId();
 
   const handleCopy = async (hash: string) => {
     try {
@@ -63,24 +64,35 @@ export function TxHistory({ address }: TxHistoryProps) {
   };
 
   return (
-    <div className="bg-slate-900/40 border border-slate-800/80 backdrop-blur-md rounded-2xl p-6">
+    <section
+      aria-labelledby={headingId}
+      className="bg-card border border-border backdrop-blur-md rounded-2xl p-6"
+    >
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-bold text-white">Transaction History</h3>
+        <h2
+          id={headingId}
+          className="text-lg font-bold text-foreground"
+        >
+          Transaction History
+        </h2>
         {page > 1 && (
-          <span className="text-xs text-slate-500 font-mono">Page {page}</span>
+          <span className="text-xs text-muted-foreground font-mono">
+            Page {page}
+          </span>
         )}
       </div>
 
       {error && (
         <div className="text-center py-6">
-          <p className="text-rose-400 text-sm mb-2">
+          <p className="text-destructive text-sm mb-2">
             {isRateLimitError(error)
               ? "Horizon is rate limiting this request. Please wait a moment."
               : "Failed to load transactions"}
           </p>
           <button
+            type="button"
             onClick={() => refetch()}
-            className="text-xs text-blue-400 hover:text-blue-300 underline"
+            className="text-xs text-primary hover:text-primary/80 underline rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
             Try again
           </button>
@@ -96,7 +108,7 @@ export function TxHistory({ address }: TxHistoryProps) {
       )}
 
       {!error && !isLoading && transactions.length === 0 && (
-        <p className="text-slate-500 text-sm text-center py-6">
+        <p className="text-muted-foreground text-sm text-center py-6">
           No TrusTrove transactions found for this wallet.
         </p>
       )}
@@ -107,37 +119,39 @@ export function TxHistory({ address }: TxHistoryProps) {
             {transactions.map((tx) => (
               <div
                 key={tx.id}
-                className="flex justify-between items-center bg-slate-950/45 border border-slate-900 rounded-xl p-4 transition-all hover:bg-slate-900/60"
+                className="flex justify-between items-center bg-muted/30 border border-border rounded-xl p-4 transition-colors hover:bg-muted/60"
               >
                 <div className="flex items-center gap-3 min-w-0">
                   {tx.status === "success" ? (
-                    <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
+                    <CheckCircle className="w-5 h-5 text-primary shrink-0" />
                   ) : (
-                    <XCircle className="w-5 h-5 text-rose-400 shrink-0" />
+                    <XCircle className="w-5 h-5 text-destructive shrink-0" />
                   )}
                   <div className="min-w-0">
-                    <span className="font-semibold text-white text-sm block truncate">
+                    <span className="font-semibold text-foreground text-sm block truncate">
                       {tx.type}
                     </span>
-                    <span className="text-xs text-slate-500">
+                    <span className="text-xs text-muted-foreground">
                       {new Date(tx.timestamp * 1000).toLocaleString()}
                     </span>
                   </div>
                 </div>
                 <div className="text-right shrink-0 ml-3">
                   {tx.amount && (
-                    <span className="text-sm font-bold text-white block">
+                    <span className="text-sm font-bold text-foreground block">
                       {tx.amount} {tx.token || "USDC"}
                     </span>
                   )}
                   <div className="flex items-center gap-1.5 justify-end mt-1">
                     <button
+                      type="button"
                       onClick={() => handleCopy(tx.hash)}
-                      className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+                      className="text-xs text-muted-foreground hover:text-foreground transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                       title="Copy transaction hash"
+                      aria-label="Copy transaction hash"
                     >
                       {copiedHash === tx.hash ? (
-                        <span className="text-emerald-400 text-[10px] font-mono">
+                        <span className="text-primary text-[10px] font-mono">
                           Copied!
                         </span>
                       ) : (
@@ -148,10 +162,10 @@ export function TxHistory({ address }: TxHistoryProps) {
                       href={getStellarExpertUrl(tx.hash)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 font-mono"
+                      className="text-xs text-secondary hover:underline flex items-center gap-1 font-mono rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                     >
                       {tx.hash.slice(0, 6)}...{tx.hash.slice(-4)}
-                      <ExternalLink className="w-3 h-3" />
+                      <ExternalLink className="w-3 h-3" aria-hidden="true" />
                     </a>
                   </div>
                 </div>
@@ -159,29 +173,31 @@ export function TxHistory({ address }: TxHistoryProps) {
             ))}
           </div>
 
-          <div className="flex items-center justify-between mt-5 pt-4 border-t border-slate-800/60">
+          <div className="flex items-center justify-between mt-5 pt-4 border-t border-border">
             <button
+              type="button"
               onClick={goPrev}
               disabled={!hasPrev}
-              className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 hover:text-white hover:bg-slate-800/60"
+              className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
-              <ChevronLeft className="w-3.5 h-3.5" />
+              <ChevronLeft className="w-3.5 h-3.5" aria-hidden="true" />
               Previous
             </button>
-            <span className="text-xs text-slate-500 font-mono">
+            <span className="text-xs text-muted-foreground font-mono">
               Page {page}
             </span>
             <button
+              type="button"
               onClick={goNext}
               disabled={!hasNext}
-              className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 hover:text-white hover:bg-slate-800/60"
+              className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
               Next
-              <ChevronRight className="w-3.5 h-3.5" />
+              <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
           </div>
         </>
       )}
-    </div>
+    </section>
   );
 }
