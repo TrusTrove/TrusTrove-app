@@ -72,10 +72,7 @@ describe("route landmarks (#1006)", () => {
     render(<NotFound />);
 
     expectSingleLandmarks();
-    expect(screen.getByRole("main")).toHaveAttribute(
-      "id",
-      "main-content",
-    );
+    expect(screen.getByRole("main")).toHaveAttribute("id", "main-content");
     expect(
       screen.getByRole("heading", { level: 1, name: "404" }),
     ).toBeInTheDocument();
@@ -86,10 +83,7 @@ describe("route landmarks (#1006)", () => {
     render(<RootError error={new Error("boom")} reset={() => {}} />);
 
     expectSingleLandmarks();
-    expect(screen.getByRole("main")).toHaveAttribute(
-      "id",
-      "main-content",
-    );
+    expect(screen.getByRole("main")).toHaveAttribute("id", "main-content");
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Something went wrong.",
     );
@@ -100,10 +94,7 @@ describe("route landmarks (#1006)", () => {
     render(<GlobalError error={new Error("boom")} reset={() => {}} />);
 
     expectSingleLandmarks();
-    expect(screen.getByRole("main")).toHaveAttribute(
-      "id",
-      "main-content",
-    );
+    expect(screen.getByRole("main")).toHaveAttribute("id", "main-content");
     expect(screen.getByRole("alert")).toHaveTextContent("The app crashed.");
   });
 });

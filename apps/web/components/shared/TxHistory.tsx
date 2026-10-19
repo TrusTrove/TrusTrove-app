@@ -69,10 +69,7 @@ export function TxHistory({ address }: TxHistoryProps) {
       className="bg-card border border-border backdrop-blur-md rounded-2xl p-6"
     >
       <div className="flex items-center justify-between mb-4">
-        <h2
-          id={headingId}
-          className="text-lg font-bold text-foreground"
-        >
+        <h2 id={headingId} className="text-lg font-bold text-foreground">
           Transaction History
         </h2>
         {page > 1 && (

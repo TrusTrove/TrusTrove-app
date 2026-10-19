@@ -166,10 +166,7 @@ export function PoolPerformanceChart({
             data={points}
             margin={{ top: 8, right: 8, bottom: 8, left: 8 }}
           >
-            <CartesianGrid
-              strokeDasharray="3 3"
-              stroke="hsl(var(--border))"
-            />
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
             <XAxis
               dataKey="date"
               tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
@@ -201,9 +198,7 @@ export function PoolPerformanceChart({
                 return [`${value} USDC`, name];
               }}
             />
-            <Legend
-              wrapperStyle={{ color: "hsl(var(--foreground))" }}
-            />
+            <Legend wrapperStyle={{ color: "hsl(var(--foreground))" }} />
             <Line
               yAxisId="util"
               type="monotone"
