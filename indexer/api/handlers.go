@@ -26,6 +26,7 @@ type APIHandler struct {
 	statsMu         sync.RWMutex
 	statsData       *db.ProtocolStats
 	statsCached     time.Time
+	respCache       *TTLCache
 	listenerHealth  *ListenerHealth
 	dbHealthChecker func(context.Context) error
 
@@ -49,6 +50,7 @@ func NewAPIHandler(cfg *config.Config) (*APIHandler, error) {
 	return &APIHandler{
 		cfg:             cfg,
 		serverKP:        kp,
+		respCache:       NewTTLCache(),
 		listenerHealth:  NewListenerHealth(),
 		dbHealthChecker: defaultDBHealthChecker,
 		getInvoiceByIDFn: func(ctx context.Context, id string) (*db.DbInvoice, error) {
