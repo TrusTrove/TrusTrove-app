@@ -61,7 +61,11 @@ export function InvoiceStatusTimeline({ invoice }: InvoiceStatusTimelineProps) {
             {/* Non-colour state text so screen readers and low-vision users
                 get the step status without relying on colour or opacity. */}
             <span className="sr-only">
-              {isCurrent ? "Current step" : isComplete ? "Completed" : "Upcoming"}
+              {isCurrent
+                ? "Current step"
+                : isComplete
+                  ? "Completed"
+                  : "Upcoming"}
             </span>
             {index < entries.length - 1 && (
               <span

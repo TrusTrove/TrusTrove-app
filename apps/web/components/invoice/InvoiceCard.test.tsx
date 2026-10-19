@@ -159,8 +159,6 @@ describe("InvoiceCard", () => {
     fireEvent.click(screen.getByRole("button", { name: /list terms/i }));
 
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent(
-      /discount basis points must be between/i,
-    );
+    expect(alert).toHaveTextContent(/discount basis points must be between/i);
   });
 });
