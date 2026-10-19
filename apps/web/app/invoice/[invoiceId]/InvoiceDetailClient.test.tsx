@@ -426,6 +426,12 @@ describe("InvoiceDetailClient", () => {
 
     fireEvent.click(copyButtons[0]);
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(ISSUER));
+    // The clipboard write resolves before React commits the "copied" state,
+    // so wait for the first button to actually relabel before selecting the
+    // second one (otherwise both still match /^COPY$/).
+    await waitFor(() =>
+      expect(screen.getAllByRole("button", { name: /^COPY$/ })).toHaveLength(1),
+    );
 
     fireEvent.click(screen.getByRole("button", { name: /^COPY$/ }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(BUYER));

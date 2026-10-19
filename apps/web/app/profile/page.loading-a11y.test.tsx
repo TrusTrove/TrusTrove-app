@@ -44,6 +44,12 @@ vi.mock("@/components/shared/TransactionPending", () => ({
   TransactionPending: () => null,
 }));
 
+// TxHistory owns its react-query data flow; this test is about the loading
+// announcement, so it does not need a QueryClientProvider.
+vi.mock("@/components/shared/TxHistory", () => ({
+  TxHistory: () => null,
+}));
+
 describe("ProfilePage loading announcement", () => {
   it("exposes the credential loading message as a polite status", () => {
     render(<ProfilePage />);
