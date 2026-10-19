@@ -79,7 +79,10 @@ describe("Landing page heading hierarchy (#992)", () => {
     render(<HomePage />);
 
     // The four step cards should use h3, not h4
-    const stepHeadings = screen.getAllByRole("heading", { level: 3, hidden: true });
+    const stepHeadings = screen.getAllByRole("heading", {
+      level: 3,
+      hidden: true,
+    });
     expect(stepHeadings.length).toBeGreaterThanOrEqual(4);
   });
 
@@ -87,7 +90,10 @@ describe("Landing page heading hierarchy (#992)", () => {
     render(<HomePage />);
 
     // The three pillar cards should use h3
-    const pillarHeadings = screen.getAllByRole("heading", { level: 3, hidden: true });
+    const pillarHeadings = screen.getAllByRole("heading", {
+      level: 3,
+      hidden: true,
+    });
     expect(pillarHeadings.length).toBeGreaterThanOrEqual(3);
   });
 });

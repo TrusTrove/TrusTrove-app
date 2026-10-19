@@ -101,7 +101,10 @@ export default function Home() {
         {/* How It Works Timeline */}
         <div className="space-y-8 border-t border-border/30 pt-16">
           <div className="text-center space-y-2">
-            <p className="text-xs font-bold font-mono text-primary uppercase tracking-widest" aria-hidden="true">
+            <p
+              className="text-xs font-bold font-mono text-primary uppercase tracking-widest"
+              aria-hidden="true"
+            >
               PROTOCOL WORKFLOW
             </p>
             <h2 className="text-xl font-bold font-mono text-white uppercase">
@@ -171,7 +174,10 @@ export default function Home() {
         {/* Three Protocol Pillars */}
         <div className="space-y-8 pt-8">
           <div className="text-center space-y-2">
-            <p className="text-xs font-bold font-mono text-primary uppercase tracking-widest" aria-hidden="true">
+            <p
+              className="text-xs font-bold font-mono text-primary uppercase tracking-widest"
+              aria-hidden="true"
+            >
               SYSTEM ARCHITECTURE
             </p>
             <h2 className="text-xl font-bold font-mono text-white uppercase">
@@ -239,7 +245,10 @@ export default function Home() {
         {/* Economic Calculator Section */}
         <div className="space-y-6 pt-8 pb-16">
           <div className="space-y-1">
-            <p className="text-xs font-bold font-mono text-primary uppercase tracking-widest" aria-hidden="true">
+            <p
+              className="text-xs font-bold font-mono text-primary uppercase tracking-widest"
+              aria-hidden="true"
+            >
               FINANCIAL FEASIBILITY
             </p>
             <h2 className="text-lg font-bold font-mono text-white uppercase">

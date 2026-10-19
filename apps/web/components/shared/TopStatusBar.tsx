@@ -229,7 +229,9 @@ export function TopStatusBar() {
                   >
                     <span className="text-slate-500">{item.country}</span>
                     <span className="text-slate-300 font-bold">{item.sme}</span>
-                    <span className="text-primary font-bold">{item.amount}</span>
+                    <span className="text-primary font-bold">
+                      {item.amount}
+                    </span>
                     <span className="text-slate-500">at</span>
                     <span className="text-sky-400 font-semibold">
                       {item.discount} discount
@@ -247,7 +249,9 @@ export function TopStatusBar() {
                   >
                     <span className="text-slate-500">{item.country}</span>
                     <span className="text-slate-300 font-bold">{item.sme}</span>
-                    <span className="text-primary font-bold">{item.amount}</span>
+                    <span className="text-primary font-bold">
+                      {item.amount}
+                    </span>
                     <span className="text-slate-500">at</span>
                     <span className="text-sky-400 font-semibold">
                       {item.discount} discount
