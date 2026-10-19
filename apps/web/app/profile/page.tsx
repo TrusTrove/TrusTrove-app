@@ -215,8 +215,14 @@ export default function ProfilePage() {
 
         <ErrorBoundary context="ProfileContent">
           {isLoading ? (
-            <div className="bg-[#0d131a] border border-border rounded-lg p-12 flex flex-col items-center justify-center space-y-4 font-mono text-xs">
-              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-ping" />
+            <div
+              role="status"
+              className="bg-[#0d131a] border border-border rounded-lg p-12 flex flex-col items-center justify-center space-y-4 font-mono text-xs"
+            >
+              <span
+                aria-hidden="true"
+                className="w-1.5 h-1.5 rounded-full bg-primary animate-ping"
+              />
               <span className="text-slate-400 uppercase tracking-widest animate-pulse">
                 Loading profile credentials...
               </span>

@@ -188,9 +188,12 @@ describe("InvoiceDetailClient", () => {
 
     render(<InvoiceDetailClient invoiceId={INVOICE_ID} />);
 
-    expect(
-      screen.getByText(/Fetching invoice state from ledger\.\.\./i),
-    ).toBeInTheDocument();
+    // #990: the message must be a polite live region, not just visible text.
+    const message = screen.getByText(
+      /Fetching invoice state from ledger\.\.\./i,
+    );
+    expect(message).toBeInTheDocument();
+    expect(message).toHaveAttribute("role", "status");
   });
 
   it("renders the not-found state and returns to the dashboard", () => {

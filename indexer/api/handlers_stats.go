@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -13,6 +14,16 @@ import (
 	"github.com/stellar/go-stellar-sdk/keypair"
 	"github.com/stellar/go-stellar-sdk/xdr"
 )
+
+// responseCacheTTL is how long a cached /events or /pool/stats response stays
+// fresh. It matches the 30s window HandleGetStats already applies to /stats, so
+// every TTL-cached read endpoint in the API expires on the same clock (#1078).
+const responseCacheTTL = 30 * time.Second
+
+// poolStatsCacheKey keys the single /pool/stats entry in h.respCache. Events are
+// keyed per (limit, issuer) because both change the response, so one caller's
+// filtered feed can never be served to another caller (#1078).
+const poolStatsCacheKey = "pool:stats"
 
 // GET /stats
 func (h *APIHandler) HandleGetStats(w http.ResponseWriter, r *http.Request) {
@@ -56,10 +67,20 @@ func (h *APIHandler) HandleGetStats(w http.ResponseWriter, r *http.Request) {
 
 // GET /pool/stats
 func (h *APIHandler) HandleGetPoolStats(w http.ResponseWriter, r *http.Request) {
+	// The aggregate is the sum of every pool row, so it is identical for every
+	// caller: one cache entry, keyed by nothing but the route (#1078).
+	if cached, ok := h.respCache.Get(poolStatsCacheKey); ok {
+		if stats, ok := cached.(*db.DbPoolStats); ok {
+			writeJSON(w, http.StatusOK, stats)
+			return
+		}
+	}
+
 	stats, err := h.getPoolStatsFn(r.Context())
 	if err != nil {
 		// The raw DB error can disclose table/column names; log it and return
-		// a generic message (issue #921).
+		// a generic message (issue #921). Failures are never cached, so a
+		// transient error cannot pin a 500 in front of the pool page for a TTL.
 		internalError(w, r, "failed to retrieve pool statistics", err)
 		return
 	}
@@ -76,6 +97,7 @@ func (h *APIHandler) HandleGetPoolStats(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
+	h.respCache.Set(poolStatsCacheKey, stats, responseCacheTTL)
 	writeJSON(w, http.StatusOK, stats)
 }
 
@@ -100,10 +122,21 @@ func (h *APIHandler) HandleGetEvents(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Both the page size and the optional issuer change the response, so the
+	// feed is cached per query and one caller's slice is never served to
+	// another (#1078).
+	cacheKey := fmt.Sprintf("events:%d:%s", limit, issuer)
+	if cached, ok := h.respCache.Get(cacheKey); ok {
+		if events, ok := cached.([]*db.EventLog); ok {
+			writeJSON(w, http.StatusOK, events)
+			return
+		}
+	}
+
 	events, err := h.getRecentEventsFn(r.Context(), limit, issuer)
 	if err != nil {
 		// The raw DB error can disclose table/column names; log it and return
-		// a generic message (issue #921).
+		// a generic message (issue #921). Errors are never cached (#1078).
 		internalError(w, r, "failed to retrieve events", err)
 		return
 	}
@@ -112,6 +145,7 @@ func (h *APIHandler) HandleGetEvents(w http.ResponseWriter, r *http.Request) {
 		events = []*db.EventLog{}
 	}
 
+	h.respCache.Set(cacheKey, events, responseCacheTTL)
 	writeJSON(w, http.StatusOK, events)
 }
 

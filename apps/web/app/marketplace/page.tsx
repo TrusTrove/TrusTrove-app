@@ -596,13 +596,20 @@ export default function Marketplace() {
           {/* Marketplace List (Left) */}
           <div className="lg:col-span-8 space-y-4">
             <div className="flex justify-between items-center">
-              <h2 className="text-sm font-bold font-mono tracking-wider uppercase text-white">
+              <h2
+                className="text-sm font-bold font-mono tracking-wider uppercase text-white"
+                aria-live="polite"
+                aria-atomic="true"
+              >
                 {t("invoices.title", {
                   count: filteredAndSortedInvoices.length,
                 })}
               </h2>
               {isLoading && (
-                <span className="text-xs text-primary animate-pulse font-mono uppercase">
+                <span
+                  role="status"
+                  className="text-xs text-primary animate-pulse font-mono uppercase"
+                >
                   {t("syncing")}
                 </span>
               )}
