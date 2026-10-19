@@ -163,6 +163,12 @@ export interface FreighterSnapshot {
  */
 export interface FreighterWalletChange {
   address?: string;
+  /**
+   * `true` when Freighter no longer reports a selected account (extension
+   * locked or site access revoked) after one had been selected. `address` is
+   * left unset in that case.
+   */
+  disconnected?: boolean;
   network?: string;
   previous: FreighterSnapshot;
 }
@@ -197,7 +203,8 @@ function normalizeNetwork(network?: string): string | null {
  *
  * @param baseline — Snapshot captured at connect time (usually the store's
  *   current `address`/`network`).
- * @param onChange — Called once per detected difference.
+ * @param onChange — Called once per detected difference. `disconnected` is set
+ *   when the selected account disappears (locked extension or revoked access).
  * @param options — See {@link WatchFreighterOptions}.
  * @returns A stop function that clears the timer and silences in-flight polls.
  *
@@ -242,6 +249,10 @@ export function watchFreighterChanges(
 
       if (next.address && next.address !== previous.address) {
         change.address = next.address;
+        changed = true;
+      } else if (!next.address && previous.address) {
+        // Locked extension / revoked access: Freighter reports no account.
+        change.disconnected = true;
         changed = true;
       }
       if (next.network && next.network !== previous.network) {

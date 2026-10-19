@@ -131,18 +131,20 @@ export function useWallet() {
         const state = useWalletStore.getState();
         if (!state.connected) return;
 
+        if (change.disconnected) {
+          // Freighter reports no selected account (locked extension or revoked
+          // access): drop the session — including the SEP-10 token — so the UI
+          // stops showing and signing with a stale address.
+          disconnect();
+          return;
+        }
+
         if (change.address && change.address !== state.address) {
           // A different account is now selected in Freighter: adopt it so the
           // app never reads balances for — or signs as — a stale address, and
           // drop the previous account's SEP-10 token.
           setAddress(change.address);
           setToken(null);
-          // lib/api caches that token for the API client, but importing it
-          // statically would pull the SDK into this hook's graph (see #995),
-          // which is only warranted on this rare account-switch path.
-          void import("@/lib/api")
-            .then(({ initApiClientWithToken }) => initApiClientWithToken())
-            .catch((err) => captureError(err));
         }
 
         if (change.network && change.network !== state.network) {
@@ -172,6 +174,7 @@ export function useWallet() {
     setAddress,
     setNetwork,
     setToken,
+    disconnect,
     captureError,
   ]);
 
