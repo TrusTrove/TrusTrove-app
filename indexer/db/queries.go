@@ -63,6 +63,12 @@ type ProtocolStats struct {
 // capital is deployed and not yet returned: Funded, Active (shipped) and
 // Confirmed (delivery confirmed, awaiting repayment). The financed total and
 // average yield additionally include Repaid invoices.
+//
+// registered_issuers is registry adoption, not invoice participation: it counts
+// the distinct accounts named by issuer_registered events in events_log. The
+// invoices table only knows issuers that have created an invoice, so deriving
+// the field from it under-reported registry registrations and over-reported
+// issuers (issue #1085).
 func GetProtocolStats(ctx context.Context) (*ProtocolStats, error) {
 	return getProtocolStats(ctx, Pool)
 }
@@ -77,7 +83,12 @@ func getProtocolStats(ctx context.Context, q Querier) (*ProtocolStats, error) {
 			COUNT(*) FILTER (WHERE status = 'Defaulted') AS total_defaulted,
 			COALESCE(AVG(discount_bps) FILTER (WHERE status IN ('Funded', 'Active', 'Confirmed', 'Repaid')), 0)::INTEGER AS average_yield_bps,
 			COALESCE((SELECT utilization_rate_bps FROM pool_snapshots WHERE id = 1), 0) AS pool_utilization_bps,
-			COUNT(DISTINCT issuer) AS registered_issuers
+			COALESCE((
+				SELECT COUNT(DISTINCT data ->> 'address')
+				FROM events_log
+				WHERE event_type = 'issuer_registered'
+				  AND COALESCE(data ->> 'address', '') <> ''
+			), 0) AS registered_issuers
 		FROM invoices
 	`
 	var stats ProtocolStats

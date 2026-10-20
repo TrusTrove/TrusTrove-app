@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"trusttrove/indexer/db"
+	"trusttrove/indexer/netguard"
 )
 
 // WorkerConfig holds configuration for the webhook delivery worker.
@@ -63,6 +64,11 @@ type DeliveryWorker struct {
 	// tested without a database; NewDeliveryWorker always wires it to
 	// attemptDelivery.
 	attempt func(context.Context, *db.WebhookDelivery)
+	// isSafeURL re-validates the endpoint at delivery time and on every
+	// redirect. Subscription creation checks the URL once, which is not enough:
+	// DNS can later point the same hostname at loopback or a metadata address
+	// (#1076). It is a field so tests can scope the guard to their test server.
+	isSafeURL func(string) bool
 }
 
 // NewDeliveryWorker creates a new webhook delivery worker. Zero-valued
@@ -80,14 +86,32 @@ func NewDeliveryWorker(cfg WorkerConfig) *DeliveryWorker {
 		transport.ResponseHeaderTimeout = cfg.HTTPTimeout
 	}
 	w := &DeliveryWorker{
-		cfg: cfg,
-		client: &http.Client{
-			Timeout:   cfg.HTTPTimeout,
-			Transport: transport,
-		},
+		cfg:       cfg,
+		isSafeURL: netguard.IsSafeURL,
+	}
+	w.client = &http.Client{
+		Timeout:   cfg.HTTPTimeout,
+		Transport: transport,
+		// Redirects are re-validated hop by hop. Following the default policy
+		// would send the signed payload wherever a subscriber's 30x points,
+		// including an internal address the delivery-time host check cannot see
+		// in the original URL.
+		CheckRedirect: w.checkRedirect,
 	}
 	w.attempt = w.attemptDelivery
 	return w
+}
+
+// checkRedirect refuses a redirect chain longer than the stdlib default and
+// re-runs the SSRF guard against every hop's target.
+func (w *DeliveryWorker) checkRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) >= 10 {
+		return fmt.Errorf("webhook delivery: stopped after 10 redirects")
+	}
+	if !w.isSafeURL(req.URL.String()) {
+		return fmt.Errorf("webhook delivery: refusing redirect to unsafe url %s", req.URL.Redacted())
+	}
+	return nil
 }
 
 // Start begins the worker's delivery loop. It blocks until ctx is cancelled.
@@ -156,6 +180,14 @@ func (w *DeliveryWorker) deliverBatch(ctx context.Context, deliveries []*db.Webh
 
 // attemptDelivery performs a single HTTP delivery attempt with signing.
 func (w *DeliveryWorker) attemptDelivery(ctx context.Context, delivery *db.WebhookDelivery) {
+	// Re-resolve the subscriber host at delivery time: a hostname accepted at
+	// subscription creation may now point at loopback or an internal address
+	// (DNS rebinding), so the creation-time guard alone is not sufficient.
+	if !w.isSafeURL(delivery.EndpointURL) {
+		w.handleFailure(ctx, delivery, nil, "unsafe endpoint url: host resolves to a private or loopback address")
+		return
+	}
+
 	ts := strconv.FormatInt(time.Now().Unix(), 10)
 	sig := sign(delivery.EndpointSecret, ts, delivery.Payload)
 

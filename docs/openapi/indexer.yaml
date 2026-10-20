@@ -682,6 +682,10 @@ components:
           type: integer
         registered_issuers:
           type: integer
+          description: >-
+            Distinct accounts that emitted an `issuer_registered` registry
+            event. This is registry adoption, so it includes issuers with no
+            invoices and excludes invoice issuers that never registered.
 
     PoolStats:
       type: object

@@ -292,6 +292,62 @@ func TestGetProtocolStats_CountsListenerStatuses(t *testing.T) {
 	}
 }
 
+// TestGetProtocolStats_RegisteredIssuersFromRegistryEvents pins the source of
+// registered_issuers (#1085): it must come from issuer_registered registry
+// events, not from the set of accounts that happen to have invoices.
+func TestGetProtocolStats_RegisteredIssuersFromRegistryEvents(t *testing.T) {
+	skipIfNoDB(t)
+
+	ctx := context.Background()
+	tx, err := Pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	t.Cleanup(func() { _ = tx.Rollback(ctx) })
+
+	// Other packages write invoices and events while `go test ./...` runs in
+	// parallel; lock both tables so the counts below only see this test's rows.
+	if _, err := tx.Exec(ctx, "LOCK TABLE invoices, events_log IN ACCESS EXCLUSIVE MODE"); err != nil {
+		t.Fatalf("lock tables: %v", err)
+	}
+	if _, err := tx.Exec(ctx, "DELETE FROM invoices"); err != nil {
+		t.Fatalf("clear invoices: %v", err)
+	}
+	if _, err := tx.Exec(ctx, "DELETE FROM events_log"); err != nil {
+		t.Fatalf("clear events_log: %v", err)
+	}
+
+	const (
+		registeredIssuer = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
+		invoiceIssuer    = "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN"
+	)
+
+	// An issuer with activity but no registry registration.
+	inv := newTestInvoice(fmt.Sprintf("stats-registry%d", time.Now().UnixNano()))
+	inv.Issuer = invoiceIssuer
+	if _, err := InsertInvoice(ctx, tx, inv); err != nil {
+		t.Fatalf("InsertInvoice: %v", err)
+	}
+
+	// A registered issuer with no invoices. Logging the event twice proves the
+	// count is DISTINCT by address rather than by event.
+	for i := 0; i < 2; i++ {
+		eventID := fmt.Sprintf("registry-test-%d-%d", time.Now().UnixNano(), i)
+		if err := LogEvent(ctx, tx, eventID, "CREGISTRYCONTRACT", 900001, time.Now().Unix(), "issuer_registered", map[string]string{"address": registeredIssuer}); err != nil {
+			t.Fatalf("LogEvent(%d): %v", i, err)
+		}
+	}
+
+	stats, err := getProtocolStats(ctx, tx)
+	if err != nil {
+		t.Fatalf("getProtocolStats: %v", err)
+	}
+
+	if stats.RegisteredIssuers != 1 {
+		t.Errorf("RegisteredIssuers = %d, want 1 (only issuer_registered events count)", stats.RegisteredIssuers)
+	}
+}
+
 func TestLocateMigrationDir(t *testing.T) {
 	// Save original env value
 	originalEnv := os.Getenv("INDEXER_MIGRATIONS_DIR")

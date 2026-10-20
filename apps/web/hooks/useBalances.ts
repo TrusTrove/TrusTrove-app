@@ -88,12 +88,15 @@ export function useBalances() {
     enabled: !!address && connected,
     refetchInterval: 30000,
     refetchIntervalInBackground: false,
-    initialData: { usdc: null, xlm: null },
     throwOnError: false,
   });
 
   return {
-    balances: query.data,
+    // No initialData: pre-seeding the cache made React Query report success
+    // (and therefore loading=false) before Horizon had answered (#1086). The
+    // fallback keeps the documented disconnected shape without marking the
+    // query as loaded.
+    balances: query.data ?? { usdc: null, xlm: null },
     loading: query.isLoading,
     error: query.error ? "Failed to fetch balances" : null,
     refetch: query.refetch,

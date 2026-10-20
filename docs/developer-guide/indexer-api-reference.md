@@ -124,6 +124,11 @@ How the aggregates are derived from invoice `status`:
 | `total_defaulted`      | `Defaulted`                                                        |
 | `average_yield_bps`    | `Funded`, `Active`, `Confirmed`, `Repaid` (mean `discount_bps`)    |
 
+`registered_issuers` is different: it is the number of distinct accounts
+named by `issuer_registered` events from the registry contract, not the number
+of accounts that appear on invoices. An issuer can register without financing
+an invoice, and an invoice issuer may never have registered.
+
 ## GET /auth
 
 Requests a SEP-10 authentication challenge for a Stellar account. No JWT required.

@@ -98,7 +98,7 @@ export function WalletConnect() {
         href="https://www.freighter.app/"
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-lg hover:bg-amber-500/20 transition-all font-mono"
+        className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 rounded-lg hover:bg-amber-500/20 transition-all font-mono"
       >
         <span>Install Freighter</span>
         <ExternalLink className="w-3.5 h-3.5" />
@@ -116,12 +116,12 @@ export function WalletConnect() {
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2">
             {network === "testnet" ? (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-amber-500/10 border border-amber-500/20 text-amber-400 font-mono">
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 font-mono">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
                 Testnet
               </span>
             ) : network === "mainnet" ? (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono">
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 font-mono">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 Mainnet
               </span>
@@ -129,7 +129,7 @@ export function WalletConnect() {
               <Button
                 variant="outline"
                 size="sm"
-                className="text-xs border-amber-500/30 text-amber-500 hover:bg-amber-500/10 rounded-md font-mono"
+                className="text-xs border-amber-500/30 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10 rounded-md font-mono"
                 onClick={handleSwitchToTestnet}
                 disabled={switchingNetwork}
               >
@@ -142,7 +142,7 @@ export function WalletConnect() {
           </div>
 
           {networkSwitchError && (
-            <div className="flex flex-col gap-1 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-md px-2.5 py-2">
+            <div className="flex flex-col gap-1 text-xs text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-md px-2.5 py-2">
               <span className="flex items-start gap-1.5">
                 <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                 <span>
@@ -169,22 +169,24 @@ export function WalletConnect() {
 
       <div className="flex items-center gap-2">
         {connected && address ? (
-          <div className="flex items-center gap-2 bg-neutral-900 border border-border rounded-lg pl-3 pr-1 py-1 transition-all duration-200">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-xs font-semibold font-mono text-slate-300">
+          <div className="flex items-center gap-2 bg-background-secondary border border-border rounded-lg pl-3 pr-1 py-1 transition-all duration-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 dark:bg-emerald-400 animate-pulse" />
+            <span className="text-xs font-semibold font-mono text-foreground">
               {truncateAddress(address)}
             </span>
 
             <button
               onClick={handleCopy}
               className={`p-3 ${
-                copied ? "text-emerald-400" : "text-slate-500"
-              } hover:text-teal-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2`}
+                copied
+                  ? "text-emerald-700 dark:text-emerald-400"
+                  : "text-muted-foreground"
+              } hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2`}
               title="Copy Address"
               aria-label="Copy wallet address"
             >
               {copied ? (
-                <Check className="h-3.5 w-3.5 text-emerald-400" />
+                <Check className="h-3.5 w-3.5 text-emerald-700 dark:text-emerald-400" />
               ) : (
                 <Copy className="h-3.5 w-3.5" />
               )}
@@ -193,7 +195,7 @@ export function WalletConnect() {
             <div className="w-px h-4 bg-border mx-3" />
 
             <button
-              className="p-3 text-slate-500 hover:text-rose-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              className="p-3 text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
               onClick={disconnectWallet}
               title="Disconnect Wallet"
               aria-label="Disconnect wallet"
@@ -205,7 +207,7 @@ export function WalletConnect() {
           <Button
             onClick={connectWallet}
             disabled={loading}
-            className="bg-primary hover:bg-primary/90 text-black font-bold transition-all duration-200 flex items-center gap-2 rounded-lg px-4 py-2 shadow-[0_0_15px_rgba(0,212,170,0.15)]"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold transition-all duration-200 flex items-center gap-2 rounded-lg px-4 py-2 shadow-[0_0_15px_rgba(0,212,170,0.15)]"
           >
             {loading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -218,7 +220,7 @@ export function WalletConnect() {
       </div>
 
       {walletError && errorCode === "user_rejected" && (
-        <div className="flex items-center gap-1.5 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-md px-2.5 py-1">
+        <div className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-md px-2.5 py-1">
           <AlertCircle className="h-3.5 w-3.5 shrink-0" />
           <span role="status" className="truncate max-w-xs">
             You cancelled the connection request
@@ -229,7 +231,7 @@ export function WalletConnect() {
       {copyError && (
         <div
           role="alert"
-          className="flex items-center gap-1.5 text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-md px-2.5 py-1"
+          className="flex items-center gap-1.5 text-xs text-rose-700 dark:text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-md px-2.5 py-1"
         >
           <AlertCircle className="h-3.5 w-3.5 shrink-0" />
           <span>{copyError}</span>
@@ -241,7 +243,7 @@ export function WalletConnect() {
           href="https://www.freighter.app/"
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-md px-2.5 py-1 hover:bg-amber-500/20 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2"
+          className="inline-flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-md px-2.5 py-1 hover:bg-amber-500/20 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
         >
           <span role="status">Install Freighter</span>
           <ExternalLink className="h-3.5 w-3.5" />
@@ -251,7 +253,7 @@ export function WalletConnect() {
       {walletError &&
         errorCode !== "user_rejected" &&
         errorCode !== "not_installed" && (
-          <div className="flex items-center gap-1.5 text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-md px-2.5 py-1">
+          <div className="flex items-center gap-1.5 text-xs text-rose-700 dark:text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-md px-2.5 py-1">
             <AlertCircle className="h-3.5 w-3.5 shrink-0" />
             <span role="alert" className="truncate max-w-xs">
               {walletError}

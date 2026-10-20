@@ -78,7 +78,7 @@ export function TransactionPending({
       onKeyDown={(e) => {
         if (e.key === "Escape" && canDismiss) onClose!();
       }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#080c10]/95 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 dark:bg-background/95 backdrop-blur-sm p-4"
     >
       <div className="w-full max-w-md bg-card border border-border rounded-lg p-6 flex flex-col items-center justify-center text-center shadow-[0_0_50px_rgba(0,212,170,0.05)]">
         {/* Animated Stellar Orbit Logo */}
@@ -116,21 +116,21 @@ export function TransactionPending({
           />
         </div>
 
-        <h3 className="text-base font-bold font-mono tracking-wider text-white uppercase mb-2">
+        <h3 className="text-base font-bold font-mono tracking-wider text-card-foreground uppercase mb-2">
           TRANSACTION SIGNED
         </h3>
-        <p className="text-slate-400 text-xs font-mono mb-6 flex items-center gap-1.5 justify-center">
+        <p className="text-foreground/70 text-xs font-mono mb-6 flex items-center gap-1.5 justify-center">
           <Loader2 className="w-3.5 h-3.5 animate-spin motion-reduce:animate-none text-primary" />
           {timedOut ? localStatus || statusText : statusText}
         </p>
 
         {txHash && (
-          <div className="w-full bg-[#080c10] border border-border/40 rounded p-3 text-left font-mono text-[10px] space-y-2 mb-6">
-            <div className="flex justify-between text-slate-500 font-bold uppercase tracking-wider">
+          <div className="w-full bg-background-secondary border border-border/40 rounded p-3 text-left font-mono text-[10px] space-y-2 mb-6">
+            <div className="flex justify-between text-foreground/70 font-bold uppercase tracking-wider">
               <span>TX HASH</span>
               <span className="text-primary">TESTNET</span>
             </div>
-            <div className="text-slate-300 break-all bg-slate-950/50 p-2 border border-border/20 rounded select-all">
+            <div className="text-foreground break-all bg-muted/50 p-2 border border-border/20 rounded select-all">
               {txHash}
             </div>
             <a
@@ -147,7 +147,7 @@ export function TransactionPending({
 
         {onClose && (
           <Button
-            className="w-full bg-slate-900 border border-border text-slate-300 font-bold text-xs uppercase py-2 hover:bg-slate-800"
+            className="w-full bg-background-secondary border border-border text-foreground font-bold text-xs uppercase py-2 hover:bg-muted"
             onClick={onClose}
           >
             Close Dialog
