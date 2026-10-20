@@ -1,11 +1,17 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/go-chi/chi/v5"
 	"trusttrove/indexer/db"
 )
 
@@ -303,3 +309,114 @@ func TestHandleGetInvoices_DataNeverNull(t *testing.T) {
 		t.Error("'data' field must not be null; expected []")
 	}
 }
+
+// patchStatusFunc captures the id/status the handler passes to the db layer.
+type patchStatusFunc struct {
+	called bool
+	id     string
+	status string
+	err    error
+}
+
+func (f *patchStatusFunc) update(ctx context.Context, id, status string) error {
+	f.called = true
+	f.id = id
+	f.status = status
+	return f.err
+}
+
+// doPatchStatus routes a PATCH request through a chi router (so URL params are
+// populated) against the handler and returns the recorder plus a flag
+// indicating whether the body decoded as a JSON object with an "id" field.
+func doPatchStatus(t *testing.T, h *APIHandler, url string, body io.Reader) (*httptest.ResponseRecorder, bool) {
+	t.Helper()
+	r := chi.NewRouter()
+	r.Patch("/invoices/{id}/status", h.HandlePatchInvoiceStatus)
+
+	req := httptest.NewRequest(http.MethodPatch, url, body)
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	return rr, strings.Contains(rr.Body.String(), `"id"`)
+}
+
+func TestHandlePatchInvoiceStatus_UpdatesStatus(t *testing.T) {
+	var captured patchStatusFunc
+	h := &APIHandler{patchInvoiceStatusFn: captured.update}
+
+	reqBody := strings.NewReader(`{"status":"Cancelled"}`)
+	rr, ok := doPatchStatus(t, h, "/invoices/inv-123/status", reqBody)
+	if !ok {
+		t.Fatalf("expected 200 with id in body, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rr.Code)
+	}
+	if !captured.called {
+		t.Fatal("patchInvoiceStatusFn was not called")
+	}
+	if captured.id != "inv-123" {
+		t.Errorf("expected id=inv-123, got %q", captured.id)
+	}
+	if captured.status != "Cancelled" {
+		t.Errorf("expected status=Cancelled, got %q", captured.status)
+	}
+}
+
+func TestHandlePatchInvoiceStatus_MissingIDReturns400(t *testing.T) {
+	var captured patchStatusFunc
+	h := &APIHandler{patchInvoiceStatusFn: captured.update}
+
+	reqBody := strings.NewReader(`{"status":"Cancelled"}`)
+	rr, _ := doPatchStatus(t, h, "/invoices//status", reqBody)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+	if captured.called {
+		t.Error("db should not be called with a missing id")
+	}
+}
+
+func TestHandlePatchInvoiceStatus_EmptyStatusReturns400(t *testing.T) {
+	var captured patchStatusFunc
+	h := &APIHandler{patchInvoiceStatusFn: captured.update}
+
+	reqBody := strings.NewReader(`{"status":""}`)
+	rr, _ := doPatchStatus(t, h, "/invoices/inv-123/status", reqBody)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+	if captured.called {
+		t.Error("db should not be called with an empty status")
+	}
+}
+
+func TestHandlePatchInvoiceStatus_InvalidBodyReturns400(t *testing.T) {
+	var captured patchStatusFunc
+	h := &APIHandler{patchInvoiceStatusFn: captured.update}
+
+	req := httptest.NewRequest(http.MethodPatch, "/invoices/inv-123/status", strings.NewReader("not json"))
+	req.Header.Set("Content-Type", "application/json")
+	r := chi.NewRouter()
+	r.Patch("/invoices/{id}/status", h.HandlePatchInvoiceStatus)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for invalid body, got %d", rr.Code)
+	}
+	if captured.called {
+		t.Error("db should not be called for an invalid body")
+	}
+}
+
+func TestHandlePatchInvoiceStatus_DBErrorReturns500(t *testing.T) {
+	captured := &patchStatusFunc{err: errors.New("connection refused")}
+	h := &APIHandler{patchInvoiceStatusFn: captured.update}
+
+	reqBody := strings.NewReader(`{"status":"Cancelled"}`)
+	rr, _ := doPatchStatus(t, h, "/invoices/inv-123/status", reqBody)
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500 on db error, got %d", rr.Code)
+	}
+}
+

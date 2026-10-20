@@ -248,6 +248,53 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /invoices/{id}/status:
+    patch:
+      tags: [Invoices]
+      summary: Update invoice status
+      description: Updates an invoice's lifecycle status. Used to cancel a
+        newly created invoice when its immediate on-chain listing fails, so it
+        is not left "pending listing" indefinitely.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: a3f8c1d27e904b6a8d5f0139c2e7ab64f0d8c3b19a6e52f7b4c0d91e8a2735bc
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateInvoiceStatusRequest"
+            examples:
+              cancel:
+                value:
+                  status: Cancelled
+      responses:
+        "200":
+          description: Invoice status updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  status:
+                    type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+
   /stats:
     get:
       tags: [Stats]
@@ -489,6 +536,14 @@ components:
             Unix timestamp in seconds. Must be in the future and no more than
             5 years from the time the request is validated.
       required: [buyer, face_value, due_date]
+
+    UpdateInvoiceStatusRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          description: New lifecycle status for the invoice (e.g. Cancelled).
+      required: [status]
 
     CreateInvoiceResponse:
       type: object

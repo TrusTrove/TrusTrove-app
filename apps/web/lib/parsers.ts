@@ -7,7 +7,7 @@ import type { Invoice, AssetType } from "@/types";
 type RawInvoice = Record<string, unknown>;
 
 function isRecord(value: unknown): value is RawInvoice {
-  return typeof value === "object" && value !== null;
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function normalizeKeys(obj: RawInvoice): RawInvoice {

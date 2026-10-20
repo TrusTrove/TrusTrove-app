@@ -353,6 +353,31 @@ export async function getInvoiceByID(id: string): Promise<Invoice> {
   return parseInvoiceResponse(raw);
 }
 
+/**
+ * Updates an invoice's lifecycle status via `PATCH /invoices/:id/status`.
+ * Used by the creation cleanup path to mark a newly created invoice as
+ * `Cancelled` when its immediate on-chain listing cannot be completed, so the
+ * invoice is not left "pending listing" forever (issue #1097).
+ *
+ * @param id - The invoice id to update.
+ * @param status - The new lifecycle status (e.g. `"Cancelled"`).
+ * @returns A promise resolving to `{ id, status }`.
+ *
+ * @throws {Error} When the indexer responds with a non-OK status.
+ */
+export async function updateInvoiceStatus(
+  id: string,
+  status: string,
+): Promise<{ id: string; status: string }> {
+  return apiFetch<{ id: string; status: string }>(
+    `/invoices/${encodeURIComponent(id)}/status`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    },
+  );
+}
+
 export interface PaginatedInvoices {
   data: Invoice[];
   total: number;

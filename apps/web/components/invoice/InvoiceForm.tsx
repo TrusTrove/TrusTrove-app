@@ -10,6 +10,7 @@ import { AmountInput } from "@/components/shared/AmountInput";
 import { useWalletStore } from "@/store/wallet";
 import { DatePicker } from "@/components/ui/date-picker";
 import { getErrorMessage } from "@/lib/errors";
+import { updateInvoiceStatus } from "@/lib/api";
 
 const invoiceContractID = process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID || "";
 
@@ -26,18 +27,7 @@ interface InvoiceFormProps {
  * from presenting the invoice as waiting for a listing transaction forever.
  */
 async function cancelCreatedInvoice(invoiceId: string) {
-  const response = await fetch(
-    `/api/invoices/${encodeURIComponent(invoiceId)}/status`,
-    {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "Cancelled" }),
-    },
-  );
-
-  if (!response.ok) {
-    throw new Error(`Invoice cleanup failed (${response.status})`);
-  }
+  await updateInvoiceStatus(invoiceId, "Cancelled");
 }
 
 export function InvoiceForm({ onSuccess }: InvoiceFormProps) {

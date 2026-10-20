@@ -91,7 +91,7 @@ func CORSMiddleware(allowedOrigins []string) func(http.Handler) http.Handler {
 				}
 			}
 
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
 			if r.Method == http.MethodOptions {
@@ -434,6 +434,7 @@ func NewRouter(h *APIHandler) (*chi.Mux, func()) {
 		})
 		r.Use(RateLimitMiddleware(rl))
 		r.With(indexermiddleware.InvoiceRateLimitMiddleware(invoiceLimiter)).Post("/invoices", h.HandleCreateInvoice)
+		r.Patch("/invoices/{id}/status", h.HandlePatchInvoiceStatus)
 
 		// Webhooks
 		r.Post("/webhooks", h.HandleCreateWebhook)

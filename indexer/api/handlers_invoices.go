@@ -33,6 +33,36 @@ func (h *APIHandler) HandleGetInvoiceByID(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, invoice)
 }
 
+// PATCH /invoices/{id}/status updates an invoice's lifecycle status. Used by
+// the web app's creation cleanup path to mark a newly created invoice as
+// Cancelled when its immediate on-chain listing cannot be completed, so the
+// invoice is not left "pending listing" forever (issue #1097).
+func (h *APIHandler) HandlePatchInvoiceStatus(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		http.Error(w, "missing invoice id", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		Status string `json:"status"`
+	}
+	if !decodeJSONBody(w, r, &req, maxPatchInvoiceStatusBodyBytes) {
+		return
+	}
+	if req.Status == "" {
+		http.Error(w, "status is required", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.patchInvoiceStatusFn(r.Context(), id, req.Status); err != nil {
+		internalError(w, r, "failed to update invoice status", err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"id": id, "status": req.Status})
+}
+
 // GET /invoices
 func (h *APIHandler) HandleGetInvoices(w http.ResponseWriter, r *http.Request) {
 	status := r.URL.Query().Get("status")

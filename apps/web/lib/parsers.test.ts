@@ -133,6 +133,12 @@ describe("parseInvoiceResponse", () => {
     expect(() => parseInvoiceResponse(null)).toThrow("Invalid invoice payload");
   });
 
+  // #1095: arrays are objects under typeof, so they must be rejected explicitly
+  // instead of silently normalising to an empty invoice.
+  it("throws for array input", () => {
+    expect(() => parseInvoiceResponse([])).toThrow("Invalid invoice payload");
+  });
+
   it("throws for undefined input", () => {
     expect(() => parseInvoiceResponse(undefined)).toThrow(
       "Invalid invoice payload",

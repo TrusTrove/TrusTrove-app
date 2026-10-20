@@ -69,6 +69,9 @@ export function RegistrationModal({
       `Registering business as verified ${regRole === "issuer" ? "SME / Issuer" : "Buyer"}...`,
     );
     setPendingHash(null);
+    // Close the registration modal before opening the pending dialog so only
+    // one aria-modal dialog (and one focus trap) is active at a time (#1099).
+    onClose();
     setShowPending(true);
 
     try {
@@ -88,7 +91,6 @@ export function RegistrationModal({
       if (typeof txHash === "string") {
         setPendingHash(txHash);
       }
-      onClose();
     } catch (err: any) {
       setLocalError(err.message || "Registration transaction failed");
       setShowPending(false);

@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { RegistrationModal } from "./RegistrationModal";
 
@@ -257,5 +257,66 @@ describe("RegistrationModal", () => {
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(/company name is required/i);
+  });
+
+  // #1099: while registration is pending, exactly one aria-modal dialog must
+  // be active. The registration modal closes before the pending dialog opens.
+  it("shows exactly one aria-modal dialog while registration is pending (#1099)", async () => {
+    let resolveRegister: ((value: string) => void) | null = null;
+    const register = vi.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          resolveRegister = resolve;
+        }),
+    );
+
+    function Harness() {
+      const [isOpen, setIsOpen] = React.useState(true);
+      return (
+        <RegistrationModal
+          isOpen={isOpen}
+          onClose={() => setIsOpen(false)}
+          register={register}
+          isRegistering={false}
+          registerError={null}
+        />
+      );
+    }
+
+    render(<Harness />);
+
+    // The registration dialog is the only modal initially.
+    expect(screen.queryAllByRole("dialog")).toHaveLength(1);
+    expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "true");
+
+    fireEvent.change(screen.getByLabelText(/company name/i), {
+      target: { value: "Acme Corporation" },
+    });
+    fireEvent.change(screen.getByLabelText(/tax id \/ registration no/i), {
+      target: { value: "TAX-123" },
+    });
+    fireEvent.change(screen.getByLabelText(/country of incorporation/i), {
+      target: { value: "Germany" },
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /register profile/i }));
+    });
+
+    // Before register resolves, only one dialog may carry aria-modal=true.
+    const modals = screen.queryAllByRole("dialog");
+    expect(modals).toHaveLength(1);
+    expect(modals[0]).toHaveAttribute("aria-modal", "true");
+
+    // Resolving the registration leaves the (single) pending dialog open
+    // until the user dismisses it.
+    act(() => {
+      resolveRegister!("tx-hash-123");
+    });
+    await waitFor(() => {
+      const modals = screen.queryAllByRole("dialog");
+      expect(modals).toHaveLength(1);
+      expect(modals[0]).toHaveAttribute("aria-modal", "true");
+    });
   });
 });

@@ -34,12 +34,13 @@ type APIHandler struct {
 	// in NewAPIHandler so production behavior is unchanged; tests in this
 	// package can override individual fields to avoid requiring a live DB
 	// or Soroban RPC.
-	getInvoiceByIDFn   func(context.Context, string) (*db.DbInvoice, error)
-	getPoolStatsFn     func(context.Context) (*db.DbPoolStats, error)
-	getPoolSnapshotsFn func(context.Context, int) ([]*db.DbPoolSnapshotHistory, error)
-	getRecentEventsFn  func(context.Context, int, string) ([]*db.EventLog, error)
-	getProtocolStatsFn func(context.Context) (*db.ProtocolStats, error)
-	readContractFn     func(ctx context.Context, rpcURL string, contractID string, method string, args []xdr.ScVal, serverKP *keypair.Full) (xdr.ScVal, error)
+	getInvoiceByIDFn      func(context.Context, string) (*db.DbInvoice, error)
+	getPoolStatsFn        func(context.Context) (*db.DbPoolStats, error)
+	getPoolSnapshotsFn    func(context.Context, int) ([]*db.DbPoolSnapshotHistory, error)
+	getRecentEventsFn     func(context.Context, int, string) ([]*db.EventLog, error)
+	getProtocolStatsFn    func(context.Context) (*db.ProtocolStats, error)
+	patchInvoiceStatusFn  func(context.Context, string, string) error
+	readContractFn        func(ctx context.Context, rpcURL string, contractID string, method string, args []xdr.ScVal, serverKP *keypair.Full) (xdr.ScVal, error)
 }
 
 func NewAPIHandler(cfg *config.Config) (*APIHandler, error) {
@@ -60,6 +61,9 @@ func NewAPIHandler(cfg *config.Config) (*APIHandler, error) {
 		getPoolSnapshotsFn: db.GetPoolSnapshotHistory,
 		getRecentEventsFn:  db.GetRecentEvents,
 		getProtocolStatsFn: db.GetProtocolStats,
+		patchInvoiceStatusFn: func(ctx context.Context, id, status string) error {
+			return db.UpdateInvoiceStatus(ctx, db.Pool, id, status)
+		},
 		readContractFn:     soroban.ReadContract,
 	}, nil
 }

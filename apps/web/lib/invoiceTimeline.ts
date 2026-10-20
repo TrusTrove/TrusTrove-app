@@ -157,6 +157,9 @@ export function formatTimelineTimestamp(timestamp?: number | null): string {
 
 /** Shortens a transaction hash to `first8...last6` for display. */
 export function truncateTxHash(hash: string): string {
+  // For short hashes the two slices would overlap and echo a duplicated
+  // substring (e.g. "abc...abc"), so return the hash unchanged.
+  if (hash.length <= 14) return hash;
   return `${hash.slice(0, 8)}...${hash.slice(-6)}`;
 }
 
