@@ -46,18 +46,19 @@ export function usePool() {
 
   const statsQuery = useQuery({
     queryKey: ["poolStats"],
-    queryFn: () => getPoolStats(),
+    queryFn: ({ signal }) => getPoolStats({ signal }),
     refetchInterval: 45000,
     staleTime: 45000,
   });
 
   const positionQuery = useQuery({
     queryKey: ["lpPosition", address],
-    queryFn: () => getLPPosition(address!),
+    queryFn: ({ signal }) => getLPPosition(address!, { signal }),
     enabled: !!address,
   });
 
   const depositMutation = useMutation({
+    ...mutationRetryPolicy,
     mutationFn: async ({ amount, asset }: DepositArguments) => {
       if (!address) {
         throw new Error("Wallet not connected");
@@ -84,6 +85,7 @@ export function usePool() {
   });
 
   const withdrawMutation = useMutation({
+    ...mutationRetryPolicy,
     mutationFn: async ({ shares }: { shares: bigint }) => {
       if (!address) {
         throw new Error("Wallet not connected");

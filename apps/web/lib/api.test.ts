@@ -12,6 +12,8 @@ import {
   parseRawPoolStats,
   parseRawLPPosition,
   apiClient,
+  isTransientHttpError,
+  mutationRetryPolicy,
   apiFetch,
 } from "./api";
 import { useWalletStore } from "@/store/wallet";
@@ -61,6 +63,28 @@ describe("apiFetch internal function", () => {
     expect(calledHeaders.has("Authorization")).toBe(false);
   });
 
+  it("clears a stale token via clearToken when initApiClientWithToken runs with null store token", async () => {
+    // Simulate a logged-in session that cached a JWT in the client.
+    (useWalletStore.getState as any).mockReturnValue({ token: "stale-jwt" });
+    initApiClientWithToken();
+    apiClient.setToken("stale-jwt");
+
+    // Logout path: the store token becomes null; the client must drop it too.
+    (useWalletStore.getState as any).mockReturnValue({ token: null });
+    initApiClientWithToken();
+
+    expect((apiClient as any).token).toBeUndefined();
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({}),
+    });
+    await fetchChallenge("GTEST");
+
+    const calledHeaders = mockFetch.mock.calls[0][1].headers;
+    expect(calledHeaders.has("Authorization")).toBe(false);
+  });
+
   it("should add Content-Type header for POST requests", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
@@ -94,6 +118,45 @@ describe("apiFetch internal function", () => {
     await expect(fetchChallenge("GTEST")).rejects.toThrow(
       "HTTP error! status: 500",
     );
+  });
+
+  it("times out a hung request instead of hanging forever", async () => {
+    vi.useFakeTimers();
+    // A fetch that never resolves unless aborted.
+    mockFetch.mockImplementationOnce(
+      (_url: unknown, init: any) =>
+        new Promise((_resolve, reject) => {
+          init.signal?.addEventListener("abort", () =>
+            reject(new Error("aborted")),
+          );
+        }),
+    );
+
+    const promise = fetchChallenge("GTEST");
+
+    // Advance past REQUEST_TIMEOUT_MS (20000).
+    await vi.advanceTimersByTimeAsync(21000);
+
+    await expect(promise).rejects.toThrow("aborted");
+    vi.useRealTimers();
+  });
+
+  it("cancels an in-flight request when the caller's signal aborts", async () => {
+    mockFetch.mockImplementationOnce(
+      (_url: unknown, init: any) =>
+        new Promise((_resolve, reject) => {
+          init.signal?.addEventListener("abort", () =>
+            reject(new Error("cancelled")),
+          );
+        }),
+    );
+
+    const controller = new AbortController();
+    const promise = apiFetch("/pool/stats", { signal: controller.signal });
+
+    controller.abort();
+
+    await expect(promise).rejects.toThrow("cancelled");
   });
 });
 

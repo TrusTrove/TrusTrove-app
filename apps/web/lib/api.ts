@@ -8,6 +8,105 @@ import {
   EventLog,
   PoolSnapshot,
 } from "@/types";
+/**
+ * Maximum time a request may remain in-flight before it is aborted. Prevents
+ * hung backends / dropped connections from piling up pending requests.
+ */
+const REQUEST_TIMEOUT_MS = 20000;
+
+/**
+ * Softer HTTP codes that indicate a transient gateway blip rather than a
+ * permanent failure. A single `503 Service Temporarily Unavailable` should
+ * not fail a money-moving mutation outright.
+ */
+const TRANSIENT_STATUSES = new Set([502, 503, 504]);
+
+/**
+ * react-query options that give financial `useMutation`s a bounded retry
+ * with exponential backoff on transient 5xx gateway errors (no automatic
+ * retry on user rejections or permanent 4xx errors).
+ */
+export const mutationRetryPolicy = {
+  retry: (failureCount: number, error: unknown) => {
+    if (failureCount >= 3) return false;
+    return isTransientHttpError(error);
+  },
+  retryDelay: (attempt: number) => Math.min(1000 * 2 ** attempt, 8000),
+} as const;
+
+/**
+ * Returns true when the error represents a transient gateway/reply failure
+ * (e.g. 502/503/504 or a network error) that is safe to retry with backoff.
+ */
+export function isTransientHttpError(error: unknown): boolean {
+  const status =
+    typeof error === "object" &&
+    error !== null &&
+    "status" in error &&
+    typeof (error as { status?: unknown }).status === "number"
+      ? (error as { status: number }).status
+      : undefined;
+
+  if (status !== undefined) return TRANSIENT_STATUSES.has(status);
+
+  return error instanceof TypeError || error instanceof Error
+    ? /temporarily unavailable|fetch failed|network/i.test(error.message)
+    : false;
+}
+
+/**
+ * Builds a fetch `signal` that aborts after {@link REQUEST_TIMEOUT_MS}, while
+ * still honouring a caller-supplied signal (e.g. react-query's query signal)
+ * so in-flight requests cancel on unmount/refetch. Returns a cleanup fn that
+ * must be called once the request settles to release the timers/listeners.
+ */
+function signalWithTimeout(
+  external?: AbortSignal | null,
+): { signal: AbortSignal; cleanup: () => void } {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+
+  if (external) {
+    if (external.aborted) {
+      abort();
+    } else {
+      external.addEventListener("abort", abort, { once: true });
+    }
+  }
+
+  const timer = setTimeout(abort, REQUEST_TIMEOUT_MS);
+
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      clearTimeout(timer);
+      external?.removeEventListener("abort", abort);
+    },
+  };
+}
+
+class ApiClient {
+  private baseUrl: string;
+  private token?: string;
+
+  constructor(baseUrl: string) {
+    this.baseUrl = baseUrl;
+  }
+
+  setToken(token: string): void {
+    this.token = token;
+  }
+
+  /**
+   * Clears the cached bearer token so subsequent requests send no
+   * `Authorization` header (used on logout / auth failure).
+   */
+  clearToken(): void {
+    this.token = undefined;
+  }
+
+  async fetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+    const headers = new Headers(options.headers || {});
 
 /**
  * Raw snake_case wire shapes returned by the indexer API. These mirror the
@@ -49,6 +148,26 @@ interface RawInvoice {
   defaulted_tx_hash?: unknown;
 }
 
+    const { signal, cleanup } = signalWithTimeout(options.signal);
+    try {
+      const res = await fetch(`${this.baseUrl}${path}`, {
+        ...options,
+        headers,
+        signal,
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        const err = new Error(text || `HTTP error! status: ${res.status}`);
+        (err as Error & { status?: number }).status = res.status;
+        throw err;
+      }
+
+      return res.json() as Promise<T>;
+    } finally {
+      cleanup();
+    }
+  }
 /** Wire shape for `GET /pool/stats`. */
 interface RawPoolStats {
   total_deposits: string;
@@ -96,6 +215,18 @@ export const apiClient = {
   },
 };
 
+function initApiClientWithToken(): void {
+  const token = useWalletStore.getState().token;
+  if (token) {
+    apiClient.setToken(token);
+  } else {
+    apiClient.clearToken();
+  }
+  apiClient.setToken(token ?? undefined);
+}
+
+export { initApiClientWithToken };
+
 /**
  * Low-level helper that performs an authenticated `fetch` against the TrusTrove
  * API. It injects the current wallet token as a Bearer header, sets a JSON
@@ -131,17 +262,26 @@ export async function apiFetch<T>(
     headers.set("Content-Type", "application/json");
   }
 
-  const res = await fetch(`${getApiUrl()}${path}`, {
-    ...options,
-    headers,
-  });
+  const { signal, cleanup } = signalWithTimeout(options.signal);
+  try {
+    const res = await fetch(`${getApiUrl()}${path}`, {
+      ...options,
+      headers,
+      signal,
+    });
 
-  if (!res.ok) {
-    const text = await res.text();
-    if (res.status === 503 || res.status === 504) {
-      throw new Error(
-        text || "Service Temporarily Unavailable. Please try again later.",
-      );
+    if (!res.ok) {
+      const text = await res.text();
+      if (res.status === 503 || res.status === 504) {
+        const err = new Error(
+          text || "Service Temporarily Unavailable. Please try again later.",
+        );
+        (err as Error & { status?: number }).status = res.status;
+        throw err;
+      }
+      const err = new Error(text || `HTTP error! status: ${res.status}`);
+      (err as Error & { status?: number }).status = res.status;
+      throw err;
     }
     let errorMessage = text;
     try {
@@ -159,7 +299,10 @@ export async function apiFetch<T>(
     throw new Error(errorMessage || `HTTP error! status: ${res.status}`);
   }
 
-  return res.json() as Promise<T>;
+    return res.json() as Promise<T>;
+  } finally {
+    cleanup();
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -348,6 +491,11 @@ export async function createInvoice(
  *   - `createdAt` / `fundedAt` / `shippedAt` / `repaidAt` — `number | null` timestamps.
  *   - `issuerConfirmed` / `buyerConfirmed` — `boolean` confirmation flags.
  */
+export async function getInvoiceByID(
+  id: string,
+  opts?: { signal?: AbortSignal },
+): Promise<Invoice> {
+  const raw = await apiFetch<any>(`/invoices/${id}`, { signal: opts?.signal });
 export async function getInvoiceByID(id: string): Promise<Invoice> {
   const raw = await apiFetch<RawInvoice>(`/invoices/${id}`);
   return parseInvoiceResponse(raw);
@@ -406,12 +554,15 @@ export interface PaginatedInvoices {
  * const { data, totalPages } = await getInvoices({ status: "funded", page: 1 });
  * ```
  */
-export async function getInvoices(filters?: {
-  status?: string;
-  issuer?: string;
-  page?: number;
-  limit?: number;
-}): Promise<PaginatedInvoices> {
+export async function getInvoices(
+  filters?: {
+    status?: string;
+    issuer?: string;
+    page?: number;
+    limit?: number;
+  },
+  opts?: { signal?: AbortSignal },
+): Promise<PaginatedInvoices> {
   const params = new URLSearchParams();
   if (filters?.status) params.append("status", filters.status);
   if (filters?.issuer) params.append("issuer", filters.issuer);
@@ -425,7 +576,7 @@ export async function getInvoices(filters?: {
     page: number;
     limit: number;
     totalPages: number;
-  }>(`/invoices${query}`);
+  }>(`/invoices${query}`, { signal: opts?.signal });
 
   return {
     data: raw.data.map(parseInvoiceResponse),
@@ -444,6 +595,12 @@ export async function getInvoices(filters?: {
  *   `availableLiquidity`, `utilizationRateBps`, `totalYieldDistributed`,
  *   `activeInvoiceCount`, `totalShares`).
  */
+export async function getPoolStats(
+  opts?: { signal?: AbortSignal },
+): Promise<PoolStats> {
+  const raw = await apiClient.fetch<any>("/pool/stats", {
+    signal: opts?.signal,
+  });
 export async function getPoolStats(): Promise<PoolStats> {
   const raw = await apiFetch<RawPoolStats>("/pool/stats");
   return parseRawPoolStats(raw);
@@ -457,6 +614,13 @@ export async function getPoolStats(): Promise<PoolStats> {
  *   for the field descriptions: `shares`, `usdcValue`, `yieldEarned`,
  *   `depositCount`).
  */
+export async function getLPPosition(
+  address: string,
+  opts?: { signal?: AbortSignal },
+): Promise<LPPosition> {
+  const raw = await apiClient.fetch<any>(`/pool/position/${address}`, {
+    signal: opts?.signal,
+  });
 export async function getLPPosition(address: string): Promise<LPPosition> {
   const raw = await apiFetch<RawLPPosition>(`/pool/position/${address}`);
   return parseRawLPPosition(raw);
@@ -475,6 +639,12 @@ export async function getLPPosition(address: string): Promise<LPPosition> {
  */
 export async function getRecentEvents(
   limit?: number,
+  opts?: { signal?: AbortSignal },
+): Promise<EventLog[]> {
+  const query = limit ? `?limit=${limit}` : "";
+  const rawList = await apiClient.fetch<any[]>(`/events${query}`, {
+    signal: opts?.signal,
+  });
   issuer?: string,
 ): Promise<EventLog[]> {
   const params: string[] = [];
@@ -493,6 +663,12 @@ export async function getRecentEvents(
  *   - `utilizationRateBps` — `number` utilization at that time (basis points).
  *   - `totalYieldDistributed` — `string` cumulative yield up to that time.
  */
+export async function getPoolSnapshots(
+  opts?: { signal?: AbortSignal },
+): Promise<PoolSnapshot[]> {
+  return apiClient.fetch<PoolSnapshot[]>("/pool/snapshots", {
+    signal: opts?.signal,
+  });
 export async function getPoolSnapshots(): Promise<PoolSnapshot[]> {
   return apiFetch<PoolSnapshot[]>("/pool/snapshots");
 }
@@ -521,6 +697,10 @@ export interface ProtocolStats {
  *   - `pool_utilization_bps` — `number` current pool utilization (basis points).
  *   - `registered_issuers` — `number` count of registered issuers.
  */
+export async function getProtocolStats(
+  opts?: { signal?: AbortSignal },
+): Promise<ProtocolStats> {
+  return apiClient.fetch<ProtocolStats>("/stats", { signal: opts?.signal });
 export async function getProtocolStats(): Promise<ProtocolStats> {
   return apiFetch<ProtocolStats>("/stats");
 }
