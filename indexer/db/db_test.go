@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -177,7 +178,7 @@ func TestLoadAppliedMigrations_Empty(t *testing.T) {
 func TestLocateMigrationDir_RelativePath(t *testing.T) {
 	// Save and restore working directory.
 	origDir, _ := os.Getwd()
-	defer func() { os.Chdir(origDir) }()
+	defer func() { _ = os.Chdir(origDir) }()
 
 	// Create a temporary directory tree simulating the relative path layout.
 	tmpDir := t.TempDir()
@@ -222,7 +223,7 @@ func TestLocateMigrationDir_RelativePath(t *testing.T) {
 func TestLocateMigrationDir_IndexerRelativePath(t *testing.T) {
 	// Test the second relative fallback path: indexer/db/migrations.
 	origDir, _ := os.Getwd()
-	defer func() { os.Chdir(origDir) }()
+	defer func() { _ = os.Chdir(origDir) }()
 
 	tmpDir := t.TempDir()
 	relDir := filepath.Join(tmpDir, "indexer", "db", "migrations")
@@ -343,7 +344,7 @@ func TestRunMigration_Integration_ApplyNewMigration(t *testing.T) {
 	}
 
 	// Cleanup: drop the test table.
-	Pool.Exec(ctx, "DROP TABLE IF EXISTS _test_migration_probe")
+	_, _ = Pool.Exec(ctx, "DROP TABLE IF EXISTS _test_migration_probe")
 }
 
 // TestLocateMigrationDir_EnvVarPrecedence verifies that the env var takes
@@ -405,4 +406,87 @@ func TestRollbackOnError_LoggedMessage(t *testing.T) {
 	// rollbackOnError requires a non-nil tx; we skip the actual call.
 	_ = ctx
 	_ = fmt.Sprintf("rollbackOnError is exported within the package")
+}
+
+// --- RunMigration guard ---
+
+// writeMigrations creates a migrations directory containing the named files
+// and points INDEXER_MIGRATIONS_DIR at it.
+func writeMigrations(t *testing.T, names ...string) {
+	t.Helper()
+	dir := t.TempDir()
+	for _, name := range names {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("SELECT 1;"), 0o644); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
+	}
+	t.Setenv("INDEXER_MIGRATIONS_DIR", dir)
+}
+
+// withNilPool sets Pool to nil for the test, so any database access panics.
+func withNilPool(t *testing.T) {
+	t.Helper()
+	orig := Pool
+	Pool = nil
+	t.Cleanup(func() { Pool = orig })
+}
+
+func TestRunMigration_RejectsDuplicateNumberBeforeTouchingDB(t *testing.T) {
+	writeMigrations(t, "001_initial.sql", "002_add_a.sql", "002_add_b.sql")
+	withNilPool(t)
+
+	// With a nil Pool, reaching the database would panic; a plain error
+	// proves the check runs before any connection, lock or migration.
+	err := RunMigration(context.Background())
+	if err == nil {
+		t.Fatal("expected an error for a duplicate migration number, got nil")
+	}
+	want := "duplicate migration number 002: 002_add_a.sql, 002_add_b.sql (each migration needs a unique NNN_ prefix)"
+	if !strings.Contains(err.Error(), want) {
+		t.Fatalf("error %q does not contain %q", err, want)
+	}
+}
+
+func TestRunMigration_RejectsBadNameBeforeTouchingDB(t *testing.T) {
+	writeMigrations(t, "001_initial.sql", "002_Add_Things.sql")
+	withNilPool(t)
+
+	err := RunMigration(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "002_Add_Things.sql does not match NNN_lowercase_name.sql") {
+		t.Fatalf("expected a filename error, got %v", err)
+	}
+}
+
+// requireReachesDB runs RunMigration with a nil Pool and asserts it panics,
+// i.e. that validation passed and it went on to use the database.
+func requireReachesDB(t *testing.T) {
+	t.Helper()
+	withNilPool(t)
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected RunMigration to pass validation and reach the (nil) database")
+		}
+	}()
+	_ = RunMigration(context.Background())
+}
+
+func TestRunMigration_ValidNamesReachDatabase(t *testing.T) {
+	writeMigrations(t, "001_initial.sql", "002_add_indexes.sql", "README.md")
+	requireReachesDB(t)
+}
+
+func TestRunMigration_GapIsNotEnforcedAtRuntime(t *testing.T) {
+	// Contiguity is a repository rule only; a gap must not stop an indexer
+	// from starting.
+	writeMigrations(t, "001_initial.sql", "003_skipped_two.sql")
+	requireReachesDB(t)
+}
+
+func TestRunMigration_KnownDuplicateReachesDatabase(t *testing.T) {
+	pair := knownDuplicateMigrations["009"]
+	if len(pair) != 2 {
+		t.Skip("no 009 exception configured")
+	}
+	writeMigrations(t, "008_x.sql", pair[0], pair[1])
+	requireReachesDB(t)
 }

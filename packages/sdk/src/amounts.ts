@@ -21,16 +21,17 @@ const STROOPS_PER_USDC = 10_000_000;
  * ```
  */
 export function toUsdc(stroops: bigint): string {
-  const whole = stroops / BigInt(STROOPS_PER_USDC);
-  const fraction = stroops % BigInt(STROOPS_PER_USDC);
-
   // Absolute value for formatting; track sign separately.
   const negative = stroops < 0n;
-  const absWhole = negative ? -whole : whole;
-  const absFraction = negative ? -fraction : fraction;
+  const magnitude = negative ? -stroops : stroops;
 
-  const fractionStr = absFraction.toString().padStart(7, "0").slice(0, 2);
-  return `${negative ? "-" : ""}${absWhole.toString()}.${fractionStr}`;
+  const whole = magnitude / BigInt(STROOPS_PER_USDC);
+  const fraction = magnitude % BigInt(STROOPS_PER_USDC);
+  const fractionStr = fraction.toString().padStart(7, "0").slice(0, 2);
+
+  // Sub-cent magnitudes truncate to "0.00", and "-0.00" is not an amount.
+  const isZero = whole === 0n && fractionStr === "00";
+  return `${negative && !isZero ? "-" : ""}${whole.toString()}.${fractionStr}`;
 }
 
 /**

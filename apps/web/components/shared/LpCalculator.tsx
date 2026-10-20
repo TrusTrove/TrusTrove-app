@@ -1,8 +1,32 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import { TrendingUp } from "lucide-react";
 import { AnimatedValue } from "./DiscountCalculator";
+
+/**
+ * Derived LP figures, memoized on their actual inputs so an unrelated state
+ * change does not recompute them or restart the `AnimatedValue` loop bound to
+ * them (#662).
+ */
+export function useLpDerivedValues(
+  lpDeposit: number,
+  lpUtilization: number,
+  lpAvgDiscount: number,
+  lpAvgMaturity: number,
+) {
+  return useMemo(() => {
+    const lpProjectedApy =
+      (lpUtilization / 100) *
+      (lpAvgDiscount / 100) *
+      (365 / lpAvgMaturity) *
+      100;
+    return {
+      lpProjectedApy,
+      lpAnnualEarnings: lpDeposit * (lpProjectedApy / 100),
+    };
+  }, [lpDeposit, lpUtilization, lpAvgDiscount, lpAvgMaturity]);
+}
 
 export function LpCalculator() {
   const [lpDeposit, setLpDeposit] = useState<number>(10000);
@@ -10,9 +34,40 @@ export function LpCalculator() {
   const [lpAvgDiscount, setLpAvgDiscount] = useState<number>(2.0);
   const [lpAvgMaturity, setLpAvgMaturity] = useState<number>(60);
 
-  const lpProjectedApy =
-    (lpUtilization / 100) * (lpAvgDiscount / 100) * (365 / lpAvgMaturity) * 100;
-  const lpAnnualEarnings = lpDeposit * (lpProjectedApy / 100);
+  const { lpProjectedApy, lpAnnualEarnings } = useLpDerivedValues(
+    lpDeposit,
+    lpUtilization,
+    lpAvgDiscount,
+    lpAvgMaturity,
+  );
+
+  const handleDepositChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setLpDeposit(parseInt(e.target.value));
+    },
+    [],
+  );
+
+  const handleUtilizationChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setLpUtilization(parseInt(e.target.value));
+    },
+    [],
+  );
+
+  const handleAvgDiscountChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setLpAvgDiscount(parseFloat(e.target.value));
+    },
+    [],
+  );
+
+  const handleAvgMaturityChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setLpAvgMaturity(parseInt(e.target.value));
+    },
+    [],
+  );
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -38,7 +93,7 @@ export function LpCalculator() {
             max="100000"
             step="500"
             value={lpDeposit}
-            onChange={(e) => setLpDeposit(parseInt(e.target.value))}
+            onChange={handleDepositChange}
             className="w-full accent-primary bg-slate-900 h-1.5 rounded"
             aria-label="Total USDC Deposit"
             aria-valuenow={lpDeposit}
@@ -64,7 +119,7 @@ export function LpCalculator() {
             max="100"
             step="5"
             value={lpUtilization}
-            onChange={(e) => setLpUtilization(parseInt(e.target.value))}
+            onChange={handleUtilizationChange}
             className="w-full accent-primary bg-slate-900 h-1.5 rounded"
             aria-label="Target Pool Utilization"
             aria-valuenow={lpUtilization}
@@ -93,7 +148,7 @@ export function LpCalculator() {
             max="5.0"
             step="0.1"
             value={lpAvgDiscount}
-            onChange={(e) => setLpAvgDiscount(parseFloat(e.target.value))}
+            onChange={handleAvgDiscountChange}
             className="w-full accent-primary bg-slate-900 h-1.5 rounded"
             aria-label="Avg Invoice Discount Bps"
             aria-valuenow={lpAvgDiscount}
@@ -119,7 +174,7 @@ export function LpCalculator() {
             max="90"
             step="5"
             value={lpAvgMaturity}
-            onChange={(e) => setLpAvgMaturity(parseInt(e.target.value))}
+            onChange={handleAvgMaturityChange}
             className="w-full accent-primary bg-slate-900 h-1.5 rounded"
             aria-label="Avg Days to Maturity"
             aria-valuenow={lpAvgMaturity}

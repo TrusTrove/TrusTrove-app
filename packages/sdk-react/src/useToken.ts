@@ -45,7 +45,14 @@ export function useAllowance(
   signerPublicKey: string,
   options: UseTokenOptions,
 ): AsyncQueryState<bigint> {
-  const client = useMemo(() => tokenClient(options), [options]);
+  // Memoize on the option *contents* (client identity / contractId value), not
+  // the options object identity, so inline `{ contractId }` literals don't
+  // re-create the client — and re-trigger queries — on every render.
+  const client = useMemo(
+    () =>
+      tokenClient({ client: options.client, contractId: options.contractId }),
+    [options.client, options.contractId],
+  );
   return useAsyncQuery(
     () => client.allowance(from, spender, signerPublicKey),
     [client, from, spender, signerPublicKey],
@@ -86,7 +93,14 @@ export function useApprove(
   signerPublicKey: string,
   options: UseApproveOptions,
 ): ApproveMutationResult {
-  const client = useMemo(() => tokenClient(options), [options]);
+  // Memoize on the option *contents* (client identity / contractId value), not
+  // the options object identity, so inline `{ contractId }` literals don't
+  // re-create the client — and re-trigger queries — on every render.
+  const client = useMemo(
+    () =>
+      tokenClient({ client: options.client, contractId: options.contractId }),
+    [options.client, options.contractId],
+  );
 
   const approve = useAsyncMutation(
     (from: string, spender: string, amount: bigint, expirationLedger: number) =>

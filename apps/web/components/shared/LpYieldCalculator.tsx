@@ -9,11 +9,18 @@ const TBILLS_APY = 4.5;
 const AVG_DISCOUNT_RATE = 2.0;
 const AVG_MATURITY_DAYS = 60;
 
+// Strip thousands separators before parsing: the AmountInput placeholder
+// advertises comma-grouped values ("10,000"), but parseFloat("10,000")
+// returns 10, silently shrinking deposits by up to 1000x (#1104).
+export function parseDeposit(raw: string): number {
+  return parseFloat(raw.replace(/,/g, "")) || 0;
+}
+
 export function LpYieldCalculator() {
   const [deposit, setDeposit] = useState("10000");
   const [utilization, setUtilization] = useState(75);
 
-  const parsedDeposit = parseFloat(deposit) || 0;
+  const parsedDeposit = parseDeposit(deposit);
 
   const annualYieldPct =
     (utilization / 100) *

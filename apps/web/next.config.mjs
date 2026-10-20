@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import createNextIntlPlugin from "next-intl/plugin";
 import createBundleAnalyzer from "@next/bundle-analyzer";
+import { buildSecurityHeaders } from "./lib/security-headers.mjs";
 
 // The root README's Quick Start has contributors run `cp .env.example
 // .env.local` at the repo root so the web app and the Go indexer share one
@@ -22,6 +23,15 @@ for (const file of [".env", ".env.local"]) {
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
+  poweredByHeader: false,
+  // Static hardening headers for every route. The Content-Security-Policy is
+  // set per request in middleware.ts because it carries a nonce. See
+  // docs/developer-guide/security-headers.md.
+  async headers() {
+    return buildSecurityHeaders({
+      isProduction: process.env.NODE_ENV === "production",
+    });
+  },
 };
 
 const withNextIntl = createNextIntlPlugin("./i18n/request.ts");

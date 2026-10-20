@@ -8,14 +8,17 @@ test.describe("Invoice Lifecycle - Happy Path", () => {
     // 1. Navigation and Wallet Connection
     await page.goto("/");
 
-    const connectBtn = page.getByRole("button", { name: /Connect Wallet/i });
+    // Scoped to the Navbar: the page body renders its own connect button too.
+    const connectBtn = page
+      .getByRole("navigation")
+      .getByRole("button", { name: /Connect Wallet/i });
     if (await connectBtn.isVisible()) {
       await connectBtn.click();
     }
 
     // Expect to be connected
     await expect(
-      page.getByText("GBMOCKWALLETADDRESSXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"),
+      page.getByRole("navigation").getByText("GBMOCK...XXXX", { exact: true }),
     ).toBeVisible();
 
     // 2. Invoice Creation
@@ -79,7 +82,9 @@ test.describe("Secondary Flows", () => {
   test("Wallet Disconnection", async ({ page }) => {
     await page.goto("/");
 
-    const connectBtn = page.getByRole("button", { name: /Connect Wallet/i });
+    const connectBtn = page
+      .getByRole("navigation")
+      .getByRole("button", { name: /Connect Wallet/i });
     if (await connectBtn.isVisible()) {
       await connectBtn.click();
     }
@@ -88,7 +93,9 @@ test.describe("Secondary Flows", () => {
     await disconnectBtn.click();
 
     await expect(
-      page.getByRole("button", { name: /Connect Wallet/i }),
+      page
+        .getByRole("navigation")
+        .getByRole("button", { name: /Connect Wallet/i }),
     ).toBeVisible();
   });
 

@@ -18,27 +18,6 @@ import { formatAmount } from "@/lib/assets";
 const poolContractID = process.env.NEXT_PUBLIC_POOL_CONTRACT_ID || "";
 const STROOPS_PER_UNIT = 10_000_000;
 
-type StatsWithSharePrice = {
-  totalDeposits?: bigint;
-  availableLiquidity?: bigint;
-  totalFunded?: bigint;
-  totalYieldDistributed?: bigint;
-  activeInvoiceCount?: number;
-  utilizationRateBps?: number;
-  sharePrice?: bigint | number | string;
-};
-
-function formatSharePrice(
-  value: bigint | number | string | undefined,
-): number | null {
-  if (value === undefined) return null;
-  const numericValue = Number(value);
-  if (!Number.isFinite(numericValue) || numericValue <= 0) return null;
-  return typeof value === "bigint" || numericValue >= STROOPS_PER_UNIT
-    ? numericValue / STROOPS_PER_UNIT
-    : numericValue;
-}
-
 function formatShareValue(value: bigint | undefined): string {
   return formatAmount(value ?? 0n);
 }
@@ -143,12 +122,10 @@ export default function LPDashboard() {
     });
   };
 
-  const typedStats: StatsWithSharePrice | undefined = stats;
   const utilization = Math.min(
     100,
-    Math.max(0, (typedStats?.utilizationRateBps ?? 0) / 100),
+    Math.max(0, (stats?.utilizationRateBps ?? 0) / 100),
   );
-  const sharePrice = formatSharePrice(typedStats?.sharePrice);
 
   return (
     <PageLayout>
@@ -192,26 +169,20 @@ export default function LPDashboard() {
               <div className="grid w-full grid-cols-2 gap-6">
                 <Stat
                   label="Total Deposits"
-                  value={formatShareValue(typedStats?.totalDeposits)}
+                  value={formatShareValue(stats?.totalDeposits)}
                 />
                 <Stat
                   label="Available Liquidity"
-                  value={formatShareValue(typedStats?.availableLiquidity)}
+                  value={formatShareValue(stats?.availableLiquidity)}
                 />
                 <Stat
                   label="Yield Distributed"
-                  value={formatShareValue(typedStats?.totalYieldDistributed)}
+                  value={formatShareValue(stats?.totalYieldDistributed)}
                 />
                 <Stat
                   label="Active Invoices"
-                  value={String(typedStats?.activeInvoiceCount ?? 0)}
+                  value={String(stats?.activeInvoiceCount ?? 0)}
                 />
-                {sharePrice !== null && (
-                  <Stat
-                    label="Share Price"
-                    value={`${sharePrice.toFixed(4)} USDC`}
-                  />
-                )}
               </div>
             </div>
           )}

@@ -3,9 +3,23 @@
   "version": "1.0.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./schemas": {
+      "types": "./dist/schemas.d.ts",
+      "import": "./dist/schemas.js",
+      "default": "./dist/schemas.js"
+    },
+    "./package.json": "./package.json"
+  },
   "type": "module",
   "scripts": {
     "build": "tsc",
+    "lint": "eslint . --ext .ts",
     "test": "vitest run --passWithNoTests",
     "test:coverage": "vitest run --coverage --passWithNoTests",
     "prepublishOnly": "pnpm build"
@@ -17,6 +31,9 @@
   },
   "devDependencies": {
     "@types/node": "^20.19.43",
+    "@typescript-eslint/eslint-plugin": "^8.62.1",
+    "@typescript-eslint/parser": "^8.62.1",
+    "eslint": "^8.57.1",
     "@vitest/coverage-v8": "^4.1.9",
     "typescript": "^5.4.5",
     "vitest": "^4.1.9"

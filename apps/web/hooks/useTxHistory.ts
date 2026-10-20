@@ -108,6 +108,30 @@ export function isRateLimitError(err: unknown): boolean {
   return candidate.status === 429 || candidate.response?.status === 429;
 }
 
+/**
+ * Error thrown when one or more per-transaction operations lookups fail for a
+ * reason other than rate limiting.
+ *
+ * Dropping those transactions would render a history that silently omits real
+ * activity, so the page fails instead and the hook exposes the error (see
+ * issue #1091).
+ */
+export class HorizonOperationsError extends Error {
+  /** Hashes whose operations lookup failed. */
+  readonly hashes: string[];
+  /** Underlying rejection, kept for debugging/logging. */
+  readonly originalError: unknown;
+
+  constructor(hashes: string[], originalError?: unknown) {
+    super(
+      `Failed to load Horizon operations for transaction${hashes.length === 1 ? "" : "s"} ${hashes.join(", ")}.`,
+    );
+    this.name = "HorizonOperationsError";
+    this.hashes = hashes;
+    this.originalError = originalError;
+  }
+}
+
 /** How long a cached per-transaction operations lookup is kept in memory. */
 const TX_OPS_GC_TIME = 30 * 60 * 1000;
 
@@ -226,6 +250,8 @@ export type OpsFetcher = (hash: string) => Promise<HorizonOperationRecord[]>;
  *
  * @throws {HorizonRateLimitError} When Horizon answers any of the requests with
  *   HTTP 429, instead of dropping the affected transactions.
+ * @throws {HorizonOperationsError} When any per-transaction operations lookup
+ *   fails for another reason, so an incomplete page is never returned.
  */
 export async function fetchPage(
   address: string,
@@ -269,6 +295,21 @@ export async function fetchPage(
     )
   ) {
     throw new HorizonRateLimitError();
+  }
+
+  // Any other failed lookup is equally fatal: continuing would drop a real
+  // transaction from the page with no indication that the history is
+  // incomplete (issue #1091).
+  const failedHashes: string[] = [];
+  let firstFailure: unknown;
+  opsResults.forEach((result, index) => {
+    if (result.status === "rejected") {
+      failedHashes.push(txPage.records[index].hash);
+      if (firstFailure === undefined) firstFailure = result.reason;
+    }
+  });
+  if (failedHashes.length > 0) {
+    throw new HorizonOperationsError(failedHashes, firstFailure);
   }
 
   const items: TxHistoryItem[] = [];

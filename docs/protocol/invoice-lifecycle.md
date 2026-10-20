@@ -78,8 +78,13 @@ the share price. All LPs benefit proportionally.
 Triggered by: `invoice_contract.trigger_default(invoice_id)`  
 Who calls it: Admin or pool_contract  
 Condition: current timestamp > due_date AND status is Funded, Active, or Confirmed  
-Money movement: escrow returns locked funds to pool, pool takes the loss
+Money movement: none recovered — escrow holds nothing for a funded invoice
+(see below), pool writes down the funded amount
 
-The invoice did not repay by the due date. The pool recovers whatever is in escrow
-(which is the funded amount, not the face value). The difference between face value
-and funded amount is a permanent loss to the pool, shared across all LP shares.
+The invoice did not repay by the due date. Because `fund_invoice` locks the
+funded amount in escrow and immediately releases it to the SME in the same
+transaction, escrow holds $0 for this invoice by the time of default — the
+funded amount is not recovered. The pool's total deposits are reduced by the
+full funded amount, and that principal loss is shared across all LP shares via
+a lower share price. (The $200 of expected yield in a 2%-on-$10,000 example
+never materializes either, but it is dwarfed by the $9,800 principal loss.)

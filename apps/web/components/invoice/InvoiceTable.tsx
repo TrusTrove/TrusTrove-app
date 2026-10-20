@@ -100,7 +100,7 @@ function InvoiceEmptyState({
   const actionNode = action?.href ? (
     <Link
       href={action.href}
-      className={`${actionClasses} bg-primary text-black hover:bg-primary-hover shadow-[0_0_15px_rgba(0,212,170,0.1)]`}
+      className={`${actionClasses} bg-primary text-black hover:bg-primary/90 shadow-[0_0_15px_rgba(0,212,170,0.1)]`}
     >
       <FilePlus2 className="w-4 h-4" />
       <span>{action.label}</span>
@@ -109,7 +109,7 @@ function InvoiceEmptyState({
     <Button
       type="button"
       onClick={action?.onClick}
-      className={`${actionClasses} bg-primary text-black hover:bg-primary-hover shadow-[0_0_15px_rgba(0,212,170,0.1)] border-0`}
+      className={`${actionClasses} bg-primary text-black hover:bg-primary/90 shadow-[0_0_15px_rgba(0,212,170,0.1)] border-0`}
     >
       <FilePlus2 className="w-4 h-4" />
       <span>{action?.label ?? "Create Your First Invoice"}</span>
@@ -178,10 +178,14 @@ function InvoicePagination({
     <div className="border-t border-border/60 bg-[#080c10]/55 px-4 py-4 sm:px-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="space-y-1.5">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+          <label
+            htmlFor="items-per-page-select"
+            className="text-[10px] font-bold uppercase tracking-wider text-slate-500"
+          >
             Items per page
-          </p>
+          </label>
           <select
+            id="items-per-page-select"
             value={limit}
             onChange={(event) => onLimitChange(Number(event.target.value))}
             className="min-w-[140px] rounded border border-border bg-[#0b1117] px-3 py-2 font-mono text-xs text-white outline-none transition-colors focus:border-primary"
@@ -468,7 +472,9 @@ export function InvoiceTable({
         <div className="bg-[#080c10]/40">{emptyNode}</div>
       ) : (
         <>
-          <div className="overflow-x-auto">
+          {/* Desktop table: hidden below md so phones don't get a
+              horizontally-scrolling table *and* duplicate mobile cards. */}
+          <div className="overflow-x-auto hidden md:block">
             {/* display:block overrides UA table layout so thead/tbody can use
                 flex rows whose column widths are kept in sync via COL_FLEX. */}
             <table

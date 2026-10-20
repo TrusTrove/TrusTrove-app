@@ -3,6 +3,12 @@
 The discount is the cost of getting paid early. It is set by you and cannot be
 changed after listing.
 
+> **UI vs contract range.** The invoice creation form's discount slider caps at
+> 5% (500 bps), but the `invoice_contract` accepts up to 50% (5000 bps) and
+> client-side validation (`validateDiscountBps`) matches the contract. The UI
+> range is narrower than what the protocol allows — whether the 500 bps slider
+> ceiling is intended is an open product decision.
+
 ### How it is calculated
 
 ```

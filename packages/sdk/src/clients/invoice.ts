@@ -10,20 +10,32 @@ import { parseInvoice } from "../types/schemas.js";
 
 export class InvoiceClient extends BaseContractClient {
   /**
-   * Initializes the invoice contract with its admin address.
-   * Side effect: stores the admin address on-chain. Can only be called once —
-   * a second call panics.
+   * Initializes the invoice contract with its admin and registry contract.
+   * Side effect: stores both addresses on-chain, plus the invoice counter. Can
+   * only be called once — a second call panics.
    *
-   * @param adminAddress - The Stellar address to set as the contract admin.
+   * Mirrors the contract's
+   * `initialize(env: Env, admin: Address, registry_contract: Address)`.
+   * `registry_contract` is the registry that `create` checks issuer and buyer
+   * against. The Underwrite agent-registry that `submit_attestation` verifies
+   * signatures with is wired separately after deployment, through the contract's
+   * admin-only `set_agent_registry_contract`.
+   *
+   * @param adminAddress - The Stellar address to set as the contract admin. Must sign.
+   * @param registryContractAddress - The registry contract address the invoice contract stores as `RegistryContract`.
    * @param signerPublicKey - The Stellar public key that will sign the transaction. Must be the deployer/admin.
    * @returns The transaction hash of the on-chain submission.
    * @throws If the contract is already initialized, the transaction simulation fails, or on-chain submission errors.
    */
   async initialize(
     adminAddress: string,
+    registryContractAddress: string,
     signerPublicKey: string,
   ): Promise<string> {
-    const args = [new Address(adminAddress).toScVal()];
+    const args = [
+      new Address(adminAddress).toScVal(),
+      new Address(registryContractAddress).toScVal(),
+    ];
     return this.writeContract("initialize", args, signerPublicKey);
   }
 
@@ -54,6 +66,37 @@ export class InvoiceClient extends BaseContractClient {
       nativeToScVal(BigInt(dueDate), { type: "u64" }),
     ];
     return this.writeContract("create", args, signerPublicKey);
+  }
+
+  /**
+   * Records a risk attestation produced off-chain by a registered Underwrite agent.
+   * Side effect: stores an `Attestation` for the invoice and emits `AttestationSubmitted`.
+   * This is a precondition for `listForFinancing`, which fails with `VerificationRequired`
+   * until an attestation exists.
+   *
+   * The call is permissionless — there is no `require_auth` on the caller. Trust comes
+   * entirely from `signature`: the contract recovers the signer's public key and matches
+   * it against an active agent registered in the agent-registry contract.
+   *
+   * @param invoiceIdHex - The invoice ID as a 32-byte hex string.
+   * @param payload - The attested payload bytes, covering the domain separator, invoice ID, risk score, evidence hash, agent ID and nonce.
+   * @param signature - The recoverable secp256k1 signature over the payload. Must be exactly 65 bytes, the size the contract's `BytesN<65>` parameter expects.
+   * @param signerPublicKey - The Stellar public key that will sign the transaction. Any account may submit an attestation.
+   * @returns The transaction hash of the on-chain submission.
+   * @throws If the recovered key is not a registered active agent (`UntrustedSigner`), an attestation was already submitted for this invoice (`AlreadyAttested`), the transaction simulation fails, or on-chain submission errors.
+   */
+  async submitAttestation(
+    invoiceIdHex: string,
+    payload: Uint8Array,
+    signature: Uint8Array,
+    signerPublicKey: string,
+  ): Promise<string> {
+    const args = [
+      xdr.ScVal.scvBytes(Buffer.from(invoiceIdHex, "hex")),
+      xdr.ScVal.scvBytes(Buffer.from(payload)),
+      xdr.ScVal.scvBytes(Buffer.from(signature)),
+    ];
+    return this.writeContract("submit_attestation", args, signerPublicKey);
   }
 
   /**

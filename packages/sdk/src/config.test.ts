@@ -108,6 +108,27 @@ describe("config", () => {
       expect(config.usdc.issuer).toBe("G_NEW_ISSUER");
       expect(config.usdc.assetCode).toBe(DEFAULT_USDC.assetCode);
     });
+
+    it("returns a copy so writing to it cannot change the active config", () => {
+      const before = getConfig();
+
+      const tampered = getConfig();
+      tampered.horizonUrl = "https://tampered.example.com";
+      tampered.sorobanRpcUrl = "https://tampered.example.com";
+      tampered.networkPassphrase = "Tampered Network";
+      tampered.contractIds.pool = "CTAMPEREDPOOL";
+      tampered.usdc.issuer = "GTAMPEREDISSUER";
+
+      expect(tampered).not.toBe(before);
+      expect(getConfig()).toEqual(before);
+      expect(getConfig().contractIds.pool).toBe(before.contractIds.pool);
+      expect(getConfig().usdc.issuer).toBe(before.usdc.issuer);
+    });
+
+    it("keeps nested objects separate on every read", () => {
+      expect(getConfig().contractIds).not.toBe(getConfig().contractIds);
+      expect(getConfig().usdc).not.toBe(getConfig().usdc);
+    });
   });
 
   describe("getSorobanServer", () => {

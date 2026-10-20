@@ -3,8 +3,10 @@ import { readFileSync } from "node:fs";
 import { Command } from "commander";
 import {
   checkPoolBalanceCommand,
+  POOL_CONTRACT_ID_ENV_VARS,
   type CheckPoolBalanceOptions,
 } from "./commands/check-pool-balance.js";
+import { registerListInvoicesCommand } from "./commands/list-invoices.js";
 
 function readVersion(): string {
   try {
@@ -30,9 +32,14 @@ program
   .command("check-pool-balance")
   .description("Fetch and print pool balance stats for the configured pool")
   .option("--public-key <key>", "public key for the read-only simulation")
-  .option("--pool-contract-id <id>", "override the pool contract ID")
+  .option(
+    "--pool-contract-id <id>",
+    `override the pool contract ID (or set ${POOL_CONTRACT_ID_ENV_VARS.join(", ")})`,
+  )
   .action(async (options: CheckPoolBalanceOptions) => {
     await checkPoolBalanceCommand(options);
   });
+
+registerListInvoicesCommand(program);
 
 await program.parseAsync(process.argv);

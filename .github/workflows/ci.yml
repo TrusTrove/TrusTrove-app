@@ -50,6 +50,8 @@ jobs:
       - name: Run Unit Tests
         run: pnpm test
 
+      - name: Lint SDK
+        run: pnpm --filter @trusttrove/sdk lint
       - name: SDK coverage (with thresholds)
         run: pnpm --filter @trusttrove/sdk test:coverage
 
@@ -95,7 +97,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.25"
+          go-version: "1.26"
 
       - name: Get Dependencies
         run: |
@@ -110,10 +112,18 @@ jobs:
       - name: Test Go Services
         run: |
           cd indexer
-          go test -v -coverprofile=coverage.out ./...
+          go test -race -v -coverprofile=coverage.out ./...
         env:
           TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/trusttrove_test?sslmode=disable
           INDEXER_MIGRATIONS_DIR: ${{ github.workspace }}/indexer/db/migrations
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.64.5
+          install-mode: goinstall
+          working-directory: indexer
+          args: --timeout=5m
 
       - name: Enforce indexer/db coverage threshold
         run: |

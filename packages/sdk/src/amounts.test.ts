@@ -36,6 +36,21 @@ describe("toUsdc", () => {
     expect(toUsdc(BigInt(-10_005_000_000))).toBe("-1000.50");
   });
 
+  it('renders sub-cent negative amounts as "0.00", never "-0.00"', () => {
+    expect(toUsdc(-1n)).toBe("0.00");
+    expect(toUsdc(-99_999n)).toBe("0.00");
+
+    // Walk the whole sub-cent negative range: the formatted output must never
+    // carry a sign on a magnitude that truncates to zero.
+    for (let stroops = -1n; stroops > -100_000n; stroops -= 997n) {
+      expect(toUsdc(stroops)).toBe("0.00");
+    }
+
+    // The sign is only dropped once the amount rounds to zero: the first
+    // cent below zero still shows it.
+    expect(toUsdc(-100_000n)).toBe("-0.01");
+  });
+
   it("rounds down sub-cent remainders", () => {
     // 0.009 USDC = 90_000 stroops → "0.00" (displayed as 0.00)
     expect(toUsdc(BigInt(90_000))).toBe("0.00");

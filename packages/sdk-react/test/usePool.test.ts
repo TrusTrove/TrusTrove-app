@@ -4,6 +4,7 @@ import { PoolClient } from "@trusttrove/sdk";
 import {
   usePoolStats,
   useLPPosition,
+  useUtilizationRate,
   usePoolMutations,
   UsePoolOptions,
 } from "../src/usePool.js";
@@ -16,8 +17,11 @@ vi.mock("@trusttrove/sdk", () => {
     }
     getStats = vi.fn();
     getLPPosition = vi.fn();
+    getUtilizationRate = vi.fn();
     deposit = vi.fn();
     withdraw = vi.fn();
+    fundInvoice = vi.fn();
+    receiveRepayment = vi.fn();
   }
   return { PoolClient: MockPoolClient };
 });
@@ -25,6 +29,7 @@ vi.mock("@trusttrove/sdk", () => {
 const SIGNER = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
 const CONTRACT_ID = "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4";
 const LP = "GBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBWHF";
+const INVOICE_HEX = "abcd";
 
 function makeOptions(client?: Partial<PoolClient>): UsePoolOptions {
   return { client: (client ?? {}) as PoolClient };
@@ -120,6 +125,39 @@ describe("usePool", () => {
     });
   });
 
+  describe("useUtilizationRate", () => {
+    it("returns the utilization rate with loading/error/data state", async () => {
+      const client = new PoolClient(CONTRACT_ID);
+      vi.mocked(client.getUtilizationRate).mockResolvedValue(4250);
+
+      const { result } = renderHook(() =>
+        useUtilizationRate(SIGNER, makeOptions(client)),
+      );
+
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      expect(result.current.data).toBe(4250);
+      expect(result.current.error).toBeNull();
+      expect(client.getUtilizationRate).toHaveBeenCalledWith(SIGNER);
+    });
+
+    it("surfaces read errors", async () => {
+      const client = new PoolClient(CONTRACT_ID);
+      vi.mocked(client.getUtilizationRate).mockRejectedValue(
+        new Error("rate read failed"),
+      );
+
+      const { result } = renderHook(() =>
+        useUtilizationRate(SIGNER, makeOptions(client)),
+      );
+
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      expect(result.current.data).toBeNull();
+      expect(result.current.error).toEqual(new Error("rate read failed"));
+    });
+  });
+
   describe("usePoolMutations", () => {
     it("exposes deposit mutation with pending/error state", async () => {
       const client = new PoolClient(CONTRACT_ID);
@@ -160,6 +198,40 @@ describe("usePool", () => {
       });
 
       expect(client.withdraw).toHaveBeenCalledWith(LP, 50n, SIGNER);
+    });
+
+    it("exposes fundInvoice mutation", async () => {
+      const client = new PoolClient(CONTRACT_ID);
+      vi.mocked(client.fundInvoice).mockResolvedValue(true);
+
+      const { result } = renderHook(() =>
+        usePoolMutations(SIGNER, makeOptions(client)),
+      );
+
+      await act(async () => {
+        await result.current.fundInvoice.mutate(INVOICE_HEX);
+      });
+
+      expect(client.fundInvoice).toHaveBeenCalledWith(INVOICE_HEX, SIGNER);
+    });
+
+    it("exposes receiveRepayment mutation", async () => {
+      const client = new PoolClient(CONTRACT_ID);
+      vi.mocked(client.receiveRepayment).mockResolvedValue(true);
+
+      const { result } = renderHook(() =>
+        usePoolMutations(SIGNER, makeOptions(client)),
+      );
+
+      await act(async () => {
+        await result.current.receiveRepayment.mutate(INVOICE_HEX, 500n);
+      });
+
+      expect(client.receiveRepayment).toHaveBeenCalledWith(
+        INVOICE_HEX,
+        500n,
+        SIGNER,
+      );
     });
 
     it("records and rethrows mutation errors", async () => {

@@ -1,18 +1,25 @@
-import { PoolClient, getConfig } from "@trusttrove/sdk";
+import { PoolClient, getConfig, toUsdc } from "@trusttrove/sdk";
 
-const USDC_STROOPS = 10_000_000n;
-
-function formatUsdc(value: bigint): string {
-  const whole = value / USDC_STROOPS;
-  const fractional = (value % USDC_STROOPS).toString().padStart(7, "0");
-  const trimmedFractional = fractional.replace(/0+$/, "");
-  return trimmedFractional ? `${whole}.${trimmedFractional}` : `${whole}`;
+/**
+ * Pool stats are denominated in stroops, so the SDK formatter is the single
+ * source of truth for how an amount is rendered. Going through it keeps this
+ * command's output at the same two-decimal precision as `list-invoices`.
+ */
+export function formatUsdc(value: bigint): string {
+  return toUsdc(value);
 }
 
 export interface CheckPoolBalanceOptions {
   publicKey?: string;
   poolContractId?: string;
 }
+
+/** Env vars that can stand in for `--pool-contract-id`, in precedence order. */
+export const POOL_CONTRACT_ID_ENV_VARS = [
+  "TRUSTTROVE_POOL_CONTRACT_ID",
+  "NEXT_PUBLIC_POOL_CONTRACT_ID",
+  "POOL_CONTRACT_ID",
+] as const;
 
 export async function checkPoolBalanceCommand(
   options: CheckPoolBalanceOptions = {},
@@ -35,11 +42,13 @@ export async function checkPoolBalanceCommand(
     options.poolContractId ??
     process.env.TRUSTTROVE_POOL_CONTRACT_ID ??
     process.env.NEXT_PUBLIC_POOL_CONTRACT_ID ??
+    process.env.POOL_CONTRACT_ID ??
     getConfig().contractIds.pool;
 
   if (!poolContractId) {
     console.error(
-      "Missing pool contract ID. Provide --pool-contract-id or set TRUSTTROVE_POOL_CONTRACT_ID.",
+      `Missing pool contract ID. Provide --pool-contract-id or set ` +
+        `${POOL_CONTRACT_ID_ENV_VARS.join(", ")} (see .env.example).`,
     );
     process.exitCode = 1;
     return;

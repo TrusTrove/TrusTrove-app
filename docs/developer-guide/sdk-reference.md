@@ -41,6 +41,7 @@ import {
   PoolClient,
   EscrowClient,
   TokenClient,
+  AgentRegistryClient,
 } from "@trusttrove/sdk";
 
 const registry = new RegistryClient(
@@ -50,6 +51,12 @@ const invoice = new InvoiceClient(process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID!);
 const pool = new PoolClient(process.env.NEXT_PUBLIC_POOL_CONTRACT_ID!);
 const escrow = new EscrowClient(process.env.NEXT_PUBLIC_ESCROW_CONTRACT_ID!);
 const usdc = TokenClient.forUSDC();
+// AgentRegistryClient targets the external Underwrite agent-registry contract
+// (deployed from the separate `underwrite-contract` repo), not TrusTrove's own
+// issuer/buyer registry. Its contract ID comes from the Underwrite deployment.
+const agents = new AgentRegistryClient(
+  process.env.NEXT_PUBLIC_AGENT_REGISTRY_CONTRACT_ID!,
+);
 ```
 
 > **Note:** All write methods (`writeContract`) require a `signerPublicKey` argument — the Freighter wallet address that will sign the transaction. All read methods (`readContract`) also require it to build and simulate the transaction.
@@ -86,6 +93,45 @@ await registry.revoke(publicKey, signerPublicKey);
 
 ---
 
+## Agent Registry Client
+
+`AgentRegistryClient` (`packages/sdk/src/clients/agentRegistry.ts`) reads from
+Underwrite's external **agent-registry** contract (deployed from the separate
+`underwrite-contract` repo) — not TrusTrove's own issuer/buyer `RegistryClient`.
+This is the client to use when inspecting the Underwrite agent that attested an
+invoice via `invoice_contract.submit_attestation`: the invoice's
+`attestationAgentId` field gives you the `agentId` to look up here.
+
+```typescript
+import { AgentRegistryClient } from "@trusttrove/sdk";
+
+const agents = new AgentRegistryClient(
+  process.env.NEXT_PUBLIC_AGENT_REGISTRY_CONTRACT_ID!,
+);
+
+// Look up the agent that attested an invoice
+const agent = await agents.getAgent("agent_underwrite", signerPublicKey);
+console.log(agent.active); // true — authorized to attest
+```
+
+The returned `Agent` object has the following shape:
+
+```typescript
+interface Agent {
+  agentId: string; // on-chain Symbol identifier, e.g. "agent_underwrite"
+  pubkey: string; // Stellar public key registered for this agent
+  active: boolean; // whether the agent is currently authorized to attest
+  registeredAt: number; // Unix timestamp (seconds) of registration
+}
+```
+
+> **Note:** `getAgent` is a read-only (simulated) call with no on-chain side
+> effects, and `AgentRegistryClient` exposes no `initialize` method.
+> Attestations are submitted through `InvoiceClient.submitAttestation` (see
+> Invoice Client below).
+
+---
+
 ## Invoice Client
 
 ```typescript
@@ -95,6 +141,16 @@ const txHash = await invoice.create(
   buyerPublicKey,
   BigInt(10_000_000_000), // 1000 USDC in stroops
   Math.floor(Date.now() / 1000) + 60 * 24 * 60 * 60, // 60 days
+  signerPublicKey,
+);
+
+// Record an Underwrite agent's off-chain attestation (returns tx hash).
+// Required before listForFinancing, which otherwise fails with
+// VerificationRequired.
+const attestationTx = await invoice.submitAttestation(
+  invoiceIdHex,
+  attestationPayload, // Uint8Array
+  signature65Bytes, // Uint8Array, exactly 65 bytes
   signerPublicKey,
 );
 
@@ -191,6 +247,9 @@ await pool.fundInvoice(invoiceIdHex, signerPublicKey);
 
 // Record a repayment back into the pool
 await pool.receiveRepayment(invoiceIdHex, repaymentAmount, signerPublicKey);
+
+// Handle an invoice default (normally called internally by triggerDefault)
+await pool.handleDefault(invoiceIdHex, signerPublicKey);
 ```
 
 ---
@@ -344,5 +403,41 @@ try {
 
 Every typed error records the contract method name it was raised for, and the
 simulation- and send-related classes additionally carry the underlying Soroban
-error where the RPC returned one. The SDK automatically retries transient
-network errors up to 3 times with exponential backoff before throwing.
+error where the RPC returned one.
+
+Reads, simulations and transaction preparation retry transient network errors
+up to 3 times with exponential backoff before throwing. Broadcasting a signed
+transaction is the exception: a network error there may follow a send the RPC
+already accepted, and re-submitting the same XDR would double a funding or
+repayment, or land as `tx_bad_seq`. So a failed broadcast surfaces as-is.
+
+The two non-error statuses the RPC can answer with are handled explicitly:
+
+- `TRY_AGAIN_LATER` means the transaction was not queued, so the same signed
+  XDR is re-broadcast with exponential backoff until the client's retry policy
+  runs out, then `TransactionTryAgainLaterError` is thrown (with `txHash`).
+- `DUPLICATE` means the RPC already holds this exact transaction, so it counts
+  as submitted and is resolved by polling `txHash` — a repeated submission is
+  not reported as a failure.
+
+The policy is configurable per client, and is the second constructor argument
+every client inherits from `BaseContractClient`:
+
+```typescript
+import { TransactionTryAgainLaterError } from "@trusttrove/sdk";
+
+const invoice = new InvoiceClient(
+  process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID!,
+  { maxAttempts: 1, baseDelayMs: 500 }, // defaults: 3 attempts, 1000 ms base
+);
+
+try {
+  await invoice.repay(invoiceIdHex, signerPublicKey);
+} catch (err) {
+  if (err instanceof TransactionTryAgainLaterError) {
+    // Still congested after err.attempts broadcasts. err.txHash was never
+    // queued, so it is safe to re-submit later.
+    console.warn("RPC congested:", err.txHash);
+  }
+}
+```

@@ -224,14 +224,17 @@ async function setupMarketplaceApiMocks(page: Page) {
 async function connectWallet(page: Page) {
   await page.goto("/marketplace");
 
-  const connectBtn = page.getByRole("button", { name: /Connect Wallet/i });
+  // Scoped to the Navbar: the page body renders its own connect button too.
+  const connectBtn = page
+    .getByRole("navigation")
+    .getByRole("button", { name: /Connect Wallet/i });
   if (await connectBtn.isVisible()) {
     await connectBtn.click();
   }
 
-  await expect(page.getByText(/GBMOCK\.\.\.XXXX/i)).toBeVisible({
-    timeout: 15000,
-  });
+  await expect(
+    page.getByRole("navigation").getByText("GBMOCK...XXXX", { exact: true }),
+  ).toBeVisible({ timeout: 15000 });
 }
 
 test.describe("Marketplace Browse & Filter Flow", () => {
@@ -247,20 +250,41 @@ test.describe("Marketplace Browse & Filter Flow", () => {
       page.getByRole("heading", { name: /Invoice Marketplace/i }),
     ).toBeVisible();
 
-    // Default filter is "Listed" — the listed invoice should be visible
-    // (IDs are truncated in the table, e.g. "inv-li...001")
-    await expect(page.getByText(/inv-li\.\.\.001/i)).toBeVisible();
-    await expect(page.getByText(/inv-fu\.\.\.002/i)).not.toBeVisible();
+    // Default filter is "Listed" — the listed invoice should be visible.
+    // InvoiceTable renders `truncateAddress(invoice.id)` (six leading
+    // characters, an ellipsis, then the last four — lib/format.ts, which keeps
+    // the trailing hyphen segment), so "inv-listed-001" shows as
+    // "inv-li...-001". The locators target the ledger's rows because the same
+    // ids also appear in the table's CSS-hidden mobile card view, which makes
+    // bare text locators ambiguous.
+    const listedRow = () =>
+      page.getByRole("row").filter({ hasText: "inv-li...-001" });
+    const fundedRow = () =>
+      page.getByRole("row").filter({ hasText: "inv-fu...-002" });
 
-    // Filter by "Funded" status
-    await page.locator("select").first().selectOption("Funded");
+    await expect(listedRow()).toBeVisible();
+    await expect(fundedRow()).not.toBeVisible();
+
+    // Filter by "Funded" status. The filter bar's select is the only one with
+    // a Funded option — the navbar's role switcher is also a `<select>`.
+    const statusFilter = page
+      .locator("select")
+      .filter({ has: page.locator('option[value="Funded"]') });
+    await statusFilter.selectOption("Funded");
 
     // The funded invoice should now be visible, and the listed one hidden
-    await expect(page.getByText(/inv-fu\.\.\.002/i)).toBeVisible();
-    await expect(page.getByText(/inv-li\.\.\.001/i)).not.toBeVisible();
+    await expect(fundedRow()).toBeVisible();
+    await expect(listedRow()).not.toBeVisible();
 
-    // Select the funded invoice to view its details in the Management Center
-    await page.getByText(/inv-fu\.\.\.002/i).click();
+    // The pool financing preview renders for a listed invoice while acting as
+    // an LP, so go back to the listed set and switch the active role.
+    await page
+      .getByRole("combobox", { name: /Active role/i })
+      .selectOption("lp");
+    await statusFilter.selectOption("Listed");
+
+    // Select the listed invoice to view its details in the Management Center
+    await listedRow().click();
 
     // Assert the management center shows the selected invoice details
     await expect(page.getByText(/POOL FINANCING PREVIEW/i)).toBeVisible();

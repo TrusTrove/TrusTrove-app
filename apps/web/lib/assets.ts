@@ -1,4 +1,5 @@
 import type { AssetType } from "@/types";
+import { USDC_ISSUER } from "./env";
 
 /**
  * Number of stroops per whole unit on Stellar (10^7 = 1 unit).
@@ -29,9 +30,7 @@ export const ASSET_INFO: Record<AssetType, AssetInfo> = {
     code: "USDC",
     label: "USDC",
     isNative: false,
-    issuer:
-      process.env.NEXT_PUBLIC_USDC_ISSUER ||
-      "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+    issuer: USDC_ISSUER,
     decimals: 7,
   },
   XLM: {
@@ -105,6 +104,43 @@ export function stroopsToNumber(amount: bigint): number {
  */
 export function numberToStroops(amount: number): bigint {
   return BigInt(Math.floor(amount * STROOP_DIVISOR));
+}
+
+/** Denominator of a basis-point rate: 10,000 bps is 100%. */
+const BPS_DENOMINATOR = 10_000n;
+
+/**
+ * Subtracts a basis-point discount from a face value, entirely in bigint
+ * stroops.
+ *
+ * The fee is rounded **up** to the nearest stroop so the result matches
+ * `Math.floor(faceValue - faceValue * bps / 10000)` for the magnitudes that
+ * implementation was already exact at, while staying precise above `2^53`
+ * stroops, where `Number(faceValue)` silently rounds the input and the
+ * preview drifts by a stroop or two from what the contract settles.
+ *
+ * @param faceValue - The invoice face value in stroops.
+ * @param discountBps - A whole number of basis points (e.g. `500` = 5%).
+ * @returns The funded value in stroops.
+ * @throws TypeError if `discountBps` is not a whole number.
+ *
+ * @example
+ * ```ts
+ * fundedValueStroops(1_000_000_000n, 500); // 950_000_000n
+ * ```
+ */
+export function fundedValueStroops(
+  faceValue: bigint,
+  discountBps: number,
+): bigint {
+  if (!Number.isInteger(discountBps)) {
+    throw new TypeError(
+      `discountBps must be a whole number of basis points, got ${discountBps}`,
+    );
+  }
+  const fee =
+    (faceValue * BigInt(discountBps) + BPS_DENOMINATOR - 1n) / BPS_DENOMINATOR;
+  return faceValue - fee;
 }
 
 /**

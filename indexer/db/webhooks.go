@@ -23,6 +23,12 @@ type WebhookSubscription struct {
 	UpdatedAt     time.Time `json:"updated_at"`
 }
 
+// DefaultClaimLockTTL is how long ClaimPendingDeliveries holds a row for a
+// single attempt. It must stay well above the delivery worker's HTTP timeout so
+// an in-flight attempt is never handed to a second worker, while still
+// expiring quickly enough that a killed worker does not strand the queue.
+const DefaultClaimLockTTL = 60 * time.Second
+
 // WebhookDelivery represents a webhook delivery attempt in the database.
 type WebhookDelivery struct {
 	ID             int64           `json:"id"`
@@ -33,6 +39,7 @@ type WebhookDelivery struct {
 	Attempts       int             `json:"attempts"`
 	MaxAttempts    int             `json:"max_attempts"`
 	NextAttemptAt  time.Time       `json:"next_attempt_at"`
+	LockedUntil    *time.Time      `json:"locked_until"`
 	LastStatus     *int            `json:"last_status"`
 	LastResponse   *string         `json:"last_response"`
 	LastError      *string         `json:"last_error"`
@@ -42,6 +49,15 @@ type WebhookDelivery struct {
 	EndpointURL    string          `json:"endpoint_url"`    // denormalized for worker convenience
 	EndpointSecret string          `json:"endpoint_secret"` // denormalized for worker convenience
 }
+
+// deliveryColumns is the webhook_deliveries half of the claiming query's
+// RETURNING list. Keep it in sync with scanWebhookDeliveries; the final two
+// scanned columns (endpoint url/secret) come from the CTE, not from this list.
+const deliveryColumns = `
+			wd.id, wd.subscription_id, wd.event_type, wd.event_id, wd.payload,
+			wd.attempts, wd.max_attempts, wd.next_attempt_at, wd.locked_until,
+			wd.last_status, wd.last_response, wd.last_error, wd.status,
+			wd.created_at, wd.updated_at`
 
 // CreateWebhookSubscription inserts a new webhook subscription.
 func CreateWebhookSubscription(ctx context.Context, sub *WebhookSubscription) error {
@@ -113,6 +129,9 @@ func ListActiveWebhookSubscriptionsForEvent(ctx context.Context, eventType strin
 		sub.EventTypes = textArrayToSlice(eventTypesArray)
 		subs = append(subs, &sub)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("db: iterate webhook subscriptions: %w", err)
+	}
 	return subs, nil
 }
 
@@ -140,6 +159,9 @@ func ListAllWebhookSubscriptions(ctx context.Context) ([]*WebhookSubscription, e
 		}
 		sub.EventTypes = textArrayToSlice(eventTypesArray)
 		subs = append(subs, &sub)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("db: iterate all webhook subscriptions: %w", err)
 	}
 	return subs, nil
 }
@@ -190,61 +212,110 @@ func DisableWebhookSubscription(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-// CreateWebhookDelivery creates a new webhook delivery record.
-func CreateWebhookDelivery(ctx context.Context, subscriptionID uuid.UUID, eventType, eventID string, payload []byte) error {
+// CreateWebhookDelivery creates a new webhook delivery record. The q
+// parameter lets the listener enqueue delivery rows on the same transaction
+// that applies the event's state change, so an event's webhook fan-out either
+// commits with the event or not at all.
+func CreateWebhookDelivery(ctx context.Context, q Querier, subscriptionID uuid.UUID, eventType, eventID string, payload []byte) error {
 	query := `
 		INSERT INTO webhook_deliveries (subscription_id, event_type, event_id, payload)
 		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (subscription_id, event_id) DO NOTHING
 	`
-	_, err := Pool.Exec(ctx, query, subscriptionID, eventType, eventID, payload)
+	_, err := q.Exec(ctx, query, subscriptionID, eventType, eventID, payload)
 	if err != nil {
 		return fmt.Errorf("db: create webhook delivery: %w", err)
 	}
 	return nil
 }
 
-// GetPendingDeliveries retrieves pending webhook deliveries ready for processing.
+// GetPendingDeliveries claims a batch of pending deliveries for the caller
+// using DefaultClaimLockTTL and returns them. Claiming happens on the read
+// because this is the path both delivery workers use to pick up work: a plain
+// SELECT let two indexer replicas (or an old and a new pod during a rolling
+// deploy) read the same rows and POST the same event twice. Use
+// ClaimPendingDeliveries when the lock duration needs to differ.
 func GetPendingDeliveries(ctx context.Context, limit int) ([]*WebhookDelivery, error) {
+	return ClaimPendingDeliveries(ctx, limit, DefaultClaimLockTTL)
+}
+
+// ClaimPendingDeliveries atomically claims up to limit deliveries whose retry
+// time has arrived and whose previous claim (if any) has expired.
+//
+// FOR UPDATE SKIP LOCKED makes concurrent claims from other workers or replicas
+// disjoint, and writing locked_until makes the claim outlive the statement:
+// other workers no longer see the row until the attempt records an outcome (all
+// Mark* helpers clear the lock) or the lock expires.
+//
+// This is claim-then-delete, not claim-and-delete: a worker that dies mid-send
+// leaves the row pending, and it becomes claimable again once locked_until
+// passes. The queue is therefore at-least-once and subscribers must dedupe on
+// event_id.
+func ClaimPendingDeliveries(ctx context.Context, limit int, lockFor time.Duration) ([]*WebhookDelivery, error) {
+	if limit <= 0 {
+		return nil, fmt.Errorf("db: claim pending deliveries: limit must be positive, got %d", limit)
+	}
+	if lockFor <= 0 {
+		lockFor = DefaultClaimLockTTL
+	}
+
 	query := `
-		SELECT
-			wd.id, wd.subscription_id, wd.event_type, wd.event_id, wd.payload,
-			wd.attempts, wd.max_attempts, wd.next_attempt_at, wd.last_status,
-			wd.last_response, wd.last_error, wd.status, wd.created_at, wd.updated_at,
-			ws.target_url, ws.signing_secret
-		FROM webhook_deliveries wd
-		JOIN webhook_subscriptions ws ON wd.subscription_id = ws.id
-		WHERE wd.status = 'pending' AND wd.next_attempt_at <= CURRENT_TIMESTAMP AND ws.active = TRUE
-		ORDER BY wd.next_attempt_at ASC
-		LIMIT $1
+		WITH claimable AS (
+			SELECT wd.id, ws.target_url, ws.signing_secret
+			FROM webhook_deliveries wd
+			JOIN webhook_subscriptions ws ON ws.id = wd.subscription_id
+			WHERE wd.status = 'pending'
+				AND wd.next_attempt_at <= CURRENT_TIMESTAMP
+				AND (wd.locked_until IS NULL OR wd.locked_until < CURRENT_TIMESTAMP)
+				AND ws.active = TRUE
+			ORDER BY wd.next_attempt_at ASC
+			LIMIT $1
+			FOR UPDATE OF wd SKIP LOCKED
+		)
+		UPDATE webhook_deliveries wd
+		SET locked_until = CURRENT_TIMESTAMP + make_interval(secs => $2),
+		    updated_at = CURRENT_TIMESTAMP
+		FROM claimable c
+		WHERE wd.id = c.id
+		RETURNING ` + deliveryColumns + `, c.target_url, c.signing_secret
 	`
-	rows, err := Pool.Query(ctx, query, limit)
+
+	rows, err := Pool.Query(ctx, query, limit, lockFor.Seconds())
 	if err != nil {
-		return nil, fmt.Errorf("db: get pending deliveries: %w", err)
+		return nil, fmt.Errorf("db: claim pending deliveries: %w", err)
 	}
 	defer rows.Close()
 
+	return scanWebhookDeliveries(rows)
+}
+
+// scanWebhookDeliveries reads rows produced by deliveryColumns.
+func scanWebhookDeliveries(rows pgx.Rows) ([]*WebhookDelivery, error) {
 	var deliveries []*WebhookDelivery
 	for rows.Next() {
 		var d WebhookDelivery
 		if err := rows.Scan(
 			&d.ID, &d.SubscriptionID, &d.EventType, &d.EventID, &d.Payload,
-			&d.Attempts, &d.MaxAttempts, &d.NextAttemptAt, &d.LastStatus,
-			&d.LastResponse, &d.LastError, &d.Status, &d.CreatedAt, &d.UpdatedAt,
-			&d.EndpointURL, &d.EndpointSecret,
+			&d.Attempts, &d.MaxAttempts, &d.NextAttemptAt, &d.LockedUntil,
+			&d.LastStatus, &d.LastResponse, &d.LastError, &d.Status,
+			&d.CreatedAt, &d.UpdatedAt, &d.EndpointURL, &d.EndpointSecret,
 		); err != nil {
 			return nil, fmt.Errorf("db: scan webhook delivery: %w", err)
 		}
 		deliveries = append(deliveries, &d)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("db: iterate webhook deliveries: %w", err)
+	}
 	return deliveries, nil
 }
 
-// MarkDeliverySuccess marks a webhook delivery as successful.
+// MarkDeliverySuccess marks a webhook delivery as successful and releases its claim.
 func MarkDeliverySuccess(ctx context.Context, deliveryID int64, statusCode int, response string) error {
 	query := `
 		UPDATE webhook_deliveries
 		SET status = 'delivered', last_status = $1, last_response = $2, last_error = NULL,
-		    attempts = attempts + 1, updated_at = CURRENT_TIMESTAMP
+		    attempts = attempts + 1, locked_until = NULL, updated_at = CURRENT_TIMESTAMP
 		WHERE id = $3
 	`
 	_, err := Pool.Exec(ctx, query, statusCode, response, deliveryID)
@@ -256,6 +327,8 @@ func MarkDeliverySuccess(ctx context.Context, deliveryID int64, statusCode int, 
 
 // MarkDeliveryRetry marks a webhook delivery as failed and schedules a retry.
 // If attempts + 1 >= max_attempts, the delivery is marked as dead_letter instead.
+// The claim is always released, otherwise the scheduled backoff would silently
+// become "backoff or however long the lock happened to last".
 func MarkDeliveryRetry(ctx context.Context, deliveryID int64, nextAttemptAt time.Time, statusCode *int, errorMsg string) error {
 	query := `
 		UPDATE webhook_deliveries
@@ -270,6 +343,7 @@ func MarkDeliveryRetry(ctx context.Context, deliveryID int64, nextAttemptAt time
 				ELSE $3
 			END,
 			attempts = attempts + 1,
+			locked_until = NULL,
 			updated_at = CURRENT_TIMESTAMP
 		WHERE id = $4
 	`
@@ -280,11 +354,12 @@ func MarkDeliveryRetry(ctx context.Context, deliveryID int64, nextAttemptAt time
 	return nil
 }
 
-// MarkDeliveryDeadLetter marks a webhook delivery as dead-lettered (exhausted retries).
+// MarkDeliveryDeadLetter marks a webhook delivery as dead-lettered (exhausted
+// retries) and releases its claim.
 func MarkDeliveryDeadLetter(ctx context.Context, deliveryID int64, errorMsg string) error {
 	query := `
 		UPDATE webhook_deliveries
-		SET status = 'dead_letter', last_error = $1, updated_at = CURRENT_TIMESTAMP
+		SET status = 'dead_letter', last_error = $1, locked_until = NULL, updated_at = CURRENT_TIMESTAMP
 		WHERE id = $2
 	`
 	_, err := Pool.Exec(ctx, query, errorMsg, deliveryID)

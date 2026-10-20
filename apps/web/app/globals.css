@@ -123,3 +123,38 @@
     3px 100%;
   pointer-events: none;
 }
+
+/*
+ * Display preferences from app/settings/page.tsx, published on <html>.
+ *
+ * Tailwind expresses every spacing and font utility in rem, so scaling the
+ * root font size is what actually compacts the terminal's spacing.
+ */
+[data-density="compact"] {
+  font-size: 87.5%;
+}
+
+/*
+ * "UI Animations" off removes motion outright, including the hover and
+ * transition feedback utilities.
+ */
+[data-animations="off"] *,
+[data-animations="off"] *::before,
+[data-animations="off"] *::after {
+  animation: none !important;
+  transition: none !important;
+}
+
+/*
+ * "Reduced Motion" keeps state changes visible but stops the movement.
+ * Durations are clamped to a non-zero value rather than set to 0 so that
+ * `transitionend`/`animationend` listeners still fire.
+ */
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}

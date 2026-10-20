@@ -202,11 +202,14 @@ const getApiUrl = () => {
   return process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
 };
 
+/**
+ * Thin client facade over {@link apiFetch}.
+ *
+ * It deliberately holds no auth state: the SEP-10 token lives in
+ * `useWalletStore` and `apiFetch` reads it on every request, so there is a
+ * single source of truth and nothing to keep in sync after login/logout.
+ */
 export const apiClient = {
-  token: undefined as string | undefined,
-  setToken(token: string | undefined): void {
-    this.token = token;
-  },
   async fetch<T>(path: string, options: RequestInit = {}): Promise<T> {
     return apiFetch<T>(path, options);
   },
@@ -498,6 +501,31 @@ export async function getInvoiceByID(id: string): Promise<Invoice> {
   return parseInvoiceResponse(raw);
 }
 
+/**
+ * Updates an invoice's lifecycle status via `PATCH /invoices/:id/status`.
+ * Used by the creation cleanup path to mark a newly created invoice as
+ * `Cancelled` when its immediate on-chain listing cannot be completed, so the
+ * invoice is not left "pending listing" forever (issue #1097).
+ *
+ * @param id - The invoice id to update.
+ * @param status - The new lifecycle status (e.g. `"Cancelled"`).
+ * @returns A promise resolving to `{ id, status }`.
+ *
+ * @throws {Error} When the indexer responds with a non-OK status.
+ */
+export async function updateInvoiceStatus(
+  id: string,
+  status: string,
+): Promise<{ id: string; status: string }> {
+  return apiFetch<{ id: string; status: string }>(
+    `/invoices/${encodeURIComponent(id)}/status`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    },
+  );
+}
+
 export interface PaginatedInvoices {
   data: Invoice[];
   total: number;
@@ -602,6 +630,9 @@ export async function getLPPosition(address: string): Promise<LPPosition> {
  * Fetches recent on-chain events, most recent first.
  *
  * @param limit - Optional maximum number of events to return.
+ * @param issuer - Optional Stellar account to scope the feed to. The indexer
+ *   resolves it through each event's invoice, so only that account's own
+ *   activity comes back (issue #1115). Omit it for the protocol-wide feed.
  * @returns A promise resolving to an `EventLog[]`; each entry is described by
  *   `parseRawEventLog` (`id`, `event_id`, `contract_id`, `ledger`,
  *   `ledger_closed_at`, `event_type`, `data`).
@@ -614,6 +645,12 @@ export async function getRecentEvents(
   const rawList = await apiClient.fetch<any[]>(`/events${query}`, {
     signal: opts?.signal,
   });
+  issuer?: string,
+): Promise<EventLog[]> {
+  const params: string[] = [];
+  if (limit) params.push(`limit=${limit}`);
+  if (issuer) params.push(`issuer=${encodeURIComponent(issuer)}`);
+  const query = params.length > 0 ? `?${params.join("&")}` : "";
   const rawList = await apiFetch<RawEventLog[]>(`/events${query}`);
   return rawList.map(parseRawEventLog);
 }

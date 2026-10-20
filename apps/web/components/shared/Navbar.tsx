@@ -18,6 +18,12 @@ import {
   ExternalLink,
   Menu,
   X,
+  Settings,
+  LayoutDashboard,
+  Factory,
+  BarChart3,
+  BarChart2,
+  User,
   Compass,
 } from "lucide-react";
 import { NotificationBell } from "./NotificationBell";
@@ -39,11 +45,13 @@ function isRole(value: string): value is Role {
 }
 
 const NAV_ITEMS = [
-  { key: "dashboard", href: "/dashboard" },
-  { key: "lp", href: "/lp" },
-  { key: "marketplace", href: "/marketplace" },
-  { key: "analytics", href: "/analytics" },
-  { key: "profile", href: "/profile" },
+  { key: "dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { key: "lp", href: "/lp", icon: Factory },
+  { key: "marketplace", href: "/marketplace", icon: BarChart2 },
+  { key: "analytics", href: "/analytics", icon: BarChart3 },
+  { key: "profile", href: "/profile", icon: User },
+  { key: "settings", href: "/settings", icon: Settings },
+  { key: "help", href: "/help", icon: Compass },
 ] as const;
 
 function formatAmount(value: string) {
@@ -87,6 +95,7 @@ export function Navbar() {
             <div className="hidden md:flex space-x-1">
               {NAV_ITEMS.map((item) => {
                 const isActive = pathname === item.href;
+                const Icon = item.icon;
                 return (
                   <Link
                     key={item.href}
@@ -98,6 +107,7 @@ export function Navbar() {
                         : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/60"
                     }`}
                   >
+                    {Icon && <Icon className="w-3.5 h-3.5" />}
                     <span>{t(`nav.${item.key}`)}</span>
                     {item.key === "profile" && connected && isVerified && (
                       <span
@@ -254,6 +264,7 @@ export function Navbar() {
           <div className="flex flex-col gap-2">
             {NAV_ITEMS.map((item) => {
               const isActive = pathname === item.href;
+              const Icon = item.icon;
               return (
                 <Link
                   key={item.href}
@@ -265,7 +276,10 @@ export function Navbar() {
                       : "border-border bg-background-secondary/70 text-muted-foreground hover:border-primary/30 hover:text-foreground"
                   }`}
                 >
-                  <span>{t(`nav.${item.key}`)}</span>
+                  <span className="flex items-center gap-2">
+                    {Icon && <Icon className="w-4 h-4" />}
+                    {t(`nav.${item.key}`)}
+                  </span>
                   {item.key === "profile" && connected && isVerified && (
                     <span
                       className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]"

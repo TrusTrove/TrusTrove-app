@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { InvoiceClient, Invoice } from "@trusttrove/sdk";
+import { InvoiceClient, Invoice, InvoiceStatus } from "@trusttrove/sdk";
 import {
   useAsyncQuery,
   useAsyncMutation,
@@ -30,6 +30,88 @@ function invoiceClient(options: UseInvoiceOptions): InvoiceClient {
 }
 
 /**
+ * Shared implementation for the invoice list queries. Wraps the given
+ * `InvoiceClient` read method that returns an `Invoice[]`.
+ */
+function useInvoiceList(
+  queryKey: string,
+  fetch: (client: InvoiceClient) => Promise<Invoice[]>,
+  deps: unknown[],
+  options: UseInvoiceOptions,
+): AsyncQueryState<Invoice[]> {
+  // Memoize on the option *contents* (client identity / contractId value), not
+  // the options object identity, so inline `{ contractId }` literals don't
+  // re-create the client — and re-trigger queries — on every render.
+  const client = useMemo(
+    () =>
+      invoiceClient({ client: options.client, contractId: options.contractId }),
+    [options.client, options.contractId],
+  );
+  return useAsyncQuery(() => fetch(client), [client, ...deps]);
+}
+
+/**
+ * Lists invoices filtered by on-chain status. Wraps `InvoiceClient.getByStatus()`.
+ *
+ * @param status - The invoice status to filter by (e.g. `"Listed"`, `"Funded"`).
+ * @param signerPublicKey - Public key used to simulate the read call.
+ * @param options - Injected client instance or contract ID.
+ */
+export function useInvoicesByStatus(
+  status: InvoiceStatus,
+  signerPublicKey: string,
+  options: UseInvoiceOptions,
+): AsyncQueryState<Invoice[]> {
+  return useInvoiceList(
+    "useInvoicesByStatus",
+    (client) => client.getByStatus(status, signerPublicKey),
+    [status, signerPublicKey],
+    options,
+  );
+}
+
+/**
+ * Lists invoices issued by a given address. Wraps `InvoiceClient.getByIssuer()`.
+ *
+ * @param issuer - The Stellar address of the invoice issuer.
+ * @param signerPublicKey - Public key used to simulate the read call.
+ * @param options - Injected client instance or contract ID.
+ */
+export function useInvoicesByIssuer(
+  issuer: string,
+  signerPublicKey: string,
+  options: UseInvoiceOptions,
+): AsyncQueryState<Invoice[]> {
+  return useInvoiceList(
+    "useInvoicesByIssuer",
+    (client) => client.getByIssuer(issuer, signerPublicKey),
+    [issuer, signerPublicKey],
+    options,
+  );
+}
+
+/**
+ * Lists invoices where the given address is the buyer. Wraps
+ * `InvoiceClient.getByBuyer()`.
+ *
+ * @param buyer - The Stellar address of the invoice buyer.
+ * @param signerPublicKey - Public key used to simulate the read call.
+ * @param options - Injected client instance or contract ID.
+ */
+export function useInvoicesByBuyer(
+  buyer: string,
+  signerPublicKey: string,
+  options: UseInvoiceOptions,
+): AsyncQueryState<Invoice[]> {
+  return useInvoiceList(
+    "useInvoicesByBuyer",
+    (client) => client.getByBuyer(buyer, signerPublicKey),
+    [buyer, signerPublicKey],
+    options,
+  );
+}
+
+/**
  * Watches a single invoice by its on-chain ID. Wraps `InvoiceClient.get()`.
  *
  * @param invoiceIdHex - The invoice ID as a 32-byte hex string.
@@ -41,7 +123,14 @@ export function useInvoice(
   signerPublicKey: string,
   options: UseInvoiceOptions,
 ): AsyncQueryState<Invoice> {
-  const client = useMemo(() => invoiceClient(options), [options]);
+  // Memoize on the option *contents* (client identity / contractId value), not
+  // the options object identity, so inline `{ contractId }` literals don't
+  // re-create the client — and re-trigger queries — on every render.
+  const client = useMemo(
+    () =>
+      invoiceClient({ client: options.client, contractId: options.contractId }),
+    [options.client, options.contractId],
+  );
   return useAsyncQuery(
     () => client.get(invoiceIdHex, signerPublicKey),
     [client, invoiceIdHex, signerPublicKey],
@@ -97,7 +186,14 @@ export function useInvoiceMutations(
   signerPublicKey: string,
   options: UseInvoiceMutationsOptions,
 ): InvoiceMutationResult {
-  const client = useMemo(() => invoiceClient(options), [options]);
+  // Memoize on the option *contents* (client identity / contractId value), not
+  // the options object identity, so inline `{ contractId }` literals don't
+  // re-create the client — and re-trigger queries — on every render.
+  const client = useMemo(
+    () =>
+      invoiceClient({ client: options.client, contractId: options.contractId }),
+    [options.client, options.contractId],
+  );
 
   const create = useAsyncMutation(
     (issuer: string, buyer: string, faceValue: bigint, dueDate: number) =>

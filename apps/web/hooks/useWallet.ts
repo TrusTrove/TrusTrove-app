@@ -1,7 +1,11 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getNetworkDetails } from "@stellar/freighter-api";
 import { useWalletStore } from "@/store/wallet";
-import { connectFreighter, FreighterError } from "@/lib/freighter";
+import {
+  connectFreighter,
+  watchFreighterChanges,
+  FreighterError,
+} from "@/lib/freighter";
 import { useBalances } from "./useBalances";
 import { createErrorHandler } from "@/lib/errors";
 
@@ -36,6 +40,9 @@ async function validateFreighterNetwork(): Promise<void> {
  * Provides wallet state and actions to connect or disconnect a Freighter wallet.
  * Connection defaults to the testnet network and verifies that Freighter is
  * actually configured for testnet before the wallet is stored as connected.
+ * While connected, the hook also watches Freighter for account/network changes
+ * (issue #873): the store is updated when the selected account changes, and a
+ * wrong-network error is surfaced when Freighter leaves testnet.
  *
  * @returns An object containing:
  *   - `address` — The connected wallet's public key, or `null` if not connected.
@@ -58,6 +65,9 @@ export function useWallet() {
   const network = useWalletStore((s) => s.network);
   const connect = useWalletStore((s) => s.connect);
   const disconnect = useWalletStore((s) => s.disconnect);
+  const setAddress = useWalletStore((s) => s.setAddress);
+  const setNetwork = useWalletStore((s) => s.setNetwork);
+  const setToken = useWalletStore((s) => s.setToken);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
@@ -107,6 +117,66 @@ export function useWallet() {
       connectingRef.current = false;
     }
   };
+
+  // Freighter exposes no change subscription in the pinned API version, so a
+  // connected session would otherwise keep showing (and signing with) the
+  // account and network captured at connect time. Poll for diffs while
+  // connected and reconcile the store with what the extension reports.
+  useEffect(() => {
+    if (!connected || !address) return;
+
+    return watchFreighterChanges(
+      { address, network },
+      (change) => {
+        const state = useWalletStore.getState();
+        if (!state.connected) return;
+
+        if (change.disconnected) {
+          // Freighter reports no selected account (locked extension or revoked
+          // access): drop the session — including the SEP-10 token — so the UI
+          // stops showing and signing with a stale address.
+          disconnect();
+          return;
+        }
+
+        if (change.address && change.address !== state.address) {
+          // A different account is now selected in Freighter: adopt it so the
+          // app never reads balances for — or signs as — a stale address, and
+          // drop the previous account's SEP-10 token.
+          setAddress(change.address);
+          setToken(null);
+        }
+
+        if (change.network && change.network !== state.network) {
+          setNetwork(change.network);
+
+          if (change.network !== EXPECTED_NETWORK) {
+            setError(WRONG_NETWORK_ERROR_MESSAGE);
+            setErrorCode(WRONG_NETWORK_ERROR_CODE);
+          } else {
+            // Freighter is back on the expected network: clear the banner only
+            // if it is the one this watcher raised.
+            setError((current) =>
+              current === WRONG_NETWORK_ERROR_MESSAGE ? null : current,
+            );
+            setErrorCode((current) =>
+              current === WRONG_NETWORK_ERROR_CODE ? null : current,
+            );
+          }
+        }
+      },
+      { onError: captureError },
+    );
+  }, [
+    connected,
+    address,
+    network,
+    setAddress,
+    setNetwork,
+    setToken,
+    disconnect,
+    captureError,
+  ]);
 
   /**
    * Disconnects the currently connected wallet by clearing wallet state from the store.

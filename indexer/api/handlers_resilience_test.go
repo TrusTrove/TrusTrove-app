@@ -13,7 +13,7 @@ import (
 func TestHandleCreateInvoice_MissingContextKey(t *testing.T) {
 	h := newTestHandler(t)
 
-	reqBody := `{"buyer":"GBXXXXXXXXXX","face_value":"1000","due_date":1700000000}`
+	reqBody := `{"buyer":"GBXXXXXXXXXX","face_value":"1000","due_date":0}`
 	req := httptest.NewRequest(http.MethodPost, "/invoices", strings.NewReader(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -38,7 +38,7 @@ func TestTransactionPolling_RespectsContextCancellation(t *testing.T) {
 	// Setup mock Soroban RPC server that returns status = "PENDING" for getTransaction
 	mockRPC := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":{"status":"PENDING"}}`))
+		_, _ = w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":{"status":"PENDING"}}`))
 	}))
 	defer mockRPC.Close()
 

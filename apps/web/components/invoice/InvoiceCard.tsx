@@ -256,7 +256,10 @@ export const InvoiceCard = React.memo(function InvoiceCard({
       )}
 
       {error && (
-        <div className="mb-4 p-3 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-start gap-2">
+        <div
+          role="alert"
+          className="mb-4 p-3 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-start gap-2"
+        >
           <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
           <span className="font-mono">{error}</span>
         </div>
@@ -279,7 +282,7 @@ export const InvoiceCard = React.memo(function InvoiceCard({
               <Button
                 className={`w-full font-bold uppercase tracking-wider text-xs rounded py-2 transition-all ${
                   isVerified
-                    ? "bg-primary hover:bg-primary-hover text-black shadow-[0_0_15px_rgba(0,212,170,0.1)]"
+                    ? "bg-primary hover:bg-primary/90 text-black shadow-[0_0_15px_rgba(0,212,170,0.1)]"
                     : "bg-neutral-800 text-slate-500 border border-neutral-700 cursor-not-allowed opacity-60"
                 }`}
                 onClick={() => {
@@ -323,7 +326,7 @@ export const InvoiceCard = React.memo(function InvoiceCard({
                 <Button
                   className={`flex-1 font-bold uppercase text-[10px] py-1 ${
                     isVerified
-                      ? "bg-primary hover:bg-primary-hover text-black"
+                      ? "bg-primary hover:bg-primary/90 text-black"
                       : "bg-neutral-800 text-slate-500 border border-neutral-700 cursor-not-allowed opacity-60"
                   }`}
                   onClick={handleList}

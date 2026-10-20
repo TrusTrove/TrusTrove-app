@@ -39,7 +39,14 @@ export function usePoolStats(
   signerPublicKey: string,
   options: UsePoolOptions,
 ): AsyncQueryState<PoolStats> {
-  const client = useMemo(() => poolClient(options), [options]);
+  // Memoize on the option *contents* (client identity / contractId value), not
+  // the options object identity, so inline `{ contractId }` literals don't
+  // re-create the client — and re-trigger queries — on every render.
+  const client = useMemo(
+    () =>
+      poolClient({ client: options.client, contractId: options.contractId }),
+    [options.client, options.contractId],
+  );
   return useAsyncQuery(
     () => client.getStats(signerPublicKey),
     [client, signerPublicKey],
@@ -58,10 +65,43 @@ export function useLPPosition(
   signerPublicKey: string,
   options: UsePoolOptions,
 ): AsyncQueryState<LPPosition> {
-  const client = useMemo(() => poolClient(options), [options]);
+  // Memoize on the option *contents* (client identity / contractId value), not
+  // the options object identity, so inline `{ contractId }` literals don't
+  // re-create the client — and re-trigger queries — on every render.
+  const client = useMemo(
+    () =>
+      poolClient({ client: options.client, contractId: options.contractId }),
+    [options.client, options.contractId],
+  );
   return useAsyncQuery(
     () => client.getLPPosition(lp, signerPublicKey),
     [client, lp, signerPublicKey],
+  );
+}
+
+/**
+ * Watches the current pool utilization rate in basis points. Wraps
+ * `PoolClient.getUtilizationRate()`. Returns `0` when the pool has no
+ * deposits.
+ *
+ * @param signerPublicKey - Public key used to simulate the read call.
+ * @param options - Injected client instance or contract ID.
+ */
+export function useUtilizationRate(
+  signerPublicKey: string,
+  options: UsePoolOptions,
+): AsyncQueryState<number> {
+  // Memoize on the option *contents* (client identity / contractId value), not
+  // the options object identity, so inline `{ contractId }` literals don't
+  // re-create the client — and re-trigger queries — on every render.
+  const client = useMemo(
+    () =>
+      poolClient({ client: options.client, contractId: options.contractId }),
+    [options.client, options.contractId],
+  );
+  return useAsyncQuery(
+    () => client.getUtilizationRate(signerPublicKey),
+    [client, signerPublicKey],
   );
 }
 
@@ -84,6 +124,22 @@ export interface PoolMutationResult {
   deposit: AsyncMutationState<[lp: string, usdcAmount: bigint], string>;
   /** Withdraw LP shares from the pool (`PoolClient.withdraw`). */
   withdraw: AsyncMutationState<[lp: string, shares: bigint], string>;
+  /**
+   * Fund a listed invoice from pool liquidity (`PoolClient.fundInvoice`).
+   * Intended for the funder flow; the web app already uses this operation.
+   */
+  fundInvoice: AsyncMutationState<[invoiceIdHex: string], boolean>;
+  /**
+   * Record a repayment into the pool (`PoolClient.receiveRepayment`).
+   *
+   * Note: on-chain, `receive_repayment` is normally invoked by the invoice
+   * contract as part of `InvoiceClient.repay` rather than by end users, so
+   * this mutation is exposed for completeness and admin/integration tooling.
+   */
+  receiveRepayment: AsyncMutationState<
+    [invoiceIdHex: string, amount: bigint],
+    boolean
+  >;
 }
 
 /**
@@ -97,7 +153,14 @@ export function usePoolMutations(
   signerPublicKey: string,
   options: UsePoolMutationsOptions,
 ): PoolMutationResult {
-  const client = useMemo(() => poolClient(options), [options]);
+  // Memoize on the option *contents* (client identity / contractId value), not
+  // the options object identity, so inline `{ contractId }` literals don't
+  // re-create the client — and re-trigger queries — on every render.
+  const client = useMemo(
+    () =>
+      poolClient({ client: options.client, contractId: options.contractId }),
+    [options.client, options.contractId],
+  );
 
   const deposit = useAsyncMutation((lp: string, usdcAmount: bigint) =>
     client.deposit(lp, usdcAmount, signerPublicKey),
@@ -105,6 +168,13 @@ export function usePoolMutations(
   const withdraw = useAsyncMutation((lp: string, shares: bigint) =>
     client.withdraw(lp, shares, signerPublicKey),
   );
+  const fundInvoice = useAsyncMutation((invoiceIdHex: string) =>
+    client.fundInvoice(invoiceIdHex, signerPublicKey),
+  );
+  const receiveRepayment = useAsyncMutation(
+    (invoiceIdHex: string, amount: bigint) =>
+      client.receiveRepayment(invoiceIdHex, amount, signerPublicKey),
+  );
 
-  return { deposit, withdraw };
+  return { deposit, withdraw, fundInvoice, receiveRepayment };
 }

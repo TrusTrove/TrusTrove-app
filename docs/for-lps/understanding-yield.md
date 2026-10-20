@@ -21,10 +21,15 @@ you earned 10% on your deposit.
 
 ### Risks
 
-**Default risk.** If a buyer does not repay, the pool loses the expected yield
-for that invoice. Principal is partially protected (the pool funded at a discount,
-so it recovers the funded amount from escrow). But repeated defaults will reduce
-the share price over time.
+**Default risk.** If a buyer does not repay, the pool loses the full funded
+amount for that invoice — this is a principal loss, not just lost yield. The
+funded USDC was already paid out to the SME at funding time and escrow retains
+nothing afterwards (see [Economic Model](../protocol/economic-model.md#default-risk)
+for the worked example), so there is nothing to recover on default. The loss is
+shared across all LP shares through a lower share price: worst case, each
+defaulted invoice destroys up to its entire funded amount of pool capital.
+Repeated defaults will reduce the share price over time, and a wave of defaults
+can eat into deposited principal substantially.
 
 **Liquidity risk.** You can only withdraw what is not currently deployed. If the
 pool is 85% utilized, only 15% of deposits are available for immediate withdrawal.

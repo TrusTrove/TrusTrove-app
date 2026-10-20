@@ -3,6 +3,7 @@
 
 CREATE TABLE IF NOT EXISTS webhook_subscriptions (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_address    VARCHAR(56) NULL,
     target_url      TEXT NOT NULL,
     event_types     TEXT[] NOT NULL DEFAULT '{}',
     signing_secret  TEXT NOT NULL,
@@ -75,4 +76,4 @@ DROP TRIGGER IF EXISTS trigger_webhook_deliveries_updated_at ON webhook_deliveri
 CREATE TRIGGER trigger_webhook_deliveries_updated_at
     BEFORE UPDATE ON webhook_deliveries
     FOR EACH ROW
-    EXECUTE FUNCTION update_webhook_deliveries_updated_at();
+    EXECUTE FUNCTION update_webhook_deliveries_updated_at();CREATE INDEX IF NOT EXISTS idx_webhook_subscriptions_user ON webhook_subscriptions(user_address);

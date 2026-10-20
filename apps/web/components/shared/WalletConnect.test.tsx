@@ -4,6 +4,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { WalletConnect } from "./WalletConnect";
 import { useWallet } from "@/hooks/useWallet";
 import { isFreighterInstalled } from "@/lib/freighter";
+import { useWalletStore } from "@/store/wallet";
+
+const freighterApi = vi.hoisted(() => ({
+  setNetwork: vi.fn(),
+}));
 
 vi.mock("@/hooks/useWallet", () => {
   const state: string = "disconnected";
@@ -24,6 +29,9 @@ vi.mock("@/hooks/useWallet", () => {
 
 vi.mock("@/lib/freighter", () => ({
   isFreighterInstalled: vi.fn().mockResolvedValue(true),
+  // Issue #873's post-connect watcher; a no-op stop function keeps these
+  // render tests focused on WalletConnect's own UI.
+  watchFreighterChanges: vi.fn(() => () => {}),
   FreighterError: class FreighterError extends Error {
     readonly code: string;
     constructor(code: string, message: string) {
@@ -34,8 +42,14 @@ vi.mock("@/lib/freighter", () => ({
   },
 }));
 
+vi.mock("@stellar/freighter-api", () => ({
+  setNetwork: freighterApi.setNetwork,
+}));
+
 beforeEach(() => {
   vi.clearAllMocks();
+  freighterApi.setNetwork.mockReset().mockResolvedValue(undefined);
+  useWalletStore.setState({ network: null });
   Object.assign(navigator, {
     clipboard: {
       writeText: vi.fn().mockResolvedValue(undefined),
@@ -75,6 +89,174 @@ describe("WalletConnect", () => {
     } as any);
     render(<WalletConnect />);
     expect(screen.getByText(/GACR43\.\.\.GBYZ/i)).toBeInTheDocument();
+  });
+
+  it("shows the testnet switch for an unsupported network", async () => {
+    useWalletStore.setState({ network: "futurenet" });
+    vi.mocked(useWallet).mockReturnValue({
+      connected: true,
+      loading: false,
+      address: "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGBYZ",
+      error: null,
+      connectWallet: vi.fn(),
+      disconnectWallet: vi.fn(),
+    } as any);
+
+    render(<WalletConnect />);
+
+    expect(
+      await screen.findByRole("button", { name: /Switch to Testnet/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/^Testnet$|^Mainnet$/)).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["testnet", "Testnet"],
+    ["mainnet", "Mainnet"],
+  ])("shows the %s badge without a switch button", async (network, badge) => {
+    useWalletStore.setState({ network });
+    vi.mocked(useWallet).mockReturnValue({
+      connected: true,
+      loading: false,
+      address: "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGBYZ",
+      error: null,
+      connectWallet: vi.fn(),
+      disconnectWallet: vi.fn(),
+    } as any);
+
+    render(<WalletConnect />);
+
+    expect(await screen.findByText(badge)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Switch to Testnet/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("switches to testnet, disables the button while switching, then reconnects", async () => {
+    useWalletStore.setState({ network: "futurenet" });
+    let resolveSwitch!: (value: unknown) => void;
+    const pendingSwitch = new Promise((resolve) => {
+      resolveSwitch = resolve;
+    });
+    const connectWallet = vi.fn();
+    freighterApi.setNetwork.mockReturnValue(pendingSwitch);
+    vi.mocked(useWallet).mockReturnValue({
+      connected: true,
+      loading: false,
+      address: "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGBYZ",
+      error: null,
+      connectWallet,
+      disconnectWallet: vi.fn(),
+    } as any);
+
+    render(<WalletConnect />);
+
+    const switchButton = await screen.findByRole("button", {
+      name: /Switch to Testnet/i,
+    });
+    fireEvent.click(switchButton);
+
+    await waitFor(() =>
+      expect(freighterApi.setNetwork).toHaveBeenCalledWith("TESTNET"),
+    );
+    expect(
+      await screen.findByRole("button", { name: /SWITCHING\.\.\./i }),
+    ).toBeDisabled();
+    expect(connectWallet).not.toHaveBeenCalled();
+
+    resolveSwitch(undefined);
+
+    await waitFor(() => expect(connectWallet).toHaveBeenCalledOnce());
+    expect(
+      screen.getByRole("button", { name: /Switch to Testnet/i }),
+    ).toBeEnabled();
+  });
+
+  it("shows the unsupported-version warning when Freighter cannot switch networks", async () => {
+    useWalletStore.setState({ network: "futurenet" });
+    vi.resetModules();
+    vi.doMock("@stellar/freighter-api", () => ({}));
+    const connectWallet = vi.fn();
+    vi.mocked(useWallet).mockReturnValue({
+      connected: true,
+      loading: false,
+      address: "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGBYZ",
+      error: null,
+      connectWallet,
+      disconnectWallet: vi.fn(),
+    } as any);
+
+    render(<WalletConnect />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Switch to Testnet/i }),
+    );
+
+    expect(
+      await screen.findByText(
+        /Open Freighter, switch its network to Testnet, then reconnect your wallet/i,
+      ),
+    ).toBeInTheDocument();
+    expect(connectWallet).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", { name: /Switch to Testnet/i }),
+    ).toBeEnabled();
+    vi.doMock("@stellar/freighter-api", () => ({
+      setNetwork: freighterApi.setNetwork,
+    }));
+    vi.resetModules();
+  });
+
+  it("shows network rejection details and re-enables switching", async () => {
+    useWalletStore.setState({ network: "futurenet" });
+    freighterApi.setNetwork.mockRejectedValue(
+      new Error("Network switch denied by wallet"),
+    );
+    vi.mocked(useWallet).mockReturnValue({
+      connected: true,
+      loading: false,
+      address: "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGBYZ",
+      error: null,
+      connectWallet: vi.fn(),
+      disconnectWallet: vi.fn(),
+    } as any);
+
+    render(<WalletConnect />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Switch to Testnet/i }),
+    );
+
+    expect(
+      await screen.findByText("Network switch denied by wallet"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Switch to Testnet/i }),
+    ).toBeEnabled();
+  });
+
+  it("shows errors returned by Freighter and does not reconnect", async () => {
+    useWalletStore.setState({ network: "futurenet" });
+    freighterApi.setNetwork.mockResolvedValue({
+      error: "Freighter rejected the network change",
+    });
+    const connectWallet = vi.fn();
+    vi.mocked(useWallet).mockReturnValue({
+      connected: true,
+      loading: false,
+      address: "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGBYZ",
+      error: null,
+      connectWallet,
+      disconnectWallet: vi.fn(),
+    } as any);
+
+    render(<WalletConnect />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Switch to Testnet/i }),
+    );
+
+    expect(
+      await screen.findByText("Freighter rejected the network change"),
+    ).toBeInTheDocument();
+    expect(connectWallet).not.toHaveBeenCalled();
   });
 
   it("renders error state", () => {
@@ -194,5 +376,88 @@ describe("WalletConnect", () => {
     expect(
       await screen.findByText(/couldn't copy wallet address/i),
     ).toBeInTheDocument();
+  });
+  it("renders user-rejected message with role='status'", async () => {
+    vi.mocked(useWallet).mockReturnValue({
+      connected: false,
+      loading: false,
+      address: null,
+      error: "The user rejected this request.",
+      errorCode: "user_rejected",
+    } as any);
+    render(<WalletConnect />);
+    const message = await screen.findByText(
+      /You cancelled the connection request/i,
+    );
+    expect(message).toHaveAttribute("role", "status");
+  });
+
+  it("renders generic error with role='alert'", async () => {
+    vi.mocked(useWallet).mockReturnValue({
+      connected: false,
+      loading: false,
+      address: null,
+      error: "Something went wrong",
+      errorCode: "unknown",
+    } as any);
+    render(<WalletConnect />);
+    const message = await screen.findByText(/Something went wrong/i);
+    expect(message).toHaveAttribute("role", "alert");
+  });
+
+  it("renders network switch error with role='alert'", async () => {
+    useWalletStore.setState({ network: "futurenet" });
+    freighterApi.setNetwork.mockRejectedValue(
+      new Error("Network switch denied"),
+    );
+    vi.mocked(useWallet).mockReturnValue({
+      connected: true,
+      loading: false,
+      address: "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGBYZ",
+      error: null,
+      connectWallet: vi.fn(),
+      disconnectWallet: vi.fn(),
+    } as any);
+    render(<WalletConnect />);
+    await screen.findByRole("button", { name: /Switch to Testnet/i });
+    fireEvent.click(screen.getByRole("button", { name: /Switch to Testnet/i }));
+    const errorMessage = await screen.findByText(/Network switch denied/i);
+    expect(errorMessage).toHaveAttribute("role", "alert");
+  });
+
+  it("renders install Freighter hint with role='status'", async () => {
+    vi.mocked(useWallet).mockReturnValue({
+      connected: false,
+      loading: false,
+      address: null,
+      error: "Freighter wallet is not installed",
+      errorCode: "not_installed",
+    } as any);
+    render(<WalletConnect />);
+    const hint = await screen.findByText(/Install Freighter/i);
+    expect(hint).toHaveAttribute("role", "status");
+  });
+
+  it("announces 'Address copied' when address is copied", async () => {
+    const address = "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB";
+    vi.mocked(useWallet).mockReturnValue({
+      connected: true,
+      loading: false,
+      address,
+      error: null,
+      connectWallet: vi.fn(),
+      disconnectWallet: vi.fn(),
+    } as any);
+    vi.mocked(isFreighterInstalled).mockResolvedValue(true);
+    render(<WalletConnect />);
+    const copyButton = await screen.findByLabelText(/Copy wallet address/i);
+    fireEvent.click(copyButton);
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Copy wallet address/i)).toHaveClass(
+        /text-emerald-400/,
+      );
+    });
+    const liveRegion = await screen.findByRole("status");
+    expect(liveRegion).toHaveTextContent("Address copied");
   });
 });

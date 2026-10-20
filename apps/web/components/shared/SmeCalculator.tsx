@@ -1,16 +1,52 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useCallback, useMemo, useId } from "react";
 import { Sparkles } from "lucide-react";
 import { AnimatedValue } from "./DiscountCalculator";
+
+/**
+ * Derived SME figures, memoized on their actual inputs so an unrelated state
+ * change (e.g. payment terms) does not recompute them or restart the
+ * `AnimatedValue` loops bound to them (#662).
+ */
+export function useSmeDerivedValues(faceValue: number, discountRate: number) {
+  return useMemo(() => {
+    const discountPaid = faceValue * (discountRate / 100);
+    return { discountPaid, fundedAmount: faceValue - discountPaid };
+  }, [faceValue, discountRate]);
+}
 
 export function SmeCalculator() {
   const [faceValue, setFaceValue] = useState<number>(50000);
   const [paymentTerms, setPaymentTerms] = useState<number>(60);
   const [discountRate, setDiscountRate] = useState<number>(2.0);
+  const paymentTermsId = useId();
 
-  const discountPaid = faceValue * (discountRate / 100);
-  const fundedAmount = faceValue - discountPaid;
+  const { discountPaid, fundedAmount } = useSmeDerivedValues(
+    faceValue,
+    discountRate,
+  );
+
+  const handleFaceValueChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setFaceValue(parseInt(e.target.value));
+    },
+    [],
+  );
+
+  const handlePaymentTermsChange = useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
+      setPaymentTerms(parseInt(e.target.value));
+    },
+    [],
+  );
+
+  const handleDiscountRateChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setDiscountRate(parseFloat(e.target.value));
+    },
+    [],
+  );
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -36,7 +72,7 @@ export function SmeCalculator() {
             max="500000"
             step="1000"
             value={faceValue}
-            onChange={(e) => setFaceValue(parseInt(e.target.value))}
+            onChange={handleFaceValueChange}
             className="w-full accent-primary bg-slate-900 h-1.5 rounded"
             aria-label="Invoice Face Value"
             aria-valuenow={faceValue}
@@ -51,12 +87,16 @@ export function SmeCalculator() {
 
         {/* Dropdown: Payment Terms */}
         <div className="space-y-2">
-          <label className="block text-xs font-mono text-slate-400">
+          <label
+            htmlFor={paymentTermsId}
+            className="block text-xs font-mono text-slate-400"
+          >
             Payment Due Terms
           </label>
           <select
+            id={paymentTermsId}
             value={paymentTerms}
-            onChange={(e) => setPaymentTerms(parseInt(e.target.value))}
+            onChange={handlePaymentTermsChange}
             className="w-full bg-[#080c10] border border-border rounded px-3 py-2 text-slate-200 font-mono text-xs focus:outline-none focus:border-primary"
           >
             <option value="30">Net 30 (30 days maturity)</option>
@@ -80,7 +120,7 @@ export function SmeCalculator() {
             max="5.0"
             step="0.1"
             value={discountRate}
-            onChange={(e) => setDiscountRate(parseFloat(e.target.value))}
+            onChange={handleDiscountRateChange}
             className="w-full accent-primary bg-slate-900 h-1.5 rounded"
             aria-label="Financing Discount Rate"
             aria-valuenow={discountRate}
@@ -115,7 +155,7 @@ export function SmeCalculator() {
                 <span className="text-[10px] text-slate-500 font-mono block">
                   You receive:
                 </span>
-                <span className="text-md font-bold text-slate-300 font-mono">
+                <span className="text-base font-bold text-slate-300 font-mono">
                   {faceValue.toLocaleString()} USDC
                 </span>
                 <span className="text-[9px] text-slate-600 block leading-tight mt-1">
@@ -160,7 +200,7 @@ export function SmeCalculator() {
                 <span className="text-[10px] text-slate-500 font-mono block">
                   You receive today:
                 </span>
-                <span className="text-md font-bold text-emerald-400 font-mono">
+                <span className="text-base font-bold text-emerald-400 font-mono">
                   <AnimatedValue value={fundedAmount} suffix=" USDC" />
                 </span>
                 <span className="text-[9px] text-slate-500 block leading-tight mt-1">

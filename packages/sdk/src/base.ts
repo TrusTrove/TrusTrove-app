@@ -1,6 +1,8 @@
 import {
   Contract,
+  FeeBumpTransaction,
   rpc,
+  Transaction,
   TransactionBuilder,
   Networks,
   BASE_FEE,
@@ -148,6 +150,51 @@ export class TransactionFailedError extends Error {
   }
 }
 
+/**
+ * How a mutating call re-broadcasts an already-signed transaction.
+ *
+ * Reads and simulations are retried on any network-shaped error because they
+ * carry no side effects. Broadcasting is different: if the RPC accepted the
+ * transaction and only the response was lost, retrying re-submits the same
+ * signed XDR — a double funding/repayment, or a confusing `tx_bad_seq`. So a
+ * transport error is never retried here. Only an explicit `TRY_AGAIN_LATER`
+ * is, because the RPC defines that status as having not queued the transaction.
+ */
+export interface MutationRetryPolicy {
+  /** Total broadcast attempts, including the first. Values below 1 mean one. */
+  maxAttempts: number;
+  /** Backoff before the next attempt, in ms, doubling from this base. */
+  baseDelayMs: number;
+}
+
+const DEFAULT_MUTATION_RETRY_POLICY: MutationRetryPolicy = {
+  maxAttempts: 3,
+  baseDelayMs: 1000,
+};
+
+/**
+ * Thrown when every broadcast attempt allowed by the `MutationRetryPolicy` was
+ * answered with `TRY_AGAIN_LATER`, i.e. the RPC stayed congested.
+ */
+export class TransactionTryAgainLaterError extends Error {
+  /** Contract method whose transaction was refused. */
+  readonly method: string;
+  /** Hash of the transaction that was never queued, so it is safe to re-submit. */
+  readonly txHash: string;
+  /** Broadcast attempts made before giving up. */
+  readonly attempts: number;
+
+  constructor(method: string, txHash: string, attempts: number) {
+    super(
+      `Send refused as TRY_AGAIN_LATER for ${method} after ${attempts} attempt(s): ${txHash}`,
+    );
+    this.name = "TransactionTryAgainLaterError";
+    this.method = method;
+    this.txHash = txHash;
+    this.attempts = attempts;
+  }
+}
+
 function isNetworkError(err: unknown): boolean {
   if (err instanceof TypeError) return true;
   const msg = err instanceof Error ? err.message.toLowerCase() : "";
@@ -209,11 +256,20 @@ export interface SimulationResult {
 export class BaseContractClient {
   protected contractId: string;
   private contractInstance: Contract;
+  /** Broadcast policy for this client's mutating calls. */
+  readonly mutationRetryPolicy: MutationRetryPolicy;
 
-  constructor(contractId: string) {
+  constructor(
+    contractId: string,
+    mutationRetryPolicy: Partial<MutationRetryPolicy> = {},
+  ) {
     if (!contractId) throw new Error("Contract ID is required");
     this.contractId = contractId;
     this.contractInstance = new Contract(contractId);
+    this.mutationRetryPolicy = {
+      ...DEFAULT_MUTATION_RETRY_POLICY,
+      ...mutationRetryPolicy,
+    };
   }
 
   protected get contract(): Contract {
@@ -271,16 +327,11 @@ export class BaseContractClient {
       networkPassphrase: config.networkPassphrase,
       accountToSign: publicKey,
     });
-    const result = await withRetry(() =>
-      server.sendTransaction(
-        TransactionBuilder.fromXDR(signed, config.networkPassphrase),
-      ),
+    const result = await this.broadcast(
+      method,
+      server,
+      TransactionBuilder.fromXDR(signed, config.networkPassphrase),
     );
-    if (result.status === "ERROR")
-      throw new TransactionSendError(
-        method,
-        result.errorResult?.toXDR().toString("base64"),
-      );
     let response = await withRetry(() => server.getTransaction(result.hash));
     let attempts = 1;
     while (
@@ -296,6 +347,52 @@ export class BaseContractClient {
     if (response.status === rpc.Api.GetTransactionStatus.FAILED)
       throw new TransactionFailedError(method);
     return result.hash;
+  }
+
+  /**
+   * Broadcasts an already-signed mutating transaction.
+   *
+   * `PENDING` and `DUPLICATE` both return normally: a duplicate means the RPC
+   * already holds this exact transaction, so the caller resolves it by polling
+   * the hash instead of reporting a second submission as a failure. `ERROR`
+   * throws `TransactionSendError`. `TRY_AGAIN_LATER` — which the RPC defines as
+   * not having queued the transaction — is re-broadcast with exponential
+   * backoff until `MutationRetryPolicy.maxAttempts` is exhausted.
+   *
+   * Deliberately not wrapped in `withRetry`: a transport error can follow a
+   * send the RPC already accepted, and re-submitting the same XDR would risk a
+   * duplicate funding or repayment. Such errors propagate to the caller.
+   */
+  private async broadcast(
+    method: string,
+    server: rpc.Server,
+    tx: Transaction | FeeBumpTransaction,
+  ): Promise<rpc.Api.SendTransactionResponse> {
+    // A policy of 0 would make the loop below never broadcast at all.
+    const maxAttempts = Math.max(1, this.mutationRetryPolicy.maxAttempts);
+    const { baseDelayMs } = this.mutationRetryPolicy;
+    let lastRefusedHash = "";
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const result = await server.sendTransaction(tx);
+      if (result.status !== "TRY_AGAIN_LATER") {
+        if (result.status === "ERROR")
+          throw new TransactionSendError(
+            method,
+            result.errorResult?.toXDR().toString("base64"),
+          );
+        return result;
+      }
+      lastRefusedHash = result.hash;
+      if (attempt < maxAttempts)
+        await new Promise((resolve) =>
+          setTimeout(resolve, baseDelayMs * Math.pow(2, attempt - 1)),
+        );
+    }
+    throw new TransactionTryAgainLaterError(
+      method,
+      lastRefusedHash,
+      maxAttempts,
+    );
   }
 
   public async simulateTransaction(

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useId, useMemo, useState } from "react";
 import { useInvoiceActions } from "@/hooks/useInvoices";
 import { Button } from "@/components/ui/button";
 import { ShieldAlert, PlusCircle } from "lucide-react";
@@ -10,6 +10,7 @@ import { AmountInput } from "@/components/shared/AmountInput";
 import { useWalletStore } from "@/store/wallet";
 import { DatePicker } from "@/components/ui/date-picker";
 import { getErrorMessage } from "@/lib/errors";
+import { updateInvoiceStatus } from "@/lib/api";
 
 const invoiceContractID = process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID || "";
 
@@ -26,23 +27,20 @@ interface InvoiceFormProps {
  * from presenting the invoice as waiting for a listing transaction forever.
  */
 async function cancelCreatedInvoice(invoiceId: string) {
-  const response = await fetch(
-    `/api/invoices/${encodeURIComponent(invoiceId)}/status`,
-    {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "Cancelled" }),
-    },
-  );
-
-  if (!response.ok) {
-    throw new Error(`Invoice cleanup failed (${response.status})`);
-  }
+  await updateInvoiceStatus(invoiceId, "Cancelled");
 }
 
 export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
   const { createInvoice, isCreating, listInvoice } = useInvoiceActions();
   const address = useWalletStore((s) => s.address);
+
+  // Stable, unique ids so the labels/helper text are programmatically linked
+  // to their controls instead of relying on placeholders (#998).
+  const fieldId = useId();
+  const buyerId = `${fieldId}-buyer`;
+  const assetId = `${fieldId}-asset`;
+  const dueDateId = `${fieldId}-due-date`;
+  const dueDateHelpId = `${fieldId}-due-date-help`;
 
   const [buyer, setBuyer] = useState("");
   const [faceValue, setFaceValue] = useState("");
@@ -252,10 +250,14 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
       {step === 1 ? (
         <form onSubmit={handleNextStep} className="space-y-4">
           <div className="space-y-1">
-            <label className="block text-[10px] font-bold font-mono text-slate-500 uppercase tracking-wider">
+            <label
+              htmlFor={buyerId}
+              className="block text-[10px] font-bold font-mono text-slate-500 uppercase tracking-wider"
+            >
               Buyer Wallet Address
             </label>
             <input
+              id={buyerId}
               type="text"
               placeholder="e.g. GBBD47IF6L... (Stellar Public Key)"
               className="w-full bg-[#080c10] border border-border rounded px-3 py-2.5 text-white text-xs font-mono focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all min-h-[44px]"
@@ -265,8 +267,8 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
-            <div className="col-span-2 space-y-1">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="min-w-0 space-y-1 sm:col-span-2">
               <AmountInput
                 value={faceValue}
                 onChange={setFaceValue}
@@ -276,11 +278,15 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
                 required
               />
             </div>
-            <div className="space-y-1">
-              <label className="block text-[10px] font-bold font-mono text-slate-500 uppercase tracking-wider">
+            <div className="min-w-0 space-y-1">
+              <label
+                htmlFor={assetId}
+                className="block text-[10px] font-bold font-mono text-slate-500 uppercase tracking-wider"
+              >
                 Asset
               </label>
               <select
+                id={assetId}
                 value={asset}
                 onChange={(event) => setAsset(event.target.value as AssetType)}
                 className="w-full bg-[#080c10] border border-border rounded px-3 py-2.5 text-white text-xs font-mono min-h-[44px]"
@@ -292,16 +298,24 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
                 ))}
               </select>
             </div>
-            <div className="space-y-1">
-              <label className="block text-[10px] font-bold font-mono text-slate-500 uppercase tracking-wider">
+            <div className="min-w-0 space-y-1 sm:col-span-3">
+              <label
+                htmlFor={dueDateId}
+                className="block text-[10px] font-bold font-mono text-slate-500 uppercase tracking-wider"
+              >
                 Due Date
               </label>
               <DatePicker
+                id={dueDateId}
+                aria-describedby={dueDateHelpId}
                 value={dueDate}
                 onChange={setDueDate}
                 minDate={new Date()}
               />
-              <span className="text-[10px] font-mono text-slate-500 block mt-1">
+              <span
+                id={dueDateHelpId}
+                className="text-[10px] font-mono text-slate-500 block mt-1"
+              >
                 Select invoice maturity date
               </span>
             </div>
@@ -351,14 +365,17 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
           </div>
 
           {error && (
-            <div className="p-3 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-start gap-2">
+            <div
+              role="alert"
+              className="p-3 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-start gap-2"
+            >
               <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
               <span className="font-mono">{error}</span>
             </div>
           )}
           <Button
             type="submit"
-            className="w-full bg-primary hover:bg-primary-hover text-black font-bold uppercase tracking-wider text-xs rounded py-2.5 min-h-[44px]"
+            className="w-full bg-primary hover:bg-primary/90 text-black font-bold uppercase tracking-wider text-xs rounded py-2.5 min-h-[44px]"
           >
             REVIEW FINANCING TERMS
           </Button>
@@ -398,7 +415,10 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
             </div>
           </div>
           {error && (
-            <div className="p-3 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-start gap-2">
+            <div
+              role="alert"
+              className="p-3 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-start gap-2"
+            >
               <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
               <span className="font-mono">{error}</span>
             </div>
@@ -418,7 +438,7 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
             </Button>
             <Button
               type="button"
-              className="flex-1 bg-primary hover:bg-primary-hover text-black font-bold"
+              className="flex-1 bg-primary hover:bg-primary/90 text-black font-bold"
               disabled={isBusy}
               onClick={handleCreate}
             >

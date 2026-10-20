@@ -13,6 +13,7 @@
 | `NEXT_PUBLIC_USDC_ISSUER`          | Frontend + Backend | USDC issuer on Stellar testnet           | `GBBD...`                                            |
 | `NEXT_PUBLIC_USDC_ASSET_CODE`      | Frontend + Backend | USDC asset code                          | `USDC`                                               |
 | `NEXT_PUBLIC_API_BASE_URL`         | Frontend only      | Indexer API base URL                     | `http://localhost:8080`                              |
+| `CSP_ENFORCE`                      | Frontend only      | Enforce the CSP (default: report-only)   | `true`                                               |
 | `STELLAR_NETWORK`                  | Backend only       | Network name                             | `testnet`                                            |
 | `HORIZON_URL`                      | Backend only       | Horizon REST API endpoint                | `https://horizon-testnet.stellar.org`                |
 | `SOROBAN_RPC_URL`                  | Backend only       | Soroban RPC endpoint                     | `https://soroban-testnet.stellar.org`                |
@@ -28,11 +29,16 @@
 | `DATABASE_URL_UNPOOLED`            | Backend only       | Neon direct connection string            | `postgresql://user:pass@host/db?sslmode=require`     |
 | `API_PORT`                         | Backend only       | Indexer HTTP port (fallback: `PORT`)     | `8080`                                               |
 | `INDEXER_POLL_INTERVAL_MS`         | Backend only       | Soroban event poll interval              | `5000`                                               |
+| `INDEXER_CONFIRMATION_DEPTH`       | Backend only       | Reorg buffer; ledgers behind tip (0=off) | `3`                                                  |
 | `JWT_SECRET`                       | Backend only       | Secret for JWT signing                   | `your-secret-here`                                   |
 | `JWT_EXPIRY_HOURS`                 | Backend only       | JWT token expiry                         | `24`                                                 |
 | `ALLOWED_ORIGINS`                  | Backend only       | Allowed CORS origins for the indexer API | `https://trustrove.vercel.app,http://localhost:3000` |
 
+> **Note:** `CSP_ENFORCE` is read by the web app's middleware at request time, so it takes effect on restart or redeploy without a rebuild. See [Security Headers](security-headers.md).
+
 > **Note:** `AGENT_REGISTRY_CONTRACT` is deployed from Underwrite's separate `underwrite-contract` repo, not from this monorepo.
+
+> **Note:** Provider RPC URLs with embedded API keys are safe to use in `SOROBAN_RPC_URL`. Hosted Soroban RPC providers commonly authenticate via a key in the URL path or query string, and the indexer never echoes that URL to clients: transport errors from `CallSorobanRPC` are unwrapped to the operation name and underlying cause, and API handlers log backend errors server-side while responding with a generic message plus a request id (see issue #921).
 
 ## Source of truth
 
