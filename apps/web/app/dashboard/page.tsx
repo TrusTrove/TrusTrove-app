@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
@@ -37,6 +37,7 @@ const InvoiceForm = dynamic(
 // namespace; see docs/developer-guide/i18n.md for the migration pattern.
 export default function SMEDashboard() {
   const t = useTranslations("Dashboard");
+  const tCommon = useTranslations("Common");
   const address = useWalletStore((s) => s.address);
   const connected = useWalletStore((s) => s.connected);
   const role = useWalletStore((s) => s.role);
@@ -53,11 +54,33 @@ export default function SMEDashboard() {
     issuer: address || undefined,
   });
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const consoleHeadingRef = useRef<HTMLHeadingElement>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const { isVerified } = useProfile();
   const createModalRef = useFocusTrap<HTMLDivElement>(showCreateModal, () =>
     setShowCreateModal(false),
   );
+
+  useEffect(() => {
+    if (
+      !selectedInvoice ||
+      window.matchMedia("(min-width: 1024px)").matches
+    ) {
+      return;
+    }
+
+    const heading = consoleHeadingRef.current;
+    if (!heading) return;
+
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    heading.scrollIntoView?.({
+      behavior: prefersReducedMotion ? "auto" : "smooth",
+      block: "start",
+    });
+    heading.focus({ preventScroll: true });
+  }, [selectedInvoice]);
 
   useEffect(() => {
     setSelectedInvoice(null);
@@ -431,9 +454,18 @@ export default function SMEDashboard() {
 
           {/* Side Management Panel (Right) */}
           <div className="lg:col-span-4 space-y-6">
-            <h2 className="text-sm font-bold font-mono tracking-wider uppercase text-white">
+            <h2
+              ref={consoleHeadingRef}
+              tabIndex={-1}
+              className="text-sm font-bold font-mono tracking-wider uppercase text-white"
+            >
               {t("console.title")}
             </h2>
+            <p role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+              {selectedInvoice
+                ? tCommon("invoiceSelected", { id: selectedInvoice.id })
+                : ""}
+            </p>
 
             <ErrorBoundary context="ManagementConsole">
               <AnimatePresence mode="wait">

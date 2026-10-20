@@ -1,5 +1,5 @@
 import React from "react";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import LPDashboard from "@/app/lp/page";
 import { parseRawPoolStats } from "@/lib/api";
@@ -13,6 +13,10 @@ const { wallet } = vi.hoisted(() => ({
 const { pool } = vi.hoisted(() => ({
   pool: { stats: undefined as unknown, position: undefined as unknown },
 }));
+const { actions, confirmation } = vi.hoisted(() => ({
+  actions: { deposit: vi.fn(), withdraw: vi.fn() },
+  confirmation: { request: vi.fn() },
+}));
 
 vi.mock("@/store/wallet", () => ({
   useWalletStore: (selector: any) => (selector ? selector(wallet) : wallet),
@@ -24,8 +28,8 @@ vi.mock("@/hooks/usePool", () => ({
     isStatsLoading: false,
     position: pool.position,
     isPositionLoading: false,
-    deposit: vi.fn(),
-    withdraw: vi.fn(),
+    deposit: actions.deposit,
+    withdraw: actions.withdraw,
     isDepositing: false,
     isWithdrawing: false,
   }),
@@ -43,6 +47,11 @@ vi.mock("@/components/shared/WalletConnect", () => ({
 
 vi.mock("@/components/shared/SimulationPreview", () => ({
   SimulationPreview: () => null,
+}));
+
+vi.mock("@/store/confirmDialog", () => ({
+  useConfirmDialogStore: (selector: any) =>
+    selector ? selector(confirmation) : confirmation,
 }));
 
 /**
@@ -78,6 +87,9 @@ describe("LP pool overview panel", () => {
     wallet.address = "GAAAAAAAA";
     pool.stats = undefined;
     pool.position = undefined;
+    actions.deposit.mockClear();
+    actions.withdraw.mockClear();
+    confirmation.request.mockClear();
   });
 
   afterEach(() => {
@@ -144,5 +156,57 @@ describe("LP pool overview panel", () => {
         "utilizationRateBps",
       ].sort(),
     );
+  });
+
+  it("shows and focuses an inline error for a non-positive deposit", () => {
+    renderPoolPanel(undefined);
+    const input = screen.getByLabelText("Deposit amount");
+
+    fireEvent.submit(input.closest("form")!);
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Enter an amount greater than zero.",
+    );
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input).toHaveAttribute("aria-describedby", "deposit-amount-error");
+    expect(document.activeElement).toBe(input);
+    expect(actions.deposit).not.toHaveBeenCalled();
+  });
+
+  it("shows and focuses an inline error for a non-positive withdrawal", () => {
+    pool.position = { shares: 100_000_000n };
+    renderPoolPanel(undefined);
+    const input = screen.getByLabelText("Shares to redeem");
+
+    fireEvent.submit(input.closest("form")!);
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Enter an amount greater than zero.",
+    );
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input.getAttribute("aria-describedby")).toContain(
+      "withdraw-available",
+    );
+    expect(input.getAttribute("aria-describedby")).toContain(
+      "withdraw-shares-error",
+    );
+    expect(document.activeElement).toBe(input);
+    expect(confirmation.request).not.toHaveBeenCalled();
+  });
+
+  it("rejects withdrawals above redeemable shares before confirmation", () => {
+    pool.position = { shares: 100_000_000n };
+    renderPoolPanel(undefined);
+    const input = screen.getByLabelText("Shares to redeem");
+
+    fireEvent.change(input, { target: { value: "10.1" } });
+    fireEvent.submit(input.closest("form")!);
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Amount exceeds your redeemable shares.",
+    );
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(document.activeElement).toBe(input);
+    expect(confirmation.request).not.toHaveBeenCalled();
   });
 });

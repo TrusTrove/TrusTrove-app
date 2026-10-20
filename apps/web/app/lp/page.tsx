@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { PageLayout } from "@/components/shared/PageLayout";
 import { WalletConnect } from "@/components/shared/WalletConnect";
 import { SimulationPreview } from "@/components/shared/SimulationPreview";
@@ -41,6 +41,10 @@ export default function LPDashboard() {
   const [simDetails, setSimDetails] = useState<SimulationResult | null>(null);
   const [simError, setSimError] = useState<string | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
+  const [depositError, setDepositError] = useState<string | null>(null);
+  const [withdrawError, setWithdrawError] = useState<string | null>(null);
+  const depositInputRef = useRef<HTMLInputElement>(null);
+  const withdrawInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const amount = Number(depositAmount);
@@ -97,7 +101,12 @@ export default function LPDashboard() {
   const handleDeposit = async (event: React.FormEvent) => {
     event.preventDefault();
     const amount = Number(depositAmount);
-    if (!Number.isFinite(amount) || amount <= 0) return;
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setDepositError("Enter an amount greater than zero.");
+      depositInputRef.current?.focus();
+      return;
+    }
+    setDepositError(null);
 
     await deposit({
       amount: BigInt(Math.floor(amount * STROOPS_PER_UNIT)),
@@ -109,9 +118,21 @@ export default function LPDashboard() {
   const handleWithdraw = (event: React.FormEvent) => {
     event.preventDefault();
     const shares = Number(withdrawShares);
-    if (!Number.isFinite(shares) || shares <= 0) return;
+    const shareAmount = Number.isFinite(shares)
+      ? BigInt(Math.floor(shares * STROOPS_PER_UNIT))
+      : 0n;
+    if (!Number.isFinite(shares) || shares <= 0) {
+      setWithdrawError("Enter an amount greater than zero.");
+      withdrawInputRef.current?.focus();
+      return;
+    }
+    if (shareAmount > (position?.shares ?? 0n)) {
+      setWithdrawError("Amount exceeds your redeemable shares.");
+      withdrawInputRef.current?.focus();
+      return;
+    }
+    setWithdrawError(null);
 
-    const shareAmount = BigInt(Math.floor(shares * STROOPS_PER_UNIT));
     requestConfirmation({
       label: "Withdraw LP liquidity",
       invoiceId: address || "LP position",
@@ -240,14 +261,24 @@ export default function LPDashboard() {
               Deposit amount
             </label>
             <input
+              ref={depositInputRef}
               id="deposit-amount"
               type="number"
-              min="0"
               step="any"
               value={depositAmount}
-              onChange={(event) => setDepositAmount(event.target.value)}
+              aria-invalid={depositError ? "true" : undefined}
+              aria-describedby={depositError ? "deposit-amount-error" : undefined}
+              onChange={(event) => {
+                setDepositAmount(event.target.value);
+                setDepositError(null);
+              }}
               className="w-full rounded border border-border bg-slate-950 px-3 py-2 text-white"
             />
+            {depositError && (
+              <p id="deposit-amount-error" role="alert" className="text-sm text-rose-300">
+                {depositError}
+              </p>
+            )}
             <SimulationPreview
               details={simDetails}
               error={simError}
@@ -276,15 +307,25 @@ export default function LPDashboard() {
               Shares to redeem
             </label>
             <input
+              ref={withdrawInputRef}
               id="withdraw-shares"
               type="number"
-              min="0"
               step="any"
               value={withdrawShares}
-              onChange={(event) => setWithdrawShares(event.target.value)}
+              aria-invalid={withdrawError ? "true" : undefined}
+              aria-describedby={`withdraw-available${withdrawError ? " withdraw-shares-error" : ""}`}
+              onChange={(event) => {
+                setWithdrawShares(event.target.value);
+                setWithdrawError(null);
+              }}
               className="w-full rounded border border-border bg-slate-950 px-3 py-2 text-white"
             />
-            <p className="text-xs text-slate-500">
+            {withdrawError && (
+              <p id="withdraw-shares-error" role="alert" className="text-sm text-rose-300">
+                {withdrawError}
+              </p>
+            )}
+            <p id="withdraw-available" className="text-xs text-slate-500">
               Available: {formatShareValue(position?.shares)}
             </p>
             <button

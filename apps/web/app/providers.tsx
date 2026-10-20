@@ -6,6 +6,7 @@ import { Toaster } from "sonner";
 import { ConfirmationDialog } from "@/components/shared/ConfirmationDialog";
 import { ConfigBanner } from "@/components/shared/ConfigBanner";
 import { useTheme } from "@/hooks/useTheme";
+import { MotionConfig } from "framer-motion";
 // Startup wiring of the SDK to the web app's NEXT_PUBLIC_* config.
 import "@/lib/sdkConfig";
 
@@ -29,23 +30,25 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   }, [queryClient]);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <ConfigBanner />
-      {children}
-      <ConfirmationDialog />
-      <Toaster
-        containerAriaLabel="Notifications"
-        position="bottom-right"
-        theme={theme}
-        toastOptions={{
-          style: {
-            background: "hsl(var(--card))",
-            border: "1px solid hsl(var(--border))",
-            color: "hsl(var(--card-foreground))",
-            fontFamily: "ui-monospace, monospace",
-          },
-        }}
-      />
-    </QueryClientProvider>
+    <MotionConfig reducedMotion="user">
+      <QueryClientProvider client={queryClient}>
+        <ConfigBanner />
+        {children}
+        <ConfirmationDialog />
+        <Toaster
+          containerAriaLabel="Notifications"
+          position="bottom-right"
+          theme={theme}
+          toastOptions={{
+            style: {
+              background: "hsl(var(--card))",
+              border: "1px solid hsl(var(--border))",
+              color: "hsl(var(--card-foreground))",
+              fontFamily: "ui-monospace, monospace",
+            },
+          }}
+        />
+      </QueryClientProvider>
+    </MotionConfig>
   );
 }

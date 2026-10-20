@@ -241,6 +241,7 @@
   "Common": {
     "loading": "Loading…",
     "error": "Something went wrong",
-    "retry": "Retry"
+    "retry": "Retry",
+    "invoiceSelected": "Invoice INV#{id} selected, actions available below"
   }
 }

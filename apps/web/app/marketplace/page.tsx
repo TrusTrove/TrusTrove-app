@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { PageLayout } from "@/components/shared/PageLayout";
@@ -106,6 +106,7 @@ function writePresetsToStorage(
 // namespace; see docs/developer-guide/i18n.md for the migration pattern.
 export default function Marketplace() {
   const t = useTranslations("Marketplace");
+  const tCommon = useTranslations("Common");
   const connected = useWalletStore((s) => s.connected);
   const address = useWalletStore((s) => s.address);
   const role = useWalletStore((s) => s.role);
@@ -149,10 +150,32 @@ export default function Marketplace() {
   });
 
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const consoleHeadingRef = useRef<HTMLHeadingElement>(null);
   const handleSelectInvoice = useCallback(
     (invoice: Invoice) => setSelectedInvoice(invoice),
     [],
   );
+
+  useEffect(() => {
+    if (
+      !selectedInvoice ||
+      window.matchMedia("(min-width: 1024px)").matches
+    ) {
+      return;
+    }
+
+    const heading = consoleHeadingRef.current;
+    if (!heading) return;
+
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    heading.scrollIntoView?.({
+      behavior: prefersReducedMotion ? "auto" : "smooth",
+      block: "start",
+    });
+    heading.focus({ preventScroll: true });
+  }, [selectedInvoice]);
 
   useEffect(() => {
     setInvoicePage(1);
@@ -693,9 +716,18 @@ export default function Marketplace() {
 
           {/* Console Management Center (Right) */}
           <div className="lg:col-span-4 space-y-4">
-            <h2 className="text-sm font-bold font-mono tracking-wider uppercase text-white">
+            <h2
+              ref={consoleHeadingRef}
+              tabIndex={-1}
+              className="text-sm font-bold font-mono tracking-wider uppercase text-white"
+            >
               {t("console.title")}
             </h2>
+            <p role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+              {selectedInvoice
+                ? tCommon("invoiceSelected", { id: selectedInvoice.id })
+                : ""}
+            </p>
 
             <ErrorBoundary context="ManagementCenter">
               {selectedInvoice ? (
