@@ -277,13 +277,18 @@ const transaction = new Transaction(
 2. Fund with minimum XLM for transaction fees (~1-2 XLM)
 3. Add USDC trustline:
    ```bash
-   stellar pay --testnet \
+   stellar tx new change-trust \
      --source-account <your-account> \
-     --destination <your-account> \
-     --asset-code USDC \
-     --asset-issuer GA5ZSEJYB37JRC5AVCIA5MOP4SHAHTQO62OJJVTIL7FWRVJRNRQWWIV \
-     --amount 0
+     --line USDC:GA5ZSEJYB37JRC5AVCIA5MOP4SHAHTQO62OJJVTIL7FWRVJRNRQWWIV \
+     --rpc-url https://soroban.stellar.org \
+     --network-passphrase "Public Global Stellar Network ; September 2015"
    ```
+
+`stellar tx new change-trust` is the current CLI subcommand for trustlines;
+`stellar pay` no longer exists, and a payment cannot open a trustline. The
+`--rpc-url` and `--network-passphrase` pair pins the transaction to Mainnet,
+matching the network table above. Omit `--limit`: its default (the maximum
+asset amount) is the usable trustline, while `--limit 0` removes one.
 
 ### Transaction Verification
 

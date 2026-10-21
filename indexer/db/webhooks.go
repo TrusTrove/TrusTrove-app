@@ -220,6 +220,7 @@ func CreateWebhookDelivery(ctx context.Context, q Querier, subscriptionID uuid.U
 	query := `
 		INSERT INTO webhook_deliveries (subscription_id, event_type, event_id, payload)
 		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (subscription_id, event_id) DO NOTHING
 	`
 	_, err := q.Exec(ctx, query, subscriptionID, eventType, eventID, payload)
 	if err != nil {

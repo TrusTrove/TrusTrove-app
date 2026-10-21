@@ -7,7 +7,6 @@ import {
   watchFreighterChanges,
   FreighterError,
 } from "@/lib/freighter";
-import { initApiClientWithToken } from "@/lib/api";
 import { useBalances } from "./useBalances";
 
 vi.mock("@/lib/freighter", () => ({
@@ -21,10 +20,6 @@ vi.mock("@/lib/freighter", () => ({
       this.code = code;
     }
   },
-}));
-
-vi.mock("@/lib/api", () => ({
-  initApiClientWithToken: vi.fn(),
 }));
 
 vi.mock("@stellar/freighter-api", () => ({
@@ -283,6 +278,7 @@ describe("useWallet", () => {
 
 interface WalletChange {
   address?: string;
+  disconnected?: boolean;
   network?: string;
   previous: { address: string | null; network: string | null };
 }
@@ -368,10 +364,28 @@ describe("useWallet Freighter change watching (#873)", () => {
     expect(state.address).toBe("GCHANGED");
     expect(state.connected).toBe(true);
     expect(state.token).toBeNull();
-    // The API client re-sync happens through a lazy import of lib/api.
-    await vi.waitFor(() => {
-      expect(initApiClientWithToken).toHaveBeenCalled();
+  });
+
+  it("disconnects the wallet and clears the token when Freighter reports no account", async () => {
+    act(() => {
+      useWalletStore.getState().connect("G12345", "testnet");
+      useWalletStore.getState().setToken("jwt-for-G12345");
     });
+    const watcher = captureWatcher();
+
+    renderHook(() => useWallet());
+
+    await act(async () => {
+      watcher.change({
+        disconnected: true,
+        previous: { address: "G12345", network: "testnet" },
+      });
+    });
+
+    const state = useWalletStore.getState();
+    expect(state.connected).toBe(false);
+    expect(state.address).toBeNull();
+    expect(state.token).toBeNull();
   });
 
   it("restarts the watcher from the new address after a change", () => {

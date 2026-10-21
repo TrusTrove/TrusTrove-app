@@ -377,4 +377,87 @@ describe("WalletConnect", () => {
       await screen.findByText(/couldn't copy wallet address/i),
     ).toBeInTheDocument();
   });
+  it("renders user-rejected message with role='status'", async () => {
+    vi.mocked(useWallet).mockReturnValue({
+      connected: false,
+      loading: false,
+      address: null,
+      error: "The user rejected this request.",
+      errorCode: "user_rejected",
+    } as any);
+    render(<WalletConnect />);
+    const message = await screen.findByText(
+      /You cancelled the connection request/i,
+    );
+    expect(message).toHaveAttribute("role", "status");
+  });
+
+  it("renders generic error with role='alert'", async () => {
+    vi.mocked(useWallet).mockReturnValue({
+      connected: false,
+      loading: false,
+      address: null,
+      error: "Something went wrong",
+      errorCode: "unknown",
+    } as any);
+    render(<WalletConnect />);
+    const message = await screen.findByText(/Something went wrong/i);
+    expect(message).toHaveAttribute("role", "alert");
+  });
+
+  it("renders network switch error with role='alert'", async () => {
+    useWalletStore.setState({ network: "futurenet" });
+    freighterApi.setNetwork.mockRejectedValue(
+      new Error("Network switch denied"),
+    );
+    vi.mocked(useWallet).mockReturnValue({
+      connected: true,
+      loading: false,
+      address: "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGBYZ",
+      error: null,
+      connectWallet: vi.fn(),
+      disconnectWallet: vi.fn(),
+    } as any);
+    render(<WalletConnect />);
+    await screen.findByRole("button", { name: /Switch to Testnet/i });
+    fireEvent.click(screen.getByRole("button", { name: /Switch to Testnet/i }));
+    const errorMessage = await screen.findByText(/Network switch denied/i);
+    expect(errorMessage).toHaveAttribute("role", "alert");
+  });
+
+  it("renders install Freighter hint with role='status'", async () => {
+    vi.mocked(useWallet).mockReturnValue({
+      connected: false,
+      loading: false,
+      address: null,
+      error: "Freighter wallet is not installed",
+      errorCode: "not_installed",
+    } as any);
+    render(<WalletConnect />);
+    const hint = await screen.findByText(/Install Freighter/i);
+    expect(hint).toHaveAttribute("role", "status");
+  });
+
+  it("announces 'Address copied' when address is copied", async () => {
+    const address = "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB";
+    vi.mocked(useWallet).mockReturnValue({
+      connected: true,
+      loading: false,
+      address,
+      error: null,
+      connectWallet: vi.fn(),
+      disconnectWallet: vi.fn(),
+    } as any);
+    vi.mocked(isFreighterInstalled).mockResolvedValue(true);
+    render(<WalletConnect />);
+    const copyButton = await screen.findByLabelText(/Copy wallet address/i);
+    fireEvent.click(copyButton);
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Copy wallet address/i)).toHaveClass(
+        /text-emerald-400/,
+      );
+    });
+    const liveRegion = await screen.findByRole("status");
+    expect(liveRegion).toHaveTextContent("Address copied");
+  });
 });

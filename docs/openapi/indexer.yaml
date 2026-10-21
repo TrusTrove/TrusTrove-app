@@ -26,6 +26,7 @@ tags:
   - name: Stats
   - name: Pool
   - name: Events
+  - name: Webhooks
 
 security:
   - bearerAuth: []
@@ -130,6 +131,17 @@ paths:
       security: []
       parameters:
         - $ref: "#/components/parameters/Limit"
+        - name: issuer
+          in: query
+          required: false
+          description: >-
+            Stellar account to scope the feed to. Returns only events whose
+            `data.invoice_id` belongs to an invoice issued by that account, so
+            pool-level and registry events are excluded. Omit for the
+            protocol-wide feed.
+          schema:
+            type: string
+            pattern: "^G[A-Z2-7]{55}$"
       responses:
         "200":
           description: Indexed events
@@ -139,6 +151,12 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/EventLog"
+        "400":
+          description: issuer is not a valid Stellar account address
+          content:
+            text/plain:
+              schema:
+                type: string
         "429":
           $ref: "#/components/responses/RateLimited"
 
@@ -229,6 +247,53 @@ paths:
                 $ref: "#/components/schemas/Invoice"
         "404":
           $ref: "#/components/responses/NotFound"
+
+  /invoices/{id}/status:
+    patch:
+      tags: [Invoices]
+      summary: Update invoice status
+      description: Updates an invoice's lifecycle status. Used to cancel a
+        newly created invoice when its immediate on-chain listing fails, so it
+        is not left "pending listing" indefinitely.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: a3f8c1d27e904b6a8d5f0139c2e7ab64f0d8c3b19a6e52f7b4c0d91e8a2735bc
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateInvoiceStatusRequest"
+            examples:
+              cancel:
+                value:
+                  status: Cancelled
+      responses:
+        "200":
+          description: Invoice status updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  status:
+                    type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
 
   /stats:
     get:
@@ -362,7 +427,8 @@ paths:
           in: path
           required: true
           schema:
-            type: integer
+            type: string
+            format: uuid
       responses:
         '204':
           description: Webhook deleted
@@ -470,6 +536,14 @@ components:
             Unix timestamp in seconds. Must be in the future and no more than
             5 years from the time the request is validated.
       required: [buyer, face_value, due_date]
+
+    UpdateInvoiceStatusRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          description: New lifecycle status for the invoice (e.g. Cancelled).
+      required: [status]
 
     CreateInvoiceResponse:
       type: object
@@ -582,6 +656,11 @@ components:
         data:
           type: object
           additionalProperties: true
+        invoice_issuer:
+          type: string
+          description: >-
+            Issuer of the invoice named in `data.invoice_id`. Absent when the
+            event does not refer to an indexed invoice.
       required: [id, event_id, contract_id, ledger, ledger_closed_at, event_type, data]
 
     ProtocolStats:
@@ -603,6 +682,10 @@ components:
           type: integer
         registered_issuers:
           type: integer
+          description: >-
+            Distinct accounts that emitted an `issuer_registered` registry
+            event. This is registry adoption, so it includes issuers with no
+            invoices and excludes invoice issuers that never registered.
 
     PoolStats:
       type: object

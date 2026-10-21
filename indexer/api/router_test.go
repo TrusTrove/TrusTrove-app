@@ -348,6 +348,62 @@ func TestPerClientRateLimiter_JWTvsIPKeys(t *testing.T) {
 	}
 }
 
+func TestGetClientKey_IgnoresSourcePortForBuckets(t *testing.T) {
+	rl := newPerClientRateLimiter(1, 1, 1000)
+	defer rl.Stop()
+
+	req1 := httptest.NewRequest(http.MethodGet, "/auth", nil)
+	req1.RemoteAddr = "203.0.113.7:45000"
+	req2 := httptest.NewRequest(http.MethodGet, "/auth", nil)
+	req2.RemoteAddr = "203.0.113.7:45001"
+
+	key1 := getClientKey(req1)
+	key2 := getClientKey(req2)
+	if key1 != key2 {
+		t.Fatalf("same client IP with different ports should share a bucket: %q != %q", key1, key2)
+	}
+	if !rl.allow(key1) {
+		t.Fatal("first request should be allowed")
+	}
+	if rl.allow(key2) {
+		t.Fatal("second request from the same IP should hit the same bucket and be rate limited")
+	}
+}
+
+func TestTrustedProxyMiddleware_IgnoresSpoofedForwardedHeaders(t *testing.T) {
+	t.Run("untrusted peer ignores forwarded headers", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/auth", nil)
+		req.RemoteAddr = "198.51.100.9:45678"
+		req.Header.Set("X-Forwarded-For", "203.0.113.55")
+
+		mw := TrustedProxyMiddleware([]string{"10.0.0.0/8"})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		rr := httptest.NewRecorder()
+		mw.ServeHTTP(rr, req)
+
+		if got := getClientKey(req); got != "ip:198.51.100.9" {
+			t.Fatalf("spoofed X-Forwarded-For from untrusted peer should be ignored; got %q", got)
+		}
+	})
+
+	t.Run("trusted proxy forwards the original client IP", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/auth", nil)
+		req.RemoteAddr = "10.0.0.9:45678"
+		req.Header.Set("X-Forwarded-For", "203.0.113.55")
+
+		mw := TrustedProxyMiddleware([]string{"10.0.0.0/8"})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		rr := httptest.NewRecorder()
+		mw.ServeHTTP(rr, req)
+
+		if got := getClientKey(req); got != "ip:203.0.113.55" {
+			t.Fatalf("trusted proxy should set the client IP from X-Forwarded-For; got %q", got)
+		}
+	})
+}
+
 func TestPerClientRateLimiter_MaxSizeEviction(t *testing.T) {
 	maxSize := 10
 	rl := newPerClientRateLimiter(10, 20, maxSize)
@@ -496,6 +552,31 @@ func TestRouter_PublicReadRoutesAreRateLimited(t *testing.T) {
 	}
 	if limited == 0 {
 		t.Fatalf("expected status %d once the client exceeded the configured RPS", http.StatusTooManyRequests)
+	}
+}
+
+func TestRateLimitMiddleware_UsesGenericTooManyRequestsBody(t *testing.T) {
+	rl := newPerClientRateLimiter(1, 1, 1000)
+	defer rl.Stop()
+	mw := RateLimitMiddleware(rl)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/auth", nil)
+	req.RemoteAddr = "203.0.113.8:52000"
+	first := httptest.NewRecorder()
+	mw.ServeHTTP(first, req)
+	if first.Code != http.StatusOK {
+		t.Fatalf("first request status=%d, want %d; body=%s", first.Code, http.StatusOK, first.Body.String())
+	}
+
+	second := httptest.NewRecorder()
+	mw.ServeHTTP(second, req)
+	if second.Code != http.StatusTooManyRequests {
+		t.Fatalf("second request status=%d, want %d; body=%s", second.Code, http.StatusTooManyRequests, second.Body.String())
+	}
+	if body := strings.TrimSpace(second.Body.String()); body != "Too Many Requests" {
+		t.Fatalf("body=%q, want %q", body, "Too Many Requests")
 	}
 }
 

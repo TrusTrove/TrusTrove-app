@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"runtime/debug"
 	"strings"
@@ -90,7 +91,7 @@ func CORSMiddleware(allowedOrigins []string) func(http.Handler) http.Handler {
 				}
 			}
 
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
 			if r.Method == http.MethodOptions {
@@ -257,7 +258,94 @@ func getClientKey(r *http.Request) string {
 	if sub, ok := GetUserAddress(r.Context()); ok {
 		return "jwt:" + sub
 	}
-	return "ip:" + r.RemoteAddr
+
+	addr := r.RemoteAddr
+	if host, _, err := net.SplitHostPort(addr); err == nil {
+		addr = host
+	}
+	return "ip:" + addr
+}
+
+func parseTrustedProxyCIDRs(raw string) []*net.IPNet {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+
+	cidrs := make([]*net.IPNet, 0)
+	for _, entry := range strings.Split(raw, ",") {
+		cidr := strings.TrimSpace(entry)
+		if cidr == "" {
+			continue
+		}
+		if ip := net.ParseIP(cidr); ip != nil {
+			if ip.To4() != nil {
+				cidr = ip.String() + "/32"
+			} else {
+				cidr = ip.String() + "/128"
+			}
+		}
+		_, network, err := net.ParseCIDR(cidr)
+		if err != nil {
+			slog.Warn("invalid trusted proxy CIDR; ignoring", "cidr", cidr, "error", err)
+			continue
+		}
+		cidrs = append(cidrs, network)
+	}
+	return cidrs
+}
+
+func trustedClientIP(r *http.Request, trustedProxyNets []*net.IPNet) string {
+	if len(trustedProxyNets) == 0 {
+		return ""
+	}
+
+	remoteHost := r.RemoteAddr
+	if host, _, err := net.SplitHostPort(remoteHost); err == nil {
+		remoteHost = host
+	}
+	remoteIP := net.ParseIP(remoteHost)
+	if remoteIP == nil {
+		return ""
+	}
+
+	trusted := false
+	for _, network := range trustedProxyNets {
+		if network.Contains(remoteIP) {
+			trusted = true
+			break
+		}
+	}
+	if !trusted {
+		return ""
+	}
+
+	for _, headerName := range []string{"X-Forwarded-For", "X-Real-IP", "True-Client-IP"} {
+		if value := strings.TrimSpace(r.Header.Get(headerName)); value != "" {
+			parts := strings.Split(value, ",")
+			for _, part := range parts {
+				candidate := strings.TrimSpace(part)
+				if candidate == "" {
+					continue
+				}
+				if ip := net.ParseIP(candidate); ip != nil {
+					return ip.String()
+				}
+			}
+		}
+	}
+	return ""
+}
+
+func TrustedProxyMiddleware(trustedProxyCIDRs []string) func(http.Handler) http.Handler {
+	trustedProxyNets := parseTrustedProxyCIDRs(strings.Join(trustedProxyCIDRs, ","))
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if trustedIP := trustedClientIP(r, trustedProxyNets); trustedIP != "" {
+				r.RemoteAddr = net.JoinHostPort(trustedIP, "0")
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func RateLimitMiddleware(rl *perClientRateLimiter) func(http.Handler) http.Handler {
@@ -266,7 +354,7 @@ func RateLimitMiddleware(rl *perClientRateLimiter) func(http.Handler) http.Handl
 			clientKey := getClientKey(r)
 			if !rl.allow(clientKey) {
 				w.Header().Set("Retry-After", "1")
-				http.Error(w, fmt.Sprintf("Too Many Requests (client: %s)", clientKey), http.StatusTooManyRequests)
+				http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -281,6 +369,7 @@ func NewRouter(h *APIHandler) (*chi.Mux, func()) {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Logger)
 	r.Use(RecoveryMiddleware())
+	r.Use(TrustedProxyMiddleware(h.cfg.TrustedProxyCIDRs))
 	r.Use(CORSMiddleware(h.cfg.CORSAllowedOrigins))
 	r.Use(SecurityHeadersMiddleware())
 
@@ -345,6 +434,7 @@ func NewRouter(h *APIHandler) (*chi.Mux, func()) {
 		})
 		r.Use(RateLimitMiddleware(rl))
 		r.With(indexermiddleware.InvoiceRateLimitMiddleware(invoiceLimiter)).Post("/invoices", h.HandleCreateInvoice)
+		r.Patch("/invoices/{id}/status", h.HandlePatchInvoiceStatus)
 
 		// Webhooks
 		r.Post("/webhooks", h.HandleCreateWebhook)

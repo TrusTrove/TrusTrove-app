@@ -124,6 +124,11 @@ How the aggregates are derived from invoice `status`:
 | `total_defaulted`      | `Defaulted`                                                        |
 | `average_yield_bps`    | `Funded`, `Active`, `Confirmed`, `Repaid` (mean `discount_bps`)    |
 
+`registered_issuers` is different: it is the number of distinct accounts
+named by `issuer_registered` events from the registry contract, not the number
+of accounts that appear on invoices. An issuer can register without financing
+an invoice, and an invoice issuer may never have registered.
+
 ## GET /auth
 
 Requests a SEP-10 authentication challenge for a Stellar account. No JWT required.
@@ -200,11 +205,17 @@ Creates an off-chain/indexed invoice record. **Requires JWT** (`Authorization: B
 
 ## GET /events
 
-Returns the most recent indexed Soroban events. No JWT required.
+Returns the most recent indexed Soroban events, newest first. No JWT required.
 
 **Query parameters:**
 
 - `limit` — number of events to return (default: 20)
+- `issuer` — optional Stellar account address. When set, only events whose
+  `data.invoice_id` belongs to an invoice issued by that account are returned,
+  which is how the SME dashboard shows a user's own activity instead of the
+  whole protocol. Pool-level and registry events carry no invoice reference, so
+  they never appear in an issuer-scoped feed. A value that is not a valid
+  Stellar address is rejected with `400 invalid issuer parameter`.
 
 **Response:**
 
@@ -217,10 +228,14 @@ Returns the most recent indexed Soroban events. No JWT required.
     "ledger": 12345,
     "ledger_closed_at": 1748000000,
     "event_type": "invoice_created",
-    "data": {}
+    "data": {},
+    "invoice_issuer": "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
   }
 ]
 ```
+
+`invoice_issuer` is resolved from the `invoices` table and is omitted when the
+event does not refer to an indexed invoice.
 
 ## GET /pool/snapshots
 

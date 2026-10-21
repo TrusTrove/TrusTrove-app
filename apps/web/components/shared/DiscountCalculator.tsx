@@ -71,23 +71,37 @@ export function DiscountCalculator() {
   return (
     <div className="bg-card border border-border rounded-lg overflow-hidden">
       {/* Tabs */}
-      <div className="flex border-b border-border bg-[#080c10]/60">
+      <div
+        role="tablist"
+        aria-label="Calculator type"
+        className="flex border-b border-border bg-background/60"
+      >
         <button
+          role="tab"
+          id="tab-sme"
+          aria-controls="tabpanel-sme"
+          aria-selected={activeTab === "sme"}
+          tabIndex={activeTab === "sme" ? 0 : -1}
           onClick={handleSelectSme}
           className={`flex-1 py-3 px-4 font-mono text-xs font-bold uppercase tracking-wider text-center border-r border-border transition-colors ${
             activeTab === "sme"
-              ? "text-primary bg-slate-900/50"
-              : "text-slate-500 hover:text-slate-300"
+              ? "text-primary bg-muted/50"
+              : "text-muted-foreground hover:text-foreground"
           }`}
         >
           SME Financing Calculator
         </button>
         <button
+          role="tab"
+          id="tab-lp"
+          aria-controls="tabpanel-lp"
+          aria-selected={activeTab === "lp"}
+          tabIndex={activeTab === "lp" ? 0 : -1}
           onClick={handleSelectLp}
           className={`flex-1 py-3 px-4 font-mono text-xs font-bold uppercase tracking-wider text-center transition-colors ${
             activeTab === "lp"
-              ? "text-primary bg-slate-900/50"
-              : "text-slate-500 hover:text-slate-300"
+              ? "text-primary bg-muted/50"
+              : "text-muted-foreground hover:text-foreground"
           }`}
         >
           LP Yield Estimator
@@ -95,11 +109,19 @@ export function DiscountCalculator() {
       </div>
 
       <div className="p-6 space-y-6">
-        {activeTab === "sme" ? <SmeCalculator /> : <LpCalculator />}
+        {activeTab === "sme" ? (
+          <div role="tabpanel" id="tabpanel-sme" aria-labelledby="tab-sme">
+            <SmeCalculator />
+          </div>
+        ) : (
+          <div role="tabpanel" id="tabpanel-lp" aria-labelledby="tab-lp">
+            <LpCalculator />
+          </div>
+        )}
 
         {/* Disclaimer row */}
         <div className="border-t border-border pt-4 text-center">
-          <span className="text-[10px] text-slate-500 font-mono block">
+          <span className="text-[10px] text-muted-foreground font-mono block">
             TrusTrove charges what the market sets. Discount rates are agreed
             between the SME and the protocol. No hidden fees.
           </span>

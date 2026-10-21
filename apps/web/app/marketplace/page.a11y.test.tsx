@@ -1,8 +1,8 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { axe } from "vitest-axe";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { renderWithProviders } from "@/test-utils/renderWithProviders";
 
 vi.mock("@/store/wallet", () => ({
   useWalletStore: (selector: any) => {
@@ -60,17 +60,11 @@ vi.mock("@/components/invoice/InvoiceCard", () => ({
   InvoiceCard: () => null,
 }));
 
-const queryClient = new QueryClient();
-
 import Marketplace from "@/app/marketplace/page";
 
 describe("Marketplace discount slider accessibility", () => {
   it("has correct ARIA attributes matching the established pattern", () => {
-    render(
-      <QueryClientProvider client={queryClient}>
-        <Marketplace />
-      </QueryClientProvider>,
-    );
+    renderWithProviders(<Marketplace />);
 
     const slider = screen.getByRole("slider");
 
@@ -86,11 +80,7 @@ describe("Marketplace discount slider accessibility", () => {
   });
 
   it("aria-valuenow updates when slider value changes", () => {
-    render(
-      <QueryClientProvider client={queryClient}>
-        <Marketplace />
-      </QueryClientProvider>,
-    );
+    renderWithProviders(<Marketplace />);
 
     const slider = screen.getByRole("slider");
     expect(slider).toHaveAttribute("aria-valuenow", "500");
@@ -108,11 +98,7 @@ describe("Marketplace discount slider accessibility", () => {
   });
 
   it("passes axe-core accessibility check", async () => {
-    const { container } = render(
-      <QueryClientProvider client={queryClient}>
-        <Marketplace />
-      </QueryClientProvider>,
-    );
+    const { container } = renderWithProviders(<Marketplace />);
 
     const results = await axe(container, {
       runOnly: {

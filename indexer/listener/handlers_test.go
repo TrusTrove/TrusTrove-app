@@ -470,6 +470,48 @@ func TestHandleInvoiceCreated(t *testing.T) {
 	}
 }
 
+func TestHandleEventInvoiceCreatedDuplicate(t *testing.T) {
+	skipIfNoDB(t)
+
+	l := newTestListener()
+	ctx := context.Background()
+	const (
+		issuer = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
+		buyer  = "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN"
+	)
+	rawIDBytes := []byte(fmt.Sprintf("%032x", time.Now().UnixNano()))
+	invoiceID := fmt.Sprintf("%x", rawIDBytes)
+	eventID := fmt.Sprintf("event-invoice-created-duplicate-%d", time.Now().UnixNano())
+	event := SorobanEvent{
+		ID:             eventID,
+		ContractID:     "CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS",
+		Ledger:         1001,
+		LedgerClosedAt: time.Now().Format(time.RFC3339),
+		Topic:          []string{encodeSymbol("InvoiceCreated")},
+		Value:          makeInvoiceCreatedValue(rawIDBytes, issuer, buyer, 1_000_000_000, uint64(time.Now().Add(30*24*time.Hour).Unix())),
+	}
+	t.Cleanup(func() {
+		if db.Pool != nil {
+			_, _ = db.Pool.Exec(ctx, "DELETE FROM events_log WHERE event_id = $1", eventID)
+			_, _ = db.Pool.Exec(ctx, "DELETE FROM invoices WHERE id = $1", invoiceID)
+		}
+	})
+
+	for attempt := 1; attempt <= 2; attempt++ {
+		if err := l.handleEvent(ctx, event); err != nil {
+			t.Fatalf("handleEvent attempt %d: %v", attempt, err)
+		}
+	}
+
+	var count int
+	if err := db.Pool.QueryRow(ctx, "SELECT COUNT(*) FROM invoices WHERE id = $1", invoiceID).Scan(&count); err != nil {
+		t.Fatalf("count invoice rows: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("invoice row count: got %d, want 1", count)
+	}
+}
+
 func TestHandleInvoiceListed(t *testing.T) {
 	skipIfNoDB(t)
 
@@ -494,7 +536,7 @@ func TestHandleInvoiceListed(t *testing.T) {
 		Status:       "Created",
 		CreatedAt:    time.Now().Unix(),
 	}
-	if err := db.InsertInvoice(ctx, db.Pool, inv); err != nil {
+	if _, err := db.InsertInvoice(ctx, db.Pool, inv); err != nil {
 		t.Fatalf("setup InsertInvoice: %v", err)
 	}
 	t.Cleanup(func() {
@@ -557,7 +599,7 @@ func TestHandleInvoiceShipped(t *testing.T) {
 		Status:       "Funded",
 		CreatedAt:    time.Now().Unix(),
 	}
-	if err := db.InsertInvoice(ctx, db.Pool, inv); err != nil {
+	if _, err := db.InsertInvoice(ctx, db.Pool, inv); err != nil {
 		t.Fatalf("setup InsertInvoice: %v", err)
 	}
 	t.Cleanup(func() {
@@ -613,7 +655,7 @@ func TestHandleDeliveryConfirmed(t *testing.T) {
 		Status:       "Active",
 		CreatedAt:    time.Now().Unix(),
 	}
-	if err := db.InsertInvoice(ctx, db.Pool, inv); err != nil {
+	if _, err := db.InsertInvoice(ctx, db.Pool, inv); err != nil {
 		t.Fatalf("setup InsertInvoice: %v", err)
 	}
 	t.Cleanup(func() {
@@ -669,7 +711,7 @@ func TestHandleAttestationSubmitted(t *testing.T) {
 		Status:       "Created",
 		CreatedAt:    time.Now().Unix(),
 	}
-	if err := db.InsertInvoice(ctx, db.Pool, inv); err != nil {
+	if _, err := db.InsertInvoice(ctx, db.Pool, inv); err != nil {
 		t.Fatalf("setup InsertInvoice: %v", err)
 	}
 	t.Cleanup(func() {
@@ -866,7 +908,7 @@ func TestHandleEventAtomicRollbackOnLogEventFailure(t *testing.T) {
 		Status:       "Funded",
 		CreatedAt:    time.Now().Unix(),
 	}
-	if err := db.InsertInvoice(ctx, db.Pool, inv); err != nil {
+	if _, err := db.InsertInvoice(ctx, db.Pool, inv); err != nil {
 		t.Fatalf("setup InsertInvoice: %v", err)
 	}
 	t.Cleanup(func() {
@@ -960,7 +1002,7 @@ func TestHandleEventCommitsStateAndLogTogether(t *testing.T) {
 		Status:       "Funded",
 		CreatedAt:    time.Now().Unix(),
 	}
-	if err := db.InsertInvoice(ctx, db.Pool, inv); err != nil {
+	if _, err := db.InsertInvoice(ctx, db.Pool, inv); err != nil {
 		t.Fatalf("setup InsertInvoice: %v", err)
 	}
 

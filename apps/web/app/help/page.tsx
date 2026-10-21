@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { PageLayout } from "@/components/shared/PageLayout";
 
 const faqItems = [
   {
@@ -95,27 +96,29 @@ export default function HelpPage() {
   const [openId, setOpenId] = useState<string | null>(null);
 
   return (
-    <div className="container mx-auto py-10 px-4 max-w-4xl">
-      <h1 className="text-3xl font-bold mb-6">Help & FAQ</h1>
+    <PageLayout>
+      <div className="mx-auto max-w-4xl">
+        <h1 className="text-3xl font-bold mb-6">Help & FAQ</h1>
 
-      <div className="space-y-2 border-t border-gray-200 dark:border-gray-700 pt-4">
-        {faqItems.map((item) => (
-          <AccordionItem
-            key={item.id}
-            item={item}
-            isOpen={openId === item.id}
-            onClick={() => setOpenId(openId === item.id ? null : item.id)}
-          />
-        ))}
+        <div className="space-y-2 border-t border-gray-200 dark:border-gray-700 pt-4">
+          {faqItems.map((item) => (
+            <AccordionItem
+              key={item.id}
+              item={item}
+              isOpen={openId === item.id}
+              onClick={() => setOpenId(openId === item.id ? null : item.id)}
+            />
+          ))}
+        </div>
+
+        <section className="mt-10 px-2">
+          <h2 className="text-2xl font-semibold mb-3">Need more help?</h2>
+          <p className="text-gray-700 dark:text-gray-300">
+            If you have additional questions, please reach out to our support
+            team at support@trusttrove.com.
+          </p>
+        </section>
       </div>
-
-      <section className="mt-10 px-2">
-        <h2 className="text-2xl font-semibold mb-3">Need more help?</h2>
-        <p className="text-gray-700 dark:text-gray-300">
-          If you have additional questions, please reach out to our support team
-          at support@trusttrove.com.
-        </p>
-      </section>
-    </div>
+    </PageLayout>
   );
 }

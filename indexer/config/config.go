@@ -38,6 +38,7 @@ type Config struct {
 	JWTSecretGenerated       bool
 	JWTExpiryHours           int
 	CORSAllowedOrigins       []string
+	TrustedProxyCIDRs        []string
 	RateLimitRPS             int
 	InvoiceRateLimit         int
 	InvoiceRateLimitWindow   time.Duration
@@ -163,6 +164,19 @@ func LoadConfig() (*Config, error) {
 		corsOrigins = []string{"http://localhost:3000"}
 	}
 
+	trustedProxyCIDRs := strings.TrimSpace(os.Getenv("TRUSTED_PROXY_CIDRS"))
+	if trustedProxyCIDRs == "" {
+		trustedProxyCIDRs = "127.0.0.1/32,::1/128"
+	}
+	var trustedProxyList []string
+	for _, cidr := range strings.Split(trustedProxyCIDRs, ",") {
+		cidr = strings.TrimSpace(cidr)
+		if cidr == "" {
+			continue
+		}
+		trustedProxyList = append(trustedProxyList, cidr)
+	}
+
 	rateLimitRPS := 10
 	if rateLimitStr := os.Getenv("RATE_LIMIT_RPS"); rateLimitStr != "" {
 		if val, err := strconv.Atoi(rateLimitStr); err == nil && val > 0 {
@@ -213,6 +227,7 @@ func LoadConfig() (*Config, error) {
 		JWTSecretGenerated:       jwtSecretGenerated,
 		JWTExpiryHours:           jwtExpiryHours,
 		CORSAllowedOrigins:       corsOrigins,
+		TrustedProxyCIDRs:        trustedProxyList,
 		RateLimitRPS:             rateLimitRPS,
 		InvoiceRateLimit:         invoiceRateLimit,
 		InvoiceRateLimitWindow:   invoiceRateLimitWindow,

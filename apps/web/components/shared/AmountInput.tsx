@@ -37,7 +37,7 @@ export function AmountInput({
     <div className="space-y-1">
       <label
         htmlFor={inputId}
-        className="block text-[10px] font-bold font-mono text-slate-500 uppercase tracking-wider"
+        className="block text-[10px] font-bold font-mono text-muted-foreground uppercase tracking-wider"
       >
         {label || `Amount (${assetInfo.label})`}
       </label>
@@ -47,20 +47,20 @@ export function AmountInput({
           type="text"
           inputMode="decimal"
           placeholder={placeholder}
-          className="w-full bg-[#080c10] border border-border rounded px-3 py-2.5 text-white text-xs font-mono focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all min-h-[44px]"
+          className="w-full bg-background border border-border rounded px-3 py-2.5 text-foreground text-xs font-mono placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all min-h-[44px]"
           value={value}
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
           required={required}
         />
         <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
-          <span className="text-[10px] font-bold text-slate-500 font-mono">
+          <span className="text-[10px] font-bold text-muted-foreground font-mono">
             {assetInfo.label}
           </span>
         </div>
       </div>
       {showPreview && previewValue !== undefined && (
-        <span className="text-[10px] font-mono text-slate-400 block mt-1">
+        <span className="text-[10px] font-mono text-muted-foreground block mt-1">
           {previewLabel || `${parsedValue.toLocaleString()} ${assetInfo.label}`}
         </span>
       )}

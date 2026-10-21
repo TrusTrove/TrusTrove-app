@@ -6,6 +6,7 @@ import {
   fetchPage,
   isRateLimitError,
   HorizonRateLimitError,
+  HorizonOperationsError,
   createCachedOpsFetcher,
   txOpsQueryKey,
 } from "./useTxHistory";
@@ -128,6 +129,25 @@ describe("useTxHistory", () => {
 
     const { result } = renderHook(() => useTxHistory("G123"));
     expect(result.current.error).toEqual(new Error("Horizon error"));
+  });
+
+  it("surfaces a non-429 operations failure instead of returning a partial page", () => {
+    const opsError = new HorizonOperationsError(
+      ["h1"],
+      new Error("network down"),
+    );
+    vi.mocked(useQuery).mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: opsError,
+      refetch: vi.fn(),
+    } as any);
+
+    const { result } = renderHook(() => useTxHistory("G123"));
+
+    expect(result.current.error).toBe(opsError);
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.transactions).toEqual([]);
   });
 
   it("hasNext is false when no nextCursor", () => {
@@ -431,17 +451,25 @@ describe("fetchPage", () => {
     expect(fetchOps).toHaveBeenCalledWith("h2");
   });
 
-  it("skips transactions whose operations lookup failed for a non-rate-limit reason", async () => {
+  it("rejects instead of silently dropping a transaction when a non-rate-limit ops lookup fails", async () => {
     transactionsCall.mockResolvedValue({
       records: [
         { hash: "h1", created_at: "2024-01-01T00:00:00Z", successful: true },
+        { hash: "h2", created_at: "2024-01-02T00:00:00Z", successful: true },
       ],
     });
-    const fetchOps = vi.fn().mockRejectedValue(new Error("network down"));
+    const failure = new Error("network down");
+    const fetchOps = vi
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(failure);
 
-    const page = await fetchPage("G123", undefined, fetchOps);
+    const error = await fetchPage("G123", undefined, fetchOps).catch(
+      (err: unknown) => err,
+    );
 
-    expect(page.items).toEqual([]);
+    expect(error).toBeInstanceOf(HorizonOperationsError);
+    expect(error).toMatchObject({ hashes: ["h2"], originalError: failure });
   });
 
   it("throws a HorizonRateLimitError when an operations lookup is throttled", async () => {

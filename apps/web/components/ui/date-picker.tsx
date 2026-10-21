@@ -18,6 +18,10 @@ interface DatePickerProps {
   onChange: (value: string) => void;
   disabled?: boolean;
   minDate?: Date;
+  /** Id for the trigger button, so an external `<label htmlFor>` can target it. */
+  id?: string;
+  "aria-describedby"?: string;
+  "aria-labelledby"?: string;
 }
 
 export function DatePicker({
@@ -25,6 +29,9 @@ export function DatePicker({
   onChange,
   disabled = false,
   minDate,
+  id,
+  "aria-describedby": ariaDescribedBy,
+  "aria-labelledby": ariaLabelledBy,
 }: DatePickerProps) {
   const [open, setOpen] = React.useState(false);
 
@@ -36,15 +43,21 @@ export function DatePicker({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
+          id={id}
+          aria-describedby={ariaDescribedBy}
+          aria-labelledby={ariaLabelledBy}
           variant="outline"
           className={cn(
-            "w-full justify-start text-left font-mono text-xs bg-[#080c10] border-border text-white min-h-[44px]",
+            "w-full min-w-0 justify-start text-left font-mono text-xs bg-[#080c10] border-border text-white min-h-[44px]",
             !value && "text-slate-500",
           )}
           disabled={disabled}
         >
-          <CalendarIcon className="mr-2 h-4 w-4" />
-          {selectedDate ? format(selectedDate, "PPP") : "Select due date"}
+          <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+          {/* Truncate long formatted dates instead of widening the form (#999). */}
+          <span className="min-w-0 truncate">
+            {selectedDate ? format(selectedDate, "PPP") : "Select due date"}
+          </span>
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
@@ -59,9 +72,11 @@ export function DatePicker({
           }}
           disabled={(date) => {
             if (minDate) {
-              const today = new Date();
-              today.setHours(0, 0, 0, 0);
-              return date < today;
+              const min = new Date(minDate);
+              min.setHours(0, 0, 0, 0);
+              const candidate = new Date(date);
+              candidate.setHours(0, 0, 0, 0);
+              return candidate < min;
             }
             return false;
           }}

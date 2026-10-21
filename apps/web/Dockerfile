@@ -23,6 +23,7 @@ RUN apk add --no-cache libc6-compat
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY apps/web/package.json apps/web/
 COPY packages/sdk/package.json packages/sdk/
+COPY packages/sdk-react/package.json packages/sdk-react/
 COPY packages/cli/package.json packages/cli/
 COPY examples/sdk-quickstart/package.json examples/sdk-quickstart/
 RUN pnpm install --frozen-lockfile
@@ -34,6 +35,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /src/node_modules ./node_modules
 COPY --from=deps /src/apps/web/node_modules ./apps/web/node_modules
 COPY --from=deps /src/packages/sdk/node_modules ./packages/sdk/node_modules
+COPY --from=deps /src/packages/sdk-react/node_modules ./packages/sdk-react/node_modules
 COPY --from=deps /src/packages/cli/node_modules ./packages/cli/node_modules
 COPY --from=deps /src/examples/sdk-quickstart/node_modules ./examples/sdk-quickstart/node_modules
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./

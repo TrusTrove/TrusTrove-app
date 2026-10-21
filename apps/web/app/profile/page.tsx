@@ -1,13 +1,19 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { PageLayout } from "@/components/shared/PageLayout";
 import { useWalletStore } from "@/store/wallet";
 import { useProfile } from "@/hooks/useProfile";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
+import {
+  NOTIFICATION_CATEGORIES,
+  prefsStorageKey,
+  readStoredPrefs,
+} from "@/lib/notification-preferences";
 import { WalletConnect } from "@/components/shared/WalletConnect";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { TransactionPending } from "@/components/shared/TransactionPending";
+import { TxHistory } from "@/components/shared/TxHistory";
 import { Button } from "@/components/ui/button";
 import {
   ShieldCheck,
@@ -26,27 +32,18 @@ import {
 } from "lucide-react";
 
 function NotificationPreferences({ address }: { address: string }) {
-  const categories = [
-    "Invoice Created",
-    "Invoice Listed",
-    "Invoice Funded",
-    "Invoice Shipped",
-    "Delivery Confirmed",
-    "Invoice Repaid",
-    "Invoice Defaulted",
-  ];
+  const storageKey = prefsStorageKey(address);
+  const [prefs, setPrefs] = useState<Record<string, boolean>>(() =>
+    readStoredPrefs(storageKey),
+  );
 
-  const storageKey = `trusttrove_prefs_${address}`;
-  const [prefs, setPrefs] = useState<Record<string, boolean>>(() => {
-    try {
-      const stored = localStorage.getItem(storageKey);
-      if (stored) return JSON.parse(stored);
-    } catch {}
-    // Default to true for all
-    const initial: Record<string, boolean> = {};
-    categories.forEach((c) => (initial[c] = true));
-    return initial;
-  });
+  // React reuses this instance when the connected wallet changes, and the
+  // storage key is derived from the address, so the new wallet's own stored
+  // preferences must be re-read. Without this the previous account's toggles
+  // stay on screen and the next click writes them into the new key.
+  useEffect(() => {
+    setPrefs(readStoredPrefs(storageKey));
+  }, [storageKey]);
 
   const toggleCategory = (category: string) => {
     const nextPrefs = { ...prefs, [category]: !prefs[category] };
@@ -69,7 +66,7 @@ function NotificationPreferences({ address }: { address: string }) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 font-mono text-xs">
-        {categories.map((category) => (
+        {NOTIFICATION_CATEGORIES.map((category) => (
           <div
             key={category}
             className="flex items-center justify-between p-3 rounded-lg border border-border bg-card"
@@ -218,8 +215,14 @@ export default function ProfilePage() {
 
         <ErrorBoundary context="ProfileContent">
           {isLoading ? (
-            <div className="bg-[#0d131a] border border-border rounded-lg p-12 flex flex-col items-center justify-center space-y-4 font-mono text-xs">
-              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-ping" />
+            <div
+              role="status"
+              className="bg-[#0d131a] border border-border rounded-lg p-12 flex flex-col items-center justify-center space-y-4 font-mono text-xs"
+            >
+              <span
+                aria-hidden="true"
+                className="w-1.5 h-1.5 rounded-full bg-primary animate-ping"
+              />
               <span className="text-slate-400 uppercase tracking-widest animate-pulse">
                 Loading profile credentials...
               </span>
@@ -266,15 +269,24 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col items-end gap-2">
                   <Button
                     variant="outline"
                     size="sm"
-                    className="font-mono text-xs border-border hover:bg-slate-900"
-                    onClick={() => setShowRegModal(true)}
+                    disabled
+                    aria-describedby="metadata-update-note"
+                    className="font-mono text-xs border-border"
                   >
                     Update Metadata
                   </Button>
+                  <p
+                    id="metadata-update-note"
+                    className="text-[10px] font-mono text-slate-500 leading-relaxed max-w-[16rem] text-right"
+                  >
+                    Registration on the Registry contract is a one-time action
+                    and the stored profile has no metadata fields, so an
+                    existing profile cannot be updated from here.
+                  </p>
                 </div>
               </div>
 
@@ -375,6 +387,12 @@ export default function ProfilePage() {
         </ErrorBoundary>
 
         {address && <NotificationPreferences address={address} />}
+
+        {address && (
+          <ErrorBoundary context="TransactionHistory">
+            <TxHistory address={address} />
+          </ErrorBoundary>
+        )}
 
         {/* Registration / Update Modal */}
         {showRegModal && (

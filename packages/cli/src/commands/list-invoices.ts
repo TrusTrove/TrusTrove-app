@@ -134,7 +134,11 @@ function resolveFilter(
   return status ? { status: parseInvoiceStatus(status) } : { issuer: issuer! };
 }
 
-function formatDueDate(dueDate: number | null | undefined): string {
+/**
+ * Renders an invoice's on-chain due date as a `YYYY-MM-DD` string, or an em
+ * dash when the contract has not recorded one (`0` / absent).
+ */
+export function formatDueDate(dueDate: number | null | undefined): string {
   if (!dueDate) return "—";
   return new Date(dueDate * 1000).toISOString().slice(0, 10);
 }

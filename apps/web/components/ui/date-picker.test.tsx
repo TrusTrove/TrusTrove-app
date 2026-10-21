@@ -7,11 +7,43 @@ const calendarState = vi.hoisted(() => ({
   selectedDate: new Date(2026, 0, 1),
 }));
 
+// Fixed dates the mock calendar renders so consumers can assert disabled state.
+const MOCK_DATES = [
+  new Date(2026, 0, 5),
+  new Date(2026, 0, 10),
+  new Date(2026, 0, 15),
+];
+
 vi.mock("@/components/ui/calendar", () => ({
-  Calendar: ({ onSelect }: { onSelect: (date: Date) => void }) => (
-    <button onClick={() => onSelect(calendarState.selectedDate)}>
-      Choose date
-    </button>
+  Calendar: ({
+    onSelect,
+    disabled,
+  }: {
+    onSelect: (date: Date) => void;
+    disabled?: (date: Date) => boolean;
+  }) => (
+    <div>
+      <button onClick={() => onSelect(calendarState.selectedDate)}>
+        Choose date
+      </button>
+      {MOCK_DATES.map((date) => {
+        const isDisabled = disabled?.(date);
+        return (
+          <button
+            key={date.toISOString()}
+            data-date={date.toISOString()}
+            aria-label={date.toLocaleDateString(undefined, {
+              month: "long",
+              day: "numeric",
+            })}
+            {...(isDisabled ? { disabled: true } : {})}
+            onClick={() => onSelect(date)}
+          >
+            {date.getDate()}
+          </button>
+        );
+      })}
+    </div>
   ),
 }));
 
@@ -58,5 +90,24 @@ describe("DatePicker", () => {
     expect(
       screen.getByRole("button", { name: /August 30th, 2026/i }),
     ).toBeInTheDocument();
+  });
+
+  it("disables dates before minDate and enables minDate itself (#1100)", () => {
+    // Pin the timezone so the fixed mock dates render deterministically.
+    process.env.TZ = "UTC";
+    const minDate = new Date(2026, 0, 10);
+    const onChange = vi.fn();
+
+    render(<DatePicker minDate={minDate} onChange={onChange} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Select due date/ }));
+
+    const beforeMin = screen.getByText("5");
+    const atMin = screen.getByText("10");
+    const afterMin = screen.getByText("15");
+
+    expect(beforeMin).toBeDisabled();
+    expect(atMin).not.toBeDisabled();
+    expect(afterMin).not.toBeDisabled();
   });
 });

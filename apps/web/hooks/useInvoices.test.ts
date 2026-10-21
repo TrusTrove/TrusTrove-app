@@ -469,6 +469,43 @@ describe("useInvoice", () => {
     expect(result.current.error).toBeNull();
   });
 
+  // #1118: the server render already resolved this invoice. The hook must be
+  // able to seed React Query's cache with it, otherwise the client fetches a
+  // third copy and flashes "Fetching invoice state from ledger...".
+  it("seeds the cache from a server-fetched invoice", () => {
+    vi.mocked(useQuery).mockReturnValue({
+      data: { id: "inv1" },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+
+    const seed = { id: "inv1", status: "Funded" } as any;
+    renderHook(() => useInvoice("inv1", { initialData: seed }));
+
+    expect(vi.mocked(useQuery).mock.calls.at(-1)?.[0]).toEqual(
+      expect.objectContaining({
+        queryKey: ["invoice", "inv1"],
+        initialData: seed,
+      }),
+    );
+  });
+
+  it("seeds nothing when the server had no invoice to hand over", () => {
+    vi.mocked(useQuery).mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+
+    renderHook(() => useInvoice("inv1"));
+
+    expect(vi.mocked(useQuery).mock.calls.at(-1)?.[0]).toEqual(
+      expect.objectContaining({ initialData: undefined }),
+    );
+  });
+
   it("shows loading state", () => {
     vi.mocked(useQuery).mockReturnValue({
       data: undefined,

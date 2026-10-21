@@ -211,6 +211,83 @@ describe("watchFreighterChanges", () => {
     });
   });
 
+  it.each([
+    ["empty string", ""],
+    ["null", null],
+  ])(
+    "reports a disconnect when the address changes from G123 to %s",
+    async (_label, locked) => {
+      setFreighterState("G123", "TESTNET");
+      mockGetPublicKey.mockResolvedValue(locked as unknown as string);
+      const onChange = vi.fn();
+      const onError = vi.fn();
+
+      const stop = watchFreighterChanges(
+        { address: "G123", network: "testnet" },
+        onChange,
+        { intervalMs: 100, onError },
+      );
+      await vi.advanceTimersByTimeAsync(0);
+      stop();
+
+      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(onChange).toHaveBeenCalledWith({
+        disconnected: true,
+        previous: { address: "G123", network: "testnet" },
+      });
+      expect(onError).not.toHaveBeenCalled();
+    },
+  );
+
+  it("reports the disconnect once and not again while Freighter stays locked", async () => {
+    setFreighterState("G123", "TESTNET");
+    mockGetPublicKey.mockResolvedValue("");
+    const onChange = vi.fn();
+
+    const stop = watchFreighterChanges(
+      { address: "G123", network: "testnet" },
+      onChange,
+      { intervalMs: 100 },
+    );
+    await vi.advanceTimersByTimeAsync(500);
+    stop();
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not report a disconnect when there was no address to begin with", async () => {
+    setFreighterState("", "TESTNET");
+    const onChange = vi.fn();
+
+    const stop = watchFreighterChanges(
+      { address: null, network: "testnet" },
+      onChange,
+      { intervalMs: 100 },
+    );
+    await vi.advanceTimersByTimeAsync(300);
+    stop();
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("still routes genuine getPublicKey rejections to onError, not onChange", async () => {
+    setFreighterState("G123", "TESTNET");
+    mockGetPublicKey.mockRejectedValue(new Error("boom"));
+    const onChange = vi.fn();
+    const onError = vi.fn();
+
+    const stop = watchFreighterChanges(
+      { address: "G123", network: "testnet" },
+      onChange,
+      { intervalMs: 100, onError },
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    stop();
+
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   it("routes poll failures to onError and keeps polling", async () => {
     setFreighterState("G12345", "TESTNET");
     mockGetPublicKey.mockRejectedValueOnce(new Error("extension locked"));

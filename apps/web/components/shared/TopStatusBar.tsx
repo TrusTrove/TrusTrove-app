@@ -3,7 +3,12 @@
 import React, { useEffect, useState } from "react";
 import { ArrowUpRight, Pause, Play } from "lucide-react";
 import { useRecentEvents } from "@/hooks/useEvents";
-import type { EventLog } from "@/types";
+import {
+  getEventDataBigInt,
+  getEventDataNumber,
+  getEventDataString,
+  type EventLog,
+} from "@/types";
 
 interface TickerItem {
   id: string;
@@ -19,26 +24,43 @@ export function TopStatusBar() {
   const isError = error !== null;
   const [tickerItems, setTickerItems] = useState<TickerItem[]>([]);
   const [isPaused, setIsPaused] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const showPlaceholder = !isLoading && !isError && !rawEvents?.length;
+
+  // Detect mobile screen size to hide ticker on small screens
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 640); // sm breakpoint
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  // Clear ticker items when switching to mobile to prevent unnecessary rendering
+  useEffect(() => {
+    if (isMobile) {
+      setTickerItems([]);
+    }
+  }, [isMobile]);
 
   // Format event for display in the ticker
   const formatEventForTicker = (event: EventLog): TickerItem => {
     // Extract amount from event data (assuming it's in USDC)
     let amount = "0 USDC";
-    if (event.data && event.data.funded_amount) {
-      const amountInUSDC = Number(
-        BigInt(event.data.funded_amount) / 10_000_000n,
-      ); // Convert from stroops (7 decimals) to USDC
-      amount = `${Math.round(amountInUSDC).toLocaleString()} USDC`;
-    } else if (event.data && event.data.face_value) {
-      const amountInUSDC = Number(BigInt(event.data.face_value) / 10_000_000n); // Convert from stroops (7 decimals) to USDC
+    const invoiceAmount =
+      getEventDataBigInt(event, "funded_amount") ??
+      getEventDataBigInt(event, "face_value");
+    if (invoiceAmount !== undefined) {
+      const amountInUSDC = Number(invoiceAmount / 10_000_000n); // Convert from stroops (7 decimals) to USDC
       amount = `${Math.round(amountInUSDC).toLocaleString()} USDC`;
     }
 
     // Extract discount from event data (in basis points)
     let discount = "0.0%";
-    if (event.data && event.data.discount_bps) {
-      const discountPercent = Number(event.data.discount_bps) / 100;
+    const discountBps = getEventDataNumber(event, "discount_bps");
+    if (discountBps !== undefined) {
+      const discountPercent = discountBps / 100;
       discount = `${discountPercent.toFixed(1)}%`;
     }
 
@@ -51,31 +73,20 @@ export function TopStatusBar() {
     else if (diff < 86400) time = `${Math.floor(diff / 3600)}h ago`;
     else time = `${Math.floor(diff / 86400)}d ago`;
 
-    // Determine country/flag based on issuer or buyer (simplified hash-based)
-    const flagMap: Record<string, string> = {
-      "0": "🇳🇬",
-      "1": "🇰🇪",
-      "2": "🇬🇭",
-      "3": "🇸🇳",
-      "4": "🇺🇬",
-      "5": "🇨🇮",
-      "6": "🇹🇬",
-      "7": "🇧🇯",
-      "8": "🇸🇱",
-      "9": "🇱🇷",
-    };
-    const hash = Array.from(event.id.toString()).reduce(
-      (acc, char) => acc + char.charCodeAt(0),
-      0,
-    );
-    const flag = flagMap[hash % 10] || "🌍";
+    // #1105: the flag used to be derived by hashing event.id into a flagMap,
+    // which fabricated country geography unrelated to any on-chain data.
+    // Events carry no issuer/buyer country metadata, so render the neutral
+    // placeholder globe for every event instead.
+    const flag = "🌍";
 
     // Generate SME name based on event data
     let sme = "Unknown SME";
-    if (event.data.buyer) {
-      sme = `${event.data.buyer.slice(0, 8)}...`;
-    } else if (event.data.issuer) {
-      sme = `${event.data.issuer.slice(0, 8)}...`;
+    const buyer = getEventDataString(event, "buyer");
+    const issuer = getEventDataString(event, "issuer");
+    if (buyer) {
+      sme = `${buyer.slice(0, 8)}...`;
+    } else if (issuer) {
+      sme = `${issuer.slice(0, 8)}...`;
     }
 
     return {
@@ -89,16 +100,18 @@ export function TopStatusBar() {
   };
 
   useEffect(() => {
-    if (rawEvents && rawEvents.length > 0) {
+    // Only fetch and set ticker items if not on mobile (performance optimization)
+    if (!isMobile && rawEvents && rawEvents.length > 0) {
       // Convert events to ticker items
       const items = rawEvents.map(formatEventForTicker);
       setTickerItems(items);
     }
-  }, [rawEvents]);
+  }, [rawEvents, isMobile]);
 
   // If no real data, show some placeholder items to maintain the ticker effect
   useEffect(() => {
-    if (showPlaceholder) {
+    // Only set placeholder items if not on mobile
+    if (!isMobile && showPlaceholder) {
       const placeholderItems: TickerItem[] = [
         {
           id: "1",
@@ -143,12 +156,19 @@ export function TopStatusBar() {
       ];
       setTickerItems(placeholderItems);
     }
-  }, [showPlaceholder]);
+  }, [showPlaceholder, isMobile]);
+
+  // Clear ticker items when switching to mobile to prevent unnecessary rendering
+  useEffect(() => {
+    if (isMobile) {
+      setTickerItems([]);
+    }
+  }, [isMobile]);
 
   return (
-    <div className="w-full bg-[#080c10] border-b border-border py-1.5 px-4 overflow-hidden relative z-40 flex items-center justify-between gap-4">
+    <div className="w-full bg-background border-b border-border py-0.5 px-4 overflow-hidden relative z-40 flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-4">
       {/* Network indicator */}
-      <div className="flex items-center gap-2 shrink-0 border-r border-border pr-4">
+      <div className="flex items-center gap-2 shrink-0 border-r border-border pr-4 w-full sm:w-auto justify-center sm:justify-start">
         <span className="relative flex h-2 w-2">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
           <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
@@ -158,77 +178,94 @@ export function TopStatusBar() {
         </span>
       </div>
 
-      {/* Scrolling Ticker */}
-      <div
-        className="flex-1 flex items-center gap-2 overflow-hidden"
-        role="status"
-        aria-live="polite"
-        aria-label="Recent network activity"
-      >
-        <button
-          onClick={() => setIsPaused(!isPaused)}
-          className="text-slate-500 hover:text-white focus:text-white shrink-0 z-10 transition-colors"
-          aria-label={isPaused ? "Play ticker" : "Pause ticker"}
+      {/* Scrolling Ticker - hidden on mobile */}
+      {!isMobile && (
+        <div
+          className="flex-1 flex items-center gap-2 overflow-hidden"
+          role="status"
+          aria-live="polite"
+          aria-label="Recent network activity"
         >
-          {isPaused ? (
-            <Play className="w-3 h-3" />
-          ) : (
-            <Pause className="w-3 h-3" />
-          )}
-        </button>
-        <div className="flex-1 overflow-hidden relative h-4 flex items-center group">
-          {isLoading ? (
-            <div className="inline-flex items-center gap-2 text-[10px] font-mono text-slate-300">
-              <span className="inline-block h-2 w-2 rounded-full bg-sky-400 animate-pulse" />
-              <span>Loading live network activity...</span>
-            </div>
-          ) : isError ? (
-            <div className="inline-flex items-center gap-2 text-[10px] font-mono text-amber-300">
-              <span className="inline-block h-2 w-2 rounded-full bg-amber-400" />
-              <span>Live feed unavailable</span>
-            </div>
-          ) : (
-            <div
-              className={`flex gap-12 whitespace-nowrap animate-[marquee_25s_linear_infinite] group-hover:[animation-play-state:paused] group-focus-within:[animation-play-state:paused] motion-reduce:animate-none ${isPaused ? "[animation-play-state:paused]" : ""}`}
-            >
-              {tickerItems.map((item, idx) => (
-                <div
-                  key={`${item.id}-${idx}`}
-                  className="inline-flex items-center gap-2 text-[10px] font-mono"
-                >
-                  <span className="text-slate-500">{item.country}</span>
-                  <span className="text-slate-300 font-bold">{item.sme}</span>
-                  <span className="text-primary font-bold">{item.amount}</span>
-                  <span className="text-slate-500">at</span>
-                  <span className="text-sky-400 font-semibold">
-                    {item.discount} discount
-                  </span>
-                  <span className="text-slate-600">({item.time})</span>
-                  <ArrowUpRight className="w-3 h-3 text-primary/45 shrink-0" />
-                </div>
-              ))}
-              {/* Duplicate for seamless scrolling, hidden from screen readers */}
-              {tickerItems.map((item, idx) => (
-                <div
-                  key={`dup-${item.id}-${idx}`}
-                  aria-hidden="true"
-                  className="inline-flex items-center gap-2 text-[10px] font-mono"
-                >
-                  <span className="text-slate-500">{item.country}</span>
-                  <span className="text-slate-300 font-bold">{item.sme}</span>
-                  <span className="text-primary font-bold">{item.amount}</span>
-                  <span className="text-slate-500">at</span>
-                  <span className="text-sky-400 font-semibold">
-                    {item.discount} discount
-                  </span>
-                  <span className="text-slate-600">({item.time})</span>
-                  <ArrowUpRight className="w-3 h-3 text-primary/45 shrink-0" />
-                </div>
-              ))}
-            </div>
-          )}
+          <button
+            onClick={() => setIsPaused(!isPaused)}
+            // 24x24 hit area (WCAG 2.5.8). The bar uses py-0.5 so its height stays
+            // 28px; the ring is inset so the overflow-hidden row cannot clip it.
+            // text-muted-foreground is >= 4.5:1 against the bar in both themes.
+            className="inline-flex items-center justify-center min-w-[24px] min-h-[24px] rounded text-muted-foreground hover:text-foreground focus:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary shrink-0 z-10 transition-colors"
+            aria-label={isPaused ? "Play ticker" : "Pause ticker"}
+          >
+            {isPaused ? (
+              <Play className="w-3 h-3" />
+            ) : (
+              <Pause className="w-3 h-3" />
+            )}
+          </button>
+          <div className="flex-1 overflow-hidden relative h-4 flex items-center group">
+            {isLoading ? (
+              <div className="inline-flex items-center gap-2 text-[10px] font-mono text-foreground">
+                <span className="inline-block h-2 w-2 rounded-full bg-sky-400 animate-pulse" />
+                <span>Loading live network activity...</span>
+              </div>
+            ) : isError ? (
+              <div className="inline-flex items-center gap-2 text-[10px] font-mono text-amber-700 dark:text-amber-300">
+                <span className="inline-block h-2 w-2 rounded-full bg-amber-400" />
+                <span>Live feed unavailable</span>
+              </div>
+            ) : (
+              <div
+                className={`flex gap-12 whitespace-nowrap animate-[marquee_25s_linear_infinite] group-hover:[animation-play-state:paused] group-focus-within:[animation-play-state:paused] motion-reduce:animate-none ${isPaused ? "[animation-play-state:paused]" : ""}`}
+              >
+                {tickerItems.map((item, idx) => (
+                  <div
+                    key={`${item.id}-${idx}`}
+                    className="inline-flex items-center gap-2 text-[10px] font-mono"
+                  >
+                    <span className="text-muted-foreground">
+                      {item.country}
+                    </span>
+                    <span className="text-foreground font-bold">
+                      {item.sme}
+                    </span>
+                    <span className="text-primary font-bold">
+                      {item.amount}
+                    </span>
+                    <span className="text-muted-foreground">at</span>
+                    <span className="text-sky-700 dark:text-sky-400 font-semibold">
+                      {item.discount} discount
+                    </span>
+                    <span className="text-muted-foreground">({item.time})</span>
+                    <ArrowUpRight className="w-3 h-3 text-primary/45 shrink-0" />
+                  </div>
+                ))}
+                {/* Duplicate for seamless scrolling, hidden from screen readers */}
+                {tickerItems.map((item, idx) => (
+                  <div
+                    key={`dup-${item.id}-${idx}`}
+                    aria-hidden="true"
+                    className="inline-flex items-center gap-2 text-[10px] font-mono"
+                  >
+                    <span className="text-muted-foreground">
+                      {item.country}
+                    </span>
+                    <span className="text-foreground font-bold">
+                      {item.sme}
+                    </span>
+                    <span className="text-primary font-bold">
+                      {item.amount}
+                    </span>
+                    <span className="text-muted-foreground">at</span>
+                    <span className="text-sky-700 dark:text-sky-400 font-semibold">
+                      {item.discount} discount
+                    </span>
+                    <span className="text-muted-foreground">({item.time})</span>
+                    <ArrowUpRight className="w-3 h-3 text-primary/45 shrink-0" />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       <style jsx global>{`
         @keyframes marquee {

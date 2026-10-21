@@ -137,12 +137,16 @@ func (l *EventListener) handleInvoiceCreated(ctx context.Context, tx db.Querier,
 		BuyerConfirmed:  false,
 	}
 
-	err = db.InsertInvoice(ctx, tx, dbInvoice)
+	inserted, err := db.InsertInvoice(ctx, tx, dbInvoice)
 	if err != nil {
 		return err
 	}
 
-	slog.Info("Indexed event: InvoiceCreated", "id", id, "issuer", issuer, "faceValue", faceValue)
+	if inserted {
+		slog.Info("Indexed event: InvoiceCreated", "id", id, "issuer", issuer, "faceValue", faceValue)
+	} else {
+		slog.Info("InvoiceCreated already indexed", "id", id)
+	}
 	return nil
 }
 

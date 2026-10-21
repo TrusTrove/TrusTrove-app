@@ -40,6 +40,7 @@ vi.mock("@trusttrove/sdk", () => ({
 }));
 
 import {
+  formatDueDate,
   formatInvoiceTable,
   formatTable,
   parseInvoiceStatus,
@@ -325,5 +326,18 @@ describe("list-invoices helpers", () => {
     expect(table.split("\n")[0]).toBe(
       "ID  ISSUER  BUYER  FACE VALUE  STATUS  DUE DATE",
     );
+  });
+});
+
+describe("formatDueDate", () => {
+  it("renders a valid timestamp as a UTC calendar date", () => {
+    expect(formatDueDate(1_735_689_600)).toBe("2025-01-01");
+    expect(formatDueDate(1_735_430_400)).toBe("2024-12-29");
+  });
+
+  it("renders a missing due date as an em dash", () => {
+    expect(formatDueDate(0)).toBe("—");
+    expect(formatDueDate(null)).toBe("—");
+    expect(formatDueDate(undefined)).toBe("—");
   });
 });
