@@ -29,6 +29,19 @@ auditConfig:
     # braces: build-time only (tailwindcss/fast-glob/chokidar/micromatch); the
     # advisory has no patched release yet, so there is nothing to override to
     - GHSA-vfj7-8cjw-p6xm
+    # next 14.2.35: both advisories are patched only in next >=15.5.28, so they
+    # are triaged with the Next 15 upgrade rather than a cross-major override
+    - GHSA-2464-fhr4-w9xw
+    - GHSA-p3m5-59mp-jv5r
+    # toml 3.0.0 via @stellar/stellar-sdk: patched in toml >=5.0.1, which needs
+    # the SDK's dependency range to move; tracked with that upgrade
+    - GHSA-4qx8-w7c3-pj3p
+    - GHSA-9j65-hcg3-gc64
+    - GHSA-9qmh-m7c6-f92p
+    - GHSA-mrv2-3pqr-j5jr
+    # dompurify 3.4.16 via jspdf: patched in 3.4.17; deferred to the next
+    # dependency refresh because it requires regenerating the lockfile
+    - GHSA-cg2g-xh64-v4q7
 overrides:
   postcss: ">=8.5.18 <9"
   nanoid: ">=3.3.18 <4"
@@ -39,5 +52,5 @@ overrides:
   undici: ">=7.29.0 <8"
   axios: ">=1.20.0 <2"
   follow-redirects: ">=1.16.1 <2"
-  vite: ">=8.1.6 <9"
   source-map-js: ">=1.2.2 <2"
+  vite: ">=8.1.6 <9"

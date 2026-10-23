@@ -328,16 +328,16 @@ func TestBuildEnvelopeEventIDFallback(t *testing.T) {
 // criterion: Dispatch writes a delivery row whose payload is the full
 // envelope, and the claiming read path returns it.
 //
-// The subscription is registered with the internal contract event name
-// ("fund_invoice") because that is the string Dispatch uses for the lookup —
-// see the internal-vs-public note in the PR description.
+// The subscription is registered with the public event type ("invoice.funded")
+// because Dispatch maps the internal contract event name ("fund_invoice") to
+// the public type before looking subscriptions up.
 func TestDispatchQueuesPopulatedEnvelope(t *testing.T) {
 	skipIfNoDB(t)
 	ctx := context.Background()
 
 	sub := &db.WebhookSubscription{
 		TargetURL:     "https://example.invalid/webhook-930",
-		EventTypes:    []string{"fund_invoice"},
+		EventTypes:    []string{string(webhooks.EventInvoiceFunded)},
 		SigningSecret: "synthetic-secret-930",
 		Active:        true,
 	}
@@ -397,7 +397,7 @@ func TestDispatchSameEventQueuesOneDeliveryPerSubscription(t *testing.T) {
 
 	sub := &db.WebhookSubscription{
 		TargetURL:     "https://example.invalid/webhook-916",
-		EventTypes:    []string{"fund_invoice"},
+		EventTypes:    []string{string(webhooks.EventInvoiceFunded)},
 		SigningSecret: "synthetic-secret-916",
 		Active:        true,
 	}

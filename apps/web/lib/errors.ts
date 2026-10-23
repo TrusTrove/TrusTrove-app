@@ -161,19 +161,32 @@ export function getErrorMessage(
  *
  * Resolves the raw message via {@link getErrorMessage} and, if it matches a
  * known error, replaces it with a friendlier equivalent. Unrecognized
- * messages are passed through unchanged.
+ * messages are passed through unchanged. If a {@link fallback} is provided
+ * and the error has no recognizable message (i.e. the default
+ * "An unexpected error occurred"), the fallback is returned instead.
  *
  * @param error - The error value to convert.
+ * @param fallback - Optional fallback message when the error has no
+ *   recognizable message. If not provided, defaults to
+ *   "An unexpected error occurred".
  * @returns The friendly message string for the error.
  *
  * @example
  * ```ts
  * getUserFriendlyMessage(new Error("Wallet not connected"));
  * // "Please connect your wallet to perform this action"
+ * getUserFriendlyMessage(null, "Custom fallback");
+ * // "Custom fallback"
  * ```
  */
-export function getUserFriendlyMessage(error: unknown): string {
+export function getUserFriendlyMessage(
+  error: unknown,
+  fallback?: string,
+): string {
   const message = getErrorMessage(error);
+  if (fallback && message === "An unexpected error occurred") {
+    return fallback;
+  }
   return KNOWN_ERRORS[message] || message;
 }
 

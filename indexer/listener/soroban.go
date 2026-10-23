@@ -385,6 +385,24 @@ func (l *EventListener) Start(ctx context.Context) error {
 }
 
 func (l *EventListener) pollEvents(ctx context.Context, startLedger int32) (int32, error) {
+	return l.pollEventsRange(ctx, startLedger, 0)
+}
+
+// BackfillRange processes events from the requested ledger range without
+// changing the listener checkpoint.
+func (l *EventListener) BackfillRange(ctx context.Context, startLedger, endLedger int32) error {
+	if startLedger <= 0 || endLedger < startLedger {
+		return fmt.Errorf("invalid backfill range: from=%d to=%d", startLedger, endLedger)
+	}
+	if l.cfg == nil || (l.cfg.RegistryContractID == "" && l.cfg.InvoiceContractID == "" &&
+		l.cfg.PoolContractID == "" && l.cfg.EscrowContractID == "") {
+		return fmt.Errorf("cannot backfill without a configured contract ID")
+	}
+	_, err := l.pollEventsRange(ctx, startLedger, endLedger)
+	return err
+}
+
+func (l *EventListener) pollEventsRange(ctx context.Context, startLedger, endLedger int32) (int32, error) {
 	var contractIDs []string
 	if l.cfg.RegistryContractID != "" {
 		contractIDs = append(contractIDs, l.cfg.RegistryContractID)
@@ -437,10 +455,21 @@ func (l *EventListener) pollEvents(ctx context.Context, startLedger int32) (int3
 		// de-duplication decides what is still new. Later pages only contain
 		// newer ledgers, so an entirely deferred page ends this poll.
 		pending := res.Events
+		pastEnd := false
+		if endLedger > 0 {
+			pending = make([]rpcEvent, 0, len(res.Events))
+			for _, ev := range res.Events {
+				if ev.Ledger > endLedger {
+					pastEnd = true
+					continue
+				}
+				pending = append(pending, ev)
+			}
+		}
 		if depth > 0 && latestLedgerSeq > 0 {
 			safeLedger := latestLedgerSeq - int32(depth)
-			confirmed := make([]rpcEvent, 0, len(res.Events))
-			for _, ev := range res.Events {
+			confirmed := make([]rpcEvent, 0, len(pending))
+			for _, ev := range pending {
 				if ev.Ledger <= safeLedger {
 					confirmed = append(confirmed, ev)
 				}
@@ -452,6 +481,9 @@ func (l *EventListener) pollEvents(ctx context.Context, startLedger int32) (int3
 					"confirmationDepth", depth)
 				break
 			}
+		}
+		if len(pending) == 0 {
+			break
 		}
 
 		// One de-duplication query per getEvents page instead of one per event.
@@ -487,6 +519,9 @@ func (l *EventListener) pollEvents(ctx context.Context, startLedger int32) (int3
 			if err := l.handleEvent(context.WithoutCancel(ctx), sorobanEv); err != nil {
 				return startLedger, fmt.Errorf("handle event %s: %w", sorobanEv.ID, err)
 			}
+		}
+		if pastEnd {
+			break
 		}
 		if res.Cursor != "" {
 			cursor = res.Cursor

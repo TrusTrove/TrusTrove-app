@@ -34,9 +34,10 @@ jobs:
 
       - name: Audit npm dependencies
         # pnpm-workspace.yaml's auditConfig.ignoreGhsas lists the specific,
-        # already-triaged advisories this ignores (next 14->15 and toml 3->4,
-        # both needing a major-version bump, not a patch override) and why.
-        # Any new high/critical advisory not on that list fails the build.
+        # already-triaged advisories this ignores (the next 14->15 and toml
+        # 3->5 upgrades, plus a dompurify patch held for the next lockfile
+        # refresh) and why. Any new high/critical advisory not on that list
+        # fails the build.
         run: pnpm audit --audit-level=high
 
       - name: Build Packages (SDK & Web App)

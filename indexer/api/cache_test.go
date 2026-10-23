@@ -36,11 +36,12 @@ func TestTTLCache_MissingKeyMisses(t *testing.T) {
 
 // TestTTLCache_Expiry covers the TTL itself (#1078): once the window has passed
 // the entry is a miss and is dropped from the map, so an expired response can
-// never be served again. A nanosecond TTL makes the assertion deterministic
-// without sleeping.
+// never be served again. A negative TTL puts the deadline in the past, which is
+// deterministic regardless of the platform clock's resolution: a 1ns TTL can
+// still be live when Now() returns the same tick twice.
 func TestTTLCache_Expiry(t *testing.T) {
 	c := NewTTLCache()
-	c.Set("events:20:", []string{"a"}, time.Nanosecond)
+	c.Set("events:20:", []string{"a"}, -time.Second)
 
 	if got, ok := c.Get("events:20:"); ok {
 		t.Fatalf("expected an expired entry to miss, got %v", got)

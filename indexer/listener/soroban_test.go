@@ -232,6 +232,45 @@ func TestPollEvents_RPCErrorIsPropagated(t *testing.T) {
 	}
 }
 
+func TestBackfillRangeOnlyProcessesRequestedLedgers(t *testing.T) {
+	events := []any{
+		rpcEventFor("124-000001", "issuer_registered"),
+		rpcEventFor("126-000001", "issuer_registered"),
+	}
+	events[1].(map[string]any)["ledger"] = 126
+	server := stubSorobanRPC(t, func(method string) (any, int) {
+		if method != "getEvents" {
+			t.Errorf("unexpected RPC method: %s", method)
+			return nil, http.StatusOK
+		}
+		return map[string]any{
+			"events":       events,
+			"latestLedger": uint32(200),
+		}, http.StatusOK
+	})
+
+	l := newTestEventListener(t, func(c *config.Config) {
+		c.SorobanRPCURL = server.URL
+		c.RegistryContractID = "CABGWVIZFF62FG67ZGFEP67NEEY4WYTMFURDMFTKKNRDAFPKPOJDTN4C"
+	})
+	var processedIDs []string
+	l.areEventsProcessedFn = func(_ context.Context, ids []string) (map[string]bool, error) {
+		processedIDs = append(processedIDs, ids...)
+		processed := make(map[string]bool, len(ids))
+		for _, id := range ids {
+			processed[id] = true
+		}
+		return processed, nil
+	}
+
+	if err := l.BackfillRange(context.Background(), 124, 125); err != nil {
+		t.Fatalf("BackfillRange failed: %v", err)
+	}
+	if len(processedIDs) != 1 || processedIDs[0] != "124-000001" {
+		t.Fatalf("expected only ledger 124 event to be processed, got %v", processedIDs)
+	}
+}
+
 // rpcEventFor builds one getEvents result entry whose topic[0] carries the
 // given event symbol. Using a registration symbol with no address topic makes
 // handleEvent fail before it touches the database, so tests can tell from the
