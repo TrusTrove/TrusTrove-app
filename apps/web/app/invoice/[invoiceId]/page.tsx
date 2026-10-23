@@ -38,9 +38,10 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({
   params,
 }: {
-  params: { invoiceId: string };
+  params: Promise<{ invoiceId: string }>;
 }): Promise<Metadata> {
-  const invoice = await fetchInvoiceById(params.invoiceId);
+  const { invoiceId } = await params;
+  const invoice = await fetchInvoiceById(invoiceId);
   const dueDate = invoice
     ? new Intl.DateTimeFormat("en-US", {
         month: "short",
@@ -88,16 +89,17 @@ export async function generateMetadata({
 export default async function InvoiceDetailPage({
   params,
 }: {
-  params: { invoiceId: string };
+  params: Promise<{ invoiceId: string }>;
 }) {
   // Reuses the request-scoped fetch above (no second round-trip). `null` means
   // the indexer had nothing for this id; the client then does its own fetch so
   // the existing not-found flow stays in one piece.
-  const initialInvoice = await fetchInvoiceRaw(params.invoiceId);
+  const { invoiceId } = await params;
+  const initialInvoice = await fetchInvoiceRaw(invoiceId);
 
   return (
     <InvoiceDetailClient
-      invoiceId={params.invoiceId}
+      invoiceId={invoiceId}
       initialInvoice={initialInvoice ?? undefined}
     />
   );

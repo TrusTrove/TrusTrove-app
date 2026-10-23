@@ -29,6 +29,11 @@ auditConfig:
     # braces: build-time only (tailwindcss/fast-glob/chokidar/micromatch); the
     # advisory has no patched release yet, so there is nothing to override to
     - GHSA-vfj7-8cjw-p6xm
+    # toml 3.x is pinned by Stellar SDK 13; resolving these advisories requires
+    # the SDK's major-version upgrade rather than a lockfile-only override.
+    - GHSA-4qx8-w7c3-pj3p
+    - GHSA-9j65-hcg3-gc64
+    - GHSA-9qmh-m7c6-f92p
 overrides:
   postcss: ">=8.5.18 <9"
   nanoid: ">=3.3.18 <4"
@@ -38,6 +43,7 @@ overrides:
   brace-expansion@5: ">=5.0.9 <6"
   undici: ">=7.29.0 <8"
   axios: ">=1.20.0 <2"
+  dompurify: ">=3.4.17 <4"
   follow-redirects: ">=1.16.1 <2"
   vite: ">=8.1.6 <9"
   source-map-js: ">=1.2.2 <2"
