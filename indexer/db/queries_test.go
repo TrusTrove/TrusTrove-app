@@ -74,6 +74,51 @@ func TestInsertAndGetInvoice(t *testing.T) {
 	}
 }
 
+func TestRecordFailedEventIncrementsAttempts(t *testing.T) {
+	skipIfNoDB(t)
+
+	ctx := context.Background()
+	eventID := fmt.Sprintf("failed-event-%d", time.Now().UnixNano())
+	event := FailedEvent{
+		EventID:    eventID,
+		ContractID: "CABGWVIZFF62FG67ZGFEP67NEEY4WYTMFURDMFTKKNRDAFPKPOJDTN4C",
+		Ledger:     124,
+		Topic:      []string{"AAAA", "BBBB"},
+		Value:      "CCCC",
+		ErrorText:  "malformed event payload",
+	}
+	t.Cleanup(func() {
+		if Pool != nil {
+			_, _ = Pool.Exec(ctx, "DELETE FROM failed_events WHERE event_id = $1", eventID)
+		}
+	})
+
+	for wantAttempts := 1; wantAttempts <= 2; wantAttempts++ {
+		attempts, err := RecordFailedEvent(ctx, event)
+		if err != nil {
+			t.Fatalf("RecordFailedEvent: %v", err)
+		}
+		if attempts != wantAttempts {
+			t.Errorf("attempts = %d, want %d", attempts, wantAttempts)
+		}
+	}
+
+	var contractID, rawValue, errorText string
+	var ledger int32
+	var rawTopic []byte
+	var attempts int
+	err := Pool.QueryRow(ctx, `
+		SELECT contract_id, ledger, raw_topic, raw_value, error_text, attempts
+		FROM failed_events WHERE event_id = $1
+	`, eventID).Scan(&contractID, &ledger, &rawTopic, &rawValue, &errorText, &attempts)
+	if err != nil {
+		t.Fatalf("read failed event: %v", err)
+	}
+	if contractID != event.ContractID || ledger != event.Ledger || string(rawTopic) != `["AAAA","BBBB"]` || rawValue != event.Value || errorText != event.ErrorText || attempts != 2 {
+		t.Errorf("failed event row does not match: contract=%q ledger=%d topic=%s value=%q error=%q attempts=%d", contractID, ledger, rawTopic, rawValue, errorText, attempts)
+	}
+}
+
 func TestInsertInvoiceDuplicateIsIgnored(t *testing.T) {
 	skipIfNoDB(t)
 

@@ -340,6 +340,66 @@ func TestPollEvents_BatchLookupRunsOncePerPage(t *testing.T) {
 	}
 }
 
+func TestPollEvents_QuarantinesPermanentFailureAndContinues(t *testing.T) {
+	const (
+		startLedger  int32 = 100
+		latestLedger int32 = 300
+	)
+	events := []any{
+		rpcEventFor("300-000001", "issuer_registered"),
+		rpcEventFor("300-000002", "issuer_registered"),
+		rpcEventFor("300-000003", "issuer_registered"),
+	}
+	server := stubSorobanRPC(t, func(method string) (any, int) {
+		if method != "getEvents" {
+			t.Errorf("unexpected RPC method: %s", method)
+			return nil, http.StatusOK
+		}
+		return map[string]any{
+			"events":       events,
+			"latestLedger": uint32(latestLedger),
+			"cursor":       "",
+		}, http.StatusOK
+	})
+
+	l := newTestEventListener(t, func(c *config.Config) {
+		c.SorobanRPCURL = server.URL
+		c.RegistryContractID = "CABGWVIZFF62FG67ZGFEP67NEEY4WYTMFURDMFTKKNRDAFPKPOJDTN4C"
+	})
+	var handled []string
+	l.handleEventFn = func(_ context.Context, event SorobanEvent) error {
+		if event.ID == "300-000002" {
+			return invalidEventf("malformed event payload")
+		}
+		handled = append(handled, event.ID)
+		return nil
+	}
+	var quarantined db.FailedEvent
+	var quarantineCalls int
+	l.recordFailedEventFn = func(_ context.Context, event db.FailedEvent) (int, error) {
+		quarantineCalls++
+		quarantined = event
+		return quarantineCalls, nil
+	}
+
+	nextLedger, err := l.pollEvents(context.Background(), startLedger)
+	if err != nil {
+		t.Fatalf("pollEvents: %v", err)
+	}
+	if nextLedger <= startLedger {
+		t.Errorf("checkpoint did not advance: got %d, start was %d", nextLedger, startLedger)
+	}
+	if got := strings.Join(handled, ","); got != "300-000001,300-000003" {
+		t.Errorf("expected both surrounding events to be processed, got %s", got)
+	}
+	if quarantineCalls != 1 {
+		t.Fatalf("expected one quarantine write, got %d", quarantineCalls)
+	}
+	if quarantined.EventID != "300-000002" || quarantined.Ledger != 124 || len(quarantined.Topic) != 1 || quarantined.Value == "" || quarantined.ErrorText != "malformed event payload" {
+		t.Errorf("quarantine record did not preserve event details: %+v", quarantined)
+	}
+}
+
 // TestPollEvents_LookupFailureDoesNotReapplyInvoice is the DB-backed form of
 // #929's acceptance criterion: with the lookup failing, neither the invoice row
 // nor the events_log row may appear.
