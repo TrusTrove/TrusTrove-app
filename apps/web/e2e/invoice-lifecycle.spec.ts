@@ -2,7 +2,9 @@ import { expect } from "@playwright/test";
 import { test } from "./fixtures/freighter";
 
 test.describe("Invoice Lifecycle - Happy Path", () => {
-  test("Complete flow: Connect, Create, Fund, Ship, Deliver, Repay", async ({
+  // FIXME: targets routes, labels and an API that do not exist. Tracked in
+  // https://github.com/TrusTrove/TrusTrove-app/issues/891
+  test.fixme("Complete flow: Connect, Create, Fund, Ship, Deliver, Repay", async ({
     page,
   }) => {
     // 1. Navigation and Wallet Connection

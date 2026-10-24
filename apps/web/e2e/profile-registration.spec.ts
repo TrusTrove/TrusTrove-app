@@ -131,7 +131,9 @@ test.describe("Profile Registration & Verification - Happy Path", () => {
     ).toBeVisible();
   });
 
-  test("should submit a complete registration and report the missing registry contract", async ({
+  // FIXME: CI builds with the testnet contract IDs, so the "registry client
+  // not available" path is never reached. Tracked in https://github.com/TrusTrove/TrusTrove-app/issues/1175
+  test.fixme("should submit a complete registration and report the missing registry contract", async ({
     page,
   }) => {
     await page

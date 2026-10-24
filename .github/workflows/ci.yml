@@ -39,6 +39,9 @@ jobs:
         # Any new high/critical advisory not on that list fails the build.
         run: pnpm audit --audit-level=high
 
+      # Keep these contract IDs in sync with the "Run E2E Tests" step below.
+      # They are scoped to the build steps on purpose: the SDK's defaults read
+      # them from the environment, and its unit tests expect them unset.
       - name: Build Packages (SDK & Web App)
         run: pnpm build
         env:
@@ -70,6 +73,70 @@ jobs:
 
       - name: Check Formatting
         run: npx prettier --check .
+
+  e2e-web:
+    name: Web E2E Tests (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      # web imports @trusttrove/sdk from its dist/ output.
+      - name: Build SDK
+        run: pnpm --filter @trusttrove/sdk build
+
+      - name: Resolve Playwright version
+        id: playwright
+        working-directory: apps/web
+        run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright.outputs.version }}-chromium
+
+      # Always run: --with-deps installs the OS libraries, which are not cached;
+      # the browser download itself is skipped on a cache hit.
+      - name: Install Playwright Chromium
+        working-directory: apps/web
+        run: pnpm exec playwright install --with-deps chromium
+
+      # playwright.config.ts builds the app and serves it with `next start`
+      # when CI is set. NEXT_PUBLIC_* values are inlined at build time, so these
+      # must match the "Build Packages (SDK & Web App)" step above.
+      - name: Run E2E Tests
+        run: pnpm test:e2e
+        env:
+          CI: true
+          NEXT_PUBLIC_REGISTRY_CONTRACT_ID: CABGWVIZFF62FG67ZGFEP67NEEY4WYTMFURDMFTKKNRDAFPKPOJDTN4C
+          NEXT_PUBLIC_INVOICE_CONTRACT_ID: CA4O3MR7LWHRSUDBNU6FY6UDFFYBN7TGBZXBDZB4OYYXFYXIFJ6RJF6B
+          NEXT_PUBLIC_POOL_CONTRACT_ID: CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS
+          NEXT_PUBLIC_ESCROW_CONTRACT_ID: CAJWGUKDTTC3SKN4RAAY72J4DVIIYSCFHX6GIMNTT22ABMISJK4GBCEH
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 14
+          if-no-files-found: warn
 
   verify-go-indexer:
     name: Verify Go Indexer & API
