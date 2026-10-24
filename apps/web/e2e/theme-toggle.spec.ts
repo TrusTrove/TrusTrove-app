@@ -7,8 +7,10 @@ async function expectSystemThemeBeforeHydration(
   page: import("@playwright/test").Page,
   colorScheme: "light" | "dark",
 ) {
+  // Storage is already empty: every test gets a fresh browser context. (An
+  // init script clearing it would also run on the later reload and wipe the
+  // choice the first test persists.)
   await page.emulateMedia({ colorScheme });
-  await page.addInitScript((key) => localStorage.removeItem(key), THEME_KEY);
 
   let releaseScripts = () => {};
   const scriptsMayLoad = new Promise<void>((resolve) => {
@@ -35,7 +37,10 @@ async function expectSystemThemeBeforeHydration(
     }
   } finally {
     releaseScripts();
-    await page.unroute(NEXT_SCRIPTS);
+    // Wait for the held requests to be continued: a plain `unroute` lets them
+    // fall through to the default handler first, and the held handler's
+    // `route.continue()` then throws "Route is already handled!".
+    await page.unrouteAll({ behavior: "wait" });
   }
 }
 
@@ -67,6 +72,9 @@ test.describe("theme preference", () => {
   test("keeps the theme usable when local storage is blocked", async ({
     page,
   }) => {
+    // With nothing stored the theme follows the system preference; start from
+    // dark so the toggle below has something to switch away from.
+    await page.emulateMedia({ colorScheme: "dark" });
     await page.addInitScript(() => {
       Object.defineProperty(window, "localStorage", {
         configurable: true,
@@ -101,6 +109,9 @@ test.describe("theme preference", () => {
       name: "Open navigation menu",
     });
     await menuButton.click();
-    await expect(menuButton).toHaveAttribute("aria-expanded", "true");
+    // The button relabels itself once the menu is open.
+    await expect(
+      page.getByRole("button", { name: "Close navigation menu" }),
+    ).toHaveAttribute("aria-expanded", "true");
   });
 });

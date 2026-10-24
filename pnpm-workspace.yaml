@@ -29,6 +29,21 @@ auditConfig:
     # braces: build-time only (tailwindcss/fast-glob/chokidar/micromatch); the
     # advisory has no patched release yet, so there is nothing to override to
     - GHSA-vfj7-8cjw-p6xm
+    # next 14.2.35: both fixes ship only in 15.5.28+ (a major upgrade). The RCE
+    # is in sharp, which is not installed (Next falls back to its built-in
+    # optimizer) and the app never uses next/image; the DoS needs a Server
+    # Action and the app has none
+    - GHSA-2464-fhr4-w9xw
+    - GHSA-p3m5-59mp-jv5r
+    # toml 3.0.0 via @stellar/stellar-sdk: patched only in 5.0.1+, and the app
+    # never parses stellar.toml (StellarToml is unused)
+    - GHSA-4qx8-w7c3-pj3p
+    - GHSA-9j65-hcg3-gc64
+    - GHSA-9qmh-m7c6-f92p
+    # zod 3 via packages/sdk: patched only in 4.6.6+, and the SDK's exported
+    # schemas would change with a major bump; the bug is in array-schema
+    # parsing and the SDK defines no z.array schemas (apps/web is on ^4.6.6)
+    - GHSA-mrhx-c7xc-m3w5
 overrides:
   postcss: ">=8.5.18 <9"
   nanoid: ">=3.3.18 <4"
@@ -36,7 +51,8 @@ overrides:
   glob: ">=12.0.0 <13"
   brace-expansion@1: ">=1.1.18 <2"
   brace-expansion@5: ">=5.0.9 <6"
-  undici: ">=7.29.0 <8"
+  undici: ">=7.30.1 <8"
+  dompurify: ">=3.4.17 <4"
   axios: ">=1.20.0 <2"
   follow-redirects: ">=1.16.1 <2"
   vite: ">=8.1.6 <9"

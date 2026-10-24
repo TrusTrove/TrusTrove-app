@@ -8,6 +8,7 @@
     "build": "pnpm --filter @trusttrove/sdk build && pnpm --filter @trusttrove/sdk-react build && pnpm --filter @trusttrove/cli build && pnpm --filter web build",
     "lint": "pnpm --filter @trusttrove/sdk lint && pnpm --filter web lint",
     "test": "pnpm --filter @trusttrove/sdk test && pnpm --filter @trusttrove/sdk-react test && pnpm --filter @trusttrove/cli test && pnpm --filter web test",
+    "test:e2e": "pnpm --filter web test:e2e",
     "typecheck": "pnpm --filter @trusttrove/sdk build && pnpm --filter @trusttrove/sdk-react build && pnpm --filter @trusttrove/cli build && pnpm -r exec tsc --noEmit"
   },
   "devDependencies": {
