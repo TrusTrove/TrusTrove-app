@@ -141,4 +141,45 @@ pnpm --filter @trusttrove/sdk test
 cd indexer && go test -race ./...
 ```
 
+**E2E tests** (Playwright, web app only):
+
+The specs live in `apps/web/e2e/` and run in Chromium against the Next.js app. Every backend call (indexer API, Horizon, Soroban RPC) and the Freighter wallet are mocked inside the specs, so no indexer, database or browser extension is needed.
+
+Import `test` from `e2e/fixtures/freighter.ts` (mocked wallet) or `e2e/fixtures/network.ts` (no wallet), not straight from `@playwright/test`. Both abort any request to an origin other than the app that the spec does not mock with `page.route`, so a missing mock fails the request instead of reaching testnet.
+
+```bash
+# One-time: download the Chromium build Playwright uses
+# (on Linux, add --with-deps to also install the system libraries)
+pnpm --filter web exec playwright install chromium
+
+# The web app imports @trusttrove/sdk from its dist/ output
+pnpm --filter @trusttrove/sdk build
+
+# Run the whole suite (from the repo root, or `pnpm test:e2e` inside apps/web)
+pnpm test:e2e
+
+# Run a single spec, or a single test by title
+pnpm test:e2e e2e/marketplace-browse.spec.ts
+pnpm test:e2e -g "Dashboard renders key protocol stats"
+
+# Watch the browser, or use the interactive UI mode
+pnpm test:e2e --headed
+pnpm test:e2e --ui
+
+# Open the HTML report of the last run (written to apps/web/playwright-report/)
+pnpm --filter web exec playwright show-report
+```
+
+Paths passed to `pnpm test:e2e` are relative to `apps/web`, because the root script delegates to the web workspace.
+
+Locally, Playwright starts `next dev` on port 3000, or reuses a dev server that is already running there. With `CI` set, it runs `pnpm build && pnpm start` instead (a production build), which is how the **Web E2E Tests (Playwright)** job in `.github/workflows/ci.yml` runs on every pull request. To reproduce CI exactly, stop any running dev server and run:
+
+```bash
+CI=true pnpm test:e2e
+```
+
+`NEXT_PUBLIC_*` values are inlined at build time, so the build the specs run against must see them. CI sets the testnet `NEXT_PUBLIC_REGISTRY_CONTRACT_ID`, `NEXT_PUBLIC_INVOICE_CONTRACT_ID`, `NEXT_PUBLIC_POOL_CONTRACT_ID` and `NEXT_PUBLIC_ESCROW_CONTRACT_ID` on the build and E2E steps only (the same values as in `.env.example`; the SDK's unit tests expect them unset). Locally they come from your `.env.local` (repo root or `apps/web`) or the shell. The other `NEXT_PUBLIC_*` variables fall back to testnet defaults.
+
+In CI the run uses one worker and retries a failing test twice, and the `github` reporter annotates failures on the pull request. If the job fails, download the `playwright-report` artifact from the workflow run, unzip it, and open it with `pnpm --filter web exec playwright show-report <unzipped-folder>`. Retried tests include a trace.
+
 ---

@@ -1,4 +1,4 @@
-import { test as base } from "@playwright/test";
+import { test as base } from "./network";
 
 /** Address the mocked Freighter extension always signs in with. */
 export const MOCK_ADDRESS =
@@ -35,6 +35,9 @@ type FreighterFixtures = {
  *
  * Responses are read from the live `window.freighter` object so specs can
  * still swap the connected address (see notifications.spec.ts).
+ *
+ * Built on the network guard in `./network`, so requests a spec does not mock
+ * never leave the browser.
  */
 export const test = base.extend<FreighterFixtures>({
   skipOnboardingTour: [true, { option: true }],

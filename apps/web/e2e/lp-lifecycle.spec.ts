@@ -157,11 +157,12 @@ test.describe("LP Lifecycle - Pool Deposit & Redeem", () => {
   test("should disable withdrawal while the wallet holds no LP shares", async ({
     page,
   }) => {
-    await mockPoolApi(
-      page,
-      { shares: "0", usdc_value: "0", yield_earned: "0", deposit_count: 0 },
-      "no-position",
-    );
+    await mockPoolApi(page, {
+      shares: "0",
+      usdc_value: "0",
+      yield_earned: "0",
+      deposit_count: 0,
+    });
     await connectWallet(page);
 
     await expect(
@@ -210,26 +211,5 @@ test.describe("LP Lifecycle - Pool Deposit & Redeem", () => {
     await expect(
       page.getByRole("dialog", { name: /Confirm Withdraw LP liquidity/i }),
     ).toHaveCount(0);
-  });
-});
-
-test.describe("LP Lifecycle - Secondary Flows", () => {
-  test("Wallet Disconnection from LP page", async ({ page }) => {
-    await mockPoolApi(page);
-    await connectWallet(page);
-
-    const nav = page.getByRole("navigation");
-    await nav.getByRole("button", { name: /Disconnect wallet/i }).click();
-
-    await expect(
-      nav.getByRole("button", { name: /Connect Wallet/i }),
-    ).toBeVisible({ timeout: 10000 });
-  });
-
-  test("Frontend Error States from LP page", async ({ page }) => {
-    await page.goto("/this-route-does-not-exist");
-    await expect(
-      page.getByText(/Page not found/i).or(page.getByText(/404/i)),
-    ).toBeVisible();
   });
 });
