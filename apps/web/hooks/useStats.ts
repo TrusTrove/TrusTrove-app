@@ -20,7 +20,7 @@ import { getProtocolStats, ProtocolStats } from "@/lib/api";
 export function useStats() {
   const query = useQuery({
     queryKey: ["protocolStats"],
-    queryFn: () => getProtocolStats(),
+    queryFn: ({ signal }) => getProtocolStats({ signal }),
     refetchInterval: 60000, // Refetch every minute
     staleTime: 30000, // Consider data fresh for 30 seconds
     retry: 3,
