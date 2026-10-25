@@ -37,17 +37,33 @@ export class FreighterError extends Error {
 
 function classifyFreighterError(err: unknown): FreighterErrorCode {
   if (err instanceof FreighterError) return err.code;
+  let msg = "";
   if (err instanceof Error) {
-    const msg = err.message.toLowerCase();
+    msg = err.message;
+  } else if (typeof err === "string") {
+    msg = err;
+  } else if (err && typeof err === "object") {
     if (
-      msg.includes("user rejected") ||
-      msg.includes("user rejected this request")
+      "message" in err &&
+      typeof (err as { message?: unknown }).message === "string"
     ) {
-      return "user_rejected";
+      msg = (err as { message: string }).message;
+    } else if (
+      "error" in err &&
+      typeof (err as { error?: unknown }).error === "string"
+    ) {
+      msg = (err as { error: string }).error;
     }
-    if (msg.includes("not installed") || msg.includes("internal error")) {
-      return "not_installed";
-    }
+  }
+  msg = msg.toLowerCase();
+  if (
+    msg.includes("user rejected") ||
+    msg.includes("user rejected this request")
+  ) {
+    return "user_rejected";
+  }
+  if (msg.includes("not installed") || msg.includes("internal error")) {
+    return "not_installed";
   }
   return "unknown";
 }
@@ -55,7 +71,28 @@ function classifyFreighterError(err: unknown): FreighterErrorCode {
 function mapFreighterError(err: unknown): FreighterError {
   if (err instanceof FreighterError) return err;
   const code = classifyFreighterError(err);
-  const message = err instanceof Error ? err.message : String(err);
+  let message = "";
+  if (err instanceof Error) {
+    message = err.message;
+  } else if (typeof err === "string") {
+    message = err;
+  } else if (err && typeof err === "object") {
+    if (
+      "message" in err &&
+      typeof (err as { message?: unknown }).message === "string"
+    ) {
+      message = (err as { message: string }).message;
+    } else if (
+      "error" in err &&
+      typeof (err as { error?: unknown }).error === "string"
+    ) {
+      message = (err as { error: string }).error;
+    } else {
+      message = String(err);
+    }
+  } else {
+    message = String(err);
+  }
   return new FreighterError(code, message);
 }
 

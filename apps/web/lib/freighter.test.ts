@@ -95,6 +95,19 @@ describe("connectFreighter", () => {
     }
   });
 
+  it("throws FreighterError with user_rejected when user rejects with string error", async () => {
+    mockIsConnected.mockResolvedValue(true);
+    mockRequestAccess.mockRejectedValue("User rejected this request");
+
+    await expect(connectFreighter()).rejects.toThrow(FreighterError);
+    try {
+      await connectFreighter();
+    } catch (err) {
+      expect(err).toBeInstanceOf(FreighterError);
+      expect((err as FreighterError).code).toBe("user_rejected");
+    }
+  });
+
   it("throws FreighterError with not_installed when Freighter returns internal error", async () => {
     mockIsConnected.mockResolvedValue(true);
     mockRequestAccess.mockRejectedValue(

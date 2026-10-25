@@ -73,61 +73,67 @@ export const test = base.extend<FreighterFixtures>({
           // Read through the live mock so spec-level overrides (a different
           // address, for instance) are honoured by every request.
           const api = (window as any).freighter as typeof freighter;
-          let payload: Record<string, unknown>;
+          let payload: Record<string, unknown> = {};
+          let error = "";
 
-          switch (request.type) {
-            case "REQUEST_ACCESS":
-              payload = { publicKey: await api.requestAccess() };
-              break;
-            case "REQUEST_PUBLIC_KEY":
-              payload = { publicKey: await api.getPublicKey() };
-              break;
-            case "REQUEST_NETWORK_DETAILS": {
-              const details = await api.getNetworkDetails();
-              payload = {
-                networkDetails: {
-                  network: details.network,
-                  networkName: "Test SDF Network ; September 2015",
-                  networkUrl: "https://horizon-testnet.stellar.org",
-                  networkPassphrase: "Test SDF Network ; September 2015",
-                  sorobanRpcUrl: "https://soroban-testnet.stellar.org",
-                },
-              };
-              break;
+          try {
+            switch (request.type) {
+              case "REQUEST_ACCESS":
+                payload = { publicKey: await api.requestAccess() };
+                break;
+              case "REQUEST_PUBLIC_KEY":
+                payload = { publicKey: await api.getPublicKey() };
+                break;
+              case "REQUEST_NETWORK_DETAILS": {
+                const details = await api.getNetworkDetails();
+                payload = {
+                  networkDetails: {
+                    network: details.network,
+                    networkName: "Test SDF Network ; September 2015",
+                    networkUrl: "https://horizon-testnet.stellar.org",
+                    networkPassphrase: "Test SDF Network ; September 2015",
+                    sorobanRpcUrl: "https://soroban-testnet.stellar.org",
+                  },
+                };
+                break;
+              }
+              case "REQUEST_NETWORK":
+                payload = { network: "TESTNET" };
+                break;
+              case "REQUEST_CONNECTION_STATUS":
+                payload = { isConnected: await api.isConnected() };
+                break;
+              case "REQUEST_ALLOWED_STATUS":
+              case "SET_ALLOWED_STATUS":
+                payload = { isAllowed: await api.isAllowed() };
+                break;
+              case "REQUEST_USER_INFO":
+                payload = { userInfo: { publicKey: await api.getPublicKey() } };
+                break;
+              case "SUBMIT_TRANSACTION":
+                payload = {
+                  signedTransaction: await api.signTransaction(
+                    request.transactionXdr ?? "",
+                  ),
+                };
+                break;
+              case "SUBMIT_AUTH_ENTRY":
+                payload = { signedAuthEntry: await api.signAuthEntry() };
+                break;
+              default:
+                payload = {};
             }
-            case "REQUEST_NETWORK":
-              payload = { network: "TESTNET" };
-              break;
-            case "REQUEST_CONNECTION_STATUS":
-              payload = { isConnected: await api.isConnected() };
-              break;
-            case "REQUEST_ALLOWED_STATUS":
-            case "SET_ALLOWED_STATUS":
-              payload = { isAllowed: await api.isAllowed() };
-              break;
-            case "REQUEST_USER_INFO":
-              payload = { userInfo: { publicKey: await api.getPublicKey() } };
-              break;
-            case "SUBMIT_TRANSACTION":
-              payload = {
-                signedTransaction: await api.signTransaction(
-                  request.transactionXdr ?? "",
-                ),
-              };
-              break;
-            case "SUBMIT_AUTH_ENTRY":
-              payload = { signedAuthEntry: await api.signAuthEntry() };
-              break;
-            default:
-              payload = {};
+          } catch (err: any) {
+            error = err?.message || String(err);
           }
 
           window.postMessage(
             {
               source: "FREIGHTER_EXTERNAL_MSG_RESPONSE",
+              messageId: request.messageId,
               messagedId: request.messageId,
-              error: "",
               ...payload,
+              error,
             },
             window.location.origin,
           );
