@@ -48,14 +48,14 @@ export const viewport: Viewport = {
   themeColor: "#080c10",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   // Per-request CSP nonce from middleware.ts. Reading request headers makes
   // every route render dynamically, which the nonce requires anyway.
-  const nonce = headers().get(NONCE_HEADER) ?? undefined;
+  const nonce = (await headers()).get(NONCE_HEADER) ?? undefined;
 
   return (
     // `suppressHydrationWarning` is required because the bootstrap script below

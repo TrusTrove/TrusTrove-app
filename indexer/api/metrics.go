@@ -9,6 +9,13 @@ import (
 )
 
 var (
+	// EventsQuarantined counts permanent event-processing failures written to failed_events.
+	EventsQuarantined = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "trustrove",
+		Name:      "listener_quarantined_events_total",
+		Help:      "Total number of permanent Soroban event failures quarantined by the listener.",
+	})
+
 	// InvoicesIndexed counts the total number of invoice events processed by the indexer.
 	InvoicesIndexed = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "trustrove",

@@ -59,7 +59,9 @@ describe("/invoice/[invoiceId] server render", () => {
   it("forwards the fetched invoice payload to the client", async () => {
     const page = await loadPage();
 
-    const element = await page.default({ params: { invoiceId: INVOICE_ID } });
+    const element = await page.default({
+      params: Promise.resolve({ invoiceId: INVOICE_ID }),
+    });
 
     expect(fetchMock.mock.calls[0][0]).toBe(
       `${API_BASE}/invoices/${INVOICE_ID}`,
@@ -76,9 +78,11 @@ describe("/invoice/[invoiceId] server render", () => {
   it("resolves metadata from the same request shape", async () => {
     const page = await loadPage();
 
-    await page.default({ params: { invoiceId: INVOICE_ID } });
+    await page.default({
+      params: Promise.resolve({ invoiceId: INVOICE_ID }),
+    });
     const metadata = await page.generateMetadata({
-      params: { invoiceId: INVOICE_ID },
+      params: Promise.resolve({ invoiceId: INVOICE_ID }),
     });
 
     expect(metadata.title).toContain("TrusTrove Invoice");
@@ -94,9 +98,11 @@ describe("/invoice/[invoiceId] server render", () => {
     }));
     const page = await loadPage();
 
-    const element = await page.default({ params: { invoiceId: "missing" } });
+    const element = await page.default({
+      params: Promise.resolve({ invoiceId: "missing" }),
+    });
     const metadata = await page.generateMetadata({
-      params: { invoiceId: "missing" },
+      params: Promise.resolve({ invoiceId: "missing" }),
     });
 
     expect(element.props.initialInvoice).toBeUndefined();
@@ -109,7 +115,9 @@ describe("/invoice/[invoiceId] server render", () => {
     });
     const page = await loadPage();
 
-    const element = await page.default({ params: { invoiceId: INVOICE_ID } });
+    const element = await page.default({
+      params: Promise.resolve({ invoiceId: INVOICE_ID }),
+    });
 
     expect(element.props.initialInvoice).toBeUndefined();
   });

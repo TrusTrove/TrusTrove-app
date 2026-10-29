@@ -33,6 +33,15 @@ type DbInvoice struct {
 	AttestedAt         *int64  `json:"attested_at"`
 }
 
+type FailedEvent struct {
+	EventID    string
+	ContractID string
+	Ledger     int32
+	Topic      []string
+	Value      string
+	ErrorText  string
+}
+
 type DbPoolStats struct {
 	TotalDeposits         string    `json:"total_deposits"`
 	TotalFunded           string    `json:"total_funded"`
@@ -465,6 +474,35 @@ func LogEvent(ctx context.Context, q Querier, eventID, contractID string, ledger
 		return fmt.Errorf("queries: log event: %w", err)
 	}
 	return nil
+}
+
+func RecordFailedEvent(ctx context.Context, event FailedEvent) (int, error) {
+	topic, err := json.Marshal(event.Topic)
+	if err != nil {
+		return 0, fmt.Errorf("queries: record failed event: marshal topic: %w", err)
+	}
+
+	var eventID any = event.EventID
+	if event.EventID == "" {
+		eventID = nil
+	}
+	var attempts int
+	err = Pool.QueryRow(ctx, `
+		INSERT INTO failed_events (event_id, contract_id, ledger, raw_topic, raw_value, error_text)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		ON CONFLICT (event_id) WHERE event_id IS NOT NULL
+		DO UPDATE SET contract_id = EXCLUDED.contract_id,
+		              ledger = EXCLUDED.ledger,
+		              raw_topic = EXCLUDED.raw_topic,
+		              raw_value = EXCLUDED.raw_value,
+		              error_text = EXCLUDED.error_text,
+		              attempts = failed_events.attempts + 1
+		RETURNING attempts
+	`, eventID, event.ContractID, event.Ledger, topic, event.Value, event.ErrorText).Scan(&attempts)
+	if err != nil {
+		return 0, fmt.Errorf("queries: record failed event: %w", err)
+	}
+	return attempts, nil
 }
 
 // AreEventsProcessed returns the event IDs from ids that have already been
