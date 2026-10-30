@@ -6,8 +6,13 @@ out of order.
 
 ```
 Created → Listed → Funded → Active → Confirmed → Repaid
-                                    ↘ Defaulted
+                   └───────────────┴──────────────┴→ Defaulted
 ```
+
+The indexer accepts only these transitions: `Created` → `Listed` → `Funded` →
+`Active` → `Confirmed` → `Repaid`. `Defaulted` may follow `Funded`, `Active`, or
+`Confirmed`. Replayed events that do not match the invoice's current state are
+ignored; events for invoices not yet indexed are retried.
 
 ### Created
 

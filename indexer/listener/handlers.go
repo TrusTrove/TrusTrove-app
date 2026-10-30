@@ -3,6 +3,7 @@ package listener
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -569,6 +570,10 @@ func (l *EventListener) handleEvent(ctx context.Context, event SorobanEvent) err
 			slog.Debug("Skipping unhandled contract event", "name", eventName)
 			return nil
 		}
+		if errors.Is(err, db.ErrInvalidInvoiceTransition) {
+			slog.Warn("Ignoring stale invoice event", "eventId", event.ID, "event", eventName, "error", err)
+			return db.LogEvent(ctx, tx, event.ID, event.ContractID, event.Ledger, ledgerClosedAt, eventName, event.Value)
+		}
 		if err != nil {
 			return fmt.Errorf("handler for %s failed: %w", eventName, err)
 		}
@@ -622,9 +627,11 @@ func (l *EventListener) handleEvent(ctx context.Context, event SorobanEvent) err
 		return nil
 	})
 	if err != nil {
+		if errors.Is(err, db.ErrInvoiceNotFound) {
+			slog.Warn("Invoice event references an unknown invoice; retrying", "eventId", event.ID, "event", eventName, "error", err)
+		}
 		return err
 	}
-
 	// Count only committed events so a rolled-back transaction is never
 	// reported as indexed.
 	if handled {

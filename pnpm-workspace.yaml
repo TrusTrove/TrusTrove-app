@@ -26,6 +26,16 @@ auditConfig:
     - GHSA-m8m8-qj5v-23w3
     - GHSA-r4gj-5m52-g5wh
     - GHSA-x97p-jq2g-jp4f
+    # braces: build-time only (tailwindcss/fast-glob/chokidar/micromatch); the
+    # advisory has no patched release yet, so there is nothing to override to
+    - GHSA-vfj7-8cjw-p6xm
+    # toml 3.x is pinned by Stellar SDK 13; resolving these advisories requires
+    # the SDK's major-version upgrade rather than a lockfile-only override.
+    - GHSA-4qx8-w7c3-pj3p
+    - GHSA-9j65-hcg3-gc64
+    - GHSA-9qmh-m7c6-f92p
+    # next 14.2.35: both advisories are patched only in next >=15.5.28, so they
+    # are triaged with the Next 15 upgrade rather than a cross-major override
     # SDK Zod 3.25.76 is patched in patches/zod@3.25.76.patch; see SECURITY.md.
     - GHSA-mrhx-c7xc-m3w5
     # Next 14.2.35 image optimization is mitigated by patched Sharp; Server
