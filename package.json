@@ -12,6 +12,6 @@
     "typecheck": "pnpm --filter @trusttrove/sdk build && pnpm --filter @trusttrove/sdk-react build && pnpm --filter @trusttrove/cli build && pnpm -r exec tsc --noEmit"
   },
   "devDependencies": {
-    "typescript": "^5.4.5"
+    "typescript": "^7.0.2"
   }
 }
