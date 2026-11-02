@@ -212,6 +212,7 @@ paths:
                   buyer: GBUYERAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
                   face_value: "10000000000"
                   due_date: 1790000000
+                  document_hash: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
       responses:
         "201":
           description: Invoice created
@@ -247,6 +248,62 @@ paths:
                 $ref: "#/components/schemas/Invoice"
         "404":
           $ref: "#/components/responses/NotFound"
+
+  /invoices/by-document-hash/{hash}:
+    get:
+      tags: [Invoices]
+      summary: Find invoices by document hash
+      description: Returns every invoice ID associated with an exact SHA-256 document hash for Underwrite duplicate checks.
+      security: []
+      parameters:
+        - name: hash
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^[0-9a-f]{64}$"
+          example: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      responses:
+        "200":
+          description: Matching invoice IDs. The array is empty when there is no match.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentHashMatches"
+              example:
+                invoiceIds: ["0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"]
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /parties/{address}/history:
+    get:
+      tags: [Invoices]
+      summary: Get party invoice history
+      description: Returns indexed invoice history for a buyer or issuer for Underwrite platform-history checks.
+      security: []
+      parameters:
+        - name: address
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^G[A-Z2-7]{55}$"
+      responses:
+        "200":
+          description: Party history. Counts are zero and averageDaysLate is null when the party has no activity.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartyHistory"
+              example:
+                address: GBA3B74YLHZPDBAEWQMN7JV6SNM6O245JJJQXSLIEDNUGEJ6YCJS5RZ6
+                totalInvoices: 4
+                repaidInvoices: 2
+                defaultedInvoices: 1
+                lateInvoices: 1
+                averageDaysLate: 2.5
+        "400":
+          $ref: "#/components/responses/BadRequest"
 
   /invoices/{id}/status:
     patch:
@@ -535,7 +592,43 @@ components:
           description: >-
             Unix timestamp in seconds. Must be in the future and no more than
             5 years from the time the request is validated.
+        document_hash:
+          type: string
+          pattern: "^[0-9a-f]{64}$"
+          description: Optional lowercase, unprefixed SHA-256 hash of the invoice document. Required for Underwrite duplicate detection.
       required: [buyer, face_value, due_date]
+
+    DocumentHashMatches:
+      type: object
+      properties:
+        invoiceIds:
+          type: array
+          items:
+            type: string
+            pattern: "^0x[0-9a-fA-F]{64}$"
+      required: [invoiceIds]
+
+    PartyHistory:
+      type: object
+      properties:
+        address:
+          type: string
+        totalInvoices:
+          type: integer
+          minimum: 0
+        repaidInvoices:
+          type: integer
+          minimum: 0
+        defaultedInvoices:
+          type: integer
+          minimum: 0
+        lateInvoices:
+          type: integer
+          minimum: 0
+        averageDaysLate:
+          type: number
+          nullable: true
+      required: [address, totalInvoices, repaidInvoices, defaultedInvoices, lateInvoices, averageDaysLate]
 
     UpdateInvoiceStatusRequest:
       type: object
