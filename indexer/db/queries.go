@@ -81,6 +81,72 @@ type ProtocolStats struct {
 	RegisteredIssuers  int    `json:"registered_issuers"`
 }
 
+type PartyHistory struct {
+	Address           string   `json:"address"`
+	TotalInvoices     int      `json:"totalInvoices"`
+	RepaidInvoices    int      `json:"repaidInvoices"`
+	DefaultedInvoices int      `json:"defaultedInvoices"`
+	LateInvoices      int      `json:"lateInvoices"`
+	AverageDaysLate   *float64 `json:"averageDaysLate"`
+}
+
+func StoreInvoiceDocumentHash(ctx context.Context, q Querier, invoiceID, documentHash string) error {
+	const query = `
+		INSERT INTO invoice_document_hashes (invoice_id, document_hash)
+		VALUES ($1, $2)
+		ON CONFLICT (invoice_id) DO UPDATE
+		SET document_hash = EXCLUDED.document_hash
+	`
+	if _, err := q.Exec(ctx, query, invoiceID, documentHash); err != nil {
+		return fmt.Errorf("queries: store invoice document hash: %w", err)
+	}
+	return nil
+}
+
+func GetInvoiceIDsByDocumentHash(ctx context.Context, q Querier, documentHash string) ([]string, error) {
+	const query = `
+		SELECT COALESCE(
+			ARRAY_AGG(invoice_id ORDER BY created_at, invoice_id),
+			ARRAY[]::VARCHAR[]
+		)
+		FROM invoice_document_hashes
+		WHERE document_hash = $1
+	`
+	ids := make([]string, 0)
+	if err := q.QueryRow(ctx, query, documentHash).Scan(&ids); err != nil {
+		return nil, fmt.Errorf("queries: get invoice ids by document hash: %w", err)
+	}
+	return ids, nil
+}
+
+func GetPartyHistory(ctx context.Context, q Querier, address string, now int64) (*PartyHistory, error) {
+	const query = `
+		SELECT
+			COUNT(*),
+			COUNT(*) FILTER (WHERE status = 'Repaid'),
+			COUNT(*) FILTER (WHERE status = 'Defaulted'),
+			COUNT(*) FILTER (
+				WHERE due_date < $2
+				  AND status NOT IN ('Repaid', 'Defaulted', 'Cancelled')
+			),
+			AVG(GREATEST(repaid_at - due_date, 0)::DOUBLE PRECISION / 86400.0)
+				FILTER (WHERE status = 'Repaid' AND repaid_at IS NOT NULL)
+		FROM invoices
+		WHERE issuer = $1 OR buyer = $1
+	`
+	history := &PartyHistory{Address: address}
+	if err := q.QueryRow(ctx, query, address, now).Scan(
+		&history.TotalInvoices,
+		&history.RepaidInvoices,
+		&history.DefaultedInvoices,
+		&history.LateInvoices,
+		&history.AverageDaysLate,
+	); err != nil {
+		return nil, fmt.Errorf("queries: get party history: %w", err)
+	}
+	return history, nil
+}
+
 // GetProtocolStats returns the protocol-level aggregates served by GET /stats.
 //
 // Status literals must match the CapCase values the listener writes

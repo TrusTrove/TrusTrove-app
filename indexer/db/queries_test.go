@@ -113,6 +113,91 @@ func TestInvoiceUpdatesEnforceLifecycle(t *testing.T) {
 	})
 }
 
+func TestPlatformHistoryQueries(t *testing.T) {
+	skipIfNoDB(t)
+	ctx := context.Background()
+	party := "GPARTYHISTORYTEST"
+	other := "GOTHERPARTYTEST"
+	now := int64(2_000_000_000)
+
+	type invoiceState struct {
+		status   string
+		dueDate  int64
+		repaidAt *int64
+		asBuyer  bool
+	}
+	day := int64(86400)
+	repaidOneDayLate := now - 9*day
+	repaidThreeDaysLate := now - 7*day
+	states := []invoiceState{
+		{status: "Repaid", dueDate: now - 10*day, repaidAt: &repaidOneDayLate},
+		{status: "Repaid", dueDate: now - 10*day, repaidAt: &repaidThreeDaysLate, asBuyer: true},
+		{status: "Defaulted", dueDate: now - day},
+		{status: "Confirmed", dueDate: now - day, asBuyer: true},
+		{status: "Created", dueDate: now + day},
+	}
+
+	ids := make([]string, 0, len(states))
+	for _, state := range states {
+		id := newTestInvoiceID()
+		issuer, buyer := party, other
+		if state.asBuyer {
+			issuer, buyer = other, party
+		}
+		if _, err := Pool.Exec(ctx, `
+			INSERT INTO invoices (
+				id, issuer, buyer, face_value, discount_bps, due_date,
+				status, created_at, repaid_at
+			) VALUES ($1, $2, $3, '100', 0, $4, $5, $6, $7)
+		`, id, issuer, buyer, state.dueDate, state.status, now-20*day, state.repaidAt); err != nil {
+			t.Fatalf("insert invoice: %v", err)
+		}
+		ids = append(ids, id)
+	}
+	t.Cleanup(func() {
+		_, _ = Pool.Exec(context.Background(), `DELETE FROM invoice_document_hashes WHERE invoice_id = ANY($1)`, ids)
+		_, _ = Pool.Exec(context.Background(), `DELETE FROM invoices WHERE id = ANY($1)`, ids)
+	})
+
+	history, err := GetPartyHistory(ctx, Pool, party, now)
+	if err != nil {
+		t.Fatalf("GetPartyHistory: %v", err)
+	}
+	if history.TotalInvoices != 5 || history.RepaidInvoices != 2 || history.DefaultedInvoices != 1 || history.LateInvoices != 1 {
+		t.Fatalf("history counts = %#v", history)
+	}
+	if history.AverageDaysLate == nil || *history.AverageDaysLate != 2 {
+		t.Fatalf("averageDaysLate = %v", history.AverageDaysLate)
+	}
+
+	empty, err := GetPartyHistory(ctx, Pool, "GNOBODY", now)
+	if err != nil {
+		t.Fatalf("GetPartyHistory empty: %v", err)
+	}
+	if empty.TotalInvoices != 0 || empty.AverageDaysLate != nil {
+		t.Fatalf("empty history = %#v", empty)
+	}
+
+	hash := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	if err := StoreInvoiceDocumentHash(ctx, Pool, ids[0], hash); err != nil {
+		t.Fatalf("store first hash: %v", err)
+	}
+	if err := StoreInvoiceDocumentHash(ctx, Pool, ids[1], hash); err != nil {
+		t.Fatalf("store duplicate hash: %v", err)
+	}
+	matches, err := GetInvoiceIDsByDocumentHash(ctx, Pool, hash)
+	if err != nil {
+		t.Fatalf("GetInvoiceIDsByDocumentHash: %v", err)
+	}
+	if len(matches) != 2 {
+		t.Fatalf("matches = %#v", matches)
+	}
+	missing, err := GetInvoiceIDsByDocumentHash(ctx, Pool, "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789")
+	if err != nil || len(missing) != 0 {
+		t.Fatalf("missing = %#v, err = %v", missing, err)
+	}
+}
+
 func insertTestInvoice(t *testing.T, ctx context.Context, status string) string {
 	t.Helper()
 	id := newTestInvoiceID()
