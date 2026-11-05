@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { RegistryClient, Profile } from "@trusttrove/sdk";
 import { useWalletStore } from "@/store/wallet";
 import { createErrorHandler } from "@/lib/errors";
+import { mutationRetryPolicy } from "@/lib/api";
 import { useAppError } from "./useAppError";
 
 const { captureError } = createErrorHandler("useProfile");
@@ -120,6 +121,7 @@ export function useProfile() {
   });
 
   const registerMutation = useMutation({
+    ...mutationRetryPolicy,
     mutationFn: async ({
       role,
       metadata,
