@@ -91,6 +91,7 @@ export default async function InvoiceDetailPage({
 }: {
   params: Promise<{ invoiceId: string }>;
 }) {
+  const { invoiceId } = await params;
   // Reuses the request-scoped fetch above (no second round-trip). `null` means
   // the indexer had nothing for this id; the client then does its own fetch so
   // the existing not-found flow stays in one piece.

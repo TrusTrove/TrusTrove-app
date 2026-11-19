@@ -2,6 +2,7 @@ package listener
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"trusttrove/indexer/db"
 	"trusttrove/indexer/soroban"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stellar/go-stellar-sdk/keypair"
 )
 
@@ -140,9 +142,11 @@ type WebhookDispatcher interface {
 // EventListener runs Start on a single goroutine, so the verification state
 // below needs no locking.
 type EventListener struct {
-	cfg        *config.Config
-	health     *api.ListenerHealth
-	dispatcher WebhookDispatcher
+	cfg                 *config.Config
+	health              *api.ListenerHealth
+	dispatcher          WebhookDispatcher
+	handleEventFn       func(context.Context, SorobanEvent) error
+	recordFailedEventFn func(context.Context, db.FailedEvent) (int, error)
 
 	// retryBackoff is the delay applied after the first failed poll. It
 	// doubles on every consecutive failure up to maxRetryBackoff and resets
@@ -168,6 +172,28 @@ type EventListener struct {
 	finalizedHash   string
 }
 
+type permanentEventError struct {
+	err error
+}
+
+func (e *permanentEventError) Error() string { return e.err.Error() }
+
+func (e *permanentEventError) Unwrap() error { return e.err }
+
+func invalidEventf(format string, args ...any) error {
+	return &permanentEventError{err: fmt.Errorf(format, args...)}
+}
+
+func isPermanentEventError(err error) bool {
+	var eventErr *permanentEventError
+	return errors.As(err, &eventErr)
+}
+
+func isDuplicateKeyError(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
+
 const (
 	// defaultRetryBackoff is the initial delay before retrying a failed poll.
 	defaultRetryBackoff = time.Second
@@ -185,7 +211,9 @@ func NewEventListener(cfg *config.Config, health *api.ListenerHealth, dispatcher
 		getLatestProcessedLedgerFn: db.GetLatestProcessedLedger,
 		upsertCheckpointFn:         db.UpsertCheckpoint,
 		areEventsProcessedFn:       db.AreEventsProcessed,
+		recordFailedEventFn:        db.RecordFailedEvent,
 	}
+	l.handleEventFn = l.handleEvent
 	l.getLedgerHashFn = l.getLedgerHash
 	return l
 }
@@ -516,8 +544,25 @@ func (l *EventListener) pollEventsRange(ctx context.Context, startLedger, endLed
 
 			// Once an event has entered processing, cancellation only stops new
 			// polls; the transaction and webhook enqueue may finish atomically.
-			if err := l.handleEvent(context.WithoutCancel(ctx), sorobanEv); err != nil {
-				return startLedger, fmt.Errorf("handle event %s: %w", sorobanEv.ID, err)
+			if err := l.handleEventFn(context.WithoutCancel(ctx), sorobanEv); err != nil {
+				if !isPermanentEventError(err) {
+					return startLedger, fmt.Errorf("handle event %s: %w", sorobanEv.ID, err)
+				}
+				attempts, quarantineErr := l.recordFailedEventFn(ctx, db.FailedEvent{
+					EventID:    sorobanEv.ID,
+					ContractID: sorobanEv.ContractID,
+					Ledger:     sorobanEv.Ledger,
+					Topic:      sorobanEv.Topic,
+					Value:      sorobanEv.Value,
+					ErrorText:  err.Error(),
+				})
+				if quarantineErr != nil {
+					return startLedger, fmt.Errorf("quarantine event %s: %w", sorobanEv.ID, quarantineErr)
+				}
+				api.EventsQuarantined.Inc()
+				slog.Error("Quarantined permanently failing Soroban event",
+					"event_id", sorobanEv.ID, "contract_id", sorobanEv.ContractID,
+					"ledger", sorobanEv.Ledger, "attempts", attempts, "error", err)
 			}
 		}
 		if pastEnd {

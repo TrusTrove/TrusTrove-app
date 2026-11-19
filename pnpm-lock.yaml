@@ -221,8 +221,8 @@ importers:
         specifier: ^13.0.0
         version: 13.3.0
       zod:
-        specifier: ^3.23.8
-        version: 3.25.76(patch_hash=c1def6a341e2b19477d5536519402f8fb4150c8f207c937a8406db367349f2b7)
+        specifier: ^4.6.6
+        version: 4.6.7
     devDependencies:
       '@types/node':
         specifier: ^20.19.43
@@ -4125,7 +4125,8 @@ snapshots:
 
   '@humanwhocodes/object-schema@2.0.3': {}
 
-  '@img/colour@1.1.0': {}
+  '@img/colour@1.1.0':
+    optional: true
 
   '@img/sharp-darwin-arm64@0.35.5':
     optionalDependencies:
@@ -6388,6 +6389,7 @@ snapshots:
       '@next/env': 15.5.28
       '@swc/helpers': 0.5.15
       caniuse-lite: 1.0.30001800
+      postcss: 8.5.28
       postcss: 8.5.31
       react: 19.3.0
       react-dom: 19.3.0(react@19.3.0)
@@ -6875,6 +6877,7 @@ snapshots:
       '@img/sharp-win32-ia32': 0.35.5
       '@img/sharp-win32-x64': 0.35.5
       '@types/node': 20.19.43
+    optional: true
 
   shebang-command@2.0.0:
     dependencies:
