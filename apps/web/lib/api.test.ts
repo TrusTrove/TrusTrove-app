@@ -5,14 +5,15 @@ import {
   createInvoice,
   getInvoiceByID,
   getInvoices,
+  getAllInvoices,
   getPoolStats,
   getLPPosition,
   getRecentEvents,
   getPoolSnapshots,
   parseRawPoolStats,
   parseRawLPPosition,
-  initApiClientWithToken,
   apiClient,
+  apiFetch,
 } from "./api";
 import { useWalletStore } from "@/store/wallet";
 
@@ -31,12 +32,10 @@ describe("apiFetch internal function", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (useWalletStore.getState as any).mockReturnValue({ token: null });
-    (apiClient as any).token = undefined;
   });
 
   it("should add Authorization header when token exists", async () => {
     (useWalletStore.getState as any).mockReturnValue({ token: "test-token" });
-    initApiClientWithToken();
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve({}),
@@ -219,6 +218,14 @@ describe("API functions", () => {
   });
 
   describe("getInvoices", () => {
+    const emptyPage = {
+      data: [],
+      total: 0,
+      page: 1,
+      limit: 10,
+      totalPages: 0,
+    };
+
     it("should get invoices with filters", async () => {
       const rawInvoices = {
         data: [{ id: "1" }, { id: "2" }],
@@ -238,6 +245,151 @@ describe("API functions", () => {
       });
       expect(result.total).toEqual(2);
       expect(result.data.length).toEqual(2);
+    });
+
+    it("should serialize every filter into the exact query string", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(emptyPage),
+      });
+
+      await getInvoices({
+        status: "Funded",
+        issuer: "GISSUE",
+        page: 2,
+        limit: 25,
+      });
+
+      expect(mockFetch.mock.calls[0][0]).toBe(
+        "http://localhost:8080/invoices?status=Funded&issuer=GISSUE&page=2&limit=25",
+      );
+    });
+
+    it("should not append a trailing question mark when there are no filters", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(emptyPage),
+      });
+
+      await getInvoices();
+
+      const url = mockFetch.mock.calls[0][0] as string;
+      expect(url).toBe("http://localhost:8080/invoices");
+      expect(url).not.toMatch(/\?$/);
+    });
+
+    it("should URL-encode filter values with special characters", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(emptyPage),
+      });
+
+      await getInvoices({
+        status: "Funded & Active",
+        issuer: "G/ABC?D",
+      });
+
+      expect(mockFetch.mock.calls[0][0]).toBe(
+        "http://localhost:8080/invoices?status=Funded+%26+Active&issuer=G%2FABC%3FD",
+      );
+    });
+  });
+
+  describe("getAllInvoices", () => {
+    const rawInvoice = (i: number) => ({
+      id: `inv-${i}`,
+      issuer: "GISSUE",
+      buyer: "GBUY",
+      face_value: "10000000",
+      funded_amount: "0",
+      status: "Created",
+    });
+
+    const pageResponse = (ids: number[], page: number, totalPages: number) => ({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          data: ids.map(rawInvoice),
+          total: 250,
+          page,
+          limit: 100,
+          totalPages,
+        }),
+    });
+
+    it("should walk every server page to return the full unpaged set", async () => {
+      mockFetch
+        .mockResolvedValueOnce(
+          pageResponse(
+            Array.from({ length: 100 }, (_, i) => i),
+            1,
+            3,
+          ),
+        )
+        .mockResolvedValueOnce(
+          pageResponse(
+            Array.from({ length: 100 }, (_, i) => 100 + i),
+            2,
+            3,
+          ),
+        )
+        .mockResolvedValueOnce(
+          pageResponse(
+            Array.from({ length: 50 }, (_, i) => 200 + i),
+            3,
+            3,
+          ),
+        );
+
+      const result = await getAllInvoices({ issuer: "GISSUE" });
+
+      expect(result.length).toEqual(250);
+      expect(result[0].id).toEqual("inv-0");
+      expect(result[249].id).toEqual("inv-249");
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+
+      const urls = mockFetch.mock.calls.map((call) => String(call[0]));
+      expect(urls[0]).toContain("issuer=GISSUE");
+      expect(urls[0]).toContain("page=1");
+      expect(urls[1]).toContain("page=2");
+      expect(urls[2]).toContain("page=3");
+      // The API caps `limit` at 100, so full-set fetches must use that page size.
+      for (const url of urls) {
+        expect(url).toContain("limit=100");
+      }
+    });
+
+    it("should return an empty array when there are no invoices", async () => {
+      mockFetch.mockResolvedValueOnce(pageResponse([], 1, 1));
+
+      const result = await getAllInvoices({ issuer: "GISSUE" });
+
+      expect(result).toEqual([]);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it("should stop walking if the API returns an empty page mid-loop", async () => {
+      // totalPages claims 3 but page 2 comes back empty — must not loop forever.
+      mockFetch
+        .mockResolvedValueOnce(pageResponse([0], 1, 3))
+        .mockResolvedValueOnce(pageResponse([], 2, 3));
+
+      const result = await getAllInvoices();
+
+      expect(result.length).toEqual(1);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("should deduplicate rows that shift between page requests", async () => {
+      mockFetch
+        .mockResolvedValueOnce(pageResponse([0, 1], 1, 2))
+        // inv-1 was on page 1 before a newer row pushed it along.
+        .mockResolvedValueOnce(pageResponse([1, 2], 2, 2));
+
+      const result = await getAllInvoices({ issuer: "GISSUE" });
+
+      expect(result.map((inv) => inv.id)).toEqual(["inv-0", "inv-1", "inv-2"]);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -268,15 +420,46 @@ describe("API functions", () => {
   });
 
   describe("getRecentEvents", () => {
-    it("should get recent events successfully", async () => {
-      const rawEvents = [{ id: "1" }, { id: "2" }];
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(rawEvents),
-      });
+    const mockEvents = [{ id: "1" }, { id: "2" }];
 
+    beforeEach(() => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockEvents),
+      });
+    });
+
+    it("should get recent events successfully", async () => {
       const result = await getRecentEvents(10);
       expect(result.length).toEqual(2);
+    });
+
+    it("omits the query string when neither limit nor issuer is given", async () => {
+      await getRecentEvents();
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/events"),
+        expect.anything(),
+      );
+      expect(mockFetch.mock.calls[0][0]).not.toContain("?");
+    });
+
+    it("sends limit only", async () => {
+      await getRecentEvents(10);
+      expect(mockFetch.mock.calls[0][0]).toContain("/events?limit=10");
+    });
+
+    // Issue #1115: the SME dashboard scopes its activity log server-side, so
+    // the address must reach the indexer as a query parameter.
+    it("sends the issuer scope", async () => {
+      await getRecentEvents(undefined, "GABC123");
+      expect(mockFetch.mock.calls[0][0]).toContain("/events?issuer=GABC123");
+    });
+
+    it("sends limit and issuer together", async () => {
+      await getRecentEvents(10, "GABC123");
+      expect(mockFetch.mock.calls[0][0]).toContain(
+        "/events?limit=10&issuer=GABC123",
+      );
     });
   });
 
@@ -294,5 +477,38 @@ describe("API functions", () => {
       const result = await getPoolSnapshots();
       expect(result).toEqual(mockSnapshots);
     });
+  });
+});
+
+describe("auth token source of truth (#1089)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({}),
+    });
+  });
+
+  it("apiClient holds no token state of its own", () => {
+    expect(apiClient).not.toHaveProperty("token");
+    expect(apiClient).not.toHaveProperty("setToken");
+  });
+
+  it("apiFetch reads the wallet store token on every request", async () => {
+    (useWalletStore.getState as any).mockReturnValue({ token: "first" });
+    await apiFetch("/stats");
+    expect(mockFetch.mock.calls[0][1].headers.get("Authorization")).toBe(
+      "Bearer first",
+    );
+
+    (useWalletStore.getState as any).mockReturnValue({ token: "second" });
+    await apiClient.fetch("/stats");
+    expect(mockFetch.mock.calls[1][1].headers.get("Authorization")).toBe(
+      "Bearer second",
+    );
+
+    (useWalletStore.getState as any).mockReturnValue({ token: null });
+    await apiClient.fetch("/stats");
+    expect(mockFetch.mock.calls[2][1].headers.has("Authorization")).toBe(false);
   });
 });

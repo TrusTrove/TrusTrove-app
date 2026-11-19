@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { Horizon } from "@stellar/stellar-sdk";
 import { useWalletStore } from "@/store/wallet";
 import { ASSET_INFO } from "@/lib/assets";
 import { createErrorHandler } from "@/lib/errors";
@@ -23,6 +22,9 @@ async function fetchBalancesFromHorizon(
   }
 
   try {
+    // Loaded on demand so the multi-hundred-KB Stellar SDK is not part of the
+    // first-load bundle of every route that renders the Navbar (#995).
+    const { Horizon } = await import("@stellar/stellar-sdk");
     const server = new Horizon.Server(HORIZON_URL);
     const account = await server.loadAccount(address);
     const usdcIssuer = ASSET_INFO.USDC.issuer;
@@ -86,12 +88,15 @@ export function useBalances() {
     enabled: !!address && connected,
     refetchInterval: 30000,
     refetchIntervalInBackground: false,
-    initialData: { usdc: null, xlm: null },
     throwOnError: false,
   });
 
   return {
-    balances: query.data,
+    // No initialData: pre-seeding the cache made React Query report success
+    // (and therefore loading=false) before Horizon had answered (#1086). The
+    // fallback keeps the documented disconnected shape without marking the
+    // query as loaded.
+    balances: query.data ?? { usdc: null, xlm: null },
     loading: query.isLoading,
     error: query.error ? "Failed to fetch balances" : null,
     refetch: query.refetch,

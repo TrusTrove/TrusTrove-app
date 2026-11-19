@@ -2,13 +2,9 @@ package webhook
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -332,16 +328,16 @@ func TestBuildEnvelopeEventIDFallback(t *testing.T) {
 // criterion: Dispatch writes a delivery row whose payload is the full
 // envelope, and the claiming read path returns it.
 //
-// The subscription is registered with the internal contract event name
-// ("fund_invoice") because that is the string Dispatch uses for the lookup —
-// see the internal-vs-public note in the PR description.
+// The subscription is registered with the public event type ("invoice.funded")
+// because Dispatch maps the internal contract event name ("fund_invoice") to
+// the public type before looking subscriptions up.
 func TestDispatchQueuesPopulatedEnvelope(t *testing.T) {
 	skipIfNoDB(t)
 	ctx := context.Background()
 
 	sub := &db.WebhookSubscription{
 		TargetURL:     "https://example.invalid/webhook-930",
-		EventTypes:    []string{"fund_invoice"},
+		EventTypes:    []string{string(webhooks.EventInvoiceFunded)},
 		SigningSecret: "synthetic-secret-930",
 		Active:        true,
 	}
@@ -350,8 +346,8 @@ func TestDispatchQueuesPopulatedEnvelope(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		if db.Pool != nil {
-			db.Pool.Exec(ctx, "DELETE FROM webhook_deliveries WHERE subscription_id = $1", sub.ID)
-			db.Pool.Exec(ctx, "DELETE FROM webhook_subscriptions WHERE id = $1", sub.ID)
+			_, _ = db.Pool.Exec(ctx, "DELETE FROM webhook_deliveries WHERE subscription_id = $1", sub.ID)
+			_, _ = db.Pool.Exec(ctx, "DELETE FROM webhook_subscriptions WHERE id = $1", sub.ID)
 		}
 	})
 
@@ -363,19 +359,14 @@ func TestDispatchQueuesPopulatedEnvelope(t *testing.T) {
 
 	NewDispatcher().Dispatch(ctx, "fund_invoice", data)
 
-	claimed, err := db.GetPendingDeliveries(ctx, 50)
-	if err != nil {
-		t.Fatalf("GetPendingDeliveries: %v", err)
-	}
+	// Read this test's row directly rather than claiming: a claim takes any
+	// pending rows, including rows another package's tests are claiming in the
+	// same database at the same time.
 	var payload []byte
-	for _, d := range claimed {
-		if d.EventID == eventID && d.SubscriptionID == sub.ID {
-			payload = d.Payload
-			break
-		}
-	}
-	if payload == nil {
-		t.Fatalf("Dispatch wrote no delivery row for event %s (claimed %d rows)", eventID, len(claimed))
+	if err := db.Pool.QueryRow(ctx,
+		"SELECT payload FROM webhook_deliveries WHERE event_id = $1 AND subscription_id = $2", eventID, sub.ID,
+	).Scan(&payload); err != nil {
+		t.Fatalf("Dispatch wrote no delivery row for event %s: %v", eventID, err)
 	}
 
 	var env webhooks.WebhookEnvelope
@@ -400,6 +391,50 @@ func TestDispatchQueuesPopulatedEnvelope(t *testing.T) {
 	}
 }
 
+func TestDispatchSameEventQueuesOneDeliveryPerSubscription(t *testing.T) {
+	skipIfNoDB(t)
+	ctx := context.Background()
+
+	sub := &db.WebhookSubscription{
+		TargetURL:     "https://example.invalid/webhook-916",
+		EventTypes:    []string{string(webhooks.EventInvoiceFunded)},
+		SigningSecret: "synthetic-secret-916",
+		Active:        true,
+	}
+	if err := db.CreateWebhookSubscription(ctx, sub); err != nil {
+		t.Fatalf("CreateWebhookSubscription: %v", err)
+	}
+	t.Cleanup(func() {
+		if db.Pool != nil {
+			_, _ = db.Pool.Exec(ctx, "DELETE FROM webhook_subscriptions WHERE id = $1", sub.ID)
+			_, _ = db.Pool.Exec(ctx, "DELETE FROM webhook_deliveries WHERE subscription_id = $1", sub.ID)
+		}
+	})
+
+	eventID := fmt.Sprintf("dispatch-916-%d", time.Now().UnixNano())
+	data := invoiceDispatchData("fund_invoice")
+	data["event_id"] = eventID
+
+	dispatcher := NewDispatcher()
+	for attempt := 0; attempt < 2; attempt++ {
+		if err := dispatcher.EnqueueDeliveries(ctx, db.Pool, "fund_invoice", data); err != nil {
+			t.Fatalf("EnqueueDeliveries attempt %d: %v", attempt+1, err)
+		}
+	}
+
+	var count int
+	if err := db.Pool.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM webhook_deliveries
+		WHERE subscription_id = $1 AND event_id = $2
+	`, sub.ID, eventID).Scan(&count); err != nil {
+		t.Fatalf("count webhook deliveries: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("delivery count for subscription %s and event %s: got %d, want 1", sub.ID, eventID, count)
+	}
+}
+
 // TestDispatchWithoutSubscriptionsQueuesNothing keeps Dispatch's early return
 // honest: no rows (and no wasted envelope builds) for untracked events.
 func TestDispatchWithoutSubscriptionsQueuesNothing(t *testing.T) {
@@ -412,14 +447,16 @@ func TestDispatchWithoutSubscriptionsQueuesNothing(t *testing.T) {
 
 	NewDispatcher().Dispatch(ctx, "fund_invoice", data)
 
-	claimed, err := db.GetPendingDeliveries(ctx, 200)
-	if err != nil {
-		t.Fatalf("GetPendingDeliveries: %v", err)
+	// Count this test's rows directly rather than claiming, for the same reason
+	// as TestDispatchQueuesPopulatedEnvelope.
+	var queued int
+	if err := db.Pool.QueryRow(ctx,
+		"SELECT COUNT(*) FROM webhook_deliveries WHERE event_id = $1", eventID,
+	).Scan(&queued); err != nil {
+		t.Fatalf("count deliveries: %v", err)
 	}
-	for _, d := range claimed {
-		if d.EventID == eventID {
-			t.Fatalf("delivery %d queued for untracked event %s", d.ID, eventID)
-		}
+	if queued != 0 {
+		t.Fatalf("%d deliveries queued for untracked event %s", queued, eventID)
 	}
 }
 
@@ -447,10 +484,14 @@ func TestMapInternalEventType(t *testing.T) {
 		{"InvoiceDefaulted", webhooks.EventInvoiceDefaulted},
 		{"deposit", webhooks.EventPoolDeposit},
 		{"PoolDeposit", webhooks.EventPoolDeposit},
+		{"lp_deposited", webhooks.EventPoolDeposit},
 		{"withdraw", webhooks.EventPoolWithdrawal},
 		{"PoolWithdrawal", webhooks.EventPoolWithdrawal},
+		{"lp_withdrawn", webhooks.EventPoolWithdrawal},
 		{"yield_distribution", webhooks.EventPoolYieldDistributed},
 		{"PoolYieldDistributed", webhooks.EventPoolYieldDistributed},
+		{"receive_repayment", webhooks.EventPoolYieldDistributed},
+		{"repayment_received", webhooks.EventPoolYieldDistributed},
 		{"unknown_event", webhooks.EventType("unknown_event")},
 	}
 	for _, tc := range cases {
@@ -462,51 +503,7 @@ func TestMapInternalEventType(t *testing.T) {
 	}
 }
 
-// TestSign pins the HMAC-SHA256 signature format: hex-encoded, lowercase,
-// computed over "<timestamp>.<payload>". The expected digest is computed
-// independently so a regression in sign() cannot hide behind a copy-paste
-// of the same implementation.
-func TestSign(t *testing.T) {
-	secret := "test-secret"
-	ts := "1700000000"
-	payload := []byte(`{"test":true}`)
-
-	// Independent computation of the expected digest.
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write([]byte(ts + "."))
-	mac.Write(payload)
-	want := hex.EncodeToString(mac.Sum(nil))
-
-	got := sign(secret, ts, payload)
-	if got != want {
-		t.Errorf("sign(): got %q, want %q", got, want)
-	}
-
-	// Format checks: lowercase hex, even length, 64 chars (sha256 = 32 bytes).
-	if len(got) != 64 {
-		t.Errorf("sign() length: got %d, want 64", len(got))
-	}
-	if len(got)%2 != 0 {
-		t.Errorf("sign() length %d is odd; hex encoding must be even", len(got))
-	}
-	if got != strings.ToLower(got) {
-		t.Errorf("sign() is not lowercase hex: %q", got)
-	}
-	if _, err := hex.DecodeString(got); err != nil {
-		t.Errorf("sign() is not valid hex: %v", err)
-	}
-
-	// Different secrets must produce different signatures.
-	sig1 := sign("secret-a", ts, payload)
-	sig2 := sign("secret-b", ts, payload)
-	if sig1 == sig2 {
-		t.Errorf("different secrets produced the same signature: %q", sig1)
-	}
-
-	// Different timestamps must produce different signatures (replay protection).
-	sigTS1 := sign(secret, "1700000000", payload)
-	sigTS2 := sign(secret, "1700000001", payload)
-	if sigTS1 == sigTS2 {
-		t.Errorf("different timestamps produced the same signature: %q", sigTS1)
-	}
-}
+// The signature-format test that used to live here (TestSign) covered the
+// copy of sign() this package carried for its never-called delivery loop.
+// Signature coverage now lives in webhooks.TestSignFormat, next to the only
+// remaining implementation of sign() (issue #879).

@@ -1,7 +1,7 @@
-import { useMemo } from "react";
+import { useCallback, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getPoolStats, getLPPosition } from "@/lib/api";
-import { PoolClient } from "@trusttrove/sdk";
+import type { PoolClient } from "@trusttrove/sdk";
 import { useWalletStore } from "@/store/wallet";
 import { showSuccessToast } from "@/lib/toast";
 import { createErrorHandler } from "@/lib/errors";
@@ -31,12 +31,17 @@ export function usePool() {
   const { ensureAllowance } = useTokenAllowance();
   const { error: appError, handleError, clearError } = useAppError();
 
-  const poolClient = useMemo(() => {
-    try {
-      return new PoolClient(poolContractID);
-    } catch {
-      return null;
+  // Construction (and the SDK import itself) is deferred until a write runs:
+  // the landing page and marketplace only read pool stats from the indexer,
+  // so a visitor never needs the contract client (#995).
+  const poolClientPromise = useRef<Promise<PoolClient> | null>(null);
+  const getPoolClient = useCallback(() => {
+    if (!poolClientPromise.current) {
+      poolClientPromise.current = import("@trusttrove/sdk").then(
+        ({ PoolClient }) => new PoolClient(poolContractID),
+      );
     }
+    return poolClientPromise.current;
   }, []);
 
   const statsQuery = useQuery({
@@ -63,7 +68,7 @@ export function usePool() {
         await ensureAllowance(poolContractID, amount);
       }
 
-      if (!poolClient) throw new Error("Pool client not available");
+      const poolClient = await getPoolClient();
       return poolClient.deposit(address, amount, address);
     },
     onSuccess: (txHash: string) => {
@@ -83,7 +88,7 @@ export function usePool() {
       if (!address) {
         throw new Error("Wallet not connected");
       }
-      if (!poolClient) throw new Error("Pool client not available");
+      const poolClient = await getPoolClient();
       return poolClient.withdraw(address, shares, address);
     },
     onSuccess: (txHash: string) => {

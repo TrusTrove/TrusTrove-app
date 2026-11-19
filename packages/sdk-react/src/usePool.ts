@@ -39,7 +39,14 @@ export function usePoolStats(
   signerPublicKey: string,
   options: UsePoolOptions,
 ): AsyncQueryState<PoolStats> {
-  const client = useMemo(() => poolClient(options), [options]);
+  // Memoize on the option *contents* (client identity / contractId value), not
+  // the options object identity, so inline `{ contractId }` literals don't
+  // re-create the client — and re-trigger queries — on every render.
+  const client = useMemo(
+    () =>
+      poolClient({ client: options.client, contractId: options.contractId }),
+    [options.client, options.contractId],
+  );
   return useAsyncQuery(
     () => client.getStats(signerPublicKey),
     [client, signerPublicKey],
@@ -58,7 +65,14 @@ export function useLPPosition(
   signerPublicKey: string,
   options: UsePoolOptions,
 ): AsyncQueryState<LPPosition> {
-  const client = useMemo(() => poolClient(options), [options]);
+  // Memoize on the option *contents* (client identity / contractId value), not
+  // the options object identity, so inline `{ contractId }` literals don't
+  // re-create the client — and re-trigger queries — on every render.
+  const client = useMemo(
+    () =>
+      poolClient({ client: options.client, contractId: options.contractId }),
+    [options.client, options.contractId],
+  );
   return useAsyncQuery(
     () => client.getLPPosition(lp, signerPublicKey),
     [client, lp, signerPublicKey],
@@ -77,7 +91,14 @@ export function useUtilizationRate(
   signerPublicKey: string,
   options: UsePoolOptions,
 ): AsyncQueryState<number> {
-  const client = useMemo(() => poolClient(options), [options]);
+  // Memoize on the option *contents* (client identity / contractId value), not
+  // the options object identity, so inline `{ contractId }` literals don't
+  // re-create the client — and re-trigger queries — on every render.
+  const client = useMemo(
+    () =>
+      poolClient({ client: options.client, contractId: options.contractId }),
+    [options.client, options.contractId],
+  );
   return useAsyncQuery(
     () => client.getUtilizationRate(signerPublicKey),
     [client, signerPublicKey],
@@ -132,7 +153,14 @@ export function usePoolMutations(
   signerPublicKey: string,
   options: UsePoolMutationsOptions,
 ): PoolMutationResult {
-  const client = useMemo(() => poolClient(options), [options]);
+  // Memoize on the option *contents* (client identity / contractId value), not
+  // the options object identity, so inline `{ contractId }` literals don't
+  // re-create the client — and re-trigger queries — on every render.
+  const client = useMemo(
+    () =>
+      poolClient({ client: options.client, contractId: options.contractId }),
+    [options.client, options.contractId],
+  );
 
   const deposit = useAsyncMutation((lp: string, usdcAmount: bigint) =>
     client.deposit(lp, usdcAmount, signerPublicKey),

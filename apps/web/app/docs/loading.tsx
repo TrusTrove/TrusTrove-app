@@ -11,7 +11,11 @@ export default function DocsLoading() {
         <SkeletonShimmer className="h-4 w-40 rounded" />
       </div>
 
-      <main className="flex-1 p-6">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="flex-1 p-6 focus:outline-none"
+      >
         <div className="bg-card border border-border rounded-lg p-6 space-y-6">
           <div className="flex items-center gap-3">
             <SkeletonShimmer className="h-6 w-6 rounded-full" />

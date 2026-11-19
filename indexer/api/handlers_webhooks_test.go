@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -38,6 +39,7 @@ func TestHandleCreateWebhook(t *testing.T) {
 	}{
 		{"missing address", `{"url":"https://example.com","event_types":["all"]}`, false, http.StatusUnauthorized},
 		{"invalid json", `{url:bad}`, true, http.StatusBadRequest},
+		{"unknown field", `{"url":"https://example.com/webhook","event_types":["all"],"extra":"x"}`, true, http.StatusBadRequest},
 		{"missing url", `{"event_types":["all"]}`, true, http.StatusBadRequest},
 		{"missing event_types", `{"url":"https://example.com"}`, true, http.StatusBadRequest},
 		{"unsafe url - localhost", `{"url":"http://127.0.0.1/test","event_types":["all"]}`, true, http.StatusBadRequest},
@@ -61,6 +63,23 @@ func TestHandleCreateWebhook(t *testing.T) {
 				t.Errorf("got %d, want %d", w.Code, tt.wantStatus)
 			}
 		})
+	}
+}
+
+func TestHandleCreateWebhook_OversizedBody(t *testing.T) {
+	h := newTestHandler(t)
+
+	body := `{"url":"https://example.com/webhook","event_types":["all"],"padding":"` +
+		strings.Repeat("A", int(maxCreateWebhookBodyBytes)) + `"}`
+	req := httptest.NewRequest(http.MethodPost, "/webhooks", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(WithUserAddress(req.Context(), "GADDR..."))
+
+	w := httptest.NewRecorder()
+	h.HandleCreateWebhook(w, req)
+
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("oversized body: got %d, want %d", w.Code, http.StatusRequestEntityTooLarge)
 	}
 }
 

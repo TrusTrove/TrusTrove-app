@@ -23,11 +23,13 @@ var configEnvNames = []string{
 	"JWT_SECRET",
 	"SERVER_SEED",
 	"INDEXER_POLL_INTERVAL_MS",
+	"INDEXER_CONFIRMATION_DEPTH",
 	"JWT_EXPIRY_HOURS",
 	"API_PORT",
 	"PORT",
 	"ALLOWED_ORIGINS",
 	"CORS_ALLOWED_ORIGINS",
+	"TRUSTED_PROXY_CIDRS",
 	"RATE_LIMIT_RPS",
 	"WEBHOOK_WORKER_CONCURRENCY",
 	"SENTRY_DSN",
@@ -93,6 +95,44 @@ func TestLoadConfigWebhookConcurrency(t *testing.T) {
 	}
 }
 
+// TestLoadConfigIndexerConfirmationDepth covers the reorg buffer setting
+// added for issue #882: it defaults to 3, accepts an explicit opt-out (0),
+// and unusable values must not be able to stall indexing indefinitely.
+func TestLoadConfigIndexerConfirmationDepth(t *testing.T) {
+	cases := []struct {
+		value string
+		want  int
+	}{
+		{"", 3},
+		{"0", 0},
+		{"5", 5},
+		{"100", maxConfirmationDepth},
+		{"-2", 3},
+		{"not-a-number", 3},
+	}
+
+	for _, tc := range cases {
+		name := tc.value
+		if name == "" {
+			name = "unset"
+		}
+		t.Run(name, func(t *testing.T) {
+			env := requiredConfigEnv()
+			env["INDEXER_CONFIRMATION_DEPTH"] = tc.value
+			setConfigEnv(t, env)
+
+			cfg, err := LoadConfig()
+			if err != nil {
+				t.Fatalf("LoadConfig: %v", err)
+			}
+			if cfg.IndexerConfirmationDepth != tc.want {
+				t.Errorf("IndexerConfirmationDepth = %d, want %d for INDEXER_CONFIRMATION_DEPTH=%q",
+					cfg.IndexerConfirmationDepth, tc.want, tc.value)
+			}
+		})
+	}
+}
+
 func TestLoadConfig(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -111,6 +151,7 @@ func TestLoadConfig(t *testing.T) {
 				env["JWT_EXPIRY_HOURS"] = "12"
 				env["API_PORT"] = "9000"
 				env["ALLOWED_ORIGINS"] = " https://app.example,https://admin.example, "
+				env["TRUSTED_PROXY_CIDRS"] = "10.0.0.0/8, 127.0.0.1/32"
 				env["RATE_LIMIT_RPS"] = "25"
 				env["WEBHOOK_WORKER_CONCURRENCY"] = "3"
 				env["SENTRY_DSN"] = " https://examplePublicKey@o0.ingest.sentry.io/0 "
@@ -132,6 +173,10 @@ func TestLoadConfig(t *testing.T) {
 				wantOrigins := []string{"https://app.example", "https://admin.example"}
 				if strings.Join(cfg.CORSAllowedOrigins, ",") != strings.Join(wantOrigins, ",") {
 					t.Errorf("origins = %v, want %v", cfg.CORSAllowedOrigins, wantOrigins)
+				}
+				wantTrusted := []string{"10.0.0.0/8", "127.0.0.1/32"}
+				if strings.Join(cfg.TrustedProxyCIDRs, ",") != strings.Join(wantTrusted, ",") {
+					t.Errorf("trusted proxies = %v, want %v", cfg.TrustedProxyCIDRs, wantTrusted)
 				}
 				if cfg.SentryDSN != "https://examplePublicKey@o0.ingest.sentry.io/0" {
 					t.Errorf("SentryDSN = %q, want trimmed configured DSN", cfg.SentryDSN)
@@ -156,6 +201,10 @@ func TestLoadConfig(t *testing.T) {
 				}
 				if len(cfg.CORSAllowedOrigins) != 1 || cfg.CORSAllowedOrigins[0] != "http://localhost:3000" {
 					t.Errorf("default origins = %v, want localhost origin", cfg.CORSAllowedOrigins)
+				}
+				wantTrusted := []string{"127.0.0.1/32", "::1/128"}
+				if strings.Join(cfg.TrustedProxyCIDRs, ",") != strings.Join(wantTrusted, ",") {
+					t.Errorf("default trusted proxies = %v, want %v", cfg.TrustedProxyCIDRs, wantTrusted)
 				}
 				if cfg.SentryDSN != "" {
 					t.Errorf("SentryDSN = %q, want empty when unset", cfg.SentryDSN)

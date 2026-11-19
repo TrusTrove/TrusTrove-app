@@ -16,6 +16,9 @@ import { useBalances } from "@/hooks/useBalances";
 
 vi.mock("@/lib/freighter", () => ({
   connectFreighter: vi.fn(),
+  // Issue #873's post-connect watcher; unused by the connection guards these
+  // cases lock in, but the hook imports it while connected.
+  watchFreighterChanges: vi.fn(() => () => {}),
   FreighterError: class FreighterError extends Error {
     readonly code: string;
     constructor(code: string, message: string) {

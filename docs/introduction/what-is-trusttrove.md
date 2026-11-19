@@ -16,15 +16,16 @@ lists it for financing. A liquidity pool — funded by LPs — buys the invoice 
 discount and pays the SME immediately. When the buyer pays the invoice at the due date,
 the pool collects the full face value. The difference is the yield.
 
-Four Soroban smart contracts handle the entire flow. No intermediary touches the money.
+Four TrusTrove smart contracts plus the Underwrite agent registry handle the flow. No intermediary touches the money.
 No one can alter the terms after the invoice is created. The transaction history is
 permanent on Stellar's ledger.
 
 ### What TrusTrove is not
 
-TrusTrove is not a bank. It does not hold a financial license. It does not assess
-creditworthiness. It does not guarantee repayment if a buyer defaults. These are
-real risks that LPs accept when they deposit.
+TrusTrove is not a bank. It does not hold a financial license. TrusTrove itself does
+not assess creditworthiness (independent risk assessment is delegated to external Underwrite
+agents). It does not guarantee repayment if a buyer defaults. These are real risks
+that LPs accept when they deposit.
 
 TrusTrove is not a payment app. It does not move money between people's personal
 accounts. It finances trade invoices — commercial transactions between businesses

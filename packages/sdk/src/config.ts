@@ -101,7 +101,14 @@ export function configureSDK(config: Partial<SDKConfig>) {
 }
 
 export function getConfig(): SDKConfig {
-  return activeConfig;
+  // A copy, not `activeConfig` itself: callers that write to a nested field
+  // (`contractIds.pool`, `usdc.issuer`) would otherwise silently repoint every
+  // later contract call, bypassing configureSDK's merge semantics.
+  return {
+    ...activeConfig,
+    contractIds: { ...activeConfig.contractIds },
+    usdc: { ...activeConfig.usdc },
+  };
 }
 
 export function getSorobanServer(): rpc.Server {

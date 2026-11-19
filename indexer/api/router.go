@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"runtime/debug"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/golang-jwt/jwt/v5"
+	indexermiddleware "trusttrove/indexer/middleware"
 )
 
 func AuthMiddleware(jwtSecret string) func(http.Handler) http.Handler {
@@ -89,7 +91,7 @@ func CORSMiddleware(allowedOrigins []string) func(http.Handler) http.Handler {
 				}
 			}
 
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
 			if r.Method == http.MethodOptions {
@@ -122,7 +124,7 @@ func RecoveryMiddleware() func(http.Handler) http.Handler {
 
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusInternalServerError)
-					w.Write([]byte(`{"error": "internal server error"}`))
+					_, _ = w.Write([]byte(`{"error": "internal server error"}`))
 				}
 			}()
 			next.ServeHTTP(w, r)
@@ -208,12 +210,17 @@ func (rl *perClientRateLimiter) allow(clientKey string) bool {
 }
 
 func (rl *perClientRateLimiter) evictOldest() {
+	// rl.mu is held by the caller; bucket.mu must be taken before reading
+	// bucket.last so evictOldest never races with allow()'s refill updates.
 	var oldestKey string
 	var oldestTime time.Time
 	for key, bucket := range rl.buckets {
-		if oldestKey == "" || bucket.last.Before(oldestTime) {
+		bucket.mu.Lock()
+		last := bucket.last
+		bucket.mu.Unlock()
+		if oldestKey == "" || last.Before(oldestTime) {
 			oldestKey = key
-			oldestTime = bucket.last
+			oldestTime = last
 		}
 	}
 	if oldestKey != "" {
@@ -251,7 +258,127 @@ func getClientKey(r *http.Request) string {
 	if sub, ok := GetUserAddress(r.Context()); ok {
 		return "jwt:" + sub
 	}
-	return "ip:" + r.RemoteAddr
+
+	addr := r.RemoteAddr
+	if host, _, err := net.SplitHostPort(addr); err == nil {
+		addr = host
+	}
+	return "ip:" + addr
+}
+
+func parseTrustedProxyCIDRs(raw string) []*net.IPNet {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+
+	cidrs := make([]*net.IPNet, 0)
+	for _, entry := range strings.Split(raw, ",") {
+		cidr := strings.TrimSpace(entry)
+		if cidr == "" {
+			continue
+		}
+		if ip := net.ParseIP(cidr); ip != nil {
+			if ip.To4() != nil {
+				cidr = ip.String() + "/32"
+			} else {
+				cidr = ip.String() + "/128"
+			}
+		}
+		_, network, err := net.ParseCIDR(cidr)
+		if err != nil {
+			slog.Warn("invalid trusted proxy CIDR; ignoring", "cidr", cidr, "error", err)
+			continue
+		}
+		cidrs = append(cidrs, network)
+	}
+	return cidrs
+}
+
+func ipInNetworks(ip net.IP, networks []*net.IPNet) bool {
+	for _, network := range networks {
+		if network.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+// trustedClientIP resolves the client address behind a trusted proxy. The
+// proxy appends the peer it saw to the right of X-Forwarded-For, so only the
+// rightmost hop can be trusted: anything to its left is client-supplied and
+// may be spoofed. Walking right-to-left and skipping known proxy addresses
+// picks the first hop the chain does not vouch for (#1083), unlike the old
+// leftmost-wins behavior that let a client mint a new rate-limit key per
+// request.
+func trustedClientIP(r *http.Request, trustedProxyNets []*net.IPNet) string {
+	if len(trustedProxyNets) == 0 {
+		return ""
+	}
+
+	remoteHost := r.RemoteAddr
+	if host, _, err := net.SplitHostPort(remoteHost); err == nil {
+		remoteHost = host
+	}
+	remoteIP := net.ParseIP(remoteHost)
+	if remoteIP == nil {
+		return ""
+	}
+
+	// Forwarded headers are only meaningful when the immediate peer is a
+	// proxy we configured; otherwise they came straight from the client.
+	if !ipInNetworks(remoteIP, trustedProxyNets) {
+		return ""
+	}
+
+	if value := strings.TrimSpace(r.Header.Get("X-Forwarded-For")); value != "" {
+		parts := strings.Split(value, ",")
+		var leftmost net.IP
+		for i := len(parts) - 1; i >= 0; i-- {
+			candidate := strings.TrimSpace(parts[i])
+			if candidate == "" {
+				continue
+			}
+			ip := net.ParseIP(candidate)
+			if ip == nil {
+				continue
+			}
+			if leftmost == nil {
+				leftmost = ip
+			}
+			if !ipInNetworks(ip, trustedProxyNets) {
+				return ip.String()
+			}
+		}
+		// Every hop is a trusted proxy: the leftmost one is the originator.
+		if leftmost != nil {
+			return leftmost.String()
+		}
+		return ""
+	}
+
+	// Fall back to single-value proxy headers only when X-Forwarded-For is
+	// absent. They have no hop list to walk, but the peer check above still
+	// guarantees they were set by a trusted proxy.
+	for _, headerName := range []string{"X-Real-IP", "True-Client-IP"} {
+		if value := strings.TrimSpace(r.Header.Get(headerName)); value != "" {
+			if ip := net.ParseIP(value); ip != nil {
+				return ip.String()
+			}
+		}
+	}
+	return ""
+}
+
+func TrustedProxyMiddleware(trustedProxyCIDRs []string) func(http.Handler) http.Handler {
+	trustedProxyNets := parseTrustedProxyCIDRs(strings.Join(trustedProxyCIDRs, ","))
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if trustedIP := trustedClientIP(r, trustedProxyNets); trustedIP != "" {
+				r.RemoteAddr = net.JoinHostPort(trustedIP, "0")
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func RateLimitMiddleware(rl *perClientRateLimiter) func(http.Handler) http.Handler {
@@ -260,7 +387,7 @@ func RateLimitMiddleware(rl *perClientRateLimiter) func(http.Handler) http.Handl
 			clientKey := getClientKey(r)
 			if !rl.allow(clientKey) {
 				w.Header().Set("Retry-After", "1")
-				http.Error(w, fmt.Sprintf("Too Many Requests (client: %s)", clientKey), http.StatusTooManyRequests)
+				http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -268,23 +395,32 @@ func RateLimitMiddleware(rl *perClientRateLimiter) func(http.Handler) http.Handl
 	}
 }
 
-func NewRouter(h *APIHandler) *chi.Mux {
+func NewRouter(h *APIHandler) (*chi.Mux, func()) {
 	r := chi.NewRouter()
 
 	// Global middleware
 	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
+	r.Use(indexermiddleware.PrometheusMiddleware)
 	r.Use(RecoveryMiddleware())
+	r.Use(TrustedProxyMiddleware(h.cfg.TrustedProxyCIDRs))
 	r.Use(CORSMiddleware(h.cfg.CORSAllowedOrigins))
 	r.Use(SecurityHeadersMiddleware())
 
 	// Per-client rate limiter for auth and invoice creation
 	// Max 1000 clients to bound memory usage
 	rl := newPerClientRateLimiter(h.cfg.RateLimitRPS, h.cfg.RateLimitRPS*2, 1000)
+	invoiceLimiter := indexermiddleware.NewInvoiceRateLimiterWithConfig(h.cfg.InvoiceRateLimit, h.cfg.InvoiceRateLimitWindow)
 
-	// Prometheus metrics
-	r.Get("/metrics", MetricsHandler().ServeHTTP)
+	// Prometheus metrics are public for local development, but deployments can
+	// require a bearer token without changing the scrape URL.
+	metrics := MetricsHandler().ServeHTTP
+	if h.cfg.MetricsToken == "" {
+		slog.Warn("metrics endpoint is unauthenticated; set METRICS_TOKEN in production")
+		r.Get("/metrics", metrics)
+	} else {
+		r.With(metricsTokenMiddleware(h.cfg.MetricsToken)).Get("/metrics", metrics)
+	}
 
 	// Health check
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -293,11 +429,11 @@ func NewRouter(h *APIHandler) *chi.Mux {
 		defer cancel()
 		if err := h.CheckHealth(ctx); err != nil {
 			w.WriteHeader(http.StatusServiceUnavailable)
-			w.Write([]byte(`{"status": "degraded", "error": "listener or database unavailable"}`))
+			_, _ = w.Write([]byte(`{"status": "degraded", "error": "listener or database unavailable"}`))
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status": "ok"}`))
+		_, _ = w.Write([]byte(`{"status": "ok"}`))
 	})
 
 	// Unprotected authentication routes (rate limited)
@@ -313,7 +449,9 @@ func NewRouter(h *APIHandler) *chi.Mux {
 		r.Get("/stats", h.HandleGetStats)
 		r.Get("/events", h.HandleGetEvents)
 		r.Get("/invoices/{id}", h.HandleGetInvoiceByID)
+		r.Get("/invoices/by-document-hash/{hash}", h.HandleGetInvoicesByDocumentHash)
 		r.Get("/invoices", h.HandleGetInvoices)
+		r.Get("/parties/{address}/history", h.HandleGetPartyHistory)
 		r.Get("/pool/stats", h.HandleGetPoolStats)
 		r.Get("/pool/snapshots", h.HandleGetPoolSnapshots)
 		r.Get("/pool/position/{address}", h.HandleGetLPPosition)
@@ -322,8 +460,17 @@ func NewRouter(h *APIHandler) *chi.Mux {
 	// Protected routes (rate limited)
 	r.Group(func(r chi.Router) {
 		r.Use(AuthMiddleware(h.cfg.JWTSecret))
+		r.Use(func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				if addr, ok := GetUserAddress(req.Context()); ok {
+					req = req.WithContext(indexermiddleware.WithClientAddress(req.Context(), addr))
+				}
+				next.ServeHTTP(w, req)
+			})
+		})
 		r.Use(RateLimitMiddleware(rl))
-		r.Post("/invoices", h.HandleCreateInvoice)
+		r.With(indexermiddleware.InvoiceRateLimitMiddleware(invoiceLimiter)).Post("/invoices", h.HandleCreateInvoice)
+		r.Patch("/invoices/{id}/status", h.HandlePatchInvoiceStatus)
 
 		// Webhooks
 		r.Post("/webhooks", h.HandleCreateWebhook)
@@ -331,5 +478,20 @@ func NewRouter(h *APIHandler) *chi.Mux {
 		r.Delete("/webhooks/{id}", h.HandleDeleteWebhook)
 	})
 
-	return r
+	return r, func() {
+		rl.Stop()
+		invoiceLimiter.Stop()
+	}
+}
+
+func metricsTokenMiddleware(expected string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("Authorization") != "Bearer "+expected {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }

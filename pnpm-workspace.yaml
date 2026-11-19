@@ -29,6 +29,32 @@ auditConfig:
     - GHSA-m8m8-qj5v-23w3
     - GHSA-r4gj-5m52-g5wh
     - GHSA-x97p-jq2g-jp4f
+    # braces: build-time only (tailwindcss/fast-glob/chokidar/micromatch); the
+    # advisory has no patched release yet, so there is nothing to override to
+    - GHSA-vfj7-8cjw-p6xm
+    # toml 3.x is pinned by Stellar SDK 13; resolving these advisories requires
+    # the SDK's major-version upgrade rather than a lockfile-only override.
+    - GHSA-4qx8-w7c3-pj3p
+    - GHSA-9j65-hcg3-gc64
+    - GHSA-9qmh-m7c6-f92p
+    # next 14.2.35: both advisories are patched only in next >=15.5.28, so they
+    # are triaged with the Next 15 upgrade rather than a cross-major override
+    # SDK Zod 3.25.76 is patched in patches/zod@3.25.76.patch; see SECURITY.md.
+    - GHSA-mrhx-c7xc-m3w5
+    # Next 14.2.35 image optimization is mitigated by patched Sharp; Server
+    # Actions are not used. Reassess both advisories with the Next 15 upgrade.
+    - GHSA-2464-fhr4-w9xw
+    # The app defines no Server Actions; the advisory states these apps are unaffected.
+    - GHSA-p3m5-59mp-jv5r
+    # braces is build-time only; no patched release is available yet.
+    - GHSA-vfj7-8cjw-p6xm
+    # toml 3.0.0 via @stellar/stellar-sdk; the workspace override selects 5.0.1.
+    - GHSA-4qx8-w7c3-pj3p
+    - GHSA-9j65-hcg3-gc64
+    - GHSA-9qmh-m7c6-f92p
+    - GHSA-mrv2-3pqr-j5jr
+    # dompurify via jspdf; the workspace override selects fixed 3.4.17.
+    - GHSA-cg2g-xh64-v4q7
 overrides:
   postcss: ">=8.5.18 <9"
   nanoid: ">=3.3.18 <4"
@@ -36,5 +62,12 @@ overrides:
   glob: ">=12.0.0 <13"
   brace-expansion@1: ">=1.1.18 <2"
   brace-expansion@5: ">=5.0.9 <6"
-  undici: ">=7.29.0 <8"
+  undici: ">=7.30.1 <8"
+  toml: ">=5.0.1 <6"
+  dompurify: ">=3.4.17 <4"
   axios: ">=1.20.0 <2"
+  follow-redirects: ">=1.16.2 <2"
+  vite: ">=8.1.6 <9"
+  source-map-js: ">=1.2.2 <2"
+patchedDependencies:
+  zod@3.25.76: patches/zod@3.25.76.patch

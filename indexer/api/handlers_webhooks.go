@@ -5,14 +5,13 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
-	"net"
 	"net/http"
-	"net/url"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"trusttrove/indexer/db"
+	"trusttrove/indexer/netguard"
 )
 
 type WebhookSubscription struct {
@@ -37,37 +36,11 @@ func generateSecret() (string, error) {
 	return hex.EncodeToString(bytes), nil
 }
 
+// isSafeURL validates a subscription target at creation time. The delivery
+// worker re-runs the same guard on every request and redirect because a host
+// can resolve differently later (#1076).
 func isSafeURL(urlString string) bool {
-	u, err := url.ParseRequestURI(urlString)
-	if err != nil {
-		return false
-	}
-
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return false
-	}
-
-	host := u.Hostname()
-	if host == "" {
-		return false
-	}
-
-	ips, err := net.LookupIP(host)
-	if err != nil {
-		ip := net.ParseIP(host)
-		if ip == nil {
-			return false
-		}
-		ips = []net.IP{ip}
-	}
-
-	for _, ip := range ips {
-		if ip.IsPrivate() || ip.IsLoopback() || ip.IsUnspecified() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
-			return false
-		}
-	}
-
-	return true
+	return netguard.IsSafeURL(urlString)
 }
 
 // Database access functions are isolated in variables to allow mocking in tests.
@@ -126,8 +99,7 @@ func (h *APIHandler) HandleCreateWebhook(w http.ResponseWriter, r *http.Request)
 	}
 
 	var req CreateWebhookRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid JSON body", http.StatusBadRequest)
+	if !decodeJSONBody(w, r, &req, maxCreateWebhookBodyBytes) {
 		return
 	}
 
@@ -159,7 +131,7 @@ func (h *APIHandler) HandleCreateWebhook(w http.ResponseWriter, r *http.Request)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(sub)
+	_ = json.NewEncoder(w).Encode(sub)
 }
 
 func (h *APIHandler) HandleGetWebhooks(w http.ResponseWriter, r *http.Request) {
@@ -176,7 +148,7 @@ func (h *APIHandler) HandleGetWebhooks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"data": subs,
 	})
 }

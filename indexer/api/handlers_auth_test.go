@@ -188,6 +188,17 @@ func TestHandlePostAuth_ValidChallenge(t *testing.T) {
 	if tokenResp["token"] == "" {
 		t.Error("response missing 'token' field")
 	}
+
+	// Step 4: replay the exact same signed challenge. The nonce was consumed
+	// by the first POST, so the second must not mint another JWT (#1079).
+	replayReq := httptest.NewRequest(http.MethodPost, "/auth", bytes.NewBuffer(body))
+	replayReq.Header.Set("Content-Type", "application/json")
+	replayW := httptest.NewRecorder()
+	h.HandlePostAuth(replayW, replayReq)
+
+	if replayW.Code != http.StatusUnauthorized {
+		t.Fatalf("replayed challenge: got %d, want %d; body: %s", replayW.Code, http.StatusUnauthorized, replayW.Body.String())
+	}
 }
 
 // TestHandlePostAuth_ExpiredChallenge expects 401 for a challenge with timebounds in the past.

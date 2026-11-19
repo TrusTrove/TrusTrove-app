@@ -57,19 +57,35 @@ func WithTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
 }
 
 func InitDB(ctx context.Context, databaseURL string) error {
-	var err error
-	Pool, err = pgxpool.New(ctx, databaseURL)
+	config, err := pgxpool.ParseConfig(databaseURL)
+	if err != nil {
+		return fmt.Errorf("db: failed to parse database URL: %w", err)
+	}
+
+	if config.ConnConfig.RuntimeParams == nil {
+		config.ConnConfig.RuntimeParams = make(map[string]string)
+	}
+	if _, ok := config.ConnConfig.RuntimeParams["statement_timeout"]; !ok {
+		config.ConnConfig.RuntimeParams["statement_timeout"] = "5000"
+	}
+
+	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		return fmt.Errorf("db: failed to connect to database: %w", err)
 	}
 
 	// Ping database to confirm connection
-	if err := Pool.Ping(ctx); err != nil {
+	if err := pool.Ping(ctx); err != nil {
+		pool.Close()
 		return fmt.Errorf("db: failed to ping database: %w", err)
 	}
 
+	Pool = pool
+
 	// Run pending migrations
 	if err := RunMigration(ctx); err != nil {
+		Pool.Close()
+		Pool = nil
 		return fmt.Errorf("db: failed to run migrations: %w", err)
 	}
 
@@ -119,7 +135,11 @@ func RunMigration(ctx context.Context) error {
 	if _, err := lockConn.Exec(ctx, "SELECT pg_advisory_lock($1)", migrationLockID); err != nil {
 		return fmt.Errorf("failed to acquire migration advisory lock: %w", err)
 	}
-	defer lockConn.Exec(ctx, "SELECT pg_advisory_unlock($1)", migrationLockID)
+	defer func() {
+		if _, err := lockConn.Exec(context.Background(), "SELECT pg_advisory_unlock($1)", migrationLockID); err != nil {
+			slog.Warn("db: failed to release migration advisory lock", "error", err)
+		}
+	}()
 
 	if err := ensureSchemaMigrationsTable(ctx); err != nil {
 		return fmt.Errorf("failed to ensure schema_migrations table: %w", err)

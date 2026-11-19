@@ -189,6 +189,26 @@ func TestValidateCreateInvoiceRequest(t *testing.T) {
 	}
 }
 
+func TestValidateCreateInvoiceRequest_DocumentHash(t *testing.T) {
+	ctx := WithUserAddress(context.Background(), validHistoryAddress)
+	valid := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	body := createInvoiceRequest{
+		Buyer:        validHistoryAddress,
+		FaceValue:    "1000",
+		DueDate:      time.Now().Add(24 * time.Hour).Unix(),
+		DocumentHash: valid,
+	}
+	if _, err := validateCreateInvoiceRequest(ctx, body); err != nil {
+		t.Fatalf("valid document hash: %v", err)
+	}
+	for _, hash := range []string{"not-a-hash", "0x" + valid, strings.ToUpper(valid)} {
+		body.DocumentHash = hash
+		if _, err := validateCreateInvoiceRequest(ctx, body); err == nil {
+			t.Fatalf("expected document hash %q to be rejected", hash)
+		}
+	}
+}
+
 func TestValidateCreateInvoiceRequest_ValidRequestReturnsParams(t *testing.T) {
 	issuer, _ := keypair.Random()
 	buyer, _ := keypair.Random()

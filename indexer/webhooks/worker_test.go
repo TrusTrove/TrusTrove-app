@@ -38,6 +38,43 @@ func fakeDelivery(i int) *db.WebhookDelivery {
 	}
 }
 
+// TestDeliveryClientBlocksRedirectToUnsafeURL serves a 302 to a loopback
+// address and asserts the worker refuses to follow it (#1076). The initial
+// test server is allowed explicitly, so the only reason the request can be
+// blocked is the redirect-time revalidation.
+func TestDeliveryClientBlocksRedirectToUnsafeURL(t *testing.T) {
+	var redirected atomic.Int64
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		redirected.Add(1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer target.Close()
+
+	redirector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target.URL, http.StatusFound)
+	}))
+	defer redirector.Close()
+
+	w := NewDeliveryWorker(WorkerConfig{HTTPTimeout: 2 * time.Second})
+	w.isSafeURL = func(raw string) bool { return raw == redirector.URL }
+
+	req, err := http.NewRequest(http.MethodPost, redirector.URL, strings.NewReader(`{}`))
+	if err != nil {
+		t.Fatalf("build request: %v", err)
+	}
+	resp, err := w.client.Do(req)
+	if err == nil {
+		_ = resp.Body.Close()
+		t.Fatal("client followed a redirect to an unsafe URL, want an error")
+	}
+	if !strings.Contains(err.Error(), "unsafe url") {
+		t.Errorf("redirect error = %q, want it to mention an unsafe url", err)
+	}
+	if got := redirected.Load(); got != 0 {
+		t.Errorf("unsafe target received %d request(s), want 0", got)
+	}
+}
+
 func TestNewDeliveryWorkerDefaultsNonPositivePoolSettings(t *testing.T) {
 	cases := []struct {
 		name            string
@@ -228,7 +265,7 @@ func TestAttemptDelivery2xx(t *testing.T) {
 		gotCT = r.Header.Get("Content-Type")
 		gotBody, _ = io.ReadAll(r.Body)
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
+		_, _ = w.Write([]byte("ok"))
 	}))
 	defer srv.Close()
 
@@ -294,7 +331,7 @@ func TestAttemptDeliveryNon2xx(t *testing.T) {
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				gotStatus = code
 				w.WriteHeader(code)
-				w.Write([]byte("error"))
+				_, _ = w.Write([]byte("error"))
 			}))
 			defer srv.Close()
 

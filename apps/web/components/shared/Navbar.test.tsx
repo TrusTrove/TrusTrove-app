@@ -55,6 +55,12 @@ vi.mock("lucide-react", () => {
     Sun: Icon,
     Bell: Icon,
     Compass: Icon,
+    LayoutDashboard: Icon,
+    Factory: Icon,
+    BarChart2: Icon,
+    BarChart3: Icon,
+    User: Icon,
+    Settings: Icon,
   };
 });
 

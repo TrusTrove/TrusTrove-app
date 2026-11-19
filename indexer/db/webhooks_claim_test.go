@@ -32,8 +32,8 @@ func newClaimTestSubscription(t *testing.T, ctx context.Context, tag string) *We
 	}
 	t.Cleanup(func() {
 		if Pool != nil {
-			Pool.Exec(ctx, "DELETE FROM webhook_deliveries WHERE subscription_id = $1", sub.ID)
-			Pool.Exec(ctx, "DELETE FROM webhook_subscriptions WHERE id = $1", sub.ID)
+			_, _ = Pool.Exec(ctx, "DELETE FROM webhook_deliveries WHERE subscription_id = $1", sub.ID)
+			_, _ = Pool.Exec(ctx, "DELETE FROM webhook_subscriptions WHERE id = $1", sub.ID)
 		}
 	})
 	return sub
@@ -58,6 +58,14 @@ func queueClaimTestDeliveries(t *testing.T, ctx context.Context, sub *WebhookSub
 			t.Fatalf("look up queued delivery id: %v", err)
 		}
 		ids = append(ids, id)
+	}
+	// Claims are served oldest next_attempt_at first. Backdating these rows
+	// makes them the first ones claimed, so pending rows queued concurrently by
+	// other packages' tests in the shared database can't take their place.
+	if _, err := Pool.Exec(ctx,
+		"UPDATE webhook_deliveries SET next_attempt_at = TIMESTAMP '2000-01-01' WHERE id = ANY($1)", ids,
+	); err != nil {
+		t.Fatalf("backdate queued deliveries: %v", err)
 	}
 	return ids
 }

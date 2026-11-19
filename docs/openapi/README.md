@@ -4,23 +4,23 @@ The OpenAPI 3.0 specification for the Go indexer/API lives in [`indexer.yaml`](.
 
 ## Routes covered
 
-| Method | Path                       | Auth | Description                       |
-| ------ | -------------------------- | ---- | --------------------------------- |
-| GET    | `/health`                  | None | Health check                      |
-| GET    | `/metrics`                 | None | Prometheus metrics                |
-| GET    | `/auth`                    | None | Create SEP-10 challenge           |
-| POST   | `/auth`                    | None | Exchange signed challenge for JWT |
-| GET    | `/stats`                   | None | Protocol statistics               |
-| GET    | `/events`                  | None | List indexed Soroban events       |
-| GET    | `/invoices`                | None | List invoices (paginated)         |
-| POST   | `/invoices`                | JWT  | Create invoice                    |
-| GET    | `/invoices/{id}`           | None | Get invoice by ID                 |
-| GET    | `/pool/stats`              | None | Liquidity pool statistics         |
-| GET    | `/pool/snapshots`          | None | Historical pool snapshots         |
-| GET    | `/pool/position/{address}` | None | LP position by address            |
-| POST   | `/webhooks`                | JWT  | Create webhook subscription       |
-| GET    | `/webhooks`                | JWT  | List webhook subscriptions        |
-| DELETE | `/webhooks/{id}`           | JWT  | Delete webhook subscription       |
+| Method | Path                       | Auth | Description                                           |
+| ------ | -------------------------- | ---- | ----------------------------------------------------- |
+| GET    | `/health`                  | None | Health check                                          |
+| GET    | `/metrics`                 | None | Prometheus metrics                                    |
+| GET    | `/auth`                    | None | Create SEP-10 challenge                               |
+| POST   | `/auth`                    | None | Exchange signed challenge for JWT                     |
+| GET    | `/stats`                   | None | Protocol statistics                                   |
+| GET    | `/events`                  | None | List indexed Soroban events (optional `issuer` scope) |
+| GET    | `/invoices`                | None | List invoices (paginated)                             |
+| POST   | `/invoices`                | JWT  | Create invoice                                        |
+| GET    | `/invoices/{id}`           | None | Get invoice by ID                                     |
+| GET    | `/pool/stats`              | None | Liquidity pool statistics                             |
+| GET    | `/pool/snapshots`          | None | Historical pool snapshots                             |
+| GET    | `/pool/position/{address}` | None | LP position by address                                |
+| POST   | `/webhooks`                | JWT  | Create webhook subscription                           |
+| GET    | `/webhooks`                | JWT  | List webhook subscriptions                            |
+| DELETE | `/webhooks/{id}`           | JWT  | Delete webhook subscription                           |
 
 ## Linting
 

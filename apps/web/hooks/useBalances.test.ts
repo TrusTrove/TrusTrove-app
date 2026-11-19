@@ -48,6 +48,36 @@ describe("useBalances", () => {
     expect(result.current.balances).toEqual({ usdc: null, xlm: null });
     expect(result.current.loading).toBe(false);
     expect(result.current.error).toBeNull();
+    expect(mockLoadAccount).not.toHaveBeenCalled();
+  });
+
+  it("reports loading=true while the initial Horizon request is pending (#1086)", async () => {
+    let resolveAccount!: (value: unknown) => void;
+    mockLoadAccount.mockReturnValue(
+      new Promise((resolve) => {
+        resolveAccount = resolve;
+      }),
+    );
+
+    act(() => {
+      useWalletStore.getState().connect("G123", "testnet");
+    });
+
+    const { result } = renderHook(() => useBalances(), { wrapper });
+
+    // The query must not be pre-seeded into a successful state.
+    expect(result.current.loading).toBe(true);
+    expect(result.current.balances).toEqual({ usdc: null, xlm: null });
+
+    await act(async () => {
+      resolveAccount({
+        balances: [{ asset_type: "native", balance: "10.00" }],
+      });
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(result.current.loading).toBe(false);
+    expect(result.current.balances).toEqual({ usdc: null, xlm: "10.00" });
   });
 
   it("fetches balances on connect", async () => {
@@ -69,7 +99,7 @@ describe("useBalances", () => {
 
     const { result } = renderHook(() => useBalances(), { wrapper });
 
-    expect(result.current.loading).toBe(false);
+    expect(result.current.loading).toBe(true);
 
     await act(async () => {
       await Promise.resolve();

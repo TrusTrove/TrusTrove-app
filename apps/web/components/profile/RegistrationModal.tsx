@@ -4,7 +4,14 @@ import React, { useEffect, useState } from "react";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { TransactionPending } from "@/components/shared/TransactionPending";
-import { ShieldAlert, Building2, Globe, FileText, Lock } from "lucide-react";
+import {
+  ShieldAlert,
+  Building2,
+  Globe,
+  FileText,
+  Lock,
+  Mail,
+} from "lucide-react";
 import type { useProfile } from "@/hooks/useProfile";
 
 interface RegistrationModalProps {
@@ -25,11 +32,11 @@ export function RegistrationModal({
   const modalRef = useFocusTrap<HTMLDivElement>(isOpen, onClose);
 
   const [regRole, setRegRole] = useState<"issuer" | "buyer">("issuer");
-  const [companyName] = useState("");
+  const [companyName, setCompanyName] = useState("");
   const [taxId, setTaxId] = useState("");
   const [country, setCountry] = useState("");
   const [website, setWebsite] = useState("");
-  const [email] = useState("");
+  const [email, setEmail] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
 
   const [showPending, setShowPending] = useState(false);
@@ -62,6 +69,9 @@ export function RegistrationModal({
       `Registering business as verified ${regRole === "issuer" ? "SME / Issuer" : "Buyer"}...`,
     );
     setPendingHash(null);
+    // Close the registration modal before opening the pending dialog so only
+    // one aria-modal dialog (and one focus trap) is active at a time (#1099).
+    onClose();
     setShowPending(true);
 
     try {
@@ -81,7 +91,6 @@ export function RegistrationModal({
       if (typeof txHash === "string") {
         setPendingHash(txHash);
       }
-      onClose();
     } catch (err: any) {
       setLocalError(err.message || "Registration transaction failed");
       setShowPending(false);
@@ -98,7 +107,7 @@ export function RegistrationModal({
             aria-modal="true"
             aria-labelledby="registration-dialog-title"
             tabIndex={-1}
-            className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-[#080c10]/95 backdrop-blur-sm p-0 md:p-4"
+            className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm p-0 md:p-4"
             onClick={(event) => {
               if (event.target === event.currentTarget) {
                 onClose();
@@ -112,7 +121,7 @@ export function RegistrationModal({
               <button
                 onClick={onClose}
                 aria-label="Close registration dialog"
-                className="absolute top-3 right-3 min-h-[44px] px-2 text-slate-500 hover:text-white font-bold font-mono text-xs uppercase"
+                className="absolute top-3 right-3 min-h-[44px] px-2 text-muted-foreground hover:text-foreground font-bold font-mono text-xs uppercase"
               >
                 [Close]
               </button>
@@ -120,12 +129,12 @@ export function RegistrationModal({
               <div className="mb-6 border-b border-border/40 pb-3">
                 <h2
                   id="registration-dialog-title"
-                  className="text-sm font-bold font-mono tracking-wider uppercase text-white flex items-center gap-1.5 pr-16"
+                  className="text-sm font-bold font-mono tracking-wider uppercase text-foreground flex items-center gap-1.5 pr-16"
                 >
                   <Building2 className="w-4 h-4 text-primary" />
                   Register Business Metadata
                 </h2>
-                <p className="text-[10px] text-slate-500 font-mono mt-0.5">
+                <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
                   Input your company credentials. This metadata maps to your
                   wallet address on-chain.
                 </p>
@@ -136,49 +145,78 @@ export function RegistrationModal({
                 className="space-y-4 font-mono text-xs"
               >
                 {/* Role Toggle Selector */}
-                <div className="space-y-2">
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                <fieldset className="space-y-2">
+                  <legend className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
                     Select On-Chain Business Role
-                  </label>
+                  </legend>
                   <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setRegRole("issuer")}
-                      className={`py-2 px-3 border rounded text-center transition-all ${
-                        regRole === "issuer"
-                          ? "border-primary bg-primary/5 text-primary font-bold"
-                          : "border-border bg-transparent text-slate-400 hover:text-white hover:bg-slate-900/40"
-                      }`}
-                    >
-                      SME / Issuer
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setRegRole("buyer")}
-                      className={`py-2 px-3 border rounded text-center transition-all ${
-                        regRole === "buyer"
-                          ? "border-primary bg-primary/5 text-primary font-bold"
-                          : "border-border bg-transparent text-slate-400 hover:text-white hover:bg-slate-900/40"
-                      }`}
-                    >
-                      Obligor / Buyer
-                    </button>
+                    {(
+                      [
+                        { value: "issuer", label: "SME / Issuer" },
+                        { value: "buyer", label: "Obligor / Buyer" },
+                      ] as const
+                    ).map((option) => (
+                      <label
+                        key={option.value}
+                        className={`py-2 px-3 border rounded text-center cursor-pointer transition-all focus-within:ring-2 focus-within:ring-primary ${
+                          regRole === option.value
+                            ? "border-primary bg-primary/5 text-primary font-bold"
+                            : "border-border bg-transparent text-muted-foreground hover:text-foreground hover:bg-background"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="registration-role"
+                          value={option.value}
+                          checked={regRole === option.value}
+                          onChange={() => setRegRole(option.value)}
+                          className="sr-only"
+                        />
+                        {option.label}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+
+                {/* Company Name */}
+                <div className="space-y-1">
+                  <label
+                    htmlFor="registration-company-name"
+                    className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
+                  >
+                    Company Name
+                  </label>
+                  <div className="relative">
+                    <Building2 className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
+                    <input
+                      id="registration-company-name"
+                      type="text"
+                      required
+                      placeholder="e.g. Acme Corporation"
+                      className="w-full bg-background border border-input rounded pl-10 pr-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                    />
                   </div>
                 </div>
 
                 {/* Tax ID & Country */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                    <label
+                      htmlFor="registration-tax-id"
+                      className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
+                    >
                       Tax ID / Registration No.
                     </label>
                     <div className="relative">
-                      <FileText className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
+                      <FileText className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
                       <input
+                        id="registration-tax-id"
                         type="text"
                         required
                         placeholder="e.g. EU123456789"
-                        className="w-full bg-[#080c10] border border-border rounded pl-10 pr-3 py-2 text-white placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                        className="w-full bg-background border border-input rounded pl-10 pr-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                         value={taxId}
                         onChange={(e) => setTaxId(e.target.value)}
                       />
@@ -186,16 +224,20 @@ export function RegistrationModal({
                   </div>
 
                   <div className="space-y-1">
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                    <label
+                      htmlFor="registration-country"
+                      className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
+                    >
                       Country of Incorporation
                     </label>
                     <div className="relative">
-                      <Globe className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
+                      <Globe className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
                       <input
+                        id="registration-country"
                         type="text"
                         required
                         placeholder="e.g. Germany"
-                        className="w-full bg-[#080c10] border border-border rounded pl-10 pr-3 py-2 text-white placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                        className="w-full bg-background border border-input rounded pl-10 pr-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                         value={country}
                         onChange={(e) => setCountry(e.target.value)}
                       />
@@ -205,24 +247,52 @@ export function RegistrationModal({
 
                 {/* Website URL */}
                 <div className="space-y-1">
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  <label
+                    htmlFor="registration-website"
+                    className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
+                  >
                     Corporate Website URL (Optional)
                   </label>
                   <div className="relative">
-                    <Globe className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
+                    <Globe className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
                     <input
+                      id="registration-website"
                       type="url"
                       placeholder="e.g. https://acme.corp"
-                      className="w-full bg-[#080c10] border border-border rounded pl-10 pr-3 py-2 text-white placeholder-slate-600 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                      className="w-full bg-background border border-input rounded pl-10 pr-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                       value={website}
                       onChange={(e) => setWebsite(e.target.value)}
                     />
                   </div>
                 </div>
 
+                {/* Contact Email */}
+                <div className="space-y-1">
+                  <label
+                    htmlFor="registration-email"
+                    className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
+                  >
+                    Contact Email (Optional)
+                  </label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
+                    <input
+                      id="registration-email"
+                      type="email"
+                      placeholder="e.g. contact@acme.corp"
+                      className="w-full bg-background border border-input rounded pl-10 pr-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                    />
+                  </div>
+                </div>
+
                 {/* Warnings and errors */}
                 {(localError || registerError) && (
-                  <div className="p-3 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 text-[11px] flex items-start gap-2">
+                  <div
+                    role="alert"
+                    className="p-3 rounded bg-destructive/10 border border-destructive/30 text-destructive text-[11px] flex items-start gap-2"
+                  >
                     <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
                     <span>
                       {localError ||
@@ -232,7 +302,7 @@ export function RegistrationModal({
                   </div>
                 )}
 
-                <div className="bg-[#080c10] border border-amber-500/20 p-3 rounded text-[10px] text-amber-500 leading-normal flex items-start gap-1.5">
+                <div className="bg-warning/10 border border-warning/30 p-3 rounded text-[10px] text-warning leading-normal flex items-start gap-1.5">
                   <Lock className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                   <span>
                     Signing this registration requires Freighter authorization.
@@ -247,14 +317,14 @@ export function RegistrationModal({
                   <button
                     type="button"
                     onClick={onClose}
-                    className="flex-1 border border-border bg-transparent hover:bg-slate-900 text-slate-400 font-bold uppercase py-2.5 rounded"
+                    className="flex-1 border border-border bg-transparent hover:bg-background text-foreground font-bold uppercase py-2.5 rounded"
                     disabled={isRegistering}
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 bg-primary hover:bg-primary-hover text-black font-bold uppercase py-2.5 rounded shadow-[0_0_15px_rgba(0,212,170,0.15)] flex items-center justify-center gap-1.5"
+                    className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground font-bold uppercase py-2.5 rounded shadow-[0_0_15px_rgba(0,212,170,0.15)] flex items-center justify-center gap-1.5"
                     disabled={isRegistering}
                   >
                     {isRegistering ? "Signing..." : "Register Profile"}

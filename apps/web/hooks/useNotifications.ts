@@ -1,16 +1,80 @@
 import { useEffect, useState } from "react";
 import { useRecentEvents } from "./useEvents";
-import { useInvoices } from "./useInvoices";
+import { useInvoicesList } from "./useInvoices";
 import { useWalletStore } from "@/store/wallet";
 import {
   NotificationEvent,
   mapEventToNotification,
 } from "@/types/notifications";
+import { getEventDataString } from "@/types";
+import { notificationHistoryKey } from "@/lib/storage";
+import { prefsStorageKey } from "@/lib/notification-preferences";
+
+interface StoredNotifications {
+  /** Notification records recovered from storage. */
+  items: NotificationEvent[];
+  /** Whether the stored value was safe to parse and can therefore be rewritten. */
+  canPersist: boolean;
+  /** Whether a value exists under the storage key at all. */
+  hasStored: boolean;
+}
+
+function isNotificationEvent(value: unknown): value is NotificationEvent {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as Record<string, unknown>;
+  return typeof candidate.id === "string" && typeof candidate.type === "string";
+}
+
+/**
+ * Reads one wallet's cached notification history without ever discarding the
+ * raw value on failure.
+ *
+ * A `JSON.parse` failure used to be swallowed and the resulting empty list was
+ * written straight back, permanently destroying the user's history and read
+ * flags. Corrupt data is therefore reported as non-persistable: callers keep
+ * rendering fresh events but leave the stored value untouched (issue #1093).
+ */
+function readStoredNotifications(storageKey: string): StoredNotifications {
+  let raw: string | null;
+  try {
+    raw = localStorage.getItem(storageKey);
+  } catch {
+    return { items: [], canPersist: false, hasStored: false };
+  }
+
+  if (raw === null) {
+    return { items: [], canPersist: true, hasStored: false };
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { items: [], canPersist: false, hasStored: true };
+  }
+
+  if (!Array.isArray(parsed)) {
+    return { items: [], canPersist: false, hasStored: true };
+  }
+
+  const items = parsed.filter(isNotificationEvent);
+  return {
+    items,
+    // A partially malformed array is preserved on disk until it is repaired
+    // or explicitly reset, rather than being replaced with the valid subset.
+    canPersist: items.length === parsed.length,
+    hasStored: true,
+  };
+}
 
 export function useNotifications() {
-  const { address, role } = useWalletStore();
-  const { events } = useRecentEvents(100, { refetchInterval: 15000 });
-  const { invoices } = useInvoices({ limit: 500 });
+  const address = useWalletStore((s) => s.address);
+  const role = useWalletStore((s) => s.role);
+  const { events } = useRecentEvents(100, {
+    refetchInterval: 15000,
+    enabled: !!address,
+  });
+  const { invoices } = useInvoicesList({ limit: 20, enabled: !!address });
 
   const [notifications, setNotifications] = useState<NotificationEvent[]>([]);
 
@@ -30,7 +94,7 @@ export function useNotifications() {
     );
 
     const relevantEvents = events.filter((e) => {
-      const invId = e.data?.invoice_id;
+      const invId = getEventDataString(e, "invoice_id");
       if (!invId) return false;
 
       if (role === "lp" && relevantInvoiceIds.has(invId)) {
@@ -50,13 +114,8 @@ export function useNotifications() {
     });
 
     const mappedNotifs = relevantEvents.map(mapEventToNotification);
-    const storageKey = `trusttrove_notifs_${address}`;
-    let saved: NotificationEvent[] = [];
-
-    try {
-      const stored = localStorage.getItem(storageKey);
-      if (stored) saved = JSON.parse(stored);
-    } catch (err) {}
+    const storageKey = notificationHistoryKey(address);
+    const { items: saved, canPersist } = readStoredNotifications(storageKey);
 
     const notifMap = new Map<string, NotificationEvent>();
     saved.forEach((n) => notifMap.set(n.id, n));
@@ -72,9 +131,9 @@ export function useNotifications() {
 
     let prefs: Record<string, boolean> = {};
     try {
-      const p = localStorage.getItem(`trusttrove_prefs_${address}`);
+      const p = localStorage.getItem(prefsStorageKey(address));
       if (p) prefs = JSON.parse(p);
-    } catch (e) {}
+    } catch {}
 
     const allNotifs = Array.from(notifMap.values());
     const combined = allNotifs
@@ -83,9 +142,13 @@ export function useNotifications() {
 
     setNotifications(combined);
 
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(allNotifs));
-    } catch (err) {}
+    // Leave corrupt history in place instead of overwriting it with whatever
+    // could be recovered; otherwise the read flags are lost forever.
+    if (canPersist) {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(allNotifs));
+      } catch {}
+    }
   }, [events, invoices, address, role]);
 
   const markAllAsRead = () => {
@@ -93,15 +156,19 @@ export function useNotifications() {
 
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
 
-    const storageKey = `trusttrove_notifs_${address}`;
+    const storageKey = notificationHistoryKey(address);
+    const {
+      items: allSaved,
+      canPersist,
+      hasStored,
+    } = readStoredNotifications(storageKey);
+
+    if (!hasStored || !canPersist) return;
+
     try {
-      const stored = localStorage.getItem(storageKey);
-      if (stored) {
-        const allSaved: NotificationEvent[] = JSON.parse(stored);
-        const updated = allSaved.map((n) => ({ ...n, read: true }));
-        localStorage.setItem(storageKey, JSON.stringify(updated));
-      }
-    } catch (err) {}
+      const updated = allSaved.map((n) => ({ ...n, read: true }));
+      localStorage.setItem(storageKey, JSON.stringify(updated));
+    } catch {}
   };
 
   return {

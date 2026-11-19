@@ -1,11 +1,7 @@
 import { useState } from "react";
 import { useWalletStore } from "@/store/wallet";
 import { signTransaction } from "@stellar/freighter-api";
-import {
-  fetchChallenge,
-  verifyChallenge,
-  initApiClientWithToken,
-} from "@/lib/api";
+import { fetchChallenge, verifyChallenge } from "@/lib/api";
 import { createErrorHandler } from "@/lib/errors";
 import { useAppError } from "./useAppError";
 
@@ -71,12 +67,10 @@ export function useAuth() {
 
       const { token: jwt } = await verifyChallenge(signedXdr);
       setToken(jwt);
-      initApiClientWithToken();
     } catch (err: unknown) {
       const appError = captureError(err);
       handleError(appError);
       setToken(null);
-      initApiClientWithToken();
     } finally {
       setLoading(false);
     }
@@ -87,7 +81,6 @@ export function useAuth() {
    */
   const logout = () => {
     setToken(null);
-    initApiClientWithToken();
     disconnect();
     clearError();
   };

@@ -71,6 +71,39 @@ unless they prefer to remain anonymous.
 
 ## Audit Status
 
+### Zod collection validation (GHSA-mrhx-c7xc-m3w5)
+
+`apps/web` uses Zod 4.6.7. The SDK retains Zod 3 to preserve its published schema
+types; `patches/zod@3.25.76.patch` applies fail-fast handling to oversized
+bounded arrays and sets in TypeScript, ESM, and CommonJS entrypoints. Regression
+tests verify that element parsers are not run after an upper-bound violation.
+Zod 3 has no bounded-map API. The SDK's object schemas do not compose
+untrusted collections, and Soroban invoice arrays are parsed item-by-item with
+`parseInvoice` in `packages/sdk/src/clients/invoice.ts`. Reassess this exception
+if the schema surface changes.
+
+### Next.js image optimization (GHSA-2464-fhr4-w9xw)
+
+The app remains on Next.js 14.2.35 with the default image optimizer enabled.
+`apps/web` pins Sharp to `^0.35.5`, the mitigation specified by the Next.js
+advisory for the optimizer path. There are no `next/image` component usages in
+app source, but the optimizer endpoint remains reachable; retain Sharp's patched
+minimum and revisit this mitigation on Next.js or Sharp upgrades.
+
+### Next.js Server Actions (GHSA-p3m5-59mp-jv5r)
+
+There are no `"use server"` files under `apps/web/app` or
+`apps/web/components`. The Next.js advisory states apps without Server Actions
+are not vulnerable. Remove the audit exception if Server Actions are introduced
+before upgrading Next.js.
+
+### Stellar TOML parsing
+
+`@stellar/stellar-sdk` 13.3.0 resolves `stellar.toml` through its public
+`StellarToml.Resolver`, limits responses to 100 KiB, then calls `toml.parse`.
+The workspace override uses TOML 5.0.1, the fixed release; an SDK compatibility
+test exercises the resolver using a local HTTP fixture.
+
 The [TrusTrove-contract](https://github.com/Maxwell316/TrusTrove-contract)
 smart contracts have not been formally audited.
 Users interact with testnet contracts at their own risk.

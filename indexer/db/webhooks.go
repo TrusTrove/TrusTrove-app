@@ -129,6 +129,9 @@ func ListActiveWebhookSubscriptionsForEvent(ctx context.Context, eventType strin
 		sub.EventTypes = textArrayToSlice(eventTypesArray)
 		subs = append(subs, &sub)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("db: iterate webhook subscriptions: %w", err)
+	}
 	return subs, nil
 }
 
@@ -156,6 +159,9 @@ func ListAllWebhookSubscriptions(ctx context.Context) ([]*WebhookSubscription, e
 		}
 		sub.EventTypes = textArrayToSlice(eventTypesArray)
 		subs = append(subs, &sub)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("db: iterate all webhook subscriptions: %w", err)
 	}
 	return subs, nil
 }
@@ -214,6 +220,7 @@ func CreateWebhookDelivery(ctx context.Context, q Querier, subscriptionID uuid.U
 	query := `
 		INSERT INTO webhook_deliveries (subscription_id, event_type, event_id, payload)
 		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (subscription_id, event_id) DO NOTHING
 	`
 	_, err := q.Exec(ctx, query, subscriptionID, eventType, eventID, payload)
 	if err != nil {

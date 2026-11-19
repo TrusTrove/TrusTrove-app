@@ -10,13 +10,20 @@ import {
   UseInvoiceOptions,
 } from "../src/useInvoice.js";
 
+// `get` is shared across every constructed MockInvoiceClient so tests that
+// exercise the contractId path (where the hook builds its own client) can still
+// assert on call counts.
+const { sharedGet } = vi.hoisted(() => ({
+  sharedGet: vi.fn(),
+}));
+
 vi.mock("@trusttrove/sdk", () => {
   class MockInvoiceClient {
     contractId: string;
     constructor(contractId: string) {
       this.contractId = contractId;
     }
-    get = vi.fn();
+    get = sharedGet;
     getByStatus = vi.fn();
     getByIssuer = vi.fn();
     getByBuyer = vi.fn();
@@ -74,6 +81,31 @@ describe("useInvoice", () => {
 
       expect(result.current.data).toBeNull();
       expect(result.current.error).toEqual(new Error("read failed"));
+    });
+
+    it("does not re-create the client when passed a fresh inline contractId options literal each render", async () => {
+      const invoice = { id: INVOICE_HEX, status: "Created" };
+      sharedGet.mockResolvedValue(invoice);
+
+      // Mirrors the documented inline usage: a brand-new options literal every
+      // render. A regression re-creates the client per render, so the query
+      // effect re-runs (fetch loop) and `get` would be called many times.
+      const { result, rerender } = renderHook(() =>
+        useInvoice(INVOICE_HEX, SIGNER, { contractId: CONTRACT_ID }),
+      );
+
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      expect(result.current.data).toEqual(invoice);
+      expect(result.current.error).toBeNull();
+
+      rerender();
+      rerender();
+      await waitFor(() => expect(result.current.data).toEqual(invoice));
+
+      // One client construction -> exactly one read, despite re-renders.
+      expect(sharedGet).toHaveBeenCalledTimes(1);
+      expect(sharedGet).toHaveBeenCalledWith(INVOICE_HEX, SIGNER);
     });
 
     it("refetches when the invoice id changes", async () => {

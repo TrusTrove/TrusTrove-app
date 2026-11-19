@@ -83,22 +83,18 @@ const getApiUrl = () => {
   return process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
 };
 
+/**
+ * Thin client facade over {@link apiFetch}.
+ *
+ * It deliberately holds no auth state: the SEP-10 token lives in
+ * `useWalletStore` and `apiFetch` reads it on every request, so there is a
+ * single source of truth and nothing to keep in sync after login/logout.
+ */
 export const apiClient = {
-  token: undefined as string | undefined,
-  setToken(token: string | undefined): void {
-    this.token = token;
-  },
   async fetch<T>(path: string, options: RequestInit = {}): Promise<T> {
     return apiFetch<T>(path, options);
   },
 };
-
-function initApiClientWithToken(): void {
-  const token = useWalletStore.getState().token;
-  apiClient.setToken(token ?? undefined);
-}
-
-export { initApiClientWithToken };
 
 /**
  * Low-level helper that performs an authenticated `fetch` against the TrusTrove
@@ -357,6 +353,31 @@ export async function getInvoiceByID(id: string): Promise<Invoice> {
   return parseInvoiceResponse(raw);
 }
 
+/**
+ * Updates an invoice's lifecycle status via `PATCH /invoices/:id/status`.
+ * Used by the creation cleanup path to mark a newly created invoice as
+ * `Cancelled` when its immediate on-chain listing cannot be completed, so the
+ * invoice is not left "pending listing" forever (issue #1097).
+ *
+ * @param id - The invoice id to update.
+ * @param status - The new lifecycle status (e.g. `"Cancelled"`).
+ * @returns A promise resolving to `{ id, status }`.
+ *
+ * @throws {Error} When the indexer responds with a non-OK status.
+ */
+export async function updateInvoiceStatus(
+  id: string,
+  status: string,
+): Promise<{ id: string; status: string }> {
+  return apiFetch<{ id: string; status: string }>(
+    `/invoices/${encodeURIComponent(id)}/status`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    },
+  );
+}
+
 export interface PaginatedInvoices {
   data: Invoice[];
   total: number;
@@ -415,6 +436,59 @@ export async function getInvoices(filters?: {
   };
 }
 
+/** Page size used by {@link getAllInvoices}. Matches the API's max `limit`. */
+const ALL_INVOICES_PAGE_SIZE = 100;
+
+/** Safety cap on how many pages {@link getAllInvoices} will fetch (10k rows). */
+const ALL_INVOICES_MAX_PAGES = 100;
+
+/**
+ * Fetches the complete, unpaged invoice set for the given filters by walking
+ * every server page. Use this for aggregate/summary calculations that must
+ * cover the whole set — never for rendering a paginated table.
+ *
+ * The API caps `limit` at 100, so a single request cannot return everything;
+ * this helper requests successive pages (deduplicating by id in case rows are
+ * inserted mid-walk) until `totalPages` is exhausted. The walk stops early on
+ * an empty page or after {@link ALL_INVOICES_MAX_PAGES} pages so a bad server
+ * response cannot loop forever.
+ *
+ * @param filters - Optional query filters:
+ *   - `status` — `string` filter by `InvoiceStatus`.
+ *   - `issuer` — `string` filter by issuer Stellar address.
+ * @returns A promise resolving to every matching `Invoice`, across all pages.
+ *
+ * @example
+ * ```ts
+ * const all = await getAllInvoices({ issuer: address });
+ * const totalFunded = all.reduce((sum, inv) => sum + inv.fundedAmount, 0n);
+ * ```
+ */
+export async function getAllInvoices(filters?: {
+  status?: string;
+  issuer?: string;
+}): Promise<Invoice[]> {
+  const byId = new Map<string, Invoice>();
+  let page = 1;
+  let totalPages = 1;
+
+  while (page <= totalPages && page <= ALL_INVOICES_MAX_PAGES) {
+    const res = await getInvoices({
+      ...filters,
+      page,
+      limit: ALL_INVOICES_PAGE_SIZE,
+    });
+    totalPages = res.totalPages || 1;
+    for (const invoice of res.data) {
+      byId.set(invoice.id, invoice);
+    }
+    if (res.data.length === 0) break;
+    page += 1;
+  }
+
+  return Array.from(byId.values());
+}
+
 /**
  * Fetches aggregate pool statistics for the liquidity pool.
  *
@@ -445,12 +519,21 @@ export async function getLPPosition(address: string): Promise<LPPosition> {
  * Fetches recent on-chain events, most recent first.
  *
  * @param limit - Optional maximum number of events to return.
+ * @param issuer - Optional Stellar account to scope the feed to. The indexer
+ *   resolves it through each event's invoice, so only that account's own
+ *   activity comes back (issue #1115). Omit it for the protocol-wide feed.
  * @returns A promise resolving to an `EventLog[]`; each entry is described by
  *   `parseRawEventLog` (`id`, `event_id`, `contract_id`, `ledger`,
  *   `ledger_closed_at`, `event_type`, `data`).
  */
-export async function getRecentEvents(limit?: number): Promise<EventLog[]> {
-  const query = limit ? `?limit=${limit}` : "";
+export async function getRecentEvents(
+  limit?: number,
+  issuer?: string,
+): Promise<EventLog[]> {
+  const params: string[] = [];
+  if (limit) params.push(`limit=${limit}`);
+  if (issuer) params.push(`issuer=${encodeURIComponent(issuer)}`);
+  const query = params.length > 0 ? `?${params.join("&")}` : "";
   const rawList = await apiFetch<RawEventLog[]>(`/events${query}`);
   return rawList.map(parseRawEventLog);
 }

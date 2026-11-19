@@ -49,9 +49,62 @@ describe("useRecentEvents", () => {
 
     expect(vi.mocked(useQuery)).toHaveBeenCalledWith(
       expect.objectContaining({
-        queryKey: ["recentEvents", 5],
+        queryKey: ["recentEvents", 5, undefined],
       }),
     );
+  });
+
+  // Issue #1115: an issuer-scoped feed must be a distinct cache entry, or the
+  // dashboard would render the protocol-wide list another consumer cached.
+  it("scopes the query key and the request to an issuer", () => {
+    vi.mocked(useQuery).mockReturnValue({
+      data: [],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+
+    renderHook(() =>
+      useRecentEvents(10, {
+        issuer: "GISSUERAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      }),
+    );
+
+    expect(vi.mocked(useQuery)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queryKey: [
+          "recentEvents",
+          10,
+          "GISSUERAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        ],
+      }),
+    );
+
+    const options = vi.mocked(useQuery).mock.calls[0][0] as unknown as {
+      queryFn: () => Promise<unknown>;
+    };
+    void options.queryFn();
+    expect(vi.mocked(getRecentEvents)).toHaveBeenCalledWith(
+      10,
+      "GISSUERAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    );
+  });
+
+  it("requests the protocol-wide feed when no issuer is given", () => {
+    vi.mocked(useQuery).mockReturnValue({
+      data: [],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+
+    renderHook(() => useRecentEvents(20));
+
+    const options = vi.mocked(useQuery).mock.calls[0][0] as unknown as {
+      queryFn: () => Promise<unknown>;
+    };
+    void options.queryFn();
+    expect(vi.mocked(getRecentEvents)).toHaveBeenCalledWith(20, undefined);
   });
 
   it("passes refetchInterval from options", () => {

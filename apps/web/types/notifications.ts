@@ -1,4 +1,4 @@
-import { EventLog } from "./index";
+import { EventLog, getEventDataString } from "./index";
 
 export interface NotificationEvent {
   id: string;
@@ -28,7 +28,7 @@ export function mapEventToNotification(event: EventLog): NotificationEvent {
   };
 
   const type = typeMap[event.event_type] || event.event_type;
-  const invId: string = event.data?.invoice_id || "";
+  const invId = getEventDataString(event, "invoice_id") ?? "";
   const invShort = invId ? `INV#${invId.slice(0, 4)}...` : "";
   let message = "";
 
