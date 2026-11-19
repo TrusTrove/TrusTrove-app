@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +11,227 @@ import (
 	"testing"
 	"time"
 )
+
+func TestInvoiceUpdatesEnforceLifecycle(t *testing.T) {
+	skipIfNoDB(t)
+	ctx := context.Background()
+
+	tests := []struct {
+		name      string
+		target    string
+		validFrom []string
+		staleFrom string
+		update    func(context.Context, Querier, string) error
+	}{
+		{
+			name:      "listed",
+			target:    "Listed",
+			validFrom: []string{"Created"},
+			staleFrom: "Funded",
+			update: func(ctx context.Context, q Querier, id string) error {
+				return UpdateInvoiceListed(ctx, q, id, "Listed", 250)
+			},
+		},
+		{
+			name:      "funded",
+			target:    "Funded",
+			validFrom: []string{"Listed"},
+			staleFrom: "Active",
+			update: func(ctx context.Context, q Querier, id string) error {
+				return UpdateInvoiceFunded(ctx, q, id, "Funded", "100", 1)
+			},
+		},
+		{
+			name:      "active",
+			target:    "Active",
+			validFrom: []string{"Funded"},
+			staleFrom: "Confirmed",
+			update: func(ctx context.Context, q Querier, id string) error {
+				return UpdateInvoiceShipped(ctx, q, id, "Active", 1)
+			},
+		},
+		{
+			name:      "confirmed",
+			target:    "Confirmed",
+			validFrom: []string{"Active"},
+			staleFrom: "Repaid",
+			update: func(ctx context.Context, q Querier, id string) error {
+				return UpdateInvoiceDeliveryConfirmed(ctx, q, id, "Confirmed", 1)
+			},
+		},
+		{
+			name:      "repaid",
+			target:    "Repaid",
+			validFrom: []string{"Confirmed"},
+			staleFrom: "Repaid",
+			update: func(ctx context.Context, q Querier, id string) error {
+				return UpdateInvoiceRepaid(ctx, q, id, "Repaid", 1)
+			},
+		},
+		{
+			name:      "defaulted",
+			target:    "Defaulted",
+			validFrom: []string{"Funded", "Active", "Confirmed"},
+			staleFrom: "Defaulted",
+			update: func(ctx context.Context, q Querier, id string) error {
+				return UpdateInvoiceStatus(ctx, q, id, "Defaulted")
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name+"/not-found", func(t *testing.T) {
+			err := test.update(ctx, Pool, newTestInvoiceID())
+			if !errors.Is(err, ErrInvoiceNotFound) {
+				t.Fatalf("expected ErrInvoiceNotFound, got %v", err)
+			}
+		})
+
+		t.Run(test.name+"/stale", func(t *testing.T) {
+			id := insertTestInvoice(t, ctx, test.staleFrom)
+			err := test.update(ctx, Pool, id)
+			if !errors.Is(err, ErrInvalidInvoiceTransition) {
+				t.Fatalf("expected ErrInvalidInvoiceTransition, got %v", err)
+			}
+			assertInvoiceStatus(t, ctx, id, test.staleFrom)
+		})
+
+		for _, source := range test.validFrom {
+			t.Run(test.name+"/from-"+source, func(t *testing.T) {
+				id := insertTestInvoice(t, ctx, source)
+				if err := test.update(ctx, Pool, id); err != nil {
+					t.Fatalf("update invoice: %v", err)
+				}
+				assertInvoiceStatus(t, ctx, id, test.target)
+			})
+		}
+	}
+
+	t.Run("attestation/not-found", func(t *testing.T) {
+		err := UpdateInvoiceAttestation(ctx, Pool, newTestInvoiceID(), "agent", "", 0, 1)
+		if !errors.Is(err, ErrInvoiceNotFound) {
+			t.Fatalf("expected ErrInvoiceNotFound, got %v", err)
+		}
+	})
+}
+
+func TestPlatformHistoryQueries(t *testing.T) {
+	skipIfNoDB(t)
+	ctx := context.Background()
+	party := "GPARTYHISTORYTEST"
+	other := "GOTHERPARTYTEST"
+	now := int64(2_000_000_000)
+
+	type invoiceState struct {
+		status   string
+		dueDate  int64
+		repaidAt *int64
+		asBuyer  bool
+	}
+	day := int64(86400)
+	repaidOneDayLate := now - 9*day
+	repaidThreeDaysLate := now - 7*day
+	states := []invoiceState{
+		{status: "Repaid", dueDate: now - 10*day, repaidAt: &repaidOneDayLate},
+		{status: "Repaid", dueDate: now - 10*day, repaidAt: &repaidThreeDaysLate, asBuyer: true},
+		{status: "Defaulted", dueDate: now - day},
+		{status: "Confirmed", dueDate: now - day, asBuyer: true},
+		{status: "Created", dueDate: now + day},
+	}
+
+	ids := make([]string, 0, len(states))
+	for _, state := range states {
+		id := newTestInvoiceID()
+		issuer, buyer := party, other
+		if state.asBuyer {
+			issuer, buyer = other, party
+		}
+		if _, err := Pool.Exec(ctx, `
+			INSERT INTO invoices (
+				id, issuer, buyer, face_value, discount_bps, due_date,
+				status, created_at, repaid_at
+			) VALUES ($1, $2, $3, '100', 0, $4, $5, $6, $7)
+		`, id, issuer, buyer, state.dueDate, state.status, now-20*day, state.repaidAt); err != nil {
+			t.Fatalf("insert invoice: %v", err)
+		}
+		ids = append(ids, id)
+	}
+	t.Cleanup(func() {
+		_, _ = Pool.Exec(context.Background(), `DELETE FROM invoice_document_hashes WHERE invoice_id = ANY($1)`, ids)
+		_, _ = Pool.Exec(context.Background(), `DELETE FROM invoices WHERE id = ANY($1)`, ids)
+	})
+
+	history, err := GetPartyHistory(ctx, Pool, party, now)
+	if err != nil {
+		t.Fatalf("GetPartyHistory: %v", err)
+	}
+	if history.TotalInvoices != 5 || history.RepaidInvoices != 2 || history.DefaultedInvoices != 1 || history.LateInvoices != 1 {
+		t.Fatalf("history counts = %#v", history)
+	}
+	if history.AverageDaysLate == nil || *history.AverageDaysLate != 2 {
+		t.Fatalf("averageDaysLate = %v", history.AverageDaysLate)
+	}
+
+	empty, err := GetPartyHistory(ctx, Pool, "GNOBODY", now)
+	if err != nil {
+		t.Fatalf("GetPartyHistory empty: %v", err)
+	}
+	if empty.TotalInvoices != 0 || empty.AverageDaysLate != nil {
+		t.Fatalf("empty history = %#v", empty)
+	}
+
+	hash := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	if err := StoreInvoiceDocumentHash(ctx, Pool, ids[0], hash); err != nil {
+		t.Fatalf("store first hash: %v", err)
+	}
+	if err := StoreInvoiceDocumentHash(ctx, Pool, ids[1], hash); err != nil {
+		t.Fatalf("store duplicate hash: %v", err)
+	}
+	matches, err := GetInvoiceIDsByDocumentHash(ctx, Pool, hash)
+	if err != nil {
+		t.Fatalf("GetInvoiceIDsByDocumentHash: %v", err)
+	}
+	if len(matches) != 2 {
+		t.Fatalf("matches = %#v", matches)
+	}
+	missing, err := GetInvoiceIDsByDocumentHash(ctx, Pool, "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789")
+	if err != nil || len(missing) != 0 {
+		t.Fatalf("missing = %#v, err = %v", missing, err)
+	}
+}
+
+func insertTestInvoice(t *testing.T, ctx context.Context, status string) string {
+	t.Helper()
+	id := newTestInvoiceID()
+	_, err := Pool.Exec(ctx, `
+		INSERT INTO invoices (id, issuer, buyer, face_value, discount_bps, due_date, status, created_at)
+		VALUES ($1, 'issuer', 'buyer', 100, 0, 0, $2, 0)
+	`, id, status)
+	if err != nil {
+		t.Fatalf("insert test invoice: %v", err)
+	}
+	t.Cleanup(func() {
+		if _, err := Pool.Exec(context.Background(), `DELETE FROM invoices WHERE id = $1`, id); err != nil {
+			t.Errorf("delete test invoice: %v", err)
+		}
+	})
+	return id
+}
+
+func assertInvoiceStatus(t *testing.T, ctx context.Context, id, want string) {
+	t.Helper()
+	var got string
+	if err := Pool.QueryRow(ctx, `SELECT status FROM invoices WHERE id = $1`, id).Scan(&got); err != nil {
+		t.Fatalf("read invoice status: %v", err)
+	}
+	if got != want {
+		t.Fatalf("invoice status = %q, want %q", got, want)
+	}
+}
+
+func newTestInvoiceID() string {
+	return fmt.Sprintf("queries-test-%d", time.Now().UnixNano())
+}
 
 // skipIfNoDB skips the test when TEST_DATABASE_URL is not set.
 // This allows go test ./... to pass in CI without a live database.
@@ -501,7 +723,9 @@ func TestUpdateInvoiceFunded(t *testing.T) {
 
 	ctx := context.Background()
 	id := fmt.Sprintf("funded-test%d", time.Now().UnixNano())
-	if _, err := InsertInvoice(ctx, Pool, newTestInvoice(id)); err != nil {
+	invoice := newTestInvoice(id)
+	invoice.Status = "Listed"
+	if _, err := InsertInvoice(ctx, Pool, invoice); err != nil {
 		t.Fatalf("InsertInvoice: %v", err)
 	}
 	t.Cleanup(func() {
@@ -535,7 +759,9 @@ func TestUpdateInvoiceShipped(t *testing.T) {
 
 	ctx := context.Background()
 	id := fmt.Sprintf("shipped-test%d", time.Now().UnixNano())
-	if _, err := InsertInvoice(ctx, Pool, newTestInvoice(id)); err != nil {
+	invoice := newTestInvoice(id)
+	invoice.Status = "Funded"
+	if _, err := InsertInvoice(ctx, Pool, invoice); err != nil {
 		t.Fatalf("InsertInvoice: %v", err)
 	}
 	t.Cleanup(func() {
@@ -569,7 +795,9 @@ func TestUpdateInvoiceDeliveryConfirmed(t *testing.T) {
 
 	ctx := context.Background()
 	id := fmt.Sprintf("delivered-test%d", time.Now().UnixNano())
-	if _, err := InsertInvoice(ctx, Pool, newTestInvoice(id)); err != nil {
+	invoice := newTestInvoice(id)
+	invoice.Status = "Active"
+	if _, err := InsertInvoice(ctx, Pool, invoice); err != nil {
 		t.Fatalf("InsertInvoice: %v", err)
 	}
 	t.Cleanup(func() {
@@ -603,7 +831,9 @@ func TestUpdateInvoiceRepaid(t *testing.T) {
 
 	ctx := context.Background()
 	id := fmt.Sprintf("repaid-test%d", time.Now().UnixNano())
-	if _, err := InsertInvoice(ctx, Pool, newTestInvoice(id)); err != nil {
+	invoice := newTestInvoice(id)
+	invoice.Status = "Confirmed"
+	if _, err := InsertInvoice(ctx, Pool, invoice); err != nil {
 		t.Fatalf("InsertInvoice: %v", err)
 	}
 	t.Cleanup(func() {
@@ -634,7 +864,9 @@ func TestUpdateInvoiceStatus(t *testing.T) {
 
 	ctx := context.Background()
 	id := fmt.Sprintf("status-test%d", time.Now().UnixNano())
-	if _, err := InsertInvoice(ctx, Pool, newTestInvoice(id)); err != nil {
+	invoice := newTestInvoice(id)
+	invoice.Status = "Funded"
+	if _, err := InsertInvoice(ctx, Pool, invoice); err != nil {
 		t.Fatalf("InsertInvoice: %v", err)
 	}
 	t.Cleanup(func() {

@@ -53,6 +53,32 @@ type DbPoolStats struct {
 	UpdatedAt             time.Time `json:"updated_at"`
 }
 
+var (
+	ErrInvoiceNotFound          = errors.New("invoice not found")
+	ErrInvalidInvoiceTransition = errors.New("invalid invoice status transition")
+)
+
+func updateInvoice(ctx context.Context, q Querier, id, operation, targetStatus, query string, args ...any) error {
+	tag, err := q.Exec(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("queries: %s: %w", operation, err)
+	}
+	if tag.RowsAffected() > 0 {
+		return nil
+	}
+
+	var currentStatus string
+	err = q.QueryRow(ctx, `SELECT status FROM invoices WHERE id = $1`, id).Scan(&currentStatus)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("queries: %s: %w: %s", operation, ErrInvoiceNotFound, id)
+	}
+	if err != nil {
+		return fmt.Errorf("queries: %s: inspect invoice after update: %w", operation, err)
+	}
+
+	return fmt.Errorf("queries: %s: %w: invoice %s is %q, cannot transition to %q", operation, ErrInvalidInvoiceTransition, id, currentStatus, targetStatus)
+}
+
 type ProtocolStats struct {
 	TotalUSDCFinanced  string `json:"total_usdc_financed"`
 	ActiveInvoiceCount int    `json:"active_invoice_count"`
@@ -62,6 +88,72 @@ type ProtocolStats struct {
 	AverageYieldBps    int    `json:"average_yield_bps"`
 	PoolUtilizationBps int    `json:"pool_utilization_bps"`
 	RegisteredIssuers  int    `json:"registered_issuers"`
+}
+
+type PartyHistory struct {
+	Address           string   `json:"address"`
+	TotalInvoices     int      `json:"totalInvoices"`
+	RepaidInvoices    int      `json:"repaidInvoices"`
+	DefaultedInvoices int      `json:"defaultedInvoices"`
+	LateInvoices      int      `json:"lateInvoices"`
+	AverageDaysLate   *float64 `json:"averageDaysLate"`
+}
+
+func StoreInvoiceDocumentHash(ctx context.Context, q Querier, invoiceID, documentHash string) error {
+	const query = `
+		INSERT INTO invoice_document_hashes (invoice_id, document_hash)
+		VALUES ($1, $2)
+		ON CONFLICT (invoice_id) DO UPDATE
+		SET document_hash = EXCLUDED.document_hash
+	`
+	if _, err := q.Exec(ctx, query, invoiceID, documentHash); err != nil {
+		return fmt.Errorf("queries: store invoice document hash: %w", err)
+	}
+	return nil
+}
+
+func GetInvoiceIDsByDocumentHash(ctx context.Context, q Querier, documentHash string) ([]string, error) {
+	const query = `
+		SELECT COALESCE(
+			ARRAY_AGG(invoice_id ORDER BY created_at, invoice_id),
+			ARRAY[]::VARCHAR[]
+		)
+		FROM invoice_document_hashes
+		WHERE document_hash = $1
+	`
+	ids := make([]string, 0)
+	if err := q.QueryRow(ctx, query, documentHash).Scan(&ids); err != nil {
+		return nil, fmt.Errorf("queries: get invoice ids by document hash: %w", err)
+	}
+	return ids, nil
+}
+
+func GetPartyHistory(ctx context.Context, q Querier, address string, now int64) (*PartyHistory, error) {
+	const query = `
+		SELECT
+			COUNT(*),
+			COUNT(*) FILTER (WHERE status = 'Repaid'),
+			COUNT(*) FILTER (WHERE status = 'Defaulted'),
+			COUNT(*) FILTER (
+				WHERE due_date < $2
+				  AND status NOT IN ('Repaid', 'Defaulted', 'Cancelled')
+			),
+			AVG(GREATEST(repaid_at - due_date, 0)::DOUBLE PRECISION / 86400.0)
+				FILTER (WHERE status = 'Repaid' AND repaid_at IS NOT NULL)
+		FROM invoices
+		WHERE issuer = $1 OR buyer = $1
+	`
+	history := &PartyHistory{Address: address}
+	if err := q.QueryRow(ctx, query, address, now).Scan(
+		&history.TotalInvoices,
+		&history.RepaidInvoices,
+		&history.DefaultedInvoices,
+		&history.LateInvoices,
+		&history.AverageDaysLate,
+	); err != nil {
+		return nil, fmt.Errorf("queries: get party history: %w", err)
+	}
+	return history, nil
 }
 
 // GetProtocolStats returns the protocol-level aggregates served by GET /stats.
@@ -252,78 +344,54 @@ func UpdateInvoiceListed(ctx context.Context, q Querier, id string, status strin
 	query := `
 		UPDATE invoices 
 		SET status = $1, discount_bps = $2
-		WHERE id = $3
+		WHERE id = $3 AND status = 'Created'
 	`
-	_, err := q.Exec(ctx, query, status, discountBps, id)
-	if err != nil {
-		return fmt.Errorf("queries: update invoice listed: %w", err)
-	}
-	return nil
+	return updateInvoice(ctx, q, id, "update invoice listed", "Listed", query, status, discountBps, id)
 }
 
 func UpdateInvoiceFunded(ctx context.Context, q Querier, id string, status string, fundedAmount string, fundedAt int64) error {
 	query := `
 		UPDATE invoices 
 		SET status = $1, funded_amount = $2, funded_at = $3
-		WHERE id = $4
+		WHERE id = $4 AND status = 'Listed'
 	`
-	_, err := q.Exec(ctx, query, status, fundedAmount, fundedAt, id)
-	if err != nil {
-		return fmt.Errorf("queries: update invoice funded: %w", err)
-	}
-	return nil
+	return updateInvoice(ctx, q, id, "update invoice funded", "Funded", query, status, fundedAmount, fundedAt, id)
 }
 
 func UpdateInvoiceShipped(ctx context.Context, q Querier, id string, status string, shippedAt int64) error {
 	query := `
 		UPDATE invoices 
 		SET status = $1, shipped_at = $2, issuer_confirmed = TRUE
-		WHERE id = $3
+		WHERE id = $3 AND status = 'Funded'
 	`
-	_, err := q.Exec(ctx, query, status, shippedAt, id)
-	if err != nil {
-		return fmt.Errorf("queries: update invoice shipped: %w", err)
-	}
-	return nil
+	return updateInvoice(ctx, q, id, "update invoice shipped", "Active", query, status, shippedAt, id)
 }
 
 func UpdateInvoiceDeliveryConfirmed(ctx context.Context, q Querier, id string, status string, buyerConfirmedAt int64) error {
 	query := `
 		UPDATE invoices 
 		SET status = $1, buyer_confirmed = TRUE, buyer_confirmed_at = $2
-		WHERE id = $3
+		WHERE id = $3 AND status = 'Active'
 	`
-	_, err := q.Exec(ctx, query, status, buyerConfirmedAt, id)
-	if err != nil {
-		return fmt.Errorf("queries: update invoice delivery confirmed: %w", err)
-	}
-	return nil
+	return updateInvoice(ctx, q, id, "update invoice delivery confirmed", "Confirmed", query, status, buyerConfirmedAt, id)
 }
 
 func UpdateInvoiceRepaid(ctx context.Context, q Querier, id string, status string, repaidAt int64) error {
 	query := `
 		UPDATE invoices 
 		SET status = $1, repaid_at = $2
-		WHERE id = $3
+		WHERE id = $3 AND status = 'Confirmed'
 	`
-	_, err := q.Exec(ctx, query, status, repaidAt, id)
-	if err != nil {
-		return fmt.Errorf("queries: update invoice repaid: %w", err)
-	}
-	return nil
+	return updateInvoice(ctx, q, id, "update invoice repaid", "Repaid", query, status, repaidAt, id)
 }
 
 func UpdateInvoiceStatus(ctx context.Context, q Querier, id string, status string) error {
 	query := `
 		UPDATE invoices 
 		SET status = $1
-		WHERE id = $2
+		WHERE id = $2 AND status IN ('Funded', 'Active', 'Confirmed')
 	`
-	_, err := q.Exec(ctx, query, status, id)
-	if err != nil {
-		return fmt.Errorf("queries: update invoice status: %w", err)
-	}
-	return nil
+	return updateInvoice(ctx, q, id, "update invoice status", "Defaulted", query, status, id)
 }
 
 func UpdateInvoiceAttestation(ctx context.Context, q Querier, invoiceID, agentID, evidenceHash string, riskScoreBps int, attestedAt int64) error {
@@ -332,9 +400,12 @@ func UpdateInvoiceAttestation(ctx context.Context, q Querier, invoiceID, agentID
 		SET attestation_agent_id = $1, risk_score_bps = $2, evidence_hash = $3, attested_at = $4
 		WHERE id = $5
 	`
-	_, err := q.Exec(ctx, query, agentID, riskScoreBps, evidenceHash, attestedAt, invoiceID)
+	tag, err := q.Exec(ctx, query, agentID, riskScoreBps, evidenceHash, attestedAt, invoiceID)
 	if err != nil {
 		return fmt.Errorf("queries: update invoice attestation: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("queries: update invoice attestation: %w: %s", ErrInvoiceNotFound, invoiceID)
 	}
 	return nil
 }

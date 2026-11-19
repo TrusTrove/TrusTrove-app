@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"math/big"
 	"net/http"
+	"regexp"
 	"strconv"
 	"time"
 
@@ -37,10 +38,13 @@ const createInvoicePollDelay = 1 * time.Second
 
 // createInvoiceRequest is the JSON body accepted by POST /invoices.
 type createInvoiceRequest struct {
-	Buyer     string `json:"buyer"`
-	FaceValue string `json:"face_value"`
-	DueDate   int64  `json:"due_date"`
+	Buyer        string `json:"buyer"`
+	FaceValue    string `json:"face_value"`
+	DueDate      int64  `json:"due_date"`
+	DocumentHash string `json:"document_hash,omitempty"`
 }
+
+var documentHashPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
 // createInvoiceParams holds the validated contract arguments derived from a
 // createInvoiceRequest plus the authenticated issuer.
@@ -77,6 +81,12 @@ func (h *APIHandler) HandleCreateInvoice(w http.ResponseWriter, r *http.Request)
 		writeHTTPError(w, r, err)
 		return
 	}
+	if body.DocumentHash != "" {
+		if err := h.storeInvoiceDocumentHashFn(r.Context(), invoiceID, body.DocumentHash); err != nil {
+			internalError(w, r, "failed to store invoice document hash", err)
+			return
+		}
+	}
 
 	writeJSON(w, http.StatusCreated, map[string]string{
 		"invoice_id":       invoiceID,
@@ -97,6 +107,9 @@ func validateCreateInvoiceRequest(ctx context.Context, body createInvoiceRequest
 
 	if body.Buyer == "" || body.FaceValue == "" || body.DueDate <= 0 {
 		return nil, httpErrorf(http.StatusBadRequest, "missing required invoice parameters")
+	}
+	if body.DocumentHash != "" && !documentHashPattern.MatchString(body.DocumentHash) {
+		return nil, httpErrorf(http.StatusBadRequest, "invalid document_hash: must be 64 lowercase hexadecimal characters without a 0x prefix")
 	}
 
 	if _, err := keypair.Parse(body.Buyer); err != nil {

@@ -34,13 +34,16 @@ type APIHandler struct {
 	// in NewAPIHandler so production behavior is unchanged; tests in this
 	// package can override individual fields to avoid requiring a live DB
 	// or Soroban RPC.
-	getInvoiceByIDFn     func(context.Context, string) (*db.DbInvoice, error)
-	getPoolStatsFn       func(context.Context) (*db.DbPoolStats, error)
-	getPoolSnapshotsFn   func(context.Context, int) ([]*db.DbPoolSnapshotHistory, error)
-	getRecentEventsFn    func(context.Context, int, string) ([]*db.EventLog, error)
-	getProtocolStatsFn   func(context.Context) (*db.ProtocolStats, error)
-	patchInvoiceStatusFn func(context.Context, string, string) error
-	readContractFn       func(ctx context.Context, rpcURL string, contractID string, method string, args []xdr.ScVal, serverKP *keypair.Full) (xdr.ScVal, error)
+	getInvoiceByIDFn              func(context.Context, string) (*db.DbInvoice, error)
+	getPoolStatsFn                func(context.Context) (*db.DbPoolStats, error)
+	getPoolSnapshotsFn            func(context.Context, int) ([]*db.DbPoolSnapshotHistory, error)
+	getRecentEventsFn             func(context.Context, int, string) ([]*db.EventLog, error)
+	getProtocolStatsFn            func(context.Context) (*db.ProtocolStats, error)
+	patchInvoiceStatusFn          func(context.Context, string, string) error
+	storeInvoiceDocumentHashFn    func(context.Context, string, string) error
+	getInvoiceIDsByDocumentHashFn func(context.Context, string) ([]string, error)
+	getPartyHistoryFn             func(context.Context, string, int64) (*db.PartyHistory, error)
+	readContractFn                func(ctx context.Context, rpcURL string, contractID string, method string, args []xdr.ScVal, serverKP *keypair.Full) (xdr.ScVal, error)
 }
 
 func NewAPIHandler(cfg *config.Config) (*APIHandler, error) {
@@ -63,6 +66,15 @@ func NewAPIHandler(cfg *config.Config) (*APIHandler, error) {
 		getProtocolStatsFn: db.GetProtocolStats,
 		patchInvoiceStatusFn: func(ctx context.Context, id, status string) error {
 			return db.UpdateInvoiceStatus(ctx, db.Pool, id, status)
+		},
+		storeInvoiceDocumentHashFn: func(ctx context.Context, id, hash string) error {
+			return db.StoreInvoiceDocumentHash(ctx, db.Pool, id, hash)
+		},
+		getInvoiceIDsByDocumentHashFn: func(ctx context.Context, hash string) ([]string, error) {
+			return db.GetInvoiceIDsByDocumentHash(ctx, db.Pool, hash)
+		},
+		getPartyHistoryFn: func(ctx context.Context, address string, now int64) (*db.PartyHistory, error) {
+			return db.GetPartyHistory(ctx, db.Pool, address, now)
 		},
 		readContractFn: soroban.ReadContract,
 	}, nil

@@ -95,6 +95,7 @@ export default async function InvoiceDetailPage({
   // Reuses the request-scoped fetch above (no second round-trip). `null` means
   // the indexer had nothing for this id; the client then does its own fetch so
   // the existing not-found flow stays in one piece.
+  const { invoiceId } = await params;
   const initialInvoice = await fetchInvoiceRaw(invoiceId);
 
   return (
