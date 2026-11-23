@@ -155,6 +155,22 @@ describe("RegistrationModal", () => {
     ).toBeInTheDocument();
   });
 
+  it("falls back to the default message when registerError has an empty message", () => {
+    render(
+      <RegistrationModal
+        isOpen={true}
+        onClose={vi.fn()}
+        register={vi.fn()}
+        isRegistering={false}
+        registerError={new Error("")}
+      />,
+    );
+
+    expect(
+      screen.getByText(/failed to submit registration/i),
+    ).toBeInTheDocument();
+  });
+
   it("disables the submit and cancel buttons while isRegistering is true", () => {
     render(
       <RegistrationModal
