@@ -383,4 +383,45 @@ describe("useProfile", () => {
     expect(refetch1).toHaveBeenCalled();
     expect(refetch2).toHaveBeenCalled();
   });
+
+  it("surfaces isVerifiedError when verification check fails via queryFn re-throw", async () => {
+    act(() => {
+      useWalletStore.getState().connect("G123", "testnet");
+    });
+
+    const verificationError = new Error("RPC timeout or network blip");
+
+    vi.mocked(RegistryClient).mockImplementation(function () {
+      return {
+        isVerified: vi.fn().mockRejectedValue(verificationError),
+      };
+    } as any);
+
+    let capturedQueryFn: (() => Promise<boolean>) | undefined;
+    vi.mocked(useQuery).mockImplementation((args: any) => {
+      if (args.queryKey[0] === "isVerified") {
+        capturedQueryFn = args.queryFn;
+        return {
+          data: undefined,
+          isLoading: false,
+          error: verificationError,
+          refetch: vi.fn(),
+        } as any;
+      }
+      return {
+        data: null,
+        isLoading: false,
+        error: null,
+        refetch: vi.fn(),
+      } as any;
+    });
+
+    const { result } = renderHook(() => useProfile());
+
+    expect(result.current.isVerified).toBe(false);
+    expect(result.current.isVerifiedError).toBe(verificationError);
+
+    expect(capturedQueryFn).toBeDefined();
+    await expect(capturedQueryFn!()).rejects.toThrow(verificationError);
+  });
 });

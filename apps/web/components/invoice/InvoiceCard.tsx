@@ -39,7 +39,7 @@ export const InvoiceCard = React.memo(function InvoiceCard({
   isSelected,
 }: InvoiceCardProps) {
   const address = useWalletStore((s) => s.address);
-  const { isVerified } = useProfile();
+  const { isVerified, isVerifiedError } = useProfile();
   const {
     listInvoice,
     fundInvoice,
@@ -270,7 +270,14 @@ export const InvoiceCard = React.memo(function InvoiceCard({
 
       {showActions && (
         <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
-          {!isVerified && (
+          {isVerifiedError ? (
+            <div className="p-2 border border-rose-500/20 bg-rose-500/5 text-rose-700 dark:text-rose-400 text-[9px] font-mono rounded flex items-start gap-1.5 mb-2 leading-normal">
+              <ShieldAlert className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <span>
+                Couldn&apos;t verify status, try again.
+              </span>
+            </div>
+          ) : !isVerified && (
             <div className="p-2 border border-amber-500/20 bg-amber-500/5 text-amber-700 dark:text-amber-500 text-[9px] font-mono rounded flex items-start gap-1.5 mb-2 leading-normal">
               <ShieldAlert className="w-3.5 h-3.5 shrink-0 mt-0.5" />
               <span>
