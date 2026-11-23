@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { InvoiceCard } from "./InvoiceCard";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useConfirmDialogStore } from "@/store/confirmDialog";
 
 vi.mock("@/store/wallet", () => ({
   useWalletStore: vi.fn(() => ({
@@ -12,6 +13,12 @@ vi.mock("@/store/wallet", () => ({
 
 vi.mock("@/hooks/useProfile", () => ({
   useProfile: vi.fn(() => ({ isVerified: true })),
+}));
+
+vi.mock("@/store/confirmDialog", () => ({
+  useConfirmDialogStore: vi.fn(() => ({
+    request: vi.fn(),
+  })),
 }));
 
 vi.mock("@/hooks/useInvoices", () => ({
@@ -160,5 +167,101 @@ describe("InvoiceCard", () => {
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(/discount basis points must be between/i);
+  });
+
+  it("requests confirmation when Fund Invoice is clicked", () => {
+    const mockRequest = vi.fn();
+    vi.mocked(useConfirmDialogStore).mockReturnValue({
+      request: mockRequest,
+    } as any);
+
+    renderWithQueryClient(
+      <InvoiceCard
+        invoice={{ ...mockInvoice, status: "Listed" } as any}
+        role="lp"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /fund invoice/i }));
+    expect(mockRequest).toHaveBeenCalledTimes(1);
+    expect(mockRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        label: "Fund Invoice",
+        invoiceId: mockInvoice.id,
+      }),
+    );
+  });
+
+  it("requests confirmation when Mark Goods Shipped is clicked", () => {
+    const mockRequest = vi.fn();
+    vi.mocked(useConfirmDialogStore).mockReturnValue({
+      request: mockRequest,
+    } as any);
+
+    renderWithQueryClient(
+      <InvoiceCard
+        invoice={{ ...mockInvoice, status: "Funded" } as any}
+        role="issuer"
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /mark goods shipped/i }),
+    );
+    expect(mockRequest).toHaveBeenCalledTimes(1);
+    expect(mockRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        label: "Mark Goods Shipped",
+        invoiceId: mockInvoice.id,
+      }),
+    );
+  });
+
+  it("requests confirmation when Confirm Delivery is clicked", () => {
+    const mockRequest = vi.fn();
+    vi.mocked(useConfirmDialogStore).mockReturnValue({
+      request: mockRequest,
+    } as any);
+
+    renderWithQueryClient(
+      <InvoiceCard
+        invoice={
+          { ...mockInvoice, status: "Active", buyerConfirmed: false } as any
+        }
+        role="buyer"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /confirm delivery/i }));
+    expect(mockRequest).toHaveBeenCalledTimes(1);
+    expect(mockRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        label: "Confirm Delivery",
+        invoiceId: mockInvoice.id,
+      }),
+    );
+  });
+
+  it("requests confirmation when Repay Invoice is clicked", () => {
+    const mockRequest = vi.fn();
+    vi.mocked(useConfirmDialogStore).mockReturnValue({
+      request: mockRequest,
+    } as any);
+
+    renderWithQueryClient(
+      <InvoiceCard
+        invoice={{ ...mockInvoice, status: "Confirmed" } as any}
+        role="buyer"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /repay invoice/i }));
+    expect(mockRequest).toHaveBeenCalledTimes(1);
+    expect(mockRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        label: "Repay Invoice",
+        invoiceId: mockInvoice.id,
+      }),
+    );
   });
 });
