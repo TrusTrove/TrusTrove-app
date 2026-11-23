@@ -7,16 +7,6 @@ allowBuilds:
   unrs-resolver: true
 auditConfig:
   ignoreGhsas:
-    - GHSA-p293-qw3h-jr36
-    - GHSA-2xp9-vwfh-vxw4
-    - GHSA-h25m-26qc-wcjf
-    - GHSA-q4gf-8mx6-v5v3
-    - GHSA-8h8q-6873-q5fj
-    - GHSA-c4j6-fc7j-m34r
-    - GHSA-36qx-fr4f-26g5
-    - GHSA-m99w-x7hq-7vfj
-    - GHSA-89xv-2m56-2m9x
-    - GHSA-p9j2-gv94-2wf4
     - GHSA-82x6-q7mm-w9cf
     - GHSA-v5mp-jgw5-2x6j
     - GHSA-c29m-xwm3-cm6r
