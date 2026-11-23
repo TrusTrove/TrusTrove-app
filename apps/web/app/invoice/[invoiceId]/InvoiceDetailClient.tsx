@@ -65,7 +65,7 @@ export default function InvoiceDetailClient({
 
   const { invoice, isLoading, refetch } = useInvoice(invoiceId, {
     initialData: seedInvoice,
-  });
+  }) as { invoice: any; isLoading: boolean; refetch: () => void };
   const {
     submitting,
     error,
