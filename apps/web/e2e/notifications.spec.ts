@@ -162,6 +162,29 @@ function preferenceToggle(page: Page, category: string): Locator {
 }
 
 test.describe("Notification bell, persistence and preferences", () => {
+  test("renders 'N new' count when opening dropdown and clears unread dot on bell", async ({
+    page,
+  }) => {
+    await installFreighter(page, WALLET_A);
+
+    const invoices = [
+      makeInvoice(RELEVANT_INVOICE, WALLET_A, "GBBUYERXXXXXXXX"),
+    ];
+    const events = [
+      makeEvent(1, "InvoiceCreated", RELEVANT_INVOICE, 1000),
+      makeEvent(2, "InvoiceFunded", RELEVANT_INVOICE, 2000),
+    ];
+    await mockNotificationApis(page, invoices, events);
+
+    await page.goto("/");
+    await connectWallet(page);
+
+    await expect(unreadDot(page)).toBeVisible({ timeout: 15000 });
+    await openBell(page);
+    await expect(dropdown(page).getByText("2 new")).toBeVisible();
+    await expect(unreadDot(page)).toHaveCount(0);
+  });
+
   test("shows the unread dot, lists only relevant notifications newest first, and clears the dot on open", async ({
     page,
   }) => {
