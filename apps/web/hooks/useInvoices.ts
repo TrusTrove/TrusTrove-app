@@ -129,9 +129,6 @@ export function useInvoicesList(filters?: {
   issuer?: string;
   page?: number;
   limit?: number;
-  minAmount?: string;
-  maxAmount?: string;
-  maxDiscount?: string;
   enabled?: boolean;
 }) {
   const invoicesQuery = useQuery<PaginatedInvoices>({
@@ -154,7 +151,46 @@ export function useInvoicesList(filters?: {
   };
 }
 
+export function useFilteredInvoicesList(filters?: {
+  status?: string;
+  issuer?: string;
+  page?: number;
+  limit?: number;
+  minAmount?: string;
+  maxAmount?: string;
+  maxDiscount?: string;
+  enabled?: boolean;
+}) {
+  const invoicesQuery = useQuery<PaginatedInvoices>({
+    queryKey: ["invoices", filters],
+    queryFn: () => getFilteredInvoices(filters),
+    refetchInterval: 15000,
+    staleTime: 15000,
+    enabled: filters?.enabled ?? true,
+  });
+
+  return {
+    invoices: invoicesQuery.data?.data ?? [],
+    total: invoicesQuery.data?.total ?? 0,
+    totalPages: invoicesQuery.data?.totalPages ?? 1,
+    page: invoicesQuery.data?.page ?? filters?.page ?? 1,
+    limit: invoicesQuery.data?.limit ?? filters?.limit ?? 20,
+    isLoading: invoicesQuery.isLoading,
+    error: invoicesQuery.error,
+    refetch: invoicesQuery.refetch,
+  };
+}
+
 export function useInvoiceList(filters?: {
+  status?: string;
+  issuer?: string;
+  page?: number;
+  limit?: number;
+}) {
+  return useInvoicesList(filters);
+}
+
+export function useFilteredInvoiceList(filters?: {
   status?: string;
   issuer?: string;
   page?: number;
@@ -163,7 +199,7 @@ export function useInvoiceList(filters?: {
   maxAmount?: string;
   maxDiscount?: string;
 }) {
-  return useInvoicesList(filters);
+  return useFilteredInvoicesList(filters);
 }
 
 export function useInvoiceActions() {

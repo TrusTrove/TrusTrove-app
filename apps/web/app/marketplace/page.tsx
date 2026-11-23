@@ -14,7 +14,7 @@ import { InvoiceTable } from "@/components/invoice/InvoiceTable";
 import { InvoiceCard } from "@/components/invoice/InvoiceCard";
 import { InvoiceCompareModal } from "@/components/invoice/InvoiceCompareModal";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
-import { useInvoiceList } from "@/hooks/useInvoices";
+import { useFilteredInvoiceList } from "@/hooks/useInvoices";
 import { usePool } from "@/hooks/usePool";
 import { useWalletStore } from "@/store/wallet";
 import { useProfile } from "@/hooks/useProfile";
@@ -153,7 +153,7 @@ export default function Marketplace() {
   const parsedMaxAmount = useMemo(() => parseFilterStroops(maxAmount), [maxAmount]);
   const parsedMaxDiscount = useMemo(() => parseFilterStroops(maxDiscount), [maxDiscount]);
 
-  const { invoices, isLoading, total, totalPages } = useInvoiceList({
+  const { invoices, isLoading, total, totalPages } = useFilteredInvoiceList({
     status: statusFilter === "ALL" ? undefined : statusFilter,
     page: invoicePage,
     limit: invoiceLimit,

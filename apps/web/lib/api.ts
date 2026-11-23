@@ -409,6 +409,36 @@ export interface PaginatedInvoices {
 export async function getInvoices(filters?: {
   status?: string;
   issuer?: string;
+  page?: number;
+  limit?: number;
+}): Promise<PaginatedInvoices> {
+  const params = new URLSearchParams();
+  if (filters?.status) params.append("status", filters.status);
+  if (filters?.issuer) params.append("issuer", filters.issuer);
+  if (filters?.page != null) params.append("page", String(filters.page));
+  if (filters?.limit != null) params.append("limit", String(filters.limit));
+  const query = params.size > 0 ? `?${params.toString()}` : "";
+
+  const raw = await apiFetch<{
+    data: RawInvoice[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }>(`/invoices${query}`);
+
+  return {
+    data: raw.data.map(parseInvoiceResponse),
+    total: raw.total,
+    page: raw.page,
+    limit: raw.limit,
+    totalPages: raw.totalPages,
+  };
+}
+
+export async function getFilteredInvoices(filters?: {
+  status?: string;
+  issuer?: string;
   minAmount?: string;
   maxAmount?: string;
   maxDiscount?: string;
