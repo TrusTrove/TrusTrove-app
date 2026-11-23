@@ -185,6 +185,8 @@ export function useWallet() {
     disconnect();
   };
 
+  const canSign = connected && !error && network === EXPECTED_NETWORK;
+
   return {
     address,
     connected,
@@ -194,6 +196,7 @@ export function useWallet() {
     loading,
     error,
     errorCode,
+    canSign,
     balances,
     balancesLoading,
     balancesError,

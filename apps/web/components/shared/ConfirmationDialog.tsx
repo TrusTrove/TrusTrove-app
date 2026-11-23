@@ -6,12 +6,48 @@ import { Button } from "@/components/ui/button";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { useConfirmDialogStore } from "@/store/confirmDialog";
 import { truncateAddress } from "@/lib/format";
+import { useWallet } from "@/hooks/useWallet";
 
 export function ConfirmationDialog() {
   const { pendingAction, cancel } = useConfirmDialogStore();
   const overlayRef = useFocusTrap<HTMLDivElement>(!!pendingAction, cancel);
+  const { connected, canSign, connectWallet, error: walletError } = useWallet();
 
   if (!pendingAction) return null;
+
+  const renderRecoveryPath = () => {
+    if (!connected) {
+      return (
+        <div className="space-y-3 mb-5">
+          <p className="text-xs text-amber-700 dark:text-amber-400 font-mono">
+            Your wallet is not connected. Connect a wallet to sign this action.
+          </p>
+          <Button
+            className="w-full bg-primary text-primary-foreground text-xs font-bold uppercase py-2"
+            onClick={connectWallet}
+          >
+            Connect Wallet
+          </Button>
+        </div>
+      );
+    }
+    if (!canSign) {
+      return (
+        <div className="space-y-3 mb-5">
+          <p className="text-xs text-amber-700 dark:text-amber-400 font-mono">
+            {walletError || "Active wallet cannot sign on the configured network."}
+          </p>
+          <Button
+            className="w-full bg-primary text-primary-foreground text-xs font-bold uppercase py-2"
+            onClick={connectWallet}
+          >
+            Switch Network / Reconnect
+          </Button>
+        </div>
+      );
+    }
+    return null;
+  };
 
   const handleConfirm = () => {
     const action = pendingAction;
@@ -68,6 +104,8 @@ export function ConfirmationDialog() {
           </div>
         </div>
 
+        {renderRecoveryPath()}
+
         <p className="text-[10px] text-amber-700 dark:text-amber-400 font-mono mb-4 leading-normal">
           This action is irreversible once submitted on-chain. Review carefully
           before confirming.
@@ -80,12 +118,14 @@ export function ConfirmationDialog() {
           >
             Cancel
           </Button>
+          {canSign && (
           <Button
             className="flex-1 bg-rose-700 hover:bg-rose-800 dark:bg-rose-600 dark:hover:bg-rose-700 text-white text-[10px] font-bold uppercase py-2"
             onClick={handleConfirm}
           >
             CONFIRM
           </Button>
+          )}
         </div>
       </div>
     </div>
