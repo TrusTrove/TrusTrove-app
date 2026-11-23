@@ -68,6 +68,31 @@ func (h *APIHandler) HandleGetInvoices(w http.ResponseWriter, r *http.Request) {
 	status := r.URL.Query().Get("status")
 	issuer := r.URL.Query().Get("issuer")
 
+	var from *int64
+	if fromStr := r.URL.Query().Get("from"); fromStr != "" {
+		if v, err := strconv.ParseInt(fromStr, 10, 64); err == nil {
+			from = &v
+		} else {
+			http.Error(w, "invalid from parameter: must be an integer", http.StatusBadRequest)
+			return
+		}
+	}
+
+	var to *int64
+	if toStr := r.URL.Query().Get("to"); toStr != "" {
+		if v, err := strconv.ParseInt(toStr, 10, 64); err == nil {
+			to = &v
+		} else {
+			http.Error(w, "invalid to parameter: must be an integer", http.StatusBadRequest)
+			return
+		}
+	}
+
+	if from != nil && to != nil && *from > *to {
+		http.Error(w, "invalid date window: from cannot be greater than to", http.StatusBadRequest)
+		return
+	}
+
 	// Parse pagination params
 	page := 1
 	limit := 20
@@ -96,7 +121,7 @@ func (h *APIHandler) HandleGetInvoices(w http.ResponseWriter, r *http.Request) {
 
 	offset := (page - 1) * limit
 
-	invoices, total, err := db.GetInvoicesPage(r.Context(), status, issuer, limit, offset)
+	invoices, total, err := db.GetInvoicesPageWithDueDateWindow(r.Context(), status, issuer, from, to, limit, offset)
 	if err != nil {
 		// The raw DB error can disclose table/column names; log it and return
 		// a generic message (issue #921).
