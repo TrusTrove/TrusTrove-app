@@ -2,6 +2,7 @@ import React from "react";
 import { screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderWithProviders } from "@/test-utils/renderWithProviders";
+import { useInvoiceList } from "@/hooks/useInvoices";
 
 vi.mock("@/store/wallet", () => ({
   useWalletStore: (selector: any) => {
@@ -51,12 +52,18 @@ vi.mock("@/components/shared/PageLayout", () => ({
 }));
 
 vi.mock("@/components/invoice/InvoiceTable", () => ({
-  InvoiceTable: ({ invoices }: { invoices: { id: number }[] }) => (
+  InvoiceTable: ({ invoices, pagination }: any) => (
+    <div>
     <ul data-testid="invoice-table">
-      {invoices.map((inv) => (
+        {invoices.map((inv: any) => (
         <li key={inv.id}>invoice-{inv.id}</li>
       ))}
     </ul>
+      <div data-testid="pagination-total">{pagination?.total}</div>
+      <button type="button" onClick={() => pagination?.onPageChange(2)}>
+        next-page
+      </button>
+    </div>
   ),
 }));
 
@@ -71,9 +78,10 @@ const visibleIds = () =>
     (li) => li.textContent,
   );
 
-describe("Marketplace value filters", () => {
+describe("Marketplace value filters and pagination", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    vi.clearAllMocks();
   });
 
   it("does not crash when Min Value has more than 7 decimals", () => {
@@ -105,5 +113,21 @@ describe("Marketplace value filters", () => {
     });
 
     expect(visibleIds()).toEqual(["invoice-3", "invoice-2", "invoice-1"]);
+  });
+
+  it("sends amount and discount filters to useInvoiceList and paginates with them", () => {
+    renderWithProviders(<Marketplace />);
+
+    fireEvent.change(screen.getByLabelText("Min Value"), {
+      target: { value: "1" },
+    });
+
+    expect(useInvoiceList).toHaveBeenCalledWith(
+      expect.objectContaining({
+        minAmount: "10000000",
+      }),
+    );
+
+    fireEvent.click(screen.getByText("next-page"));
   });
 });

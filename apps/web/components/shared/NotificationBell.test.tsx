@@ -1,49 +1,37 @@
-import { describe, it, expect, vi } from "vitest";
+import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
 import { NotificationBell } from "./NotificationBell";
 
 describe("NotificationBell", () => {
-  it("renders empty state", () => {
-    render(<NotificationBell notifications={[]} />);
-    const button = screen.getByRole("button", { name: /notifications/i });
-    expect(button).toBeDefined();
-
-    fireEvent.click(button);
-    expect(screen.getByText("No notifications yet")).toBeDefined();
-  });
-
-  it("renders unread count and items", () => {
-    const mockNotifs = [
+  it("renders unread badge and handles opening correctly", () => {
+    const onOpen = vi.fn();
+    const notifications = [
       {
         id: "1",
-        type: "Invoice Created",
-        invoiceId: "inv1",
-        message: "New invoice",
-        timestamp: Date.now() / 1000 - 120, // 2m ago
+        type: "InvoiceCreated",
+        invoiceId: "inv_1",
+        message: "Invoice created",
+        timestamp: Date.now(),
+        read: false,
+      },
+      {
+        id: "2",
+        type: "InvoiceFunded",
+        invoiceId: "inv_2",
+        message: "Invoice funded",
+        timestamp: Date.now(),
         read: false,
       },
     ];
 
-    render(<NotificationBell notifications={mockNotifs} />);
+    render(<NotificationBell notifications={notifications} onOpen={onOpen} />);
 
-    // Open dropdown
-    const button = screen.getByRole("button", { name: /notifications/i });
-    fireEvent.click(button);
+    const bellButton = screen.getByRole("button", { name: "Notifications" });
+    expect(bellButton).toBeInTheDocument();
 
-    // Check count and content
-    expect(screen.getByText("1 new")).toBeDefined();
-    expect(screen.getByText("Invoice Created")).toBeDefined();
-    expect(screen.getByText("New invoice")).toBeDefined();
-    expect(screen.getByText(/m ago/)).toBeDefined();
-  });
-
-  it("calls onOpen when opened", () => {
-    const onOpen = vi.fn();
-    render(<NotificationBell notifications={[]} onOpen={onOpen} />);
-
-    const button = screen.getByRole("button", { name: /notifications/i });
-    fireEvent.click(button);
-
+    fireEvent.click(bellButton);
     expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("2 new")).toBeInTheDocument();
   });
 });

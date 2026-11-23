@@ -436,6 +436,42 @@ export async function getInvoices(filters?: {
   };
 }
 
+export async function getFilteredInvoices(filters?: {
+  status?: string;
+  issuer?: string;
+  minAmount?: string;
+  maxAmount?: string;
+  maxDiscount?: string;
+  page?: number;
+  limit?: number;
+}): Promise<PaginatedInvoices> {
+  const params = new URLSearchParams();
+  if (filters?.status) params.append("status", filters.status);
+  if (filters?.issuer) params.append("issuer", filters.issuer);
+  if (filters?.minAmount) params.append("minAmount", filters.minAmount);
+  if (filters?.maxAmount) params.append("maxAmount", filters.maxAmount);
+  if (filters?.maxDiscount) params.append("maxDiscount", filters.maxDiscount);
+  if (filters?.page != null) params.append("page", String(filters.page));
+  if (filters?.limit != null) params.append("limit", String(filters.limit));
+  const query = params.size > 0 ? `?${params.toString()}` : "";
+
+  const raw = await apiFetch<{
+    data: RawInvoice[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }>(`/invoices${query}`);
+
+  return {
+    data: raw.data.map(parseInvoiceResponse),
+    total: raw.total,
+    page: raw.page,
+    limit: raw.limit,
+    totalPages: raw.totalPages,
+  };
+}
+
 /** Page size used by {@link getAllInvoices}. Matches the API's max `limit`. */
 const ALL_INVOICES_PAGE_SIZE = 100;
 
