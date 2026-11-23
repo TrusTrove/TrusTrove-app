@@ -623,4 +623,48 @@ describe("InvoiceDetailClient", () => {
     );
     expect(screen.getByRole("button", { name: /Download PDF/i })).toBeEnabled();
   });
+
+  it("allows a connected user to mute and unmute an invoice locally", async () => {
+    vi.mocked(useWalletStore).mockImplementation(((selector: any) => {
+      const state = {
+        address: ISSUER,
+        connected: true,
+        network: "testnet",
+        token: null,
+        role: "issuer",
+      };
+      return selector ? selector(state) : state;
+    }) as any);
+
+    render(<InvoiceDetailClient invoiceId={INVOICE_ID} />);
+
+    expect(screen.getByText(/Notification Muting/i)).toBeInTheDocument();
+    const muteButton = screen.getByRole("button", {
+      name: /Mute Invoice Notifications/i,
+    });
+    expect(muteButton).toBeInTheDocument();
+
+    fireEvent.click(muteButton);
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /Unmute Invoice Notifications/i }),
+      ).toBeInTheDocument(),
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Unmute Invoice Notifications/i }),
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /Mute Invoice Notifications/i }),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it("hides the invoice muting control when no wallet is connected", () => {
+    render(<InvoiceDetailClient invoiceId={INVOICE_ID} />);
+    expect(screen.queryByText(/Notification Muting/i)).not.toBeInTheDocument();
+  });
 });

@@ -33,6 +33,12 @@ import {
   Share2,
 } from "lucide-react";
 import { formatAmount } from "@/lib/assets";
+import {
+  mutedInvoicesStorageKey,
+  isInvoiceMuted,
+  muteInvoice,
+  unmuteInvoice,
+} from "@/lib/notification-preferences";
 import { truncateAddress } from "@/lib/format";
 import { parseInvoiceResponse } from "@/lib/parsers";
 import { generateInvoicePdf } from "@/lib/invoicePdf";
@@ -90,6 +96,28 @@ export default function InvoiceDetailClient({
   const [invoiceUrl, setInvoiceUrl] = useState("");
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
+  const address = useWalletStore((s) => s.address);
+  const [muted, setMuted] = useState(false);
+
+  useEffect(() => {
+    if (address && invoiceId) {
+      setMuted(isInvoiceMuted(mutedInvoicesStorageKey(address), invoiceId));
+    } else {
+      setMuted(false);
+    }
+  }, [address, invoiceId]);
+
+  const toggleMute = () => {
+    if (!address) return;
+    const storageKey = mutedInvoicesStorageKey(address);
+    if (muted) {
+      unmuteInvoice(storageKey, invoiceId);
+      setMuted(false);
+    } else {
+      muteInvoice(storageKey, invoiceId);
+      setMuted(true);
+    }
+  };
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -464,6 +492,29 @@ export default function InvoiceDetailClient({
                 </div>
               </div>
             </div>
+
+            {address && (
+            <div className="bg-card border border-border rounded-lg p-5 space-y-4">
+              <h2 className="text-xs font-bold font-mono text-foreground uppercase tracking-wider border-b border-border/40 pb-2 flex items-center gap-1.5">
+                  <Activity className="w-3.5 h-3.5 text-primary" />
+                  Notification Muting
+                </h2>
+                <div className="space-y-3 text-xs font-mono">
+                  <p className="text-muted-foreground">
+                    {muted
+                      ? "Notifications for this invoice are currently muted."
+                      : "Mute local notifications for this invoice without affecting others."}
+                  </p>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={toggleMute}
+                  >
+                    {muted ? "Unmute Invoice Notifications" : "Mute Invoice Notifications"}
+                  </Button>
+                </div>
+              </div>
+            )}
 
             <div className="bg-card border border-border rounded-lg p-5 space-y-4">
               <h2 className="text-xs font-bold font-mono text-foreground uppercase tracking-wider border-b border-border/40 pb-2 flex items-center gap-1.5">
