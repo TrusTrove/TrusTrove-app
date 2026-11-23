@@ -14,7 +14,7 @@ import { InvoiceTable } from "@/components/invoice/InvoiceTable";
 import { InvoiceCard } from "@/components/invoice/InvoiceCard";
 import { InvoiceCompareModal } from "@/components/invoice/InvoiceCompareModal";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
-import { useInvoiceList } from "@/hooks/useInvoices";
+import { useFilteredInvoiceList } from "@/hooks/useInvoices";
 import { usePool } from "@/hooks/usePool";
 import { useWalletStore } from "@/store/wallet";
 import { useProfile } from "@/hooks/useProfile";
@@ -149,10 +149,17 @@ export default function Marketplace() {
     writeFiltersToStorage({ statusFilter, minAmount, maxAmount, maxDiscount });
   }, [statusFilter, minAmount, maxAmount, maxDiscount]);
 
-  const { invoices, isLoading, total, totalPages } = useInvoiceList({
+  const parsedMinAmount = useMemo(() => parseFilterStroops(minAmount), [minAmount]);
+  const parsedMaxAmount = useMemo(() => parseFilterStroops(maxAmount), [maxAmount]);
+  const parsedMaxDiscount = useMemo(() => parseFilterStroops(maxDiscount), [maxDiscount]);
+
+  const { invoices, isLoading, total, totalPages } = useFilteredInvoiceList({
     status: statusFilter === "ALL" ? undefined : statusFilter,
     page: invoicePage,
     limit: invoiceLimit,
+    minAmount: parsedMinAmount !== null ? parsedMinAmount.toString() : undefined,
+    maxAmount: parsedMaxAmount !== null ? parsedMaxAmount.toString() : undefined,
+    maxDiscount: parsedMaxDiscount !== null ? parsedMaxDiscount.toString() : undefined,
   });
 
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
@@ -185,27 +192,9 @@ export default function Marketplace() {
     setSelectedInvoice(null);
   }, [statusFilter, minAmount, maxAmount, maxDiscount]);
 
-  // Filter and Sort Invoices
+  // Sort Invoices
   const filteredAndSortedInvoices = useMemo(() => {
     let result = [...invoices];
-
-    // Filter by Min Amount
-    const minStroops = parseFilterStroops(minAmount);
-    if (minStroops !== null) {
-      result = result.filter((inv) => inv.faceValue >= minStroops);
-    }
-
-    // Filter by Max Amount
-    const maxStroops = parseFilterStroops(maxAmount);
-    if (maxStroops !== null) {
-      result = result.filter((inv) => inv.faceValue <= maxStroops);
-    }
-
-    // Filter by Max Discount Rate (bps)
-    const discBps = parseInt(maxDiscount, 10);
-    if (!isNaN(discBps)) {
-      result = result.filter((inv) => inv.discountBps <= discBps);
-    }
 
     // Sort by Face Value Descending by default
     return result.sort((a, b) => {
@@ -213,7 +202,7 @@ export default function Marketplace() {
       if (b.faceValue < a.faceValue) return -1;
       return 0;
     });
-  }, [invoices, minAmount, maxAmount, maxDiscount]);
+  }, [invoices]);
 
   const handlePageChange = (page: number) => {
     setInvoicePage(page);

@@ -162,9 +162,30 @@ function preferenceToggle(page: Page, category: string): Locator {
 }
 
 test.describe("Notification bell, persistence and preferences", () => {
-  // FIXME: the dropdown's "N new" badge can never render (opening marks
-  // everything read in the same update). Tracked in https://github.com/TrusTrove/TrusTrove-app/issues/1176
-  test.fixme("shows the unread dot, lists only relevant notifications newest first, and clears the dot on open", async ({
+  test("renders 'N new' count when opening dropdown and clears unread dot on bell", async ({
+    page,
+  }) => {
+    await installFreighter(page, WALLET_A);
+
+    const invoices = [
+      makeInvoice(RELEVANT_INVOICE, WALLET_A, "GBBUYERXXXXXXXX"),
+    ];
+    const events = [
+      makeEvent(1, "InvoiceCreated", RELEVANT_INVOICE, 1000),
+      makeEvent(2, "InvoiceFunded", RELEVANT_INVOICE, 2000),
+    ];
+    await mockNotificationApis(page, invoices, events);
+
+    await page.goto("/");
+    await connectWallet(page);
+
+    await expect(unreadDot(page)).toBeVisible({ timeout: 15000 });
+    await openBell(page);
+    await expect(dropdown(page).getByText("2 new")).toBeVisible();
+    await expect(unreadDot(page)).toHaveCount(0);
+  });
+
+  test("shows the unread dot, lists only relevant notifications newest first, and clears the dot on open", async ({
     page,
   }) => {
     await installFreighter(page, WALLET_A);
@@ -205,9 +226,7 @@ test.describe("Notification bell, persistence and preferences", () => {
     await expect(unreadDot(page)).toHaveCount(0);
   });
 
-  // FIXME: asserts the same unreachable "N new" badge. Tracked in
-  // https://github.com/TrusTrove/TrusTrove-app/issues/1176
-  test.fixme("persists read state across a reload and marks only newly mocked events unread", async ({
+  test("persists read state across a reload and marks only newly mocked events unread", async ({
     page,
   }) => {
     await installFreighter(page, WALLET_A);
