@@ -73,6 +73,8 @@ export interface Invoice {
   riskScoreBps?: number | null;
   /** Hash of the supporting evidence document. */
   evidenceHash?: string | null;
+  /** Document hash details. */
+  documentHash?: DocumentHash | null;
   /** Recorded cryptographic hashes of invoice evidence documents. */
   documentHashes?: Array<{ algorithm?: string; name?: string; hash: string }> | null;
   /** Unix timestamp (seconds) when the attestation was provided. */
@@ -116,6 +118,15 @@ export interface LPPosition {
 /**
  * Defines a registered underwriter agent authorized to attest invoices.
  */
+/**
+ * Represents a document hash representation.
+ */
+export interface DocumentHash {
+  hash: string;
+  algorithm?: string;
+  name?: string;
+}
+
 export interface Agent {
   /** The agent's on-chain identifier (Symbol). */
   agentId: string;
