@@ -5,6 +5,7 @@ export type {
   LPPosition,
   Profile,
   AssetType,
+  DocumentHash,
 } from "@trusttrove/sdk";
 
 /** Untyped payload attached to an on-chain event. */
