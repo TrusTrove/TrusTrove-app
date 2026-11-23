@@ -263,7 +263,15 @@ export function useInvoiceActions() {
       if (!address) throw new Error("Wallet not connected");
       const invoice = await getInvoiceByID(invoiceId);
       const client = await getInvoiceClient();
-      return client.confirmDelivery(invoiceId, invoice.buyer, address);
+      const onChainInvoice = await client.get(invoiceId, address);
+      if (
+        onChainInvoice.buyer !== invoice.buyer ||
+        (onChainInvoice.status !== "Active" &&
+          onChainInvoice.status !== invoice.status)
+      ) {
+        throw new Error("Invoice changed, please retry");
+      }
+      return client.confirmDelivery(invoiceId, onChainInvoice.buyer, address);
     },
     onSuccess: () => {
       invalidateInvoiceQueries(queryClient, address);
