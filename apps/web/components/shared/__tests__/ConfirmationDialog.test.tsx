@@ -1,5 +1,6 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ConfirmationDialog } from "../ConfirmationDialog";
 import { useConfirmDialogStore } from "@/store/confirmDialog";
 import { useWallet } from "@/hooks/useWallet";

@@ -98,3 +98,10 @@ export interface TxHistoryItem {
   hash: string;
   status: "success" | "failed";
 }
+
+export interface WalletCapabilityInfo {
+  canSign: boolean;
+  networkMatches: boolean;
+  readOnly: boolean;
+  message?: string;
+}
