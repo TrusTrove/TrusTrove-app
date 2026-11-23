@@ -9,10 +9,12 @@
 | `NEXT_PUBLIC_REGISTRY_CONTRACT_ID` | Frontend + Backend | Deployed registry contract address       | `CABG...`                                            |
 | `NEXT_PUBLIC_INVOICE_CONTRACT_ID`  | Frontend + Backend | Deployed invoice contract address        | `CA4O...`                                            |
 | `NEXT_PUBLIC_ESCROW_CONTRACT_ID`   | Frontend + Backend | Deployed escrow contract address         | `CAJW...`                                            |
-| `NEXT_PUBLIC_POOL_CONTRACT_ID`     | Frontend + Backend | Deployed pool contract address           | `CAKE...`                                            |
-| `NEXT_PUBLIC_USDC_ISSUER`          | Frontend + Backend | USDC issuer on Stellar testnet           | `GBBD...`                                            |
-| `NEXT_PUBLIC_USDC_ASSET_CODE`      | Frontend + Backend | USDC asset code                          | `USDC`                                               |
-| `NEXT_PUBLIC_API_BASE_URL`         | Frontend only      | Indexer API base URL                     | `http://localhost:8080`                              |
+| `NEXT_PUBLIC_POOL_CONTRACT_ID`           | Frontend + Backend | Deployed pool contract address           | `CAKE...`                                            |
+| `NEXT_PUBLIC_AGENT_REGISTRY_CONTRACT_ID` | Frontend + SDK     | Deployed agent-registry contract address | `CABC...`                                            |
+| `NEXT_PUBLIC_USDC_ISSUER`                | Frontend + Backend | USDC issuer on Stellar testnet           | `GBBD...`                                            |
+| `NEXT_PUBLIC_USDC_ASSET_CODE`            | Frontend + Backend | USDC asset code                          | `USDC`                                               |
+| `NEXT_PUBLIC_API_BASE_URL`               | Frontend only      | Indexer API base URL                     | `http://localhost:8080`                              |
+| `NEXT_PUBLIC_APP_URL`                    | Frontend only      | Canonical public app URL                 | `http://localhost:3000`                              |
 | `CSP_ENFORCE`                      | Frontend only      | Enforce the CSP (default: report-only)   | `true`                                               |
 | `STELLAR_NETWORK`                  | Backend only       | Network name                             | `testnet`                                            |
 | `HORIZON_URL`                      | Backend only       | Horizon REST API endpoint                | `https://horizon-testnet.stellar.org`                |
@@ -21,8 +23,8 @@
 | `REGISTRY_CONTRACT_ID`             | Backend only       | Deployed registry contract address       | `CABG...`                                            |
 | `INVOICE_CONTRACT_ID`              | Backend only       | Deployed invoice contract address        | `CA4O...`                                            |
 | `ESCROW_CONTRACT_ID`               | Backend only       | Deployed escrow contract address         | `CAJW...`                                            |
-| `POOL_CONTRACT_ID`                 | Backend only       | Deployed pool contract address           | `CAKE...`                                            |
-| `AGENT_REGISTRY_CONTRACT`          | Backend only       | Deployed agent-registry contract address | `CABC...`                                            |
+| `POOL_CONTRACT_ID`                 | Backend + CLI      | Deployed pool contract address           | `CAKE...`                                            |
+| `AGENT_REGISTRY_CONTRACT_ID`       | Examples / SDK     | Deployed agent-registry contract address | `CABC...`                                            |
 | `USDC_ISSUER`                      | Backend only       | USDC issuer on Stellar testnet           | `GBBD...`                                            |
 | `USDC_ASSET_CODE`                  | Backend only       | USDC asset code                          | `USDC`                                               |
 | `DATABASE_URL`                     | Backend only       | Neon pooled connection string            | `postgresql://user:pass@host/db?sslmode=require`     |
@@ -33,10 +35,16 @@
 | `JWT_SECRET`                       | Backend only       | Secret for JWT signing                   | `your-secret-here`                                   |
 | `JWT_EXPIRY_HOURS`                 | Backend only       | JWT token expiry                         | `24`                                                 |
 | `ALLOWED_ORIGINS`                  | Backend only       | Allowed CORS origins for the indexer API | `https://trustrove.vercel.app,http://localhost:3000` |
+| `TRUSTTROVE_PUBLIC_KEY`            | CLI                | Stellar public key for CLI simulations   | `GABC...`                                            |
+| `TRUSTTROVE_POOL_CONTRACT_ID`      | CLI                | Pool contract ID override for CLI        | `CAKE...`                                            |
+| `TRUSTTROVE_RPC_URL`               | CLI                | Soroban RPC URL override for CLI         | `https://soroban-testnet.stellar.org`                |
+| `TRUSTTROVE_NETWORK_PASSPHRASE`    | CLI                | Network passphrase override for CLI      | `Test SDF Network ; September 2015`                  |
+| `SIGNER_PUBLIC_KEY`                | Examples           | Public key for `sdk-quickstart`          | `GD4D...`                                            |
+| `FRIENDBOT_URL`                    | Examples           | Friendbot URL for `sdk-quickstart`       | `https://friendbot.stellar.org`                      |
 
 > **Note:** `CSP_ENFORCE` is read by the web app's middleware at request time, so it takes effect on restart or redeploy without a rebuild. See [Security Headers](security-headers.md).
 
-> **Note:** `AGENT_REGISTRY_CONTRACT` is deployed from Underwrite's separate `underwrite-contract` repo, not from this monorepo.
+> **Note:** `AGENT_REGISTRY_CONTRACT_ID` is deployed from Underwrite's separate `underwrite-contract` repo, not from this monorepo.
 
 > **Note:** Provider RPC URLs with embedded API keys are safe to use in `SOROBAN_RPC_URL`. Hosted Soroban RPC providers commonly authenticate via a key in the URL path or query string, and the indexer never echoes that URL to clients: transport errors from `CallSorobanRPC` are unwrapped to the operation name and underlying cause, and API handlers log backend errors server-side while responding with a generic message plus a request id (see issue #921).
 

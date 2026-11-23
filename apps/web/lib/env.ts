@@ -20,6 +20,13 @@ export const DEFAULT_USDC_ISSUER =
 export const USDC_ISSUER =
   process.env.NEXT_PUBLIC_USDC_ISSUER || DEFAULT_USDC_ISSUER;
 
+/** Default USDC asset code used when `NEXT_PUBLIC_USDC_ASSET_CODE` is not set. */
+export const DEFAULT_USDC_ASSET_CODE = "USDC";
+
+/** Resolved USDC asset code: `NEXT_PUBLIC_USDC_ASSET_CODE`, else `"USDC"`. */
+export const USDC_ASSET_CODE =
+  process.env.NEXT_PUBLIC_USDC_ASSET_CODE || DEFAULT_USDC_ASSET_CODE;
+
 /** Raw (possibly undefined) network settings, inlined by Next.js at build time. */
 export function readNetworkEnv() {
   return {

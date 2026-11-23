@@ -33,6 +33,8 @@ describe("asset helpers", () => {
     ]);
     expect(ASSET_INFO.USDC).toMatchObject({
       type: "USDC",
+      code: "USDC",
+      label: "USDC",
       isNative: false,
       decimals: 7,
     });
