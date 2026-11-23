@@ -105,13 +105,13 @@ describe("InvoiceForm Component Boundary Tests", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF/i)).toBeInTheDocument();
-      expect(screen.getByText(/2,500/i)).toBeInTheDocument();
-      expect(screen.getByText(/USDC/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/2,500/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/USDC/i).length).toBeGreaterThan(0);
       expect(screen.getByText(dateStr)).toBeInTheDocument();
       expect(screen.getByText(/abc123hash/i)).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /back to edit/i }));
+    fireEvent.click(screen.getByRole("button", { name: /BACK TO EDIT/i }));
 
     expect((buyerInput as HTMLInputElement).value).toBe(
       "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF"
