@@ -46,4 +46,39 @@ describe("NotificationBell", () => {
 
     expect(onOpen).toHaveBeenCalledTimes(1);
   });
+
+  it("retains the N new badge snapshot even when unreadCount changes to 0 on open", () => {
+    const mockNotifs = [
+      {
+        id: "1",
+        type: "Invoice Created",
+        invoiceId: "inv1",
+        message: "New invoice",
+        timestamp: Date.now() / 1000 - 120,
+        read: false,
+      },
+    ];
+
+    const onOpen = vi.fn();
+    const { rerender } = render(
+      <NotificationBell notifications={mockNotifs} onOpen={onOpen} />,
+    );
+
+    const button = screen.getByRole("button", { name: /notifications/i });
+    fireEvent.click(button);
+
+    expect(screen.getByText("1 new")).toBeDefined();
+
+    const readNotifs = [
+      {
+        ...mockNotifs[0],
+        read: true,
+      },
+    ];
+    rerender(
+      <NotificationBell notifications={readNotifs} onOpen={onOpen} />,
+    );
+
+    expect(screen.getByText("1 new")).toBeDefined();
+  });
 });

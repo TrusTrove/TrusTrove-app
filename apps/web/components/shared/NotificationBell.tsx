@@ -13,6 +13,7 @@ export function NotificationBell({
   onOpen?: () => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [snapshotUnreadCount, setSnapshotUnreadCount] = useState<number | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
@@ -44,10 +45,16 @@ export function NotificationBell({
   }, [isOpen]);
 
   const toggleOpen = () => {
-    if (!isOpen && onOpen) {
+    if (!isOpen) {
+      setSnapshotUnreadCount(unreadCount);
+      if (onOpen) {
       onOpen();
     }
-    setIsOpen(!isOpen);
+      setIsOpen(true);
+    } else {
+      setIsOpen(false);
+      setSnapshotUnreadCount(null);
+    }
   };
 
   return (
@@ -76,9 +83,9 @@ export function NotificationBell({
               <span className="text-xs font-bold font-mono text-foreground uppercase tracking-wider">
                 Notifications
               </span>
-              {unreadCount > 0 && (
+              {((snapshotUnreadCount !== null ? snapshotUnreadCount : unreadCount) > 0) && (
                 <span className="text-[10px] font-bold font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded">
-                  {unreadCount} new
+                  {snapshotUnreadCount !== null ? snapshotUnreadCount : unreadCount} new
                 </span>
               )}
             </div>
