@@ -39,7 +39,7 @@ describe("ConfirmationDialog", () => {
     expect(screen.queryByRole("button", { name: /^CONFIRM$/i })).toBeNull();
   });
 
-  it("renders confirm button when wallet can sign successfully", async () => {
+  it("renders confirm button when wallet can sign successfully", async (): Promise<void> => {
     (useWallet as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       connected: true,
       canSign: true,
