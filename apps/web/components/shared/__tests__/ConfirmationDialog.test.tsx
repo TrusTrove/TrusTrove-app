@@ -1,32 +1,32 @@
 import React from "react";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { ConfirmationDialog } from "../ConfirmationDialog";
-import { useConfirmDialogStore } from "@store/confirmDialog";
-import { useWallet } from "@hooks/useWallet";
+import { useConfirmDialogStore } from "@/store/confirmDialog";
+import { useWallet } from "@/hooks/useWallet";
 
-jest.mock("@store/confirmDialog");
-jest.mock("@hooks/useWallet");
+vi.mock("@/store/confirmDialog");
+vi.mock("@/hooks/useWallet");
 
 describe("ConfirmationDialog", () => {
-  const mockCancel = jest.fn();
+  const mockCancel = vi.fn();
 
   beforeEach(() => {
-    jest.clearAllMocks();
-    (useConfirmDialogStore as unknown as jest.Mock).mockReturnValue({
+    vi.clearAllMocks();
+    (useConfirmDialogStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       pendingAction: {
         label: "Test Action",
         invoiceId: "inv-123",
-        fn: jest.fn(),
+        fn: vi.fn(),
       },
       cancel: mockCancel,
     });
   });
 
   it("renders recovery path and blocks confirmation when wallet cannot sign", () => {
-    (useWallet as unknown as jest.Mock).mockReturnValue({
+    (useWallet as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       connected: false,
       canSign: false,
-      connectWallet: jest.fn(),
+      connectWallet: vi.fn(),
       error: null,
     });
 
@@ -39,10 +39,10 @@ describe("ConfirmationDialog", () => {
   });
 
   it("renders confirm button when wallet can sign successfully", () => {
-    (useWallet as unknown as jest.Mock).mockReturnValue({
+    (useWallet as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       connected: true,
       canSign: true,
-      connectWallet: jest.fn(),
+      connectWallet: vi.fn(),
       error: null,
     });
 

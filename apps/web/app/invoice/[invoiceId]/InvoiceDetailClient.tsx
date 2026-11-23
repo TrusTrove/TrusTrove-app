@@ -309,9 +309,9 @@ export default function InvoiceDetailClient({
             <FileDown className="w-3.5 h-3.5 text-primary" />
             Document Evidence Fingerprints
           </h2>
-          {invoice.documentHashes && invoice.documentHashes.length > 0 ? (
+          {invoice.documentHashes && (invoice.documentHashes as Array<{ algorithm?: string; name?: string; hash: string }>).length > 0 ? (
             <div className="space-y-3 font-mono text-xs">
-              {invoice.documentHashes.map((doc, idx) => {
+              {(invoice.documentHashes as Array<{ algorithm?: string; name?: string; hash: string }>).map((doc: { algorithm?: string; name?: string; hash: string }, idx: number) => {
                 const copyKey = `doc-${idx}`;
                 return (
                   <div

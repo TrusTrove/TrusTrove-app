@@ -16,6 +16,11 @@ const mockInvoice: Invoice = {
   status: "Listed",
   createdAt: Math.floor(Date.now() / 1000),
   riskScoreBps: 1500,
+  fundedAt: null,
+  shippedAt: null,
+  issuerConfirmed: false,
+  buyerConfirmed: false,
+  repaidAt: null,
 };
 
 describe("InvoiceRiskSummary", () => {
@@ -41,7 +46,7 @@ describe("InvoiceRiskSummary", () => {
     render(
       <InvoiceRiskSummary
         invoice={mockInvoice}
-        poolCapacity={500000000n}
+        poolCapacity={500000500n}
         fundingAmount={1000000000n}
       />,
     );
