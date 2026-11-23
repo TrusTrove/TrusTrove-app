@@ -74,6 +74,59 @@ export function Navbar() {
 
   const closeMobileMenu = () => setMobileMenuOpen(false);
 
+  const showTestnetFaucet =
+    !balancesLoading &&
+    (balances.usdc === null || parseFloat(balances.usdc) === 0);
+
+  const renderBalancesContent = () => (
+    <>
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <Wallet className="w-3 h-3 text-sky-400" />
+        {balancesLoading ? (
+          <SkeletonShimmer className="h-3.5 w-14" />
+        ) : (
+          <>
+            <span className="text-[10px] font-mono text-foreground/80 font-bold">
+              {balances.usdc !== null
+                ? t("balanceAmount", {
+                    amount: formatAmount(balances.usdc),
+                    asset: "USDC",
+                  })
+                : t("balanceUnavailableUsdc")}
+            </span>
+            {showTestnetFaucet && (
+              <a
+                href="https://demo.stellar.org"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-[10px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/20 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                {t("getTestnetUsdc")}
+                <ExternalLink className="w-3 h-3" aria-hidden="true" />
+              </a>
+            )}
+          </>
+        )}
+      </div>
+      <div className="w-px h-3 bg-border" />
+      <div className="flex items-center gap-1.5">
+        <Wallet className="w-3 h-3 text-amber-400" />
+        {balancesLoading ? (
+          <SkeletonShimmer className="h-3.5 w-14" />
+        ) : (
+          <span className="text-[10px] font-mono text-foreground/80 font-bold">
+            {balances.xlm !== null
+              ? t("balanceAmount", {
+                  amount: formatAmount(balances.xlm),
+                  asset: "XLM",
+                })
+              : t("balanceEmptyXlm")}
+          </span>
+        )}
+      </div>
+    </>
+  );
+
   return (
     <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -129,53 +182,7 @@ export function Navbar() {
                   data-tour="balances"
                   className="hidden md:flex items-center gap-3 bg-background-secondary border border-border rounded-lg px-3 py-1"
                 >
-                  <div className="flex items-center gap-1.5 group relative">
-                    <Wallet className="w-3 h-3 text-sky-400" />
-                    {balancesLoading ? (
-                      <SkeletonShimmer className="h-3.5 w-14" />
-                    ) : (
-                      <>
-                        <span className="text-[10px] font-mono text-foreground/80 font-bold">
-                          {balances.usdc !== null
-                            ? t("balanceAmount", {
-                                amount: formatAmount(balances.usdc),
-                                asset: "USDC",
-                              })
-                            : t("balanceUnavailableUsdc")}
-                        </span>
-                        {(balances.usdc === null ||
-                          parseFloat(balances.usdc) === 0) && (
-                          <div className="absolute -top-8 left-1/2 -translate-x-1/2 hidden group-hover:block whitespace-nowrap bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-mono px-2 py-1 rounded-md shadow-lg z-50">
-                            <a
-                              href="https://demo.stellar.org"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-1 hover:underline"
-                            >
-                              {t("getTestnetUsdc")}{" "}
-                              <ExternalLink className="w-3 h-3" />
-                            </a>
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                  <div className="w-px h-3 bg-border" />
-                  <div className="flex items-center gap-1.5">
-                    <Wallet className="w-3 h-3 text-amber-400" />
-                    {balancesLoading ? (
-                      <SkeletonShimmer className="h-3.5 w-14" />
-                    ) : (
-                      <span className="text-[10px] font-mono text-foreground/80 font-bold">
-                        {balances.xlm !== null
-                          ? t("balanceAmount", {
-                              amount: formatAmount(balances.xlm),
-                              asset: "XLM",
-                            })
-                          : t("balanceEmptyXlm")}
-                      </span>
-                    )}
-                  </div>
+                  {renderBalancesContent()}
                 </div>
 
                 <div
@@ -303,10 +310,17 @@ export function Navbar() {
             </button>
           </div>
 
+          {connected && (
+            <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-background-secondary/70 px-4 py-2.5">
+              {renderBalancesContent()}
+            </div>
+          )}
+
           <div className="mt-4 sm:hidden flex items-center justify-between gap-4">
             <NotificationBell
               notifications={notifications}
               onOpen={markAllAsRead}
+              align="left"
             />
             <WalletConnect />
           </div>
