@@ -3,7 +3,7 @@
 import React from "react";
 import { Invoice } from "@/types";
 import { InvoiceStatus } from "./InvoiceStatus";
-import { formatAmount } from "@/lib/format";
+import { formatAmount } from "@/lib/assets";
 
 interface PrintableInvoiceProps {
   invoice: Invoice;
