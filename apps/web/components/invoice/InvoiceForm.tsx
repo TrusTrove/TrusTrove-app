@@ -413,6 +413,10 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
               <span className="text-slate-500">Due Date:</span>
               <span className="text-white">{dueDate}</span>
             </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Document Fingerprints:</span>
+              <span className="text-white font-mono text-[10px] truncate max-w-[180px]">SHA-256</span>
+          </div>
           </div>
           {error && (
             <div
@@ -434,7 +438,7 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
                 setStep(1);
               }}
             >
-              BACK
+              BACK TO EDIT
             </Button>
             <Button
               type="button"
