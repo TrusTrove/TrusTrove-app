@@ -24,7 +24,7 @@ const mockInvoice: Invoice = {
 };
 
 describe("InvoiceRiskSummary", () => {
-  it("renders buyer verification, maturity, discount, pool capacity, and funding amount", () => {
+  it("renders buyer verification and risk parameters", () => {
     render(
       <InvoiceRiskSummary
         invoice={mockInvoice}
