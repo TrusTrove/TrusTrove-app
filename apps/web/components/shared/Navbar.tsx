@@ -60,6 +60,15 @@ function formatAmount(value: string) {
   });
 }
 
+export function isNavItemActive(
+  pathname: string | null,
+  href: string,
+): boolean {
+  if (!pathname) return false;
+  if (href === "/") return pathname === "/";
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
 export function Navbar() {
   const t = useTranslations("Navbar");
   const pathname = usePathname();
@@ -94,12 +103,13 @@ export function Navbar() {
 
             <div className="hidden md:flex space-x-1">
               {NAV_ITEMS.map((item) => {
-                const isActive = pathname === item.href;
+                const isActive = isNavItemActive(pathname, item.href);
                 const Icon = item.icon;
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
+                    aria-current={isActive ? "page" : undefined}
                     data-tour={`nav-${item.key}`}
                     className={`px-3.5 py-1.5 rounded-lg text-xs font-bold font-mono tracking-wider uppercase transition-all duration-200 border flex items-center gap-1.5 ${
                       isActive
@@ -110,10 +120,14 @@ export function Navbar() {
                     {Icon && <Icon className="w-3.5 h-3.5" />}
                     <span>{t(`nav.${item.key}`)}</span>
                     {item.key === "profile" && connected && isVerified && (
-                      <span
-                        className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]"
-                        title={t("verifiedProfile")}
-                      />
+                      <>
+                        <span
+                          aria-hidden="true"
+                          className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]"
+                          title={t("verifiedProfile")}
+                        />
+                        <span className="sr-only">{t("verifiedProfile")}</span>
+                      </>
                     )}
                   </Link>
                 );
@@ -263,12 +277,13 @@ export function Navbar() {
         <div className="md:hidden border-t border-border bg-background/95 px-4 py-4 shadow-2xl backdrop-blur-xl">
           <div className="flex flex-col gap-2">
             {NAV_ITEMS.map((item) => {
-              const isActive = pathname === item.href;
+              const isActive = isNavItemActive(pathname, item.href);
               const Icon = item.icon;
               return (
                 <Link
                   key={item.href}
                   href={item.href}
+                  aria-current={isActive ? "page" : undefined}
                   onClick={closeMobileMenu}
                   className={`flex items-center justify-between rounded-xl border px-4 py-3 text-sm font-bold font-mono uppercase tracking-wider transition ${
                     isActive
@@ -281,10 +296,14 @@ export function Navbar() {
                     {t(`nav.${item.key}`)}
                   </span>
                   {item.key === "profile" && connected && isVerified && (
-                    <span
-                      className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]"
-                      title={t("verifiedProfile")}
-                    />
+                    <>
+                      <span
+                        aria-hidden="true"
+                        className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]"
+                        title={t("verifiedProfile")}
+                      />
+                      <span className="sr-only">{t("verifiedProfile")}</span>
+                    </>
                   )}
                 </Link>
               );
