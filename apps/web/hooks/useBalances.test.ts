@@ -180,7 +180,9 @@ describe("useBalances", () => {
 
   it("handles typed Horizon NotFoundError class as unfunded account", async () => {
     const { NotFoundError } = await import("@stellar/stellar-sdk");
-    mockLoadAccount.mockRejectedValue(new NotFoundError());
+    mockLoadAccount.mockRejectedValue(
+      new NotFoundError("Resource Missing", { status: 404 }),
+    );
 
     act(() => {
       useWalletStore.getState().connect("G123", "testnet");
