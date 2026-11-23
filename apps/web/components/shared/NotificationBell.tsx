@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useId } from "react";
 import { Bell } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { NotificationEvent } from "@/types/notifications";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 
@@ -15,6 +16,8 @@ export function NotificationBell({
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const panelId = useId();
+  const t = useTranslations("NotificationBell");
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -57,18 +60,27 @@ export function NotificationBell({
         type="button"
         className="relative p-2 rounded-lg border border-border bg-background-secondary text-muted-foreground hover:text-foreground hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors"
         onClick={toggleOpen}
-        aria-label="Notifications"
+        aria-label={t("label", { count: unreadCount })}
+        aria-haspopup="dialog"
         aria-expanded={isOpen}
+        aria-controls={isOpen ? panelId : undefined}
       >
         <Bell className="w-4 h-4" />
         {unreadCount > 0 && (
-          <span className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full shadow-[0_0_8px_rgba(0,212,170,0.8)]" />
+          <span
+            aria-hidden="true"
+            className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full shadow-[0_0_8px_rgba(0,212,170,0.8)]"
+          />
         )}
       </button>
 
       {isOpen && (
         <div
+          id={panelId}
           ref={dropdownRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label={t("panelLabel")}
           className="absolute right-0 md:right-auto md:left-auto mt-2 w-80 max-h-96 overflow-y-auto bg-card border border-border rounded-lg shadow-2xl z-50 p-2 flex flex-col gap-2 origin-top-right md:origin-top"
         >
           <div ref={trapRef} tabIndex={-1} className="outline-none">
@@ -88,9 +100,9 @@ export function NotificationBell({
                 No notifications yet
               </div>
             ) : (
-              <div className="flex flex-col gap-1">
+              <ul className="flex flex-col gap-1">
                 {notifications.map((notif) => (
-                  <div
+                  <li
                     key={notif.id}
                     className={`p-3 rounded-lg border text-left transition-colors ${
                       notif.read
@@ -98,6 +110,9 @@ export function NotificationBell({
                         : "bg-primary/5 border-primary/20"
                     }`}
                   >
+                    {!notif.read && (
+                      <span className="sr-only">{t("unreadBadge")}</span>
+                    )}
                     <div className="flex justify-between items-start mb-1">
                       <span
                         className={`text-xs font-bold font-mono ${
@@ -113,9 +128,9 @@ export function NotificationBell({
                     <p className="text-xs text-foreground/80 font-mono leading-relaxed">
                       {notif.message}
                     </p>
-                  </div>
+                  </li>
                 ))}
-              </div>
+              </ul>
             )}
           </div>
         </div>
