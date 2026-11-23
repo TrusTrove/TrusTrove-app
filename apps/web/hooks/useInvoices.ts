@@ -129,6 +129,9 @@ export function useInvoicesList(filters?: {
   issuer?: string;
   page?: number;
   limit?: number;
+  minAmount?: string;
+  maxAmount?: string;
+  maxDiscount?: string;
   enabled?: boolean;
 }) {
   const invoicesQuery = useQuery<PaginatedInvoices>({
@@ -156,6 +159,9 @@ export function useInvoiceList(filters?: {
   issuer?: string;
   page?: number;
   limit?: number;
+  minAmount?: string;
+  maxAmount?: string;
+  maxDiscount?: string;
 }) {
   return useInvoicesList(filters);
 }
