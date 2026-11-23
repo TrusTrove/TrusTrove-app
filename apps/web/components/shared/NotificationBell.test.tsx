@@ -46,4 +46,20 @@ describe("NotificationBell", () => {
 
     expect(onOpen).toHaveBeenCalledTimes(1);
   });
+
+  it("anchors left and uses a viewport-capped width when align='left'", () => {
+    const { container } = render(
+      <NotificationBell notifications={[]} align="left" />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /notifications/i }));
+
+    const panel = container.querySelector("div.absolute");
+    expect(panel).not.toBeNull();
+    expect(panel?.className).toContain("left-0");
+    expect(panel?.className).toContain("right-auto");
+    expect(panel?.className).toContain("w-[min(20rem,calc(100vw-2rem))]");
+    expect(panel?.className).not.toContain("md:right-auto");
+    expect(panel?.className).not.toContain("md:left-auto");
+  });
 });
