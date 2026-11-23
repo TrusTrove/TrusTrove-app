@@ -252,3 +252,38 @@ describe("Navbar active link and verified profile a11y", () => {
     expect(screen.queryByText("Verified Profile")).not.toBeInTheDocument();
   });
 });
+
+describe("Navbar mobile theme toggle", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    document.documentElement.className = "dark";
+  });
+
+  it("renders only the desktop theme toggle when the mobile menu is closed", () => {
+    renderNavbar();
+    expect(
+      screen.getAllByRole("button", { name: "Switch to light theme" }),
+    ).toHaveLength(1);
+  });
+
+  it("renders a 44x44 theme toggle in the open mobile menu and switches theme on click", () => {
+    renderNavbar();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open navigation menu" }),
+    );
+
+    const toggles = screen.getAllByRole("button", {
+      name: "Switch to light theme",
+    });
+    expect(toggles).toHaveLength(2);
+
+    const mobileToggle = toggles[1];
+    expect(mobileToggle).toHaveClass("min-h-[44px]", "min-w-[44px]");
+
+    fireEvent.click(mobileToggle);
+    expect(document.documentElement.classList.contains("dark")).toBe(false);
+    expect(
+      screen.getAllByRole("button", { name: "Switch to dark theme" }),
+    ).toHaveLength(2);
+  });
+});

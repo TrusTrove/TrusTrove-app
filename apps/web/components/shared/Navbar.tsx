@@ -323,10 +323,13 @@ export function Navbar() {
           </div>
 
           <div className="mt-4 sm:hidden flex items-center justify-between gap-4">
-            <NotificationBell
-              notifications={notifications}
-              onOpen={markAllAsRead}
-            />
+            <div className="flex items-center gap-2">
+              <NotificationBell
+                notifications={notifications}
+                onOpen={markAllAsRead}
+              />
+              <ThemeToggle className="min-h-[44px] min-w-[44px]" />
+            </div>
             <WalletConnect />
           </div>
         </div>
