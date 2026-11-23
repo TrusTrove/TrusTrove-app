@@ -75,6 +75,7 @@ export function useWallet() {
     balances,
     loading: balancesLoading,
     error: balancesError,
+    isOffline: balancesIsOffline,
     refetch: refetchBalances,
   } = useBalances();
 
@@ -197,6 +198,7 @@ export function useWallet() {
     balances,
     balancesLoading,
     balancesError,
+    balancesIsOffline,
     refetchBalances,
   };
 }

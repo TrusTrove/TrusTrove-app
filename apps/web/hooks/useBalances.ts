@@ -13,6 +13,60 @@ export interface Balances {
 const HORIZON_URL =
   process.env.NEXT_PUBLIC_HORIZON_URL || "https://horizon-testnet.stellar.org";
 
+export class OfflineError extends Error {
+  readonly isOffline = true;
+  constructor(
+    message = "You appear to be offline. Please check your network connection.",
+  ) {
+    super(message);
+    this.name = "OfflineError";
+  }
+}
+
+function isOfflineError(err: unknown): boolean {
+  if (err instanceof OfflineError) return true;
+  if (typeof navigator !== "undefined" && !navigator.onLine) return true;
+  if (err instanceof TypeError && err.message.toLowerCase().includes("fetch"))
+    return true;
+  if (err instanceof Error) {
+    const msg = err.message.toLowerCase();
+    if (
+      msg.includes("failed to fetch") ||
+      msg.includes("network error") ||
+      msg.includes("networkrequestfailed") ||
+      msg.includes("net::err") ||
+      msg.includes("econnrefused") ||
+      msg.includes("offline")
+    ) {
+      return true;
+    }
+    if ("name" in err && err.name === "NetworkError") {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isNotFoundError(err: unknown, NotFoundErrorClass?: unknown): boolean {
+  if (
+    typeof NotFoundErrorClass === "function" &&
+    err instanceof (NotFoundErrorClass as new (...args: unknown[]) => unknown)
+  ) {
+    return true;
+  }
+  if (err instanceof Error) {
+    if (err.name === "NotFoundError") return true;
+    if ("response" in err) {
+      const resp = (err as { response?: { status?: number } }).response;
+      if (resp?.status === 404) return true;
+    }
+    if ("status" in err && (err as { status?: number }).status === 404) {
+      return true;
+    }
+  }
+  return false;
+}
+
 async function fetchBalancesFromHorizon(
   address: string,
   connected: boolean,
@@ -21,10 +75,11 @@ async function fetchBalancesFromHorizon(
     return { usdc: null, xlm: null };
   }
 
+  let sdkNotFoundErrorClass: unknown;
   try {
-    // Loaded on demand so the multi-hundred-KB Stellar SDK is not part of the
-    // first-load bundle of every route that renders the Navbar (#995).
-    const { Horizon } = await import("@stellar/stellar-sdk");
+    const sdk = await import("@stellar/stellar-sdk");
+    const { Horizon, NotFoundError } = sdk;
+    sdkNotFoundErrorClass = NotFoundError;
     const server = new Horizon.Server(HORIZON_URL);
     const account = await server.loadAccount(address);
     const usdcIssuer = ASSET_INFO.USDC.issuer;
@@ -50,11 +105,13 @@ async function fetchBalancesFromHorizon(
 
     return { usdc, xlm };
   } catch (err: unknown) {
-    if (err instanceof Error && "response" in err) {
-      const resp = (err as { response?: { status: number } }).response;
-      if (resp?.status === 404) {
-        return { usdc: null, xlm: "0" };
-      }
+    if (isNotFoundError(err, sdkNotFoundErrorClass)) {
+      return { usdc: null, xlm: "0" };
+    }
+    if (isOfflineError(err)) {
+      const offlineErr = new OfflineError();
+      captureError(offlineErr);
+      throw offlineErr;
     }
     captureError(err);
     throw err;
@@ -91,14 +148,21 @@ export function useBalances() {
     throwOnError: false,
   });
 
+  const isOffline =
+    query.error instanceof OfflineError ||
+    (query.error ? isOfflineError(query.error) : false);
+  const errorMessage = query.error
+    ? isOffline
+      ? "You appear to be offline. Please check your network connection."
+      : "Failed to fetch balances"
+    : null;
+
   return {
-    // No initialData: pre-seeding the cache made React Query report success
-    // (and therefore loading=false) before Horizon had answered (#1086). The
-    // fallback keeps the documented disconnected shape without marking the
-    // query as loaded.
     balances: query.data ?? { usdc: null, xlm: null },
     loading: query.isLoading,
-    error: query.error ? "Failed to fetch balances" : null,
+    error: errorMessage,
+    isOffline,
+    errorObject: query.error ?? null,
     refetch: query.refetch,
   };
 }

@@ -30,6 +30,8 @@ export function WalletConnect() {
     loading,
     error: walletError,
     errorCode,
+    balancesError,
+    balancesIsOffline,
   } = useWallet();
 
   const network = useWalletStore((s) => s.network);
@@ -218,6 +220,20 @@ export function WalletConnect() {
           </Button>
         )}
       </div>
+
+      {connected && balancesError && (
+        <div
+          role="alert"
+          className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-md px-2.5 py-1"
+        >
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate max-w-xs">
+            {balancesIsOffline
+              ? "You appear to be offline. Check connection."
+              : balancesError}
+          </span>
+        </div>
+      )}
 
       {walletError && errorCode === "user_rejected" && (
         <div className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-md px-2.5 py-1">
