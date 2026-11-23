@@ -1,6 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockGetStats = vi.hoisted(() => vi.fn());
+const mockSdkState = vi.hoisted(() => ({
+  sorobanRpcUrl: "https://soroban-testnet.stellar.org",
+  networkPassphrase: "Test SDF Network ; September 2015",
+  contractIds: { pool: "CBDEFAULTPOOL" },
+  usdc: { issuer: "GBDEFAULTISSUER", assetCode: "USDC" },
+}));
+const mockConfigureSDK = vi.hoisted(() =>
+  vi.fn((partial: Record<string, unknown>) => {
+    if (typeof partial.sorobanRpcUrl === "string") {
+      mockSdkState.sorobanRpcUrl = partial.sorobanRpcUrl;
+    }
+    if (typeof partial.networkPassphrase === "string") {
+      mockSdkState.networkPassphrase = partial.networkPassphrase;
+    }
+  }),
+);
 
 // The contract client and config are stubbed, but `toUsdc` is left as the real
 // SDK implementation so this file pins the command's amounts to the SDK
@@ -20,8 +36,11 @@ vi.mock("@trusttrove/sdk", async (importOriginal) => {
         return mockGetStats(publicKey, this.contractId);
       }
     },
+    configureSDK: mockConfigureSDK,
     getConfig: () => ({
-      contractIds: { pool: "CBDEFAULTPOOL" },
+      ...mockSdkState,
+      contractIds: { ...mockSdkState.contractIds },
+      usdc: { ...mockSdkState.usdc },
     }),
   };
 });
@@ -38,6 +57,9 @@ const POOL_CONTRACT_ID = "CBTESTPOOL";
 describe("checkPoolBalanceCommand", () => {
   beforeEach(() => {
     mockGetStats.mockReset();
+    mockConfigureSDK.mockClear();
+    mockSdkState.sorobanRpcUrl = "https://soroban-testnet.stellar.org";
+    mockSdkState.networkPassphrase = "Test SDF Network ; September 2015";
     process.exitCode = 0;
   });
 
@@ -64,6 +86,8 @@ describe("checkPoolBalanceCommand", () => {
     expect(mockGetStats).toHaveBeenCalledWith(PUBLIC_KEY, POOL_CONTRACT_ID);
 
     const output = logSpy.mock.calls.flat().join("\n");
+    expect(output).toContain("RPC URL: https://soroban-testnet.stellar.org");
+    expect(output).toContain("Network: Test SDF Network ; September 2015");
     expect(output).toContain(`Pool contract: ${POOL_CONTRACT_ID}`);
     expect(output).toContain("totalDeposits: 150.00 USDC");
     expect(output).toContain("availableLiquidity: 90.00 USDC");
@@ -153,6 +177,87 @@ describe("checkPoolBalanceCommand", () => {
       await checkPoolBalanceCommand({ publicKey: PUBLIC_KEY });
 
       expect(mockGetStats).toHaveBeenCalledWith(PUBLIC_KEY, "CBDEFAULTPOOL");
+    });
+  });
+
+  describe("network and public key option precedence", () => {
+    const ENV_KEYS = [
+      "TRUSTTROVE_PUBLIC_KEY",
+      "NEXT_PUBLIC_PUBLIC_KEY",
+      "PUBLIC_KEY",
+      "TRUSTTROVE_RPC_URL",
+      "TRUSTTROVE_NETWORK_PASSPHRASE",
+    ];
+    const originalEnv = new Map(
+      ENV_KEYS.map((key) => [key, process.env[key]] as const),
+    );
+
+    beforeEach(() => {
+      for (const key of ENV_KEYS) delete process.env[key];
+      mockGetStats.mockResolvedValue({
+        totalDeposits: 0n,
+        availableLiquidity: 0n,
+        utilizationRateBps: 0,
+        totalYieldDistributed: 0n,
+      });
+      vi.spyOn(console, "log").mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      for (const [key, value] of originalEnv) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    });
+
+    it("ignores NEXT_PUBLIC_PUBLIC_KEY and PUBLIC_KEY fallbacks", async () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      process.env.NEXT_PUBLIC_PUBLIC_KEY = "GNEXTPUBLICKEY";
+      process.env.PUBLIC_KEY = "GGENERICPUBLICKEY";
+
+      await checkPoolBalanceCommand({ poolContractId: POOL_CONTRACT_ID });
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        "Missing public key. Provide --public-key or set TRUSTTROVE_PUBLIC_KEY.",
+      );
+      expect(mockGetStats).not.toHaveBeenCalled();
+      expect(process.exitCode).toBe(1);
+    });
+
+    it("prefers TRUSTTROVE_RPC_URL and TRUSTTROVE_NETWORK_PASSPHRASE over SDK defaults", async () => {
+      process.env.TRUSTTROVE_PUBLIC_KEY = PUBLIC_KEY;
+      process.env.TRUSTTROVE_RPC_URL = "https://rpc.env.example";
+      process.env.TRUSTTROVE_NETWORK_PASSPHRASE = "Env Network";
+
+      await checkPoolBalanceCommand({ poolContractId: POOL_CONTRACT_ID });
+
+      expect(mockConfigureSDK).toHaveBeenCalledWith({
+        sorobanRpcUrl: "https://rpc.env.example",
+        networkPassphrase: "Env Network",
+      });
+    });
+
+    it("prefers CLI flags over env vars and SDK defaults", async () => {
+      const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      process.env.TRUSTTROVE_PUBLIC_KEY = "GENVKEY";
+      process.env.TRUSTTROVE_RPC_URL = "https://rpc.env.example";
+      process.env.TRUSTTROVE_NETWORK_PASSPHRASE = "Env Network";
+
+      await checkPoolBalanceCommand({
+        publicKey: PUBLIC_KEY,
+        poolContractId: POOL_CONTRACT_ID,
+        rpcUrl: "https://rpc.flag.example",
+        networkPassphrase: "Flag Network",
+      });
+
+      expect(mockConfigureSDK).toHaveBeenCalledWith({
+        sorobanRpcUrl: "https://rpc.flag.example",
+        networkPassphrase: "Flag Network",
+      });
+      expect(mockGetStats).toHaveBeenCalledWith(PUBLIC_KEY, POOL_CONTRACT_ID);
+      const output = logSpy.mock.calls.flat().join("\n");
+      expect(output).toContain("RPC URL: https://rpc.flag.example");
+      expect(output).toContain("Network: Flag Network");
     });
   });
 });
