@@ -316,6 +316,27 @@ describe("useProfile", () => {
     ).rejects.toThrow("On-chain error");
   });
 
+  it("register mutation surfaces missing registry contract ID error", async () => {
+    act(() => {
+      useWalletStore.getState().connect("G123", "testnet");
+    });
+
+    vi.mocked(RegistryClient).mockImplementation(function () {
+      throw new Error("Contract ID is required");
+    } as any);
+
+    const { result } = renderHook(() => useProfile());
+
+    await expect(
+      act(async () => {
+        await result.current.register({
+          role: "issuer",
+          metadata: { companyName: "Acme" },
+        });
+      }),
+    ).rejects.toThrow("Contract ID is required");
+  });
+
   it("lazily constructs and reuses one RegistryClient instance per mount", async () => {
     act(() => {
       useWalletStore.getState().connect("G123", "testnet");

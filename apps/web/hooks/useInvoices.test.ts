@@ -210,6 +210,29 @@ describe("useInvoices", () => {
     });
   });
 
+  it("listInvoice surfaces missing invoice contract ID error", async () => {
+    act(() => {
+      useWalletStore.getState().connect("G123", "testnet");
+    });
+
+    vi.mocked(InvoiceClient).mockImplementation(function () {
+      throw new Error("Contract ID is required");
+    } as any);
+
+    const { result } = renderHook(() => useInvoiceActions());
+
+    await expect(
+      act(async () => {
+        await result.current.listInvoice({
+          invoiceId: "inv1",
+          discountBps: 200,
+        });
+      }),
+    ).rejects.toThrow("Contract ID is required");
+
+    expect(toast.showErrorToast).toHaveBeenCalled();
+  });
+
   it("listInvoice fails if no wallet", async () => {
     const { result } = renderHook(() => useInvoiceActions());
 
