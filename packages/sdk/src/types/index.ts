@@ -73,6 +73,8 @@ export interface Invoice {
   riskScoreBps?: number | null;
   /** Hash of the supporting evidence document. */
   evidenceHash?: string | null;
+  /** Recorded cryptographic hashes of invoice evidence documents. */
+  documentHashes?: Array<{ algorithm?: string; name?: string; hash: string }> | null;
   /** Unix timestamp (seconds) when the attestation was provided. */
   attestedAt?: number | null;
 }
