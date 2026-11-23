@@ -56,13 +56,25 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
     () => parseFloat(faceValue.replace(/,/g, "")) || 0,
     [faceValue],
   );
+  const faceValueStroops = useMemo(
+    () => BigInt(Math.floor(parsedValue * 10_000_000)),
+    [parsedValue],
+  );
+  const discountPaidStroops = useMemo(
+    () => (faceValueStroops * BigInt(discountBps)) / 10000n,
+    [faceValueStroops, discountBps],
+  );
+  const payoutStroops = useMemo(
+    () => faceValueStroops - discountPaidStroops,
+    [faceValueStroops, discountPaidStroops],
+  );
   const discountPaid = useMemo(
-    () => parsedValue * (discountBps / 10000),
-    [parsedValue, discountBps],
+    () => Number(discountPaidStroops) / 10_000_000,
+    [discountPaidStroops],
   );
   const payoutAmount = useMemo(
-    () => parsedValue - discountPaid,
-    [parsedValue, discountPaid],
+    () => Number(payoutStroops) / 10_000_000,
+    [payoutStroops],
   );
 
   const handleNextStep = async (event: React.FormEvent) => {
@@ -324,10 +336,10 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
           <div className="space-y-2 pt-2 border-t border-border/30">
             <div className="flex justify-between text-[10px] font-mono">
               <span className="text-slate-500 font-bold uppercase tracking-wider">
-                Financing Discount Rate
+                Financing Cost
               </span>
               <span className="text-primary font-bold">
-                {(discountBps / 100).toFixed(2)}% ({discountBps} bps)
+                {discountBps} bps ({(discountBps / 100).toFixed(2)}%) • {discountPaid.toLocaleString()} {asset}
               </span>
             </div>
             <input
@@ -392,7 +404,7 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
             {immediateList && (
               <>
                 <div className="flex justify-between text-rose-400">
-                  <span>Discount ({(discountBps / 100).toFixed(2)}%):</span>
+                  <span>Discount ({discountBps} bps / {(discountBps / 100).toFixed(2)}%):</span>
                   <span>
                     -{discountPaid.toLocaleString()} {asset}
                   </span>

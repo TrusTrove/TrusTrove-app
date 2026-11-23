@@ -5,6 +5,7 @@ export type {
   LPPosition,
   Profile,
   AssetType,
+  DocumentHash,
 } from "@trusttrove/sdk";
 
 /** Untyped payload attached to an on-chain event. */
@@ -96,4 +97,11 @@ export interface TxHistoryItem {
   timestamp: number;
   hash: string;
   status: "success" | "failed";
+}
+
+export interface WalletCapabilityInfo {
+  canSign: boolean;
+  networkMatches: boolean;
+  readOnly: boolean;
+  message?: string;
 }
