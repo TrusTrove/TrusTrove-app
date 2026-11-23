@@ -29,8 +29,26 @@ configureSDK({
     pool: process.env.NEXT_PUBLIC_POOL_CONTRACT_ID!,
     escrow: process.env.NEXT_PUBLIC_ESCROW_CONTRACT_ID!,
   },
+  // Optional transaction, polling, retry, fee, and allowance settings (defaults shown):
+  txTimeoutSeconds: 30,
+  txPollMaxAttempts: 30,
+  txPollIntervalMs: 1000,
+  retryMaxAttempts: 3,
+  retryBaseDelayMs: 1000,
+  baseFee: 100, // stroops (100..10_000_000; 1 XLM sanity cap)
+  allowanceExpiryLedgers: 535_680, // must not exceed the network's maximum entry TTL
 });
 ```
+
+### Transaction, Polling, Retry, Fee, and Allowance Options
+
+All timing, retry, fee, and allowance parameters are optional on `SDKConfig` and default to the values above:
+
+- **`txTimeoutSeconds`** (`1..3600`, default `30`): Transaction validity window in seconds passed to `TransactionBuilder.setTimeout(...)`.
+- **`txPollMaxAttempts`** (`1..1000`, default `30`) & **`txPollIntervalMs`** (`1..60000`, default `1000`): Confirmation polling budget after `sendTransaction`. If `txTimeoutSeconds` is longer than the polling window (`txPollMaxAttempts * txPollIntervalMs`), a transaction can still land on-chain after `TransactionTimeoutError` is thrown. Conversely, polling longer than `txTimeoutSeconds` is pointless because the transaction will already have expired.
+- **`retryMaxAttempts`** (`1..20`, default `3`) & **`retryBaseDelayMs`** (`1..60000`, default `1000`): Exponential backoff policy for retryable RPC reads, simulations, and transaction status polls.
+- **`baseFee`** (`100..10_000_000`, default `100`): Base inclusion fee per operation in stroops. Enforces `BASE_FEE` (`100`) as the floor and `10_000_000` stroops (1 XLM) as an upper sanity limit to guard against mistyped fees spending real funds.
+- **`allowanceExpiryLedgers`** (`1..10_000_000`, default `535_680`): Ledger offset from the latest ledger used when approving token allowances. Must not exceed the network's maximum entry TTL.
 
 Then import the individual clients directly:
 

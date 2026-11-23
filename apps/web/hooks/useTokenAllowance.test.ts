@@ -2,10 +2,11 @@ import { renderHook, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useTokenAllowance } from "./useTokenAllowance";
 import { useWalletStore } from "@/store/wallet";
-import { TokenClient, getSorobanServer } from "@trusttrove/sdk";
+import { TokenClient, getConfig, getSorobanServer } from "@trusttrove/sdk";
 
 vi.mock("@trusttrove/sdk", () => ({
   configureSDK: vi.fn(),
+  getConfig: vi.fn(() => ({ allowanceExpiryLedgers: 535_680 })),
   TokenClient: {
     forUSDC: vi.fn(),
   },
@@ -191,5 +192,37 @@ describe("useTokenAllowance", () => {
     rerender();
 
     expect(result.current.ensureAllowance).toBe(first);
+  });
+
+  it("uses custom allowanceExpiryLedgers from SDK config", async () => {
+    useWalletStore.getState().connect("GTEST", "testnet");
+
+    vi.mocked(getConfig).mockReturnValue({
+      allowanceExpiryLedgers: 120_000,
+    } as any);
+
+    const mockAllowance = vi.fn().mockResolvedValue(0n);
+    const mockApprove = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(TokenClient.forUSDC).mockReturnValue({
+      allowance: mockAllowance,
+      approve: mockApprove,
+    } as any);
+    vi.mocked(getSorobanServer).mockReturnValue({
+      getLatestLedger: vi.fn().mockResolvedValue({ sequence: 5000 }),
+    } as any);
+
+    const { result } = renderHook(() => useTokenAllowance());
+
+    await act(async () => {
+      await result.current.ensureAllowance("CSPENDER", 250n);
+    });
+
+    expect(mockApprove).toHaveBeenCalledWith(
+      "GTEST",
+      "CSPENDER",
+      250n,
+      5000 + 120_000,
+      "GTEST",
+    );
   });
 });
