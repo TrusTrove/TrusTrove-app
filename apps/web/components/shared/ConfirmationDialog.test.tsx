@@ -116,4 +116,19 @@ describe("ConfirmationDialog", () => {
     fireEvent.click(dialogRoot);
     expect(mockCancel).toHaveBeenCalled();
   });
+
+  it("renders confirmation dialog", () => {
+    const mockCancel = vi.fn();
+    vi.mocked(useConfirmDialogStore).mockReturnValue({
+      pendingAction: {
+        label: "Test Action",
+        invoiceId: "inv_1",
+        fn: vi.fn(),
+      },
+      cancel: mockCancel,
+      request: vi.fn(),
+    });
+    render(<ConfirmationDialog />);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
 });
