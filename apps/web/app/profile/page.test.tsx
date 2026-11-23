@@ -268,12 +268,8 @@ describe("Metadata update for a registered profile", () => {
     expect(
       screen.getByText(/Couldn't verify status, try again/i),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText(/Verification Check Failed/i),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByText(/Pending Review/i),
-    ).not.toBeInTheDocument();
+    expect(screen.getByText(/Verification Check Failed/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Pending Review/i)).not.toBeInTheDocument();
 
     const retryButton = screen.getByRole("button", { name: /retry/i });
     fireEvent.click(retryButton);

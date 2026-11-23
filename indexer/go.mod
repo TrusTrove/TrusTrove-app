@@ -2,7 +2,7 @@ module trusttrove/indexer
 
 go 1.25.0
 
-toolchain go1.26.10
+toolchain go1.26.11
 
 require (
 	github.com/getsentry/sentry-go v0.49.0

@@ -180,7 +180,9 @@ describe("InvoiceCard", () => {
       screen.getByText(/Couldn't verify status, try again/i),
     ).toBeInTheDocument();
     expect(
-      screen.queryByText(/Verification required to execute smart contract operations/i),
+      screen.queryByText(
+        /Verification required to execute smart contract operations/i,
+      ),
     ).not.toBeInTheDocument();
   });
 });
