@@ -10,3 +10,4 @@ export * from "./clients/token.js";
 export * from "./clients/agentRegistry.js";
 export * from "./types/schemas.js";
 export type { SimulationResult } from "./base.js";
+export type { DocumentHash } from "./types/index.js";
