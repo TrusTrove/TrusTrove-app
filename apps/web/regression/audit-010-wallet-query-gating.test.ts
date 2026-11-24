@@ -290,8 +290,14 @@ describe("Regression: address-keyed queries follow the wallet `connected` flag (
     await flushQueries();
 
     // Same hooks, same flush as the disabled cases above: the gate opens.
-    expect(getLPPosition).toHaveBeenCalledWith(LIVE_ADDRESS);
-    expect(getAllInvoices).toHaveBeenCalledWith({ issuer: LIVE_ADDRESS });
+    expect(getLPPosition).toHaveBeenCalledWith(
+      LIVE_ADDRESS,
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+    expect(getAllInvoices).toHaveBeenCalledWith(
+      { issuer: LIVE_ADDRESS },
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
     expect(getProfileMock).toHaveBeenCalledWith(LIVE_ADDRESS, LIVE_ADDRESS);
     expect(isVerifiedMock).toHaveBeenCalledWith(LIVE_ADDRESS, LIVE_ADDRESS);
     expect(horizonTransactionsCall).toHaveBeenCalled();

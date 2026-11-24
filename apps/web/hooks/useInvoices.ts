@@ -116,7 +116,8 @@ export function useInvoiceStats(issuer?: string) {
 
   const statsQuery = useQuery<InvoiceStats>({
     queryKey: ["invoiceStats", issuer],
-    queryFn: async () => computeInvoiceStats(await getAllInvoices({ issuer })),
+    queryFn: async ({ signal }) =>
+      computeInvoiceStats(await getAllInvoices({ issuer }, { signal })),
     enabled: !!issuer && connected,
     refetchInterval: 15000,
     staleTime: 15000,
@@ -139,7 +140,7 @@ export function useInvoicesList(filters?: {
 }) {
   const invoicesQuery = useQuery<PaginatedInvoices>({
     queryKey: ["invoices", filters],
-    queryFn: () => getInvoices(filters),
+    queryFn: ({ signal }) => getInvoices(filters, { signal }),
     refetchInterval: 15000,
     staleTime: 15000,
     enabled: filters?.enabled ?? true,
@@ -464,7 +465,7 @@ export function useInvoice(
 ) {
   const invoiceQuery = useQuery({
     queryKey: ["invoice", id],
-    queryFn: () => getInvoiceByID(id),
+    queryFn: ({ signal }) => getInvoiceByID(id, { signal }),
     enabled: !!id,
     staleTime: 60000,
     initialData: options?.initialData,

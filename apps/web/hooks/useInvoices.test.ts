@@ -627,8 +627,14 @@ describe("useInvoiceStats", () => {
     const options = lastQueryOptions();
 
     expect(options.enabled).toBe(true);
-    const stats = await options.queryFn();
-    expect(getAllInvoices).toHaveBeenCalledWith({ issuer: "GISSUER" });
+    const signal = new AbortController().signal;
+    const stats = await options.queryFn({ signal });
+    // The signal is forwarded so an unmounted/refetched query cancels the
+    // underlying request (#638).
+    expect(getAllInvoices).toHaveBeenCalledWith(
+      { issuer: "GISSUER" },
+      { signal },
+    );
     expect(stats).toEqual({
       totalInvoicesCreated: 250,
       totalListed: 120,

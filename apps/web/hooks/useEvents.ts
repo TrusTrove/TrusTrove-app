@@ -24,7 +24,7 @@ export function useRecentEvents(
   const issuer = options?.issuer;
   const eventsQuery = useQuery({
     queryKey: ["recentEvents", limit, issuer],
-    queryFn: () => getRecentEvents(limit, issuer),
+    queryFn: ({ signal }) => getRecentEvents(limit, issuer, { signal }),
     refetchInterval: options?.refetchInterval,
     enabled: options?.enabled ?? true,
   });

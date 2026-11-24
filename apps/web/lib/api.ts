@@ -1,5 +1,8 @@
 import { useWalletStore } from "@/store/wallet";
 import { parseInvoiceResponse } from "@/lib/parsers";
+// Single source of truth for which HTTP statuses count as transient. Lives in
+// lib/retry.ts, which deliberately has no imports, so this stays one-way.
+import { TRANSIENT_HTTP_STATUSES } from "@/lib/retry";
 import {
   AssetType,
   Invoice,
@@ -202,13 +205,11 @@ export class ApiError extends Error {
   }
 }
 
-/** HTTP statuses that indicate a transient, retry-worthy server condition. */
-const TRANSIENT_HTTP_STATUSES = new Set([429, 502, 503, 504]);
-
 /**
  * Whether an error is worth retrying.
  *
- * `true` for HTTP 429/502/503/504 and for the `"network"`/`"timeout"` kinds.
+ * `true` for the {@link TRANSIENT_HTTP_STATUSES} and for the `"network"`/
+ * `"timeout"` kinds.
  * Deliberately `false` for `kind === "aborted"`: a caller cancellation is not
  * a failure, and retrying it would defeat the cancellation. Also `false` for
  * anything that is not an {@link ApiError}, since nothing is known about it.
@@ -220,7 +221,7 @@ export function isTransientApiError(err: unknown): boolean {
   if (!(err instanceof ApiError)) return false;
   if (err.kind === "aborted") return false;
   if (err.kind === "network" || err.kind === "timeout") return true;
-  return err.status !== null && TRANSIENT_HTTP_STATUSES.has(err.status);
+  return err.status !== null && TRANSIENT_HTTP_STATUSES.includes(err.status);
 }
 
 /**
