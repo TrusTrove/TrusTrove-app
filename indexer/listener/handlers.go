@@ -78,13 +78,49 @@ func SyncPoolStats(ctx context.Context, cfg *config.Config, serverKP *keypair.Fu
 	return nil
 }
 
-// syncPoolStats refreshes the cached pool statistics after a state-changing
-// invoice event. A failure is logged instead of returned: the invoice event
-// itself was already indexed, so a transient chain/DB error here must not
-// cause the whole event to be retried or dropped.
-func (l *EventListener) syncPoolStats(ctx context.Context, eventName string, serverKP *keypair.Full) {
-	if err := SyncPoolStats(ctx, l.cfg, serverKP); err != nil {
-		slog.Warn("pool stats sync failed", "event", eventName, "error", err)
+// poolStatsSyncTimeout bounds the coalesced SyncPoolStats call. The RPC read
+// can otherwise retry for far longer than a poll interval, stalling the
+// listener's event loop.
+const poolStatsSyncTimeout = 10 * time.Second
+
+// markPoolStatsDirty records that an indexed event changed pool state. The
+// actual SyncPoolStats call is deferred to the end of the poll cycle, so a
+// batch of N funded/repaid/defaulted events costs one RPC round trip instead
+// of N (issue #943). The event id is kept only for the warning logged if that
+// single sync fails.
+func (l *EventListener) markPoolStatsDirty(eventID string) {
+	l.poolStatsDirty = true
+	if eventID != "" {
+		l.poolStatsPendingEvents = append(l.poolStatsPendingEvents, eventID)
+	}
+}
+
+// flushPoolStats runs the deferred SyncPoolStats once per poll cycle. A
+// failure is logged instead of returned: the events themselves were already
+// indexed, so a transient chain/DB error here must not cause them to be
+// retried or dropped, and the next poll retries the sync.
+func (l *EventListener) flushPoolStats(ctx context.Context) {
+	if !l.poolStatsDirty {
+		return
+	}
+	l.poolStatsDirty = false
+	events := l.poolStatsPendingEvents
+	l.poolStatsPendingEvents = nil
+
+	if ctx.Err() != nil {
+		// The listener is stopping; leave the flag clean for the next poll
+		// after a restart rather than delaying shutdown with a sync.
+		return
+	}
+
+	syncCtx, cancel := context.WithTimeout(
+		context.WithoutCancel(ctx),
+		poolStatsSyncTimeout,
+	)
+	defer cancel()
+
+	if err := l.syncPoolStatsFn(syncCtx); err != nil {
+		slog.Warn("pool stats sync failed", "eventIds", events, "error", err)
 	}
 }
 
@@ -180,7 +216,7 @@ func (l *EventListener) handleInvoiceListed(ctx context.Context, tx db.Querier, 
 	return nil
 }
 
-func (l *EventListener) handleInvoiceFunded(ctx context.Context, tx db.Querier, event SorobanEvent, serverKP *keypair.Full, ledgerClosedAt int64) error {
+func (l *EventListener) handleInvoiceFunded(ctx context.Context, tx db.Querier, event SorobanEvent, ledgerClosedAt int64) error {
 	// Topic format: ["InvoiceFunded" / "fund_invoice", invoice_id_bytes]
 	if len(event.Topic) < 2 {
 		return fmt.Errorf("invalid topic length for funded event")
@@ -207,8 +243,8 @@ func (l *EventListener) handleInvoiceFunded(ctx context.Context, tx db.Querier, 
 
 	slog.Info("Indexed event: InvoiceFunded", "id", invoiceID, "fundedAmount", fundedAmount)
 
-	// Sync pool stats after funding invoice
-	l.syncPoolStats(ctx, "invoice.funded", serverKP)
+	// Pool state changed; one coalesced stats sync runs at the end of the poll.
+	l.markPoolStatsDirty(event.ID)
 	return nil
 }
 
@@ -254,7 +290,7 @@ func (l *EventListener) handleDeliveryConfirmed(ctx context.Context, tx db.Queri
 	return nil
 }
 
-func (l *EventListener) handleInvoiceRepaid(ctx context.Context, tx db.Querier, event SorobanEvent, serverKP *keypair.Full, ledgerClosedAt int64) error {
+func (l *EventListener) handleInvoiceRepaid(ctx context.Context, tx db.Querier, event SorobanEvent, ledgerClosedAt int64) error {
 	if len(event.Topic) < 2 {
 		return fmt.Errorf("invalid topic length for repaid event")
 	}
@@ -273,12 +309,12 @@ func (l *EventListener) handleInvoiceRepaid(ctx context.Context, tx db.Querier, 
 
 	slog.Info("Indexed event: InvoiceRepaid", "id", invoiceID)
 
-	// Sync pool stats after repayment
-	l.syncPoolStats(ctx, "invoice.repaid", serverKP)
+	// Pool state changed; one coalesced stats sync runs at the end of the poll.
+	l.markPoolStatsDirty(event.ID)
 	return nil
 }
 
-func (l *EventListener) handleInvoiceDefaulted(ctx context.Context, tx db.Querier, event SorobanEvent, serverKP *keypair.Full) error {
+func (l *EventListener) handleInvoiceDefaulted(ctx context.Context, tx db.Querier, event SorobanEvent) error {
 	if len(event.Topic) < 2 {
 		return fmt.Errorf("invalid topic length for default event")
 	}
@@ -297,8 +333,8 @@ func (l *EventListener) handleInvoiceDefaulted(ctx context.Context, tx db.Querie
 
 	slog.Info("Indexed event: InvoiceDefaulted", "id", invoiceID)
 
-	// Sync pool stats after default
-	l.syncPoolStats(ctx, "invoice.defaulted", serverKP)
+	// Pool state changed; one coalesced stats sync runs at the end of the poll.
+	l.markPoolStatsDirty(event.ID)
 	return nil
 }
 
@@ -509,11 +545,6 @@ func (l *EventListener) handleEvent(ctx context.Context, event SorobanEvent) err
 	}
 	eventName := string(*topicVal.Sym)
 
-	serverKP, err := api.GetServerKeypair(l.cfg.ServerSeed)
-	if err != nil {
-		return fmt.Errorf("get server keypair: %w", err)
-	}
-
 	// Parse ledger closed time
 	ledgerClosedAt := time.Now().Unix()
 	if event.LedgerClosedAt != "" {
@@ -542,15 +573,15 @@ func (l *EventListener) handleEvent(ctx context.Context, event SorobanEvent) err
 		case "list_for_financing", "InvoiceListed":
 			err = l.handleInvoiceListed(ctx, tx, event)
 		case "fund_invoice", "InvoiceFunded":
-			err = l.handleInvoiceFunded(ctx, tx, event, serverKP, ledgerClosedAt)
+			err = l.handleInvoiceFunded(ctx, tx, event, ledgerClosedAt)
 		case "mark_shipped", "InvoiceShipped":
 			err = l.handleInvoiceShipped(ctx, tx, event, ledgerClosedAt)
 		case "confirm_delivery", "DeliveryConfirmed":
 			err = l.handleDeliveryConfirmed(ctx, tx, event, ledgerClosedAt)
 		case "repay", "InvoiceRepaid":
-			err = l.handleInvoiceRepaid(ctx, tx, event, serverKP, ledgerClosedAt)
+			err = l.handleInvoiceRepaid(ctx, tx, event, ledgerClosedAt)
 		case "trigger_default", "InvoiceDefaulted":
-			err = l.handleInvoiceDefaulted(ctx, tx, event, serverKP)
+			err = l.handleInvoiceDefaulted(ctx, tx, event)
 		case "submit_attestation", "AttestationSubmitted":
 			err = l.handleAttestationSubmitted(ctx, tx, event, ledgerClosedAt)
 		case "issuer_registered", "buyer_registered":

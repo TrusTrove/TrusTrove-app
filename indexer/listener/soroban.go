@@ -160,6 +160,21 @@ type EventListener struct {
 	areEventsProcessedFn       func(context.Context, []string) (map[string]bool, error)
 	getLedgerHashFn            func(context.Context, int32) (string, error)
 
+	// handleEventFn applies one event. It defaults to handleEvent; tests
+	// override it to exercise poll-loop bookkeeping (event de-duplication,
+	// pool-stats coalescing) without a live database.
+	handleEventFn func(context.Context, SorobanEvent) error
+
+	// syncPoolStatsFn refreshes the cached pool statistics from chain. It is
+	// called at most once per poll cycle (issue #943) and is injectable so
+	// tests can count syncs without a live RPC.
+	syncPoolStatsFn func(context.Context) error
+
+	// poolStatsDirty is set by invoice handlers whose event changed pool
+	// state; poolStatsPendingEvents keeps their ids for the failure log.
+	poolStatsDirty         bool
+	poolStatsPendingEvents []string
+
 	// finalizedLedger is the newest ledger the checkpoint has advanced past
 	// (i.e. treated as final), and finalizedHash the header hash it had when
 	// first observed. Both are verified against the RPC before the next
@@ -187,6 +202,14 @@ func NewEventListener(cfg *config.Config, health *api.ListenerHealth, dispatcher
 		areEventsProcessedFn:       db.AreEventsProcessed,
 	}
 	l.getLedgerHashFn = l.getLedgerHash
+	l.handleEventFn = l.handleEvent
+	l.syncPoolStatsFn = func(ctx context.Context) error {
+		serverKP, err := api.GetServerKeypair(l.cfg.ServerSeed)
+		if err != nil {
+			return fmt.Errorf("get server keypair: %w", err)
+		}
+		return SyncPoolStats(ctx, l.cfg, serverKP)
+	}
 	return l
 }
 
@@ -402,7 +425,16 @@ func (l *EventListener) BackfillRange(ctx context.Context, startLedger, endLedge
 	return err
 }
 
-func (l *EventListener) pollEventsRange(ctx context.Context, startLedger, endLedger int32) (int32, error) {
+func (l *EventListener) pollEventsRange(ctx context.Context, startLedger, endLedger int32) (next int32, err error) {
+	// Pool stats are refreshed once per poll instead of once per event. A
+	// failed poll is retried by the caller, so the sync is skipped here and
+	// the dirty flag is flushed by the next successful poll (issue #943).
+	defer func() {
+		if err == nil {
+			l.flushPoolStats(ctx)
+		}
+	}()
+
 	var contractIDs []string
 	if l.cfg.RegistryContractID != "" {
 		contractIDs = append(contractIDs, l.cfg.RegistryContractID)
@@ -516,7 +548,7 @@ func (l *EventListener) pollEventsRange(ctx context.Context, startLedger, endLed
 
 			// Once an event has entered processing, cancellation only stops new
 			// polls; the transaction and webhook enqueue may finish atomically.
-			if err := l.handleEvent(context.WithoutCancel(ctx), sorobanEv); err != nil {
+			if err := l.handleEventFn(context.WithoutCancel(ctx), sorobanEv); err != nil {
 				return startLedger, fmt.Errorf("handle event %s: %w", sorobanEv.ID, err)
 			}
 		}
@@ -534,7 +566,7 @@ func (l *EventListener) pollEventsRange(ctx context.Context, startLedger, endLed
 		l.observeLedgerMetrics(latestLedgerSeq, startLedger)
 		return startLedger, nil
 	}
-	next := latestLedgerSeq + 1
+	next = latestLedgerSeq + 1
 	if depth > 0 {
 		// The checkpoint may never pass the newest ledger that cleared the
 		// confirmation window; when none has, retry the same range next poll
