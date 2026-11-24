@@ -20,8 +20,8 @@ See the root [`README.md`](../../README.md) for the full project overview and de
 
 ## Prerequisites
 
-- Node.js 20+
-- pnpm 9+
+- Node.js 22+
+- pnpm 10+
 - Go 1.25+
 - PostgreSQL 15+ or Docker Compose
 - Freighter wallet configured for Stellar Testnet

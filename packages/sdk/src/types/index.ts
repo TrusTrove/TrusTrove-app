@@ -76,7 +76,11 @@ export interface Invoice {
   /** Document hash details. */
   documentHash?: DocumentHash | null;
   /** Recorded cryptographic hashes of invoice evidence documents. */
-  documentHashes?: Array<{ algorithm?: string; name?: string; hash: string }> | null;
+  documentHashes?: Array<{
+    algorithm?: string;
+    name?: string;
+    hash: string;
+  }> | null;
   /** Unix timestamp (seconds) when the attestation was provided. */
   attestedAt?: number | null;
 }

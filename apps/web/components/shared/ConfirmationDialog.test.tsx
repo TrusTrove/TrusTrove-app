@@ -1,17 +1,39 @@
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 import { ConfirmationDialog } from "./ConfirmationDialog";
 import { useConfirmDialogStore } from "@/store/confirmDialog";
-import { useFocusTrap } from "@/hooks/useFocusTrap";
+import { useWallet } from "@/hooks/useWallet";
 
 vi.mock("@/store/confirmDialog", () => ({
   useConfirmDialogStore: vi.fn(),
 }));
 
+vi.mock("@/hooks/useWallet", () => ({
+  useWallet: vi.fn(),
+}));
+
 vi.mock("@/hooks/useFocusTrap", () => ({
   useFocusTrap: vi.fn(() => ({ current: null })),
 }));
+
+beforeEach(() => {
+  vi.mocked(useWallet).mockReturnValue({
+    address: "GTEST",
+    connected: true,
+    network: "testnet",
+    connectWallet: vi.fn(),
+    disconnectWallet: vi.fn(),
+    loading: false,
+    error: null,
+    errorCode: null,
+    canSign: true,
+    balances: { usdc: null, xlm: null },
+    balancesLoading: false,
+    balancesError: null,
+    refetchBalances: vi.fn(),
+  });
+});
 
 describe("ConfirmationDialog", () => {
   it("renders non-null pendingAction happy path correctly", () => {

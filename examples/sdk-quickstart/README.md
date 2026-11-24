@@ -15,8 +15,8 @@ are used as defaults.
 
 ## Prerequisites
 
-- Node.js 20+
-- pnpm 9+
+- Node.js 22+
+- pnpm 10+
 - Network access to Stellar testnet (Horizon + Soroban RPC)
 
 ## Install
