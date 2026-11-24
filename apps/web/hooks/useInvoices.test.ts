@@ -311,9 +311,13 @@ describe("useInvoices", () => {
       useWalletStore.getState().connect("G123", "testnet");
     });
 
-    vi.mocked(getInvoiceByID).mockResolvedValue({ buyer: "G_BUYER" } as any);
+    vi.mocked(getInvoiceByID).mockResolvedValue({
+      buyer: "G_BUYER",
+      status: "Active",
+    } as any);
     vi.mocked(InvoiceClient).mockImplementation(function () {
       return {
+        get: vi.fn().mockResolvedValue({ buyer: "G_BUYER", status: "Active" }),
         confirmDelivery: vi.fn().mockRejectedValue(new Error("Confirm failed")),
       };
     } as any);
@@ -334,10 +338,16 @@ describe("useInvoices", () => {
       useWalletStore.getState().connect("G123", "testnet");
     });
 
-    vi.mocked(getInvoiceByID).mockResolvedValue({ buyer: "G_BUYER" } as any);
+    vi.mocked(getInvoiceByID).mockResolvedValue({
+      buyer: "G_BUYER",
+      status: "Active",
+    } as any);
     const mockConfirm = vi.fn().mockResolvedValue("ok");
+    const mockGet = vi
+      .fn()
+      .mockResolvedValue({ buyer: "G_BUYER", status: "Active" });
     vi.mocked(InvoiceClient).mockImplementation(function () {
-      return { confirmDelivery: mockConfirm };
+      return { get: mockGet, confirmDelivery: mockConfirm };
     } as any);
 
     const { result } = renderHook(() => useInvoiceActions());
@@ -346,7 +356,113 @@ describe("useInvoices", () => {
       await result.current.confirmDelivery({ invoiceId: "inv1" });
     });
 
+    expect(mockGet).toHaveBeenCalledWith("inv1", "G123");
     expect(mockConfirm).toHaveBeenCalledWith("inv1", "G_BUYER", "G123");
+  });
+
+  it("fails fast with clear error if invoice buyer changes between read and submit (TOCTOU)", async () => {
+    act(() => {
+      useWalletStore.getState().connect("G123", "testnet");
+    });
+
+    vi.mocked(getInvoiceByID).mockResolvedValue({
+      id: "inv1",
+      buyer: "G_OLD_BUYER",
+      status: "Active",
+    } as any);
+
+    const mockConfirm = vi.fn().mockResolvedValue("ok");
+    vi.mocked(InvoiceClient).mockImplementation(function () {
+      return {
+        get: vi.fn().mockResolvedValue({
+          id: "inv1",
+          buyer: "G_NEW_BUYER",
+          status: "Active",
+        }),
+        confirmDelivery: mockConfirm,
+      };
+    } as any);
+
+    const { result } = renderHook(() => useInvoiceActions());
+
+    await expect(
+      act(async () => {
+        await result.current.confirmDelivery({ invoiceId: "inv1" });
+      }),
+    ).rejects.toThrow("Invoice changed, please retry");
+
+    expect(mockConfirm).not.toHaveBeenCalled();
+    expect(toast.showErrorToast).toHaveBeenCalled();
+  });
+
+  it("fails fast with clear error if invoice status changes between read and submit (TOCTOU)", async () => {
+    act(() => {
+      useWalletStore.getState().connect("G123", "testnet");
+    });
+
+    vi.mocked(getInvoiceByID).mockResolvedValue({
+      id: "inv1",
+      buyer: "G_BUYER",
+      status: "Active",
+    } as any);
+
+    const mockConfirm = vi.fn().mockResolvedValue("ok");
+    vi.mocked(InvoiceClient).mockImplementation(function () {
+      return {
+        get: vi.fn().mockResolvedValue({
+          id: "inv1",
+          buyer: "G_BUYER",
+          status: "Repaid",
+        }),
+        confirmDelivery: mockConfirm,
+      };
+    } as any);
+
+    const { result } = renderHook(() => useInvoiceActions());
+
+    await expect(
+      act(async () => {
+        await result.current.confirmDelivery({ invoiceId: "inv1" });
+      }),
+    ).rejects.toThrow("Invoice changed, please retry");
+
+    expect(mockConfirm).not.toHaveBeenCalled();
+    expect(toast.showErrorToast).toHaveBeenCalled();
+  });
+
+  it("fails fast if invoice is non-Active even when off-chain and on-chain match", async () => {
+    act(() => {
+      useWalletStore.getState().connect("G123", "testnet");
+    });
+
+    vi.mocked(getInvoiceByID).mockResolvedValue({
+      id: "inv1",
+      buyer: "G_BUYER",
+      status: "Repaid",
+    } as any);
+
+    const mockConfirm = vi.fn().mockResolvedValue("ok");
+    vi.mocked(InvoiceClient).mockImplementation(function () {
+      return {
+        get: vi.fn().mockResolvedValue({
+          id: "inv1",
+          buyer: "G_BUYER",
+          status: "Repaid",
+        }),
+        confirmDelivery: mockConfirm,
+      };
+    } as any);
+
+    const { result } = renderHook(() => useInvoiceActions());
+
+    await expect(
+      act(async () => {
+        await result.current.confirmDelivery({ invoiceId: "inv1" });
+      }),
+    ).rejects.toThrow("Invoice changed, please retry");
+
+    expect(mockConfirm).not.toHaveBeenCalled();
+    expect(toast.showErrorToast).toHaveBeenCalled();
   });
 
   it("repayInvoice works", async () => {
