@@ -225,7 +225,7 @@ export default function InvoiceDetailClient({
 
         <nav
           aria-label="Breadcrumb"
-          className="text-[10px] font-bold font-mono uppercase tracking-wider"
+          className="text-[10px] font-bold font-mono uppercase tracking-wider print:hidden"
         >
           <ol className="flex flex-wrap items-center gap-2">
             <li className="flex-shrink-0">
