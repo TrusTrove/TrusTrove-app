@@ -1,15 +1,28 @@
-import { renderHook, act } from "@testing-library/react";
+import { renderHook, act, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import React from "react";
 import { useProfile } from "./useProfile";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  QueryClient,
+  QueryClientProvider,
+} from "@tanstack/react-query";
 import { RegistryClient } from "@trusttrove/sdk";
 import { useWalletStore } from "@/store/wallet";
 
-vi.mock("@tanstack/react-query", () => ({
-  useQuery: vi.fn(),
-  useMutation: vi.fn(),
-  useQueryClient: vi.fn(),
-}));
+vi.mock("@tanstack/react-query", async () => {
+  const actual = await vi.importActual<typeof import("@tanstack/react-query")>(
+    "@tanstack/react-query",
+  );
+  return {
+    ...actual,
+    useQuery: vi.fn((options) => actual.useQuery(options)),
+    useMutation: vi.fn((options) => actual.useMutation(options)),
+    useQueryClient: vi.fn(() => actual.useQueryClient()),
+  };
+});
 
 vi.mock("@trusttrove/sdk", () => ({
   RegistryClient: vi.fn(function () {}),
@@ -393,35 +406,43 @@ describe("useProfile", () => {
 
     vi.mocked(RegistryClient).mockImplementation(function () {
       return {
+        getProfile: vi.fn().mockResolvedValue(null),
         isVerified: vi.fn().mockRejectedValue(verificationError),
       };
     } as any);
 
-    let capturedQueryFn: (() => Promise<boolean>) | undefined;
-    vi.mocked(useQuery).mockImplementation((args: any) => {
-      if (args.queryKey[0] === "isVerified") {
-        capturedQueryFn = args.queryFn;
-        return {
-          data: undefined,
-          isLoading: false,
-          error: verificationError,
-          refetch: vi.fn(),
-        } as any;
-      }
-      return {
-        data: null,
-        isLoading: false,
-        error: null,
-        refetch: vi.fn(),
-      } as any;
+    const actualQuery = await vi.importActual<
+      typeof import("@tanstack/react-query")
+    >("@tanstack/react-query");
+    vi.mocked(useQuery).mockImplementation((options) =>
+      actualQuery.useQuery(options),
+    );
+    vi.mocked(useQueryClient).mockImplementation(() =>
+      actualQuery.useQueryClient(),
+    );
+
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+          gcTime: 0,
+        },
+      },
     });
 
-    const { result } = renderHook(() => useProfile());
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      React.createElement(
+        QueryClientProvider,
+        { client: queryClient },
+        children,
+      );
+
+    const { result } = renderHook(() => useProfile(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isVerifiedError).toEqual(verificationError);
+    });
 
     expect(result.current.isVerified).toBe(false);
-    expect(result.current.isVerifiedError).toBe(verificationError);
-
-    expect(capturedQueryFn).toBeDefined();
-    await expect(capturedQueryFn!()).rejects.toThrow(verificationError);
   });
 });
