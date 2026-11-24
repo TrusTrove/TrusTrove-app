@@ -120,9 +120,11 @@ func RecoveryMiddleware() func(http.Handler) http.Handler {
 						"stack", string(debug.Stack()),
 						"method", r.Method,
 						"path", r.URL.Path,
+						"request_id", middleware.GetReqID(r.Context()),
 					)
 
 					w.Header().Set("Content-Type", "application/json")
+					w.Header().Set("X-Request-Id", middleware.GetReqID(r.Context()))
 					w.WriteHeader(http.StatusInternalServerError)
 					_, _ = w.Write([]byte(`{"error": "internal server error"}`))
 				}
@@ -400,7 +402,7 @@ func NewRouter(h *APIHandler) (*chi.Mux, func()) {
 
 	// Global middleware
 	r.Use(middleware.RequestID)
-	r.Use(middleware.Logger)
+	r.Use(AccessLogMiddleware())
 	r.Use(indexermiddleware.PrometheusMiddleware)
 	r.Use(RecoveryMiddleware())
 	r.Use(TrustedProxyMiddleware(h.cfg.TrustedProxyCIDRs))
@@ -483,6 +485,43 @@ func NewRouter(h *APIHandler) (*chi.Mux, func()) {
 		invoiceLimiter.Stop()
 	}
 }
+
+// AccessLogMiddleware returns a chi-compatible middleware that emits a single
+// structured slog record per request. It deliberately logs only the request
+// path (never the query string) and no request headers, so query parameters
+// and Authorization tokens cannot leak into access logs.
+func AccessLogMiddleware() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
+			requestID := middleware.GetReqID(r.Context())
+			w.Header().Set("X-Request-Id", requestID)
+
+			ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
+			next.ServeHTTP(ww, r)
+
+			status := ww.Status()
+			if status == 0 {
+				status = http.StatusOK
+			}
+			slog.Info("http request",
+				"request_id", requestID,
+				"method", r.Method,
+				"path", r.URL.Path,
+				"status", status,
+				"bytes", ww.BytesWritten(),
+				"duration", time.Since(start),
+			)
+		})
+	}
+}
+
+// Aliases for callers/tests that refer to the slog access logger by other
+// common names.
+func SlogAccessLogMiddleware() func(http.Handler) http.Handler { return AccessLogMiddleware() }
+func SlogLoggerMiddleware() func(http.Handler) http.Handler       { return AccessLogMiddleware() }
+func RequestLoggerMiddleware() func(http.Handler) http.Handler     { return AccessLogMiddleware() }
+func LoggingMiddleware() func(http.Handler) http.Handler           { return AccessLogMiddleware() }
 
 func metricsTokenMiddleware(expected string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {

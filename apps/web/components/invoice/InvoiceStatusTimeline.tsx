@@ -134,6 +134,8 @@ export function InvoiceStatusTimeline({ invoice }: InvoiceStatusTimelineProps) {
                     href={`https://stellar.expert/explorer/testnet/tx/${txHash}`}
                     target="_blank"
                     rel="noreferrer"
+                    title={txHash}
+                    aria-label={txHash}
                     className="inline-flex min-w-0 items-center gap-1 text-teal-300 transition-colors hover:text-teal-200"
                   >
                     <span className="truncate">{truncateTxHash(txHash)}</span>
