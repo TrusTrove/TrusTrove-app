@@ -190,10 +190,9 @@ jobs:
           INDEXER_MIGRATIONS_DIR: ${{ github.workspace }}/indexer/db/migrations
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v9
         with:
-          version: v1.64.5
-          install-mode: goinstall
+          version: v2.15.0
           working-directory: indexer
           args: --timeout=5m
 

@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -393,19 +392,6 @@ func TestLocateMigrationDir_InvalidEnvVar(t *testing.T) {
 	if err == nil {
 		t.Fatal("locateMigrationDir with invalid env var: expected error, got nil")
 	}
-}
-
-// TestRollbackOnError_LoggedMessage verifies rollbackOnError compiles and
-// can be invoked. Full coverage requires a mock tx (pgx.Tx), which is
-// beyond unit-test scope without a third-party mock library.
-func TestRollbackOnError_LoggedMessage(t *testing.T) {
-	// This is a smoke test to ensure the function is reachable from tests.
-	// We cannot easily mock pgx.Tx in unit tests without pgxmock, so we
-	// just verify it compiles and is callable.
-	ctx := context.Background()
-	// rollbackOnError requires a non-nil tx; we skip the actual call.
-	_ = ctx
-	_ = fmt.Sprintf("rollbackOnError is exported within the package")
 }
 
 // --- RunMigration guard ---

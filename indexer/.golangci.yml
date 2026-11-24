@@ -1,20 +1,37 @@
-run:
-  timeout: 5m
-
+version: "2"
 linters:
-  disable-all: true
+  default: none
   enable:
     - errcheck
-    - staticcheck
+    - errorlint
     - govet
     - ineffassign
+    - staticcheck
     - unused
-    - errorlint
-
-linters-settings:
-  staticcheck:
-    checks: ["SA*", "S1*"]
-  errorlint:
-    errorf: true
-    comparison: true
-    asserts: true
+  settings:
+    errorlint:
+      errorf: true
+      asserts: true
+      comparison: true
+    staticcheck:
+      checks:
+        - S1*
+        - SA*
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

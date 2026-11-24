@@ -372,7 +372,7 @@ func MarkDeliveryDeadLetter(ctx context.Context, deliveryID int64, errorMsg stri
 // textArrayToSlice converts a pgtype.Array[pgtype.Text] to a Go string slice.
 func textArrayToSlice(arr pgtype.Array[pgtype.Text]) []string {
 	dims := arr.Dimensions()
-	if dims == nil || len(dims) == 0 || dims[0].Length == 0 {
+	if len(dims) == 0 || dims[0].Length == 0 {
 		return []string{}
 	}
 	result := make([]string, 0, dims[0].Length)
