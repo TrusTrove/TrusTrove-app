@@ -43,7 +43,7 @@ describe("MarketplaceCard funding capacity indicator", () => {
     const badge = screen.getByTestId("capacity-status");
     expect(badge).toHaveTextContent("capacity-limited");
 
-    const fundButton = screen.getByRole("button", { name: /Fund Partially / Limit/i });
+    const fundButton = screen.getByRole("button", { name: /Fund Partially /i });
     expect(fundButton).toBeEnabled();
   });
 
