@@ -118,7 +118,7 @@ export function NotificationBell() {
               notifications.map((n) => (
                   <div
                   key={n.id}
-                  onClick={() => markAsRead(Number(n.id))}
+                  onClick={() => markAsRead(String(n.id))}
                   className={`p-3 transition-colors cursor-pointer hover:bg-slate-800/50 flex gap-3 items-start ${
                     n.read ? "opacity-60 bg-transparent" : "bg-slate-800/20"
                     }`}

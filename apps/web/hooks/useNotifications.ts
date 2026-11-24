@@ -6,10 +6,13 @@ import { useRecentEvents } from "./useEvents";
 export type NotificationCategory = "all" | "invoice" | "pool" | "account";
 
 export interface NotificationEvent {
-  id: string;
+  id: number | string;
   event_type: string;
   invoiceId?: string;
-  occurred_at: string;
+  contract_id?: string;
+  ledger?: number;
+  ledger_closed_at?: number;
+  occurred_at?: string;
   data: Record<string, unknown>;
   read?: boolean;
 }
