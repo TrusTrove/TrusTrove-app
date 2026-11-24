@@ -266,8 +266,9 @@ export function useInvoiceActions() {
       const onChainInvoice = await client.get(invoiceId, address);
       if (
         onChainInvoice.buyer !== invoice.buyer ||
-        (onChainInvoice.status !== "Active" &&
-          onChainInvoice.status !== invoice.status)
+        onChainInvoice.status !== "Active" ||
+        invoice.status !== "Active" ||
+        onChainInvoice.status !== invoice.status
       ) {
         throw new Error("Invoice changed, please retry");
       }

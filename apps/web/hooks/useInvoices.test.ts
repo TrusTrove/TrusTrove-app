@@ -430,6 +430,41 @@ describe("useInvoices", () => {
     expect(toast.showErrorToast).toHaveBeenCalled();
   });
 
+  it("fails fast if invoice is non-Active even when off-chain and on-chain match", async () => {
+    act(() => {
+      useWalletStore.getState().connect("G123", "testnet");
+    });
+
+    vi.mocked(getInvoiceByID).mockResolvedValue({
+      id: "inv1",
+      buyer: "G_BUYER",
+      status: "Repaid",
+    } as any);
+
+    const mockConfirm = vi.fn().mockResolvedValue("ok");
+    vi.mocked(InvoiceClient).mockImplementation(function () {
+      return {
+        get: vi.fn().mockResolvedValue({
+          id: "inv1",
+          buyer: "G_BUYER",
+          status: "Repaid",
+        }),
+        confirmDelivery: mockConfirm,
+      };
+    } as any);
+
+    const { result } = renderHook(() => useInvoiceActions());
+
+    await expect(
+      act(async () => {
+        await result.current.confirmDelivery({ invoiceId: "inv1" });
+      }),
+    ).rejects.toThrow("Invoice changed, please retry");
+
+    expect(mockConfirm).not.toHaveBeenCalled();
+    expect(toast.showErrorToast).toHaveBeenCalled();
+  });
+
   it("repayInvoice works", async () => {
     act(() => {
       useWalletStore.getState().connect("G123", "testnet");
