@@ -38,6 +38,8 @@ export function readStoredNotifications(storageKey: string): StoredNotifications
   return {};
 }
 
+import { useWalletStore } from "@/stores/useWalletStore";
+
 export function useNotifications() {
 const address = useWalletStore((s) => s.address);
   // The polling feeds below are scoped to the wallet, so they follow the same
