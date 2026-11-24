@@ -221,10 +221,7 @@ export function Navbar() {
             )}
 
             <div className="hidden sm:flex items-center gap-2">
-              <NotificationBell
-                notifications={notifications}
-                onOpen={() => markAllAsRead()}
-              />
+              <NotificationBell />
               <button
                 type="button"
                 data-tour="tour-launcher"
