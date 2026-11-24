@@ -116,7 +116,7 @@ describe("InvoiceForm Component Boundary Tests", () => {
     expect((buyerInput as HTMLInputElement).value).toBe(
       "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF"
     );
-    expect((faceValueInput as HTMLInputElement).value).toBe("2,500");
+    expect((faceValueInput as HTMLInputElement).value).toBe("2500");
     expect((fpInput as HTMLInputElement).value).toBe("abc123hash");
   });
 
