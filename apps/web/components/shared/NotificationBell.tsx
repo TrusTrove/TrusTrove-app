@@ -133,7 +133,7 @@ export function NotificationBell() {
                         {n.event_type}
                       </span>
                       <span className="text-[10px] text-slate-500">
-                        {new Date(n.occurred_at).toLocaleTimeString([], {
+                        {new Date((n.ledger_closed_at || Date.now() / 1000) * 1000).toLocaleTimeString([], {
                           hour: "2-digit",
                           minute: "2-digit",
                         })}
