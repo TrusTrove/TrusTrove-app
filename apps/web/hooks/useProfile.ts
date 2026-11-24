@@ -117,7 +117,7 @@ export function useProfile() {
         return verified;
       } catch (err) {
         captureError(err);
-        return false;
+        throw err;
       }
     },
     enabled: !!address && connected,
