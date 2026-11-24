@@ -38,7 +38,7 @@ export function readStoredNotifications(storageKey: string): StoredNotifications
   return {};
 }
 
-import { useWalletStore } from "@/stores/useWalletStore";
+import { useWalletStore } from "@/store/wallet";
 
 export function useNotifications() {
 const address = useWalletStore((s) => s.address);
@@ -47,9 +47,10 @@ const address = useWalletStore((s) => s.address);
   // (issue #636).
   const connected = useWalletStore((s) => s.connected);
   const role = useWalletStore((s) => s.role);
-  const { events, isLoading, error, refetch } = useRecentEvents(50,
-    );
+  const { events, isLoading, error, refetch } = useRecentEvents(50);
   const [category, setCategory] = useState<NotificationCategory>("all");
+
+  const [readMap, setReadMap] = useState<StoredNotifications>(() => readStoredNotifications(STORAGE_KEY));
 
   const persistReadMap = useCallback((nextMap: StoredNotifications) => {
     setReadMap(nextMap);
