@@ -82,7 +82,7 @@ export default function InvoiceDetailClient({
   // One key at a time keeps the "copied" feedback mutually exclusive, and a
   // single timer makes the reset easy to clean up on unmount (and when another
   // copy is triggered before the previous one expires).
-  type CopyKey = "id" | "issuer" | "buyer" | "link" | string;
+type CopyKey = "id" | "issuer" | "buyer" | "paymentRef" | "link" | string;
   const [copiedKey, setCopiedKey] = useState<CopyKey | null>(null);
   const [copyFailedKey, setCopyFailedKey] = useState<CopyKey | null>(null);
   const [copyAnnouncement, setCopyAnnouncement] = useState("");
@@ -397,6 +397,42 @@ export default function InvoiceDetailClient({
                 Obligation Parties
               </h2>
               <div className="space-y-4 font-mono text-xs">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 p-2.5 bg-background/40 rounded border border-border/30">
+                  <div className="space-y-0.5">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase block">
+                      Buyer Payment Reference
+                    </span>
+                    <span className="text-foreground break-all select-all font-bold">
+                      TT-PAY-{invoice.id.slice(0, 16).toUpperCase()}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground block mt-1">
+                      Note: Off-chain fiat or wire transfers do not automatically settle this on-chain invoice.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(`TT-PAY-${invoice.id.slice(0, 16).toUpperCase()}`, "paymentRef")}
+                    className="self-end sm:self-center border border-border bg-card text-muted-foreground hover:text-foreground px-2 py-1 rounded flex items-center gap-1 min-h-[32px]"
+                    aria-label="Copy buyer payment reference"
+                  >
+                    {copyFailedKey === "paymentRef" ? (
+                      <CircleAlert
+                        className="w-3 h-3 text-destructive"
+                        aria-hidden="true"
+                      />
+                    ) : copiedKey === "paymentRef" ? (
+                      <Check
+                        className="w-3 h-3 text-success"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <Copy className="w-3 h-3" aria-hidden="true" />
+                    )}
+                    <span aria-hidden="true">
+                      {copiedKey === "paymentRef" ? "COPIED" : "COPY"}
+                    </span>
+                  </button>
+                </div>
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 p-2.5 bg-background/40 rounded border border-border/30">
                   <div className="space-y-0.5">
                     <span className="text-[10px] text-muted-foreground font-bold uppercase block">
