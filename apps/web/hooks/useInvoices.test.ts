@@ -605,6 +605,10 @@ describe("computeInvoiceStats", () => {
 describe("useInvoiceStats", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // The stats query is gated on the wallet store's `connected` flag as well
+    // as the issuer argument (issue #636), so state it explicitly instead of
+    // inheriting whatever a previous describe left in the store.
+    useWalletStore.getState().connect("GISSUER", "testnet");
     vi.mocked(useQuery).mockReturnValue({
       data: undefined,
       isLoading: true,

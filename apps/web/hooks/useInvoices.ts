@@ -101,6 +101,10 @@ export function computeInvoiceStats(invoices: Invoice[]): InvoiceStats {
  * stats (issue #874).
  *
  * @param issuer - The issuer's Stellar address; query is disabled without it.
+ *   The only caller passes the connected wallet's address, so the query is
+ *   additionally gated on the store's `connected` flag: a reload rehydrates the
+ *   store as disconnected and no address-keyed query may fire while the UI
+ *   shows a disconnected wallet (issue #636).
  * @returns An object containing:
  *   - `stats` — {@link InvoiceStats} over the full set (zeros while loading).
  *   - `isLoading` — `true` while the first full-set fetch is in flight.
@@ -108,10 +112,12 @@ export function computeInvoiceStats(invoices: Invoice[]): InvoiceStats {
  *   - `refetch` — Function to manually re-trigger the query.
  */
 export function useInvoiceStats(issuer?: string) {
+  const connected = useWalletStore((s) => s.connected);
+
   const statsQuery = useQuery<InvoiceStats>({
     queryKey: ["invoiceStats", issuer],
     queryFn: async () => computeInvoiceStats(await getAllInvoices({ issuer })),
-    enabled: !!issuer,
+    enabled: !!issuer && connected,
     refetchInterval: 15000,
     staleTime: 15000,
   });
