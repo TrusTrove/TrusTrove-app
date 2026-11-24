@@ -2,14 +2,6 @@ import { useCallback } from "react";
 import { useWalletStore } from "@/store/wallet";
 
 /**
- * Default approval expiration offset in ledger sequences.
- *
- * 535 680 ledgers ≈ 31 days on Stellar (assuming ~5 s per ledger).
- * This gives the user a comfortable window before they need to re-approve.
- */
-const APPROVAL_LEDGER_OFFSET = 535_680;
-
-/**
  * Custom hook that provides an `ensureAllowance` helper for gating on-chain
  * USDC transfers behind a token approval step.
  *
@@ -46,7 +38,7 @@ export function useTokenAllowance() {
       // imported here (rather than at module scope) so it still applies the
       // web app's USDC issuer/RPC config before the client is constructed
       // (#1090).
-      const [{ TokenClient, getSorobanServer }] = await Promise.all([
+      const [{ TokenClient, getConfig, getSorobanServer }] = await Promise.all([
         import("@trusttrove/sdk"),
         import("@/lib/sdkConfig"),
       ]);
@@ -63,10 +55,13 @@ export function useTokenAllowance() {
       // 2. If sufficient, nothing to do
       if (currentAllowance >= amount) return;
 
-      // 3. Determine an expiration ledger (current + ~31 days)
+      // 3. Determine an expiration ledger from SDK config (must not exceed the
+      //    network's maximum entry TTL).
       const server = getSorobanServer();
       const latestLedger = await server.getLatestLedger();
-      const expirationLedger = latestLedger.sequence + APPROVAL_LEDGER_OFFSET;
+      const allowanceExpiryLedgers =
+        getConfig().allowanceExpiryLedgers ?? 535_680;
+      const expirationLedger = latestLedger.sequence + allowanceExpiryLedgers;
 
       // 4. Prompt user to approve — Freighter will show a signing dialog
       await tokenClient.approve(

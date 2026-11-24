@@ -131,40 +131,6 @@ test.describe("Profile Registration & Verification - Happy Path", () => {
     ).toBeVisible();
   });
 
-  // FIXME: CI builds with the testnet contract IDs, so the "registry client
-  // not available" path is never reached. Tracked in https://github.com/TrusTrove/TrusTrove-app/issues/1175
-  test.fixme("should submit a complete registration and report the missing registry contract", async ({
-    page,
-  }) => {
-    await page
-      .getByRole("button", { name: /Register Business Profile/i })
-      .click();
-
-    await page
-      .getByPlaceholder("e.g. Acme Corporation")
-      .fill("Acme Corporation");
-    await page.getByPlaceholder("e.g. REG-123456789").fill("REG-123456789");
-    await page.getByPlaceholder("e.g. United States").fill("United States");
-    await page.getByPlaceholder("https://acme.com").fill("https://acme.com");
-    await page.getByPlaceholder("contact@acme.com").fill("contact@acme.com");
-
-    // Default role is the issuer.
-    await page.getByRole("button", { name: /Submit Registration/i }).click();
-
-    // No registry contract is configured in this environment, so building the
-    // SDK's `RegistryClient` rejects ("Contract ID is required", from
-    // `BaseContractClient`) and `handleRegisterSubmit` surfaces the failure in
-    // the dialog's error panel. (`setShowPending(true/false)`
-    // batch into a single render, so the transient pending modal is never
-    // painted here - the error panel is the observable failure state.)
-    await expect(
-      page.getByText(/Contract ID is required/i).first(),
-    ).toBeVisible({ timeout: 15000 });
-    await expect(
-      page.getByRole("dialog", { name: /Register Corporate Profile/i }),
-    ).toBeVisible();
-  });
-
   test("should register as an issuer and reflect the verified state", async ({
     page,
   }) => {

@@ -5,12 +5,21 @@ import {
   Transaction,
   TransactionBuilder,
   Networks,
-  BASE_FEE,
   xdr,
   scValToNative,
 } from "@stellar/stellar-sdk";
 import * as freighterApi from "@stellar/freighter-api";
-import { getConfig, getSorobanServer } from "./config.js";
+import {
+  DEFAULT_BASE_FEE,
+  DEFAULT_RETRY_BASE_DELAY_MS,
+  DEFAULT_RETRY_MAX_ATTEMPTS,
+  DEFAULT_TX_POLL_INTERVAL_MS,
+  DEFAULT_TX_POLL_MAX_ATTEMPTS,
+  DEFAULT_TX_TIMEOUT_SECONDS,
+  getConfig,
+  getSorobanServer,
+  type SDKConfig,
+} from "./config.js";
 
 const signTransactionFn =
   (
@@ -64,8 +73,6 @@ const signTransactionCompat = signTransactionFn as (
     accountToSign?: string;
   },
 ) => Promise<string>;
-
-const MAX_TRANSACTION_POLL_ATTEMPTS = 30;
 
 export class TransactionTimeoutError extends Error {
   readonly txHash: string;
@@ -220,8 +227,15 @@ async function withRetry<T>(
   fn: () => Promise<T>,
   options: RetryOptions = {},
 ): Promise<T> {
-  const maxAttempts = options.maxAttempts ?? 3;
-  const baseDelayMs = options.baseDelayMs ?? 1000;
+  const config = getConfig();
+  const maxAttempts =
+    options.maxAttempts ??
+    config.retryMaxAttempts ??
+    DEFAULT_RETRY_MAX_ATTEMPTS;
+  const baseDelayMs =
+    options.baseDelayMs ??
+    config.retryBaseDelayMs ??
+    DEFAULT_RETRY_BASE_DELAY_MS;
   let lastError: unknown;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -276,6 +290,25 @@ export class BaseContractClient {
     return this.contractInstance;
   }
 
+  private getBaseFee(config: SDKConfig): number {
+    return config.baseFee ?? DEFAULT_BASE_FEE;
+  }
+
+  private buildContractTransaction(
+    account: ConstructorParameters<typeof TransactionBuilder>[0],
+    method: string,
+    args: xdr.ScVal[],
+    config: SDKConfig,
+  ): Transaction {
+    return new TransactionBuilder(account, {
+      fee: String(this.getBaseFee(config)),
+      networkPassphrase: config.networkPassphrase,
+    })
+      .addOperation(this.contract.call(method, ...args))
+      .setTimeout(config.txTimeoutSeconds ?? DEFAULT_TX_TIMEOUT_SECONDS)
+      .build();
+  }
+
   protected async readContract<T>(
     method: string,
     args: xdr.ScVal[],
@@ -285,13 +318,7 @@ export class BaseContractClient {
     const config = getConfig();
     const server = getSorobanServer();
     const account = await withRetry(() => server.getAccount(publicKey));
-    const tx = new TransactionBuilder(account, {
-      fee: BASE_FEE,
-      networkPassphrase: config.networkPassphrase,
-    })
-      .addOperation(this.contract.call(method, ...args))
-      .setTimeout(30)
-      .build();
+    const tx = this.buildContractTransaction(account, method, args, config);
     const sim = await withRetry(() => server.simulateTransaction(tx));
     if (rpc.Api.isSimulationError(sim)) {
       throw new SimulationError(method, sim.error);
@@ -310,13 +337,7 @@ export class BaseContractClient {
     const config = getConfig();
     const server = getSorobanServer();
     const account = await withRetry(() => server.getAccount(publicKey));
-    const tx = new TransactionBuilder(account, {
-      fee: BASE_FEE,
-      networkPassphrase: config.networkPassphrase,
-    })
-      .addOperation(this.contract.call(method, ...args))
-      .setTimeout(30)
-      .build();
+    const tx = this.buildContractTransaction(account, method, args, config);
     const sim = await withRetry(() => server.simulateTransaction(tx));
     if (rpc.Api.isSimulationError(sim))
       throw new SimulationError(method, sim.error);
@@ -332,13 +353,17 @@ export class BaseContractClient {
       server,
       TransactionBuilder.fromXDR(signed, config.networkPassphrase),
     );
+    const maxPollAttempts =
+      config.txPollMaxAttempts ?? DEFAULT_TX_POLL_MAX_ATTEMPTS;
+    const pollIntervalMs =
+      config.txPollIntervalMs ?? DEFAULT_TX_POLL_INTERVAL_MS;
     let response = await withRetry(() => server.getTransaction(result.hash));
     let attempts = 1;
     while (
       response.status === rpc.Api.GetTransactionStatus.NOT_FOUND &&
-      attempts < MAX_TRANSACTION_POLL_ATTEMPTS
+      attempts < maxPollAttempts
     ) {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
       response = await withRetry(() => server.getTransaction(result.hash));
       attempts++;
     }
@@ -403,13 +428,7 @@ export class BaseContractClient {
     const config = getConfig();
     const server = getSorobanServer();
     const account = await withRetry(() => server.getAccount(publicKey));
-    const tx = new TransactionBuilder(account, {
-      fee: BASE_FEE,
-      networkPassphrase: config.networkPassphrase,
-    })
-      .addOperation(this.contract.call(method, ...args))
-      .setTimeout(30)
-      .build();
+    const tx = this.buildContractTransaction(account, method, args, config);
     const sim = await withRetry(() => server.simulateTransaction(tx));
     if (rpc.Api.isSimulationError(sim))
       throw new SimulationError(method, sim.error);
@@ -426,7 +445,8 @@ export class BaseContractClient {
         expectedResult = retval;
       }
     }
-    const totalStroops = BigInt(BASE_FEE) + BigInt(sim.minResourceFee || "0");
+    const totalStroops =
+      BigInt(this.getBaseFee(config)) + BigInt(sim.minResourceFee || "0");
     return {
       estimatedFeeXlm: (Number(totalStroops) / 10_000_000).toFixed(7),
       functionName: method,

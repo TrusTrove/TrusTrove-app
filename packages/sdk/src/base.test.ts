@@ -593,4 +593,131 @@ describe("BaseContractClient", () => {
       expect(mockServer.simulateTransaction).toHaveBeenCalledTimes(2);
     });
   });
+
+  describe("configurable SDKConfig timing, retry, and fee options", () => {
+    const ACCOUNT = "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB";
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("applies custom baseFee and txTimeoutSeconds to built transactions", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(1_700_000_000_000);
+
+      vi.mocked(config.getConfig).mockReturnValue({
+        networkPassphrase: Networks.TESTNET,
+        horizonUrl: "https://horizon-testnet.stellar.org",
+        sorobanRpcUrl: "https://soroban-testnet.stellar.org",
+        contractIds: {
+          registry: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+          invoice: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+          pool: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+          escrow: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+          agentRegistry:
+            "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+        },
+        usdc: { issuer: "GBUSDC", assetCode: "USDC" },
+        txTimeoutSeconds: 120,
+        baseFee: 500,
+      });
+
+      mockServer.simulateTransaction.mockResolvedValue({
+        result: { retval: xdr.ScVal.scvU32(7) },
+        transactionData: {
+          getReadOnly: () => [],
+          getReadWrite: () => [],
+        },
+        minResourceFee: "100",
+      });
+
+      const simResult = await client.simulateTransaction(
+        "test_method",
+        [],
+        ACCOUNT,
+      );
+
+      const builtTx = mockServer.simulateTransaction.mock.calls[0][0];
+      expect(builtTx.fee).toBe("500");
+      expect(builtTx.timeBounds?.maxTime).toBe(String(1_700_000_000 + 120));
+      // 500 + 100 = 600 stroops => 0.0000600 XLM
+      expect(simResult.estimatedFeeXlm).toBe("0.0000600");
+    });
+
+    it("respects custom txPollMaxAttempts and txPollIntervalMs before throwing TransactionTimeoutError", async () => {
+      vi.useFakeTimers();
+
+      vi.mocked(config.getConfig).mockReturnValue({
+        networkPassphrase: Networks.TESTNET,
+        horizonUrl: "https://horizon-testnet.stellar.org",
+        sorobanRpcUrl: "https://soroban-testnet.stellar.org",
+        contractIds: {
+          registry: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+          invoice: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+          pool: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+          escrow: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+          agentRegistry:
+            "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+        },
+        usdc: { issuer: "GBUSDC", assetCode: "USDC" },
+        txPollMaxAttempts: 3,
+        txPollIntervalMs: 250,
+      });
+
+      mockServer.simulateTransaction.mockResolvedValue({
+        result: { retval: xdr.ScVal.scvU32(1) },
+      });
+      mockServer.sendTransaction.mockResolvedValue({
+        status: "PENDING",
+        hash: "tx_poll_timeout",
+      });
+      mockServer.getTransaction.mockResolvedValue({
+        status: rpc.Api.GetTransactionStatus.NOT_FOUND,
+      });
+
+      const promise = expect(
+        client.testWriteContract("test_method", [], ACCOUNT),
+      ).rejects.toBeInstanceOf(TransactionTimeoutError);
+
+      await vi.advanceTimersByTimeAsync(250);
+      await vi.advanceTimersByTimeAsync(250);
+      await promise;
+
+      expect(mockServer.getTransaction).toHaveBeenCalledTimes(3);
+    });
+
+    it("respects custom retryMaxAttempts and retryBaseDelayMs in withRetry", async () => {
+      vi.useFakeTimers();
+
+      vi.mocked(config.getConfig).mockReturnValue({
+        networkPassphrase: Networks.TESTNET,
+        horizonUrl: "https://horizon-testnet.stellar.org",
+        sorobanRpcUrl: "https://soroban-testnet.stellar.org",
+        contractIds: {
+          registry: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+          invoice: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+          pool: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+          escrow: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+          agentRegistry:
+            "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+        },
+        usdc: { issuer: "GBUSDC", assetCode: "USDC" },
+        retryMaxAttempts: 2,
+        retryBaseDelayMs: 200,
+      });
+
+      mockServer.getAccount.mockRejectedValue(new Error("network timeout"));
+
+      const promise = expect(
+        client.testReadContract("test_method", [], ACCOUNT, (val) => val.u32()),
+      ).rejects.toThrow("network timeout");
+
+      await vi.advanceTimersByTimeAsync(199);
+      expect(mockServer.getAccount).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(mockServer.getAccount).toHaveBeenCalledTimes(2);
+      await promise;
+    });
+  });
 });

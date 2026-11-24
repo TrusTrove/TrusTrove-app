@@ -29,6 +29,11 @@
     "closeMenu": "Close navigation menu",
     "takeTour": "Take the tour"
   },
+  "NotificationBell": {
+    "label": "{count, plural, =0 {Notifications} one {Notifications, # unread} other {Notifications, # unread}}",
+    "panelLabel": "Notifications",
+    "unreadBadge": "Unread"
+  },
   "OnboardingTour": {
     "progress": "Step {current} of {total}",
     "skip": "Skip tour",
