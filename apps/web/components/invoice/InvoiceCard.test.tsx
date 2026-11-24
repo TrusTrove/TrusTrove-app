@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { InvoiceCard } from "./InvoiceCard";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useConfirmDialogStore } from "@/store/confirmDialog";
+import { useProfile } from "@/hooks/useProfile";
 
 vi.mock("@/store/wallet", () => ({
   useWalletStore: vi.fn(() => ({
@@ -55,6 +56,10 @@ const renderWithQueryClient = (ui: React.ReactElement) => {
 describe("InvoiceCard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useProfile).mockReturnValue({
+      isVerified: true,
+      isVerifiedError: null,
+    } as any);
   });
   it("renders invoice details correctly", () => {
     renderWithQueryClient(<InvoiceCard invoice={mockInvoice as any} />);
@@ -167,6 +172,29 @@ describe("InvoiceCard", () => {
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(/discount basis points must be between/i);
+  });
+
+  it("shows distinct couldn't verify status warning when isVerifiedError is present", () => {
+    vi.mocked(useProfile).mockReturnValue({
+      isVerified: false,
+      isVerifiedError: new Error("RPC error"),
+    } as any);
+
+    renderWithQueryClient(
+      <InvoiceCard
+        invoice={{ ...mockInvoice, status: "Created" } as any}
+        role="issuer"
+      />,
+    );
+
+    expect(
+      screen.getByText(/Couldn't verify status, try again/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        /Verification required to execute smart contract operations/i,
+      ),
+    ).not.toBeInTheDocument();
   });
 
   it("requests confirmation when Fund Invoice is clicked", () => {

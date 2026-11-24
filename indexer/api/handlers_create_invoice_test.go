@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -245,5 +247,192 @@ func TestHandleCreateInvoice_OversizedBody(t *testing.T) {
 
 	if recorder.Code != http.StatusRequestEntityTooLarge {
 		t.Errorf("oversized body: got status %d, want %d", recorder.Code, http.StatusRequestEntityTooLarge)
+	}
+}
+
+// invoiceSimulationResponse returns the simulateTransaction result body used by
+// the sequence tests below.
+func invoiceSimulationResponse(t *testing.T) string {
+	t.Helper()
+
+	invoiceID := []byte("invoice-1")
+	invoiceIDVal := xdr.ScBytes(invoiceID)
+	invoiceIDScVal := xdr.ScVal{Type: xdr.ScValTypeScvBytes, Bytes: &invoiceIDVal}
+	invoiceIDXDR, err := invoiceIDScVal.MarshalBinary()
+	if err != nil {
+		t.Fatalf("marshal invoice id ScVal: %v", err)
+	}
+
+	transactionData, err := (xdr.SorobanTransactionData{}).MarshalBinary()
+	if err != nil {
+		t.Fatalf("marshal transaction data: %v", err)
+	}
+
+	return `{"jsonrpc":"2.0","id":1,"result":{"transactionData":"` + base64.StdEncoding.EncodeToString(transactionData) + `","minResourceFee":"100","results":[{"xdr":"` + base64.StdEncoding.EncodeToString(invoiceIDXDR) + `"}]}}`
+}
+
+// TestHandleCreateInvoice_ConcurrentSequenceAssignment fires N concurrent
+// create-invoice requests at a stub Soroban RPC that rejects duplicate sequence
+// numbers. Every request must succeed with a distinct sequence number, which
+// regressed before issue #940 was fixed.
+func TestHandleCreateInvoice_ConcurrentSequenceAssignment(t *testing.T) {
+	const requests = 10
+
+	h := newTestHandler(t)
+	h.cfg.InvoiceContractID = "CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS"
+
+	issuer, err := keypair.Random()
+	if err != nil {
+		t.Fatalf("generate issuer keypair: %v", err)
+	}
+	buyer, err := keypair.Random()
+	if err != nil {
+		t.Fatalf("generate buyer keypair: %v", err)
+	}
+
+	var mu sync.Mutex
+	accountSeq := int64(100)
+	seen := make(map[int64]bool)
+	submitted := make([]int64, 0, requests)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request soroban.JsonRpcRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		var response string
+		switch request.Method {
+		case "getAccount":
+			mu.Lock()
+			seq := accountSeq
+			mu.Unlock()
+			response = fmt.Sprintf(`{"jsonrpc":"2.0","id":1,"result":{"id":%q,"sequence":"%d"}}`, h.serverKP.Address(), seq)
+		case "simulateTransaction":
+			response = invoiceSimulationResponse(t)
+		case "sendTransaction":
+			paramsBytes, _ := json.Marshal(request.Params)
+			var params struct {
+				Transaction string `json:"transaction"`
+			}
+			_ = json.Unmarshal(paramsBytes, &params)
+
+			var env xdr.TransactionEnvelope
+			if err := xdr.SafeUnmarshalBase64(params.Transaction, &env); err != nil || env.V1 == nil {
+				response = `{"jsonrpc":"2.0","id":1,"result":{"status":"ERROR","error":"invalid transaction"}}`
+				break
+			}
+			seq := int64(env.V1.Tx.SeqNum)
+
+			mu.Lock()
+			if seen[seq] || seq != accountSeq+1 {
+				mu.Unlock()
+				response = `{"jsonrpc":"2.0","id":1,"result":{"status":"ERROR","error":"tx_bad_seq"}}`
+				break
+			}
+			seen[seq] = true
+			accountSeq = seq
+			submitted = append(submitted, seq)
+			mu.Unlock()
+
+			response = fmt.Sprintf(`{"jsonrpc":"2.0","id":1,"result":{"hash":"hash-%d","status":"PENDING"}}`, seq)
+		case "getTransaction":
+			response = `{"jsonrpc":"2.0","id":1,"result":{"status":"SUCCESS","hash":"test-hash"}}`
+		default:
+			response = `{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"method not found"}}`
+		}
+		_, _ = w.Write([]byte(response))
+	}))
+	defer server.Close()
+	h.cfg.SorobanRPCURL = server.URL
+
+	codes := make([]int, requests)
+	var wg sync.WaitGroup
+	wg.Add(requests)
+	for i := 0; i < requests; i++ {
+		go func(i int) {
+			defer wg.Done()
+			recorder := invoiceRequest(t, h, issuer.Address(), buyer.Address(), "1000", time.Now().Add(24*time.Hour).Unix())
+			codes[i] = recorder.Code
+		}(i)
+	}
+	wg.Wait()
+
+	for i, code := range codes {
+		if code != http.StatusCreated {
+			t.Errorf("request %d: got status %d, want %d", i, code, http.StatusCreated)
+		}
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(submitted) != requests {
+		t.Fatalf("submitted %d transactions, want %d", len(submitted), requests)
+	}
+	distinct := make(map[int64]bool, requests)
+	for _, seq := range submitted {
+		if distinct[seq] {
+			t.Errorf("sequence %d was submitted more than once", seq)
+		}
+		distinct[seq] = true
+	}
+	if len(distinct) != requests {
+		t.Fatalf("got %d distinct sequences, want %d", len(distinct), requests)
+	}
+}
+
+// TestHandleCreateInvoice_SequenceConflictReturns409 verifies that a sequence
+// rejection is retried once and then surfaced as a retryable 409 rather than a
+// 500.
+func TestHandleCreateInvoice_SequenceConflictReturns409(t *testing.T) {
+	h := newTestHandler(t)
+	h.cfg.InvoiceContractID = "CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS"
+
+	issuer, err := keypair.Random()
+	if err != nil {
+		t.Fatalf("generate issuer keypair: %v", err)
+	}
+	buyer, err := keypair.Random()
+	if err != nil {
+		t.Fatalf("generate buyer keypair: %v", err)
+	}
+
+	var sendCalls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request soroban.JsonRpcRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		var response string
+		switch request.Method {
+		case "getAccount":
+			response = fmt.Sprintf(`{"jsonrpc":"2.0","id":1,"result":{"id":%q,"sequence":"100"}}`, h.serverKP.Address())
+		case "simulateTransaction":
+			response = invoiceSimulationResponse(t)
+		case "sendTransaction":
+			sendCalls.Add(1)
+			response = `{"jsonrpc":"2.0","id":1,"result":{"status":"ERROR","error":"tx_bad_seq"}}`
+		default:
+			response = `{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"method not found"}}`
+		}
+		_, _ = w.Write([]byte(response))
+	}))
+	defer server.Close()
+	h.cfg.SorobanRPCURL = server.URL
+
+	recorder := invoiceRequest(t, h, issuer.Address(), buyer.Address(), "1000", time.Now().Add(24*time.Hour).Unix())
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("got status %d, want %d; body: %s", recorder.Code, http.StatusConflict, recorder.Body.String())
+	}
+	if sendCalls.Load() != 2 {
+		t.Fatalf("sendTransaction calls: got %d, want 2 (initial attempt plus one retry)", sendCalls.Load())
+	}
+	if !strings.Contains(recorder.Body.String(), "retry") {
+		t.Fatalf("expected retryable message, got %q", recorder.Body.String())
 	}
 }

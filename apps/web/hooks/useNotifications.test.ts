@@ -19,8 +19,16 @@ vi.mock("@/store/wallet", () => ({
   // Honor the selector like the real Zustand store: returning a fresh object
   // for every selector call changes the hook's effect deps on every render.
   useWalletStore: vi.fn(
-    (selector?: (state: { address: string; role: string }) => unknown) => {
-      const state = { address: "addr1", role: mockRole };
+    (
+      selector?: (state: {
+        address: string;
+        connected: boolean;
+        role: string;
+      }) => unknown,
+    ) => {
+      // `connected` is read alongside `address` to gate the wallet-scoped
+      // feeds (issue #636), so the stub has to expose it.
+      const state = { address: "addr1", connected: true, role: mockRole };
       return selector ? selector(state) : state;
     },
   ),

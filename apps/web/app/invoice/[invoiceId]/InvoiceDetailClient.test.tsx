@@ -243,6 +243,45 @@ describe("InvoiceDetailClient", () => {
     }
   });
 
+  it("renders document fingerprints when available and handles empty state safely", () => {
+    const invoiceWithDocs = makeInvoice({
+      documentHashes: [
+        {
+          name: "Commercial_Invoice.pdf",
+          hash: "abc123hash",
+          algorithm: "SHA-256",
+        },
+      ],
+    } as any);
+
+    vi.mocked(useInvoice).mockReturnValue({
+      invoice: invoiceWithDocs,
+      isLoading: false,
+      error: null,
+      refetch: mockRefetch,
+    } as any);
+
+    render(<InvoiceDetailClient invoiceId={INVOICE_ID} />);
+
+    expect(screen.getByText("Commercial_Invoice.pdf")).toBeInTheDocument();
+    expect(screen.getByText("abc123hash")).toBeInTheDocument();
+    expect(screen.getByText("SHA-256")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Copy Commercial_Invoice.pdf hash/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("renders empty document fingerprint message gracefully when missing", () => {
+    render(<InvoiceDetailClient invoiceId={INVOICE_ID} />);
+
+    expect(
+      screen.getByText(/No Recorded Document Hashes/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Copy.*hash/i }),
+    ).not.toBeInTheDocument();
+  });
+
   it("renders the full invoice detail view for a funded invoice", () => {
     render(<InvoiceDetailClient invoiceId={INVOICE_ID} />);
 
