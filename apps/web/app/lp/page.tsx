@@ -15,7 +15,6 @@ import { useConfirmDialogStore } from "@/store/confirmDialog";
 import { PoolClient, type SimulationResult } from "@trusttrove/sdk";
 import { Address, nativeToScVal } from "@stellar/stellar-sdk";
 import { formatAmount } from "@/lib/assets";
-import type { EventLog } from "@/types";
 import { getEventDataString } from "@/types";
 
 const poolContractID = process.env.NEXT_PUBLIC_POOL_CONTRACT_ID || "";
@@ -93,69 +92,6 @@ export default function LPDashboard() {
     };
   }, [address, depositAmount]);
 
-  if (!connected) {
-    return (
-      <PageLayout>
-        <div className="flex min-h-[70vh] flex-col items-center justify-center gap-6">
-          <h1 className="text-2xl font-bold text-foreground">
-            Connect Your Wallet
-          </h1>
-          <WalletConnect />
-        </div>
-      </PageLayout>
-    );
-  }
-
-  const handleDeposit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    const amount = Number(depositAmount);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setDepositError("Enter an amount greater than zero.");
-      depositInputRef.current?.focus();
-      return;
-    }
-    setDepositError(null);
-
-    await deposit({
-      amount: BigInt(Math.floor(amount * STROOPS_PER_UNIT)),
-      asset: "USDC",
-    });
-    setDepositAmount("");
-  };
-
-  const handleWithdraw = (event: React.FormEvent) => {
-    event.preventDefault();
-    const shares = Number(withdrawShares);
-    const shareAmount = Number.isFinite(shares)
-      ? BigInt(Math.floor(shares * STROOPS_PER_UNIT))
-      : 0n;
-    if (!Number.isFinite(shares) || shares <= 0) {
-      setWithdrawError("Enter an amount greater than zero.");
-      withdrawInputRef.current?.focus();
-      return;
-    }
-    if (shareAmount > (position?.shares ?? 0n)) {
-      setWithdrawError("Amount exceeds your redeemable shares.");
-      withdrawInputRef.current?.focus();
-      return;
-    }
-    setWithdrawError(null);
-
-    requestConfirmation({
-      label: "Withdraw LP liquidity",
-      invoiceId: address || "LP position",
-      fn: async () => {
-        await withdraw({ shares: shareAmount });
-        setWithdrawShares("");
-      },
-    });
-  };
-
-  const utilization = Math.min(
-    100,
-    Math.max(0, (stats?.utilizationRateBps ?? 0) / 100),
-  );
-
   const statement = useMemo(() => {
     const startTs = statementStart
       ? Math.floor(new Date(statementStart).getTime() / 1000)
@@ -226,6 +162,69 @@ export default function LPDashboard() {
     const netCashFlow = withdrawals - deposits;
     return { deposits, withdrawals, yieldEarned, netCashFlow, rows };
   }, [indexedEvents, address, statementStart, statementEnd]);
+
+  if (!connected) {
+    return (
+      <PageLayout>
+        <div className="flex min-h-[70vh] flex-col items-center justify-center gap-6">
+          <h1 className="text-2xl font-bold text-foreground">
+            Connect Your Wallet
+          </h1>
+          <WalletConnect />
+        </div>
+      </PageLayout>
+    );
+  }
+
+  const handleDeposit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const amount = Number(depositAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setDepositError("Enter an amount greater than zero.");
+      depositInputRef.current?.focus();
+      return;
+    }
+    setDepositError(null);
+
+    await deposit({
+      amount: BigInt(Math.floor(amount * STROOPS_PER_UNIT)),
+      asset: "USDC",
+    });
+    setDepositAmount("");
+  };
+
+  const handleWithdraw = (event: React.FormEvent) => {
+    event.preventDefault();
+    const shares = Number(withdrawShares);
+    const shareAmount = Number.isFinite(shares)
+      ? BigInt(Math.floor(shares * STROOPS_PER_UNIT))
+      : 0n;
+    if (!Number.isFinite(shares) || shares <= 0) {
+      setWithdrawError("Enter an amount greater than zero.");
+      withdrawInputRef.current?.focus();
+      return;
+    }
+    if (shareAmount > (position?.shares ?? 0n)) {
+      setWithdrawError("Amount exceeds your redeemable shares.");
+      withdrawInputRef.current?.focus();
+      return;
+    }
+    setWithdrawError(null);
+
+    requestConfirmation({
+      label: "Withdraw LP liquidity",
+      invoiceId: address || "LP position",
+      fn: async () => {
+        await withdraw({ shares: shareAmount });
+        setWithdrawShares("");
+      },
+    });
+  };
+
+  const utilization = Math.min(
+    100,
+    Math.max(0, (stats?.utilizationRateBps ?? 0) / 100),
+  );
 
   const handleExportStatement = () => {
     const header = ["date", "type", "amount", "cash_flow", "yield"];
@@ -385,10 +384,7 @@ export default function LPDashboard() {
               </button>
             </div>
             <div className="grid gap-4 sm:grid-cols-4">
-              <Stat
-                label="Deposits"
-                value={statement.deposits.toString()}
-              />
+              <Stat label="Deposits" value={statement.deposits.toString()} />
               <Stat
                 label="Withdrawals"
                 value={statement.withdrawals.toString()}

@@ -42,7 +42,12 @@ vi.mock("@/hooks/usePool", () => ({
 }));
 
 vi.mock("@/hooks/useEvents", () => ({
-  useRecentEvents: () => ({ events: [], isLoading: false, error: null, refetch: vi.fn() }),
+  useRecentEvents: () => ({
+    events: [],
+    isLoading: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
 }));
 
 vi.mock("@/components/shared/PageLayout", () => ({

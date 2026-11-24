@@ -12,12 +12,16 @@ describe("InvoiceForm Financing Cost & Boundary Validations", () => {
 
   it("handles empty or invalid face value cleanly without NaN", () => {
     render(<InvoiceForm />);
-    const reviewButton = screen.getByRole("button", { name: /REVIEW FINANCING TERMS/i });
+    const reviewButton = screen.getByRole("button", {
+      name: /REVIEW FINANCING TERMS/i,
+    });
     expect(reviewButton).toBeInTheDocument();
   });
 
   it("enforces permission and wallet boundary when listing", async () => {
     render(<InvoiceForm />);
-    expect(screen.getByLabelText(/List for immediate LP financing at creation/i)).toBeChecked();
+    expect(
+      screen.getByLabelText(/List for immediate LP financing at creation/i),
+    ).toBeChecked();
   });
 });
