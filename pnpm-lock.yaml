@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  zod@3.25.76:
+    hash: c1def6a341e2b19477d5536519402f8fb4150c8f207c937a8406db367349f2b7
+    path: patches/zod@3.25.76.patch
+
 overrides:
   toml: '>=5.0.1 <6'
   follow-redirects: '>=1.16.2 <2'
