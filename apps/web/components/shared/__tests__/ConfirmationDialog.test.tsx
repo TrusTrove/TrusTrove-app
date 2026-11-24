@@ -13,7 +13,9 @@ describe("ConfirmationDialog", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    (useConfirmDialogStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+    (
+      useConfirmDialogStore as unknown as ReturnType<typeof vi.fn>
+    ).mockReturnValue({
       pendingAction: {
         label: "Test Action",
         invoiceId: "inv-123",
@@ -35,7 +37,9 @@ describe("ConfirmationDialog", () => {
 
     expect(screen.getByText(/Confirm Test Action/i)).toBeDefined();
     expect(screen.getByText(/Your wallet is not connected/i)).toBeDefined();
-    expect(screen.getByRole("button", { name: /Connect Wallet/i })).toBeDefined();
+    expect(
+      screen.getByRole("button", { name: /Connect Wallet/i }),
+    ).toBeDefined();
     expect(screen.queryByRole("button", { name: /^CONFIRM$/i })).toBeNull();
   });
 
