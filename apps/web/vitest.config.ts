@@ -31,7 +31,7 @@ export default defineConfig({
       ),
       "@trusttrove/sdk": resolve(__dirname, "../../packages/sdk/src/index.ts"),
     },
-    exclude: ["e2e/**", "node_modules/**"],
+    exclude: ["e2e/**", "**/node_modules/**"],
     coverage: {
       provider: "v8",
       reporter: ["text", "html"],
