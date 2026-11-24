@@ -23,6 +23,8 @@ import (
 type APIHandler struct {
 	cfg             *config.Config
 	serverKP        *keypair.Full
+	submitMu        sync.Mutex
+	seqMgr          sequenceManager
 	statsMu         sync.RWMutex
 	statsData       *db.ProtocolStats
 	statsCached     time.Time
