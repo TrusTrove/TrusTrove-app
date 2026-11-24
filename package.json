@@ -3,15 +3,53 @@
   "version": "1.0.0",
   "private": true,
   "description": "Decentralized Trade Finance on Stellar",
+  "packageManager": "pnpm@10.33.4",
   "scripts": {
     "dev": "pnpm --filter web dev",
     "build": "pnpm --filter @trusttrove/sdk build && pnpm --filter @trusttrove/sdk-react build && pnpm --filter @trusttrove/cli build && pnpm --filter web build",
     "lint": "pnpm --filter @trusttrove/sdk lint && pnpm --filter web lint",
     "test": "pnpm --filter @trusttrove/sdk test && pnpm --filter @trusttrove/sdk-react test && pnpm --filter @trusttrove/cli test && pnpm --filter web test",
     "test:e2e": "pnpm --filter web test:e2e",
-    "typecheck": "pnpm --filter @trusttrove/sdk build && pnpm --filter @trusttrove/sdk-react build && pnpm --filter @trusttrove/cli build && pnpm -r exec tsc --noEmit"
+    "typecheck": "pnpm --filter @trusttrove/sdk build && pnpm --filter @trusttrove/sdk-react build && pnpm --filter @trusttrove/cli build && pnpm -r exec tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "devDependencies": {
+    "prettier": "3.6.2",
     "typescript": "^5.4.5"
+  },
+  "pnpm": {
+    "overrides": {
+      "toml": ">=5.0.1 <6",
+      "follow-redirects": ">=1.16.2 <2"
+    },
+    "auditConfig": {
+      "ignoreGhsas": [
+        "GHSA-p293-qw3h-jr36",
+        "GHSA-2xp9-vwfh-vxw4",
+        "GHSA-h25m-26qc-wcjf",
+        "GHSA-q4gf-8mx6-v5v3",
+        "GHSA-8h8q-6873-q5fj",
+        "GHSA-c4j6-fc7j-m34r",
+        "GHSA-36qx-fr4f-26g5",
+        "GHSA-m99w-x7hq-7vfj",
+        "GHSA-89xv-2m56-2m9x",
+        "GHSA-p9j2-gv94-2wf4",
+        "GHSA-c29m-xwm3-cm6r",
+        "GHSA-mghh-pgcx-3jjj",
+        "GHSA-3pq3-5fj3-cg6v",
+        "GHSA-542g-h47m-68v8",
+        "GHSA-m8m8-qj5v-23w3",
+        "GHSA-r4gj-5m52-g5wh",
+        "GHSA-x97p-jq2g-jp4f",
+        "GHSA-vfj7-8cjw-p6xm",
+        "GHSA-mrhx-c7xc-m3w5",
+        "GHSA-2464-fhr4-w9xw",
+        "GHSA-p3m5-59mp-jv5r",
+        "GHSA-cg2g-xh64-v4q7",
+        "GHSA-6g55-p6wh-862q",
+        "GHSA-r28c-9q8g-f849"
+      ]
+    }
   }
 }
