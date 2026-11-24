@@ -453,6 +453,55 @@ describe("InvoiceDetailClient", () => {
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(INVOICE_ID));
   });
 
+  it("exposes a copyable buyer payment reference and makes it copyable", async () => {
+    const writeText = vi
+      .mocked(navigator.clipboard.writeText)
+      .mockResolvedValue(undefined);
+
+    render(<InvoiceDetailClient invoiceId={INVOICE_ID} />);
+
+    const refButton = screen.getByRole("button", {
+      name: "Copy buyer payment reference",
+    });
+    expect(refButton).toHaveTextContent("COPY");
+    expect(
+      screen.getByText(/Off-chain fiat or wire transfers do not automatically settle/i),
+    ).toBeInTheDocument();
+
+    fireEvent.click(refButton);
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith(
+        `TT-PAY-${INVOICE_ID.slice(0, 16).toUpperCase()}`,
+      ),
+    );
+    await waitFor(() => expect(refButton).toHaveTextContent("COPIED"));
+  });
+
+  it("handles boundary conditions for empty or truncated invoice IDs in buyer payment references", async () => {
+    const writeText = vi
+      .mocked(navigator.clipboard.writeText)
+      .mockResolvedValue(undefined);
+
+    vi.mocked(useInvoice).mockReturnValue({
+      invoice: makeInvoice({ id: "short" }),
+      isLoading: false,
+      error: null,
+      refetch: mockRefetch,
+    } as any);
+
+    render(<InvoiceDetailClient invoiceId="short" />);
+
+    const refButton = screen.getByRole("button", {
+      name: "Copy buyer payment reference",
+    });
+    expect(screen.getByText(/TT-PAY-SHORT/i)).toBeInTheDocument();
+
+    fireEvent.click(refButton);
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith("TT-PAY-SHORT"),
+    );
+  });
+
   it("gives the issuer and buyer copy buttons distinct accessible names", () => {
     render(<InvoiceDetailClient invoiceId={INVOICE_ID} />);
 
