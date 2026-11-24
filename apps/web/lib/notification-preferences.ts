@@ -40,3 +40,70 @@ export function readStoredPrefs(storageKey: string): Record<string, boolean> {
   NOTIFICATION_CATEGORIES.forEach((category) => (defaults[category] = true));
   return defaults;
 }
+
+/** `localStorage` key holding the muted invoice IDs for `address`. */
+export function mutedInvoicesStorageKey(address: string): string {
+  return `trusttrove_muted_invoices_${address}`;
+}
+
+/**
+ * Reads the list of muted invoice IDs for `address`.
+ */
+export function readMutedInvoices(storageKey: string): string[] {
+  try {
+    const stored = window.localStorage.getItem(storageKey);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((id): id is string => typeof id === "string" && id.length > 0);
+      }
+    }
+  } catch {
+    // Ignore storage errors and fall back to empty list.
+  }
+  return [];
+}
+
+/**
+ * Checks whether a specific invoice is muted.
+ */
+export function isInvoiceMuted(storageKey: string, invoiceId: string): boolean {
+  if (!invoiceId) return false;
+  const muted = readMutedInvoices(storageKey);
+  return muted.includes(invoiceId);
+}
+
+/**
+ * Mutes an invoice locally.
+ */
+export function muteInvoice(storageKey: string, invoiceId: string): string[] {
+  if (!invoiceId) return readMutedInvoices(storageKey);
+  const muted = readMutedInvoices(storageKey);
+  if (!muted.includes(invoiceId)) {
+    const updated = [...muted, invoiceId];
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify(updated));
+    } catch {
+      // Ignore storage write errors.
+    }
+    return updated;
+  }
+  return muted;
+}
+
+/**
+ * Unmutes an invoice locally.
+ */
+export function unmuteInvoice(storageKey: string, invoiceId: string): string[] {
+  if (!invoiceId) return readMutedInvoices(storageKey);
+  const muted = readMutedInvoices(storageKey);
+  const updated = muted.filter((id) => id !== invoiceId);
+  if (updated.length !== muted.length) {
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify(updated));
+    } catch {
+      // Ignore storage write errors.
+    }
+  }
+  return updated;
+}

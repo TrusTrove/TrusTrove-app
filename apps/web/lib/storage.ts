@@ -37,6 +37,19 @@ export function notificationHistoryKey(address: string): string {
 }
 
 /**
+ * `localStorage` key holding one wallet's local address book aliases.
+ * Users interact with address book aliases through the address book manager
+ * to assign local friendly names to repeat counterparties while preserving
+ * the full Stellar address for signing and detail views.
+ *
+ * @param address - The connected Stellar account address.
+ * @returns The key address-book helpers read and write local aliases under.
+ */
+export function addressBookKey(address: string): string {
+  return `${STORAGE_NAMESPACE}_address_book_${address}`;
+}
+
+/**
  * Whether a key belongs to this app and is therefore in scope for a wipe.
  *
  * @param key - A `localStorage` key.
