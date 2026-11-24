@@ -132,5 +132,17 @@ describe("ConfirmationDialog", () => {
     renderWithProviders(<ConfirmationDialog />);
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByText("Confirm Confirm Delivery")).toBeInTheDocument();
+    const mockCancel = vi.fn();
+    vi.mocked(useConfirmDialogStore).mockReturnValue({
+      pendingAction: {
+        label: "Test Action",
+        invoiceId: "inv_1",
+        fn: vi.fn(),
+      },
+      cancel: mockCancel,
+      request: vi.fn(),
+    });
+    render(<ConfirmationDialog />);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });
