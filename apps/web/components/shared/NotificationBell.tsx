@@ -1,128 +1,9 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
-import { Bell } from "lucide-react";
-import { NotificationEvent } from "@/types/notifications";
-import { useFocusTrap } from "@/hooks/useFocusTrap";
+import React, { useState } from "react";
+import { Bell, CheckCheck, FileText, Landmark, User, Inbox } from "lucide-react";
+import { useNotifications, NotificationCategory } from "../../hooks/useNotifications";
 
-export function NotificationBell({
-  notifications = [],
-  onOpen,
-}: {
-  notifications?: NotificationEvent[];
-  onOpen?: () => void;
-}) {
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
-
-  const unreadCount = notifications.filter((n) => !n.read).length;
-
-  const handleClose = () => setIsOpen(false);
-
-  // Focus trap hook
-  const trapRef = useFocusTrap<HTMLDivElement>(isOpen, handleClose);
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(e.target as Node) &&
-        buttonRef.current &&
-        !buttonRef.current.contains(e.target as Node)
-      ) {
-        handleClose();
-      }
-    };
-
-    if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [isOpen]);
-
-  const toggleOpen = () => {
-    if (!isOpen && onOpen) {
-      onOpen();
-    }
-    setIsOpen(!isOpen);
-  };
-
-  return (
-    <div className="relative">
-      <button
-        ref={buttonRef}
-        type="button"
-        className="relative p-2 rounded-lg border border-border bg-background-secondary text-muted-foreground hover:text-foreground hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors"
-        onClick={toggleOpen}
-        aria-label="Notifications"
-        aria-expanded={isOpen}
-      >
-        <Bell className="w-4 h-4" />
-        {unreadCount > 0 && (
-          <span className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full shadow-[0_0_8px_rgba(0,212,170,0.8)]" />
-        )}
-      </button>
-
-      {isOpen && (
-        <div
-          ref={dropdownRef}
-          className="absolute right-0 md:right-auto md:left-auto mt-2 w-80 max-h-96 overflow-y-auto bg-card border border-border rounded-lg shadow-2xl z-50 p-2 flex flex-col gap-2 origin-top-right md:origin-top"
-        >
-          <div ref={trapRef} tabIndex={-1} className="outline-none">
-            <div className="flex items-center justify-between px-2 py-1 mb-2 border-b border-border/40 pb-2">
-              <span className="text-xs font-bold font-mono text-foreground uppercase tracking-wider">
-                Notifications
-              </span>
-              {unreadCount > 0 && (
-                <span className="text-[10px] font-bold font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded">
-                  {unreadCount} new
-                </span>
-              )}
-            </div>
-
-            {notifications.length === 0 ? (
-              <div className="px-4 py-8 text-center text-foreground/70 text-xs font-mono">
-                No notifications yet
-              </div>
-            ) : (
-              <div className="flex flex-col gap-1">
-                {notifications.map((notif) => (
-                  <div
-                    key={notif.id}
-                    className={`p-3 rounded-lg border text-left transition-colors ${
-                      notif.read
-                        ? "bg-transparent border-transparent"
-                        : "bg-primary/5 border-primary/20"
-                    }`}
-                  >
-                    <div className="flex justify-between items-start mb-1">
-                      <span
-                        className={`text-xs font-bold font-mono ${
-                          notif.read ? "text-foreground/70" : "text-primary"
-                        }`}
-                      >
-                        {notif.type}
-                      </span>
-                      <span className="text-[10px] text-foreground/70 whitespace-nowrap ml-2">
-                        {formatTime(notif.timestamp)}
-                      </span>
-                    </div>
-                    <p className="text-xs text-foreground/80 font-mono leading-relaxed">
-                      {notif.message}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 function formatTime(timestamp: number) {
   const diff = Math.floor(Date.now() / 1000) - timestamp;
@@ -130,4 +11,144 @@ function formatTime(timestamp: number) {
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   return `${Math.floor(diff / 86400)}d ago`;
+    }
+/**
+ * NotificationBell component displays unread notification badges and a dropdown
+ * allowing users to view recent events, mark individual or all items as read,
+ * and filter notifications by category (All, Invoices, Pools, Account) without
+ * altering read statuses.
+ */
+export function NotificationBell() {
+  const [isOpen, setIsOpen] = useState(false);
+  const {
+    notifications,
+    allNotifications,
+    isLoading,
+    category,
+    setCategory,
+    counts,
+    markAsRead,
+    markAllAsRead,
+  } = useNotifications();
+
+  const unreadCount = counts.unread;
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="relative p-2 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors"
+        aria-label="Open notifications"
+      >
+        <Bell className="w-5 h-5" />
+        {unreadCount > 0 && (
+          <span className="absolute top-1 right-1 flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-500"></span>
+          </span>
+        )}
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 mt-2 w-80 md:w-96 bg-card border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden">
+          <div className="p-4 border-b border-slate-700 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-slate-100">Notifications</h3>
+              <span className="px-2 py-0.5 text-xs rounded-full bg-slate-800 text-slate-400 font-mono">
+                {counts.filtered}
+                </span>
+            </div>
+            <button
+              onClick={() => markAllAsRead()}
+              className="text-xs text-teal-400 hover:underline flex items-center gap-1"
+            >
+              <CheckCheck className="w-3.5 h-3.5" />
+              Mark all read
+            </button>
+          </div>
+
+          {/* Category filter tabs */}
+          <div className="flex border-b border-slate-800 bg-slate-900/50 px-2 py-1.5 gap-1 text-xs">
+            <button
+              onClick={() => setCategory("all")}
+              className={`px-2.5 py-1 rounded-md font-medium transition-colors ${category === "all" ? "bg-teal-500/20 text-teal-300" : "text-slate-400 hover:text-slate-200"}`}
+            >
+              All ({counts.all})
+            </button>
+            <button
+              onClick={() => setCategory("invoice")}
+              className={`px-2.5 py-1 rounded-md font-medium transition-colors flex items-center gap-1 ${category === "invoice" ? "bg-teal-500/20 text-teal-300" : "text-slate-400 hover:text-slate-200"}`}
+            >
+              <FileText className="w-3 h-3" />
+              Invoices ({counts.invoice})
+            </button>
+            <button
+              onClick={() => setCategory("pool")}
+              className={`px-2.5 py-1 rounded-md font-medium transition-colors flex items-center gap-1 ${category === "pool" ? "bg-teal-500/20 text-teal-300" : "text-slate-400 hover:text-slate-200"}`}
+            >
+              <Landmark className="w-3 h-3" />
+              Pools ({counts.pool})
+            </button>
+            <button
+              onClick={() => setCategory("account")}
+              className={`px-2.5 py-1 rounded-md font-medium transition-colors flex items-center gap-1 ${category === "account" ? "bg-teal-500/20 text-teal-300" : "text-slate-400 hover:text-slate-200"}`}
+            >
+              <User className="w-3 h-3" />
+              Account ({counts.account})
+            </button>
+              </div>
+
+          <div className="max-h-80 overflow-y-auto divide-y divide-slate-800">
+            {isLoading ? (
+              <div className="p-6 text-center text-slate-500 text-sm">
+                Loading notifications...
+              </div>
+            ) : notifications.length === 0 ? (
+              <div className="p-8 text-center">
+                <Inbox className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                <p className="text-slate-300 text-sm font-medium">
+                  No {category === "all" ? "" : category} notifications
+                </p>
+                <p className="text-slate-500 text-xs mt-1">
+                  You have no recent events matching this category.
+                </p>
+              </div>
+            ) : (
+              notifications.map((n) => (
+                  <div
+                  key={n.id}
+                  onClick={() => markAsRead(n.id)}
+                  className={`p-3 transition-colors cursor-pointer hover:bg-slate-800/50 flex gap-3 items-start ${
+                    n.read ? "opacity-60 bg-transparent" : "bg-slate-800/20"
+                    }`}
+                  >
+                      <span
+                    className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${
+                      n.read ? "bg-transparent" : "bg-teal-400"
+                        }`}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-mono font-semibold text-slate-200 uppercase">
+                        {n.event_type}
+                      </span>
+                      <span className="text-[10px] text-slate-500">
+                        {new Date(n.occurred_at).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-0.5 truncate">
+                      {JSON.stringify(n.data)}
+                    </p>
+                  </div>
+              </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
