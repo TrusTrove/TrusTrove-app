@@ -605,6 +605,10 @@ describe("computeInvoiceStats", () => {
 describe("useInvoiceStats", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // The stats query is gated on the wallet store's `connected` flag as well
+    // as the issuer argument (issue #636), so state it explicitly instead of
+    // inheriting whatever a previous describe left in the store.
+    useWalletStore.getState().connect("GISSUER", "testnet");
     vi.mocked(useQuery).mockReturnValue({
       data: undefined,
       isLoading: true,
@@ -623,8 +627,14 @@ describe("useInvoiceStats", () => {
     const options = lastQueryOptions();
 
     expect(options.enabled).toBe(true);
-    const stats = await options.queryFn();
-    expect(getAllInvoices).toHaveBeenCalledWith({ issuer: "GISSUER" });
+    const signal = new AbortController().signal;
+    const stats = await options.queryFn({ signal });
+    // The signal is forwarded so an unmounted/refetched query cancels the
+    // underlying request (#638).
+    expect(getAllInvoices).toHaveBeenCalledWith(
+      { issuer: "GISSUER" },
+      { signal },
+    );
     expect(stats).toEqual({
       totalInvoicesCreated: 250,
       totalListed: 120,
