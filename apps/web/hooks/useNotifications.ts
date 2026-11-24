@@ -8,6 +8,7 @@ export type NotificationCategory = "all" | "invoice" | "pool" | "account";
 export interface NotificationEvent {
   id: string;
   event_type: string;
+  invoiceId?: string;
   occurred_at: string;
   data: Record<string, unknown>;
   read?: boolean;

@@ -118,7 +118,7 @@ export function NotificationBell() {
               notifications.map((n) => (
                   <div
                   key={n.id}
-                  onClick={() => markAsRead(n.id)}
+                  onClick={() => markAsRead(Number(n.id))}
                   className={`p-3 transition-colors cursor-pointer hover:bg-slate-800/50 flex gap-3 items-start ${
                     n.read ? "opacity-60 bg-transparent" : "bg-slate-800/20"
                     }`}
@@ -134,10 +134,7 @@ export function NotificationBell() {
                         {n.event_type}
                       </span>
                       <span className="text-[10px] text-slate-500">
-                        {new Date((n.ledger_closed_at || Date.now() / 1000) * 1000).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                        {formatTime(n.ledger_closed_at || Math.floor(Date.now() / 1000))}
                       </span>
                     </div>
                     <p className="text-xs text-slate-400 mt-0.5 truncate">
