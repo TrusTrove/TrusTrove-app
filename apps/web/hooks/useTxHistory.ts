@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import { Horizon } from "@stellar/stellar-sdk";
 import { useState, useCallback, useEffect, useMemo } from "react";
+import { useWalletStore } from "@/store/wallet";
 import type { TxHistoryItem } from "@/types";
 
 const HORIZON_URL =
@@ -357,6 +358,8 @@ export async function fetchPage(
  * Supports client-side pagination with a cursor stack.
  *
  * @param address - Stellar account address to fetch transaction history for.
+ *   The query additionally requires the wallet store to report `connected`, so
+ *   a rehydrated-but-disconnected session never pages Horizon (issue #636).
  * @returns An object containing:
  *   - `transactions` — Array of {@link TxHistoryItem} for the current page.
  *   - `isLoading` — `true` while the transaction page is being fetched.
@@ -374,6 +377,10 @@ export async function fetchPage(
  * ```
  */
 export function useTxHistory(address: string): TxHistoryResult {
+  // The only caller passes the connected wallet's address. A reload rehydrates
+  // the store as disconnected, so gating on the address alone would page
+  // Horizon while the UI renders as disconnected (issue #636).
+  const connected = useWalletStore((s) => s.connected);
   const [cursorStack, setCursorStack] = useState<(string | undefined)[]>([
     undefined,
   ]);
@@ -395,7 +402,7 @@ export function useTxHistory(address: string): TxHistoryResult {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["txHistory", address, cursor],
     queryFn: () => fetchPage(address, cursor, fetchOps),
-    enabled: !!address,
+    enabled: !!address && connected,
     staleTime: 10000,
     // Back off immediately when throttled instead of piling on more requests.
     retry: (failureCount, err) => !isRateLimitError(err) && failureCount < 2,

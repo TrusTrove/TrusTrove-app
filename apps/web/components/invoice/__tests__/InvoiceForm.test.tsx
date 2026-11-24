@@ -1,8 +1,10 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
 import { InvoiceForm } from "../InvoiceForm";
+import { renderWithProviders as render } from "@/test-utils/renderWithProviders";
 
 const renderWithQueryClient = (ui: React.ReactElement) =>
   render(
@@ -18,6 +20,7 @@ describe("InvoiceForm Financing Cost & Boundary Validations", () => {
 
   it("handles empty or invalid face value cleanly without NaN", () => {
     renderWithQueryClient(<InvoiceForm />);
+    render(<InvoiceForm />);
     const reviewButton = screen.getByRole("button", {
       name: /REVIEW FINANCING TERMS/i,
     });
@@ -26,6 +29,7 @@ describe("InvoiceForm Financing Cost & Boundary Validations", () => {
 
   it("enforces permission and wallet boundary when listing", async () => {
     renderWithQueryClient(<InvoiceForm />);
+    render(<InvoiceForm />);
     expect(
       screen.getByLabelText(/List for immediate LP financing at creation/i),
     ).toBeChecked();

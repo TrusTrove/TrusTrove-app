@@ -4,6 +4,12 @@ import { beforeEach, describe, it, expect, vi } from "vitest";
 import { ConfirmationDialog } from "./ConfirmationDialog";
 import { useConfirmDialogStore } from "@/store/confirmDialog";
 import { useWallet } from "@/hooks/useWallet";
+import { screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { ConfirmationDialog } from "./ConfirmationDialog";
+import { useConfirmDialogStore } from "@/store/confirmDialog";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
+import { renderWithProviders as render } from "@/test-utils/renderWithProviders";
 
 vi.mock("@/store/confirmDialog", () => ({
   useConfirmDialogStore: vi.fn(),
@@ -34,6 +40,14 @@ beforeEach(() => {
     refetchBalances: vi.fn(),
   });
 });
+vi.mock("@/hooks/useWallet", () => ({
+  useWallet: vi.fn(() => ({
+    connected: true,
+    canSign: true,
+    connectWallet: vi.fn(),
+    error: null,
+  })),
+}));
 
 describe("ConfirmationDialog", () => {
   it("renders non-null pendingAction happy path correctly", () => {
