@@ -178,13 +178,12 @@ paths:
           schema:
             type: string
         - $ref: "#/components/parameters/Limit"
-        - name: page
+        - name: cursor
           in: query
           required: false
           schema:
-            type: integer
-            default: 1
-            minimum: 1
+            type: string
+          description: Opaque pagination cursor based on sort key and ID.
       responses:
         "200":
           description: Invoice list
@@ -651,7 +650,6 @@ components:
           type: string
           description: Transaction status (e.g. SUCCESS).
       required: [invoice_id, transaction_hash, status]
-
     Invoice:
       type: object
       properties:
@@ -720,15 +718,12 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Invoice"
-        total:
-          type: integer
-        page:
-          type: integer
         limit:
           type: integer
-        totalPages:
-          type: integer
-      required: [data, total, page, limit, totalPages]
+        next_cursor:
+          type: string
+          nullable: true
+      required: [data, limit]
 
     EventLog:
       type: object

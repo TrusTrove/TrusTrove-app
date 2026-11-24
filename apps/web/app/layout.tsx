@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { NextIntlClientProvider } from "next-intl";
 import "./globals.css";
 import Providers from "./providers";
+import { GlobalKeyboardShortcuts } from "@/components/shared/GlobalKeyboardShortcuts";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { cn } from "@/lib/utils";
@@ -87,6 +88,7 @@ export default async function RootLayout({
         </a>
         <Providers>
           <NextIntlClientProvider locale="en" messages={enMessages}>
+            <GlobalKeyboardShortcuts />
             {children}
           </NextIntlClientProvider>
           <SpeedInsights />

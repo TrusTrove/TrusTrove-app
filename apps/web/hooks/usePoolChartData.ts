@@ -1,4 +1,23 @@
 import { useMemo } from "react";
+export type InvoiceStatus = "Created" | "Funded" | "Active" | "Repaid" | "Defaulted";
+
+export interface Invoice {
+  id: string;
+  status: InvoiceStatus;
+  issuer: string;
+  buyer: string;
+  faceValue: bigint;
+  asset: string;
+  discountBps: number;
+  fundedAmount: bigint;
+  dueDate: number;
+  createdAt: number;
+  fundedAt: number | null;
+  shippedAt: number | null;
+  issuerConfirmed: boolean;
+  buyerConfirmed: boolean;
+  repaidAt: number | null;
+}
 
 export interface ChartDataItem {
   label: string;
@@ -23,7 +42,7 @@ export interface UsePoolChartDataOptions {
  * @param options.data - Array of `{ label, value }` entries to plot.
  * @param options.width - SVG viewport width in pixels (default `500`).
  * @param options.height - SVG viewport height in pixels (default `200`).
- * @param options.padding - Inset padding around the chart area (default `20`).
+ * @param options.padding - Inset padding around the chart area (default `20` ).
  *
  * @returns An object containing:
  *   - `linePath` — SVG path `d` string tracing the data as a continuous line.
@@ -92,4 +111,110 @@ export function usePoolChartData({
   }, [data, width, height, padding]);
 
   return chartLayout;
+}
+
+export interface IssuerConcentrationItem {
+  issuer: string;
+  label: string;
+  amount: bigint;
+  amountUsdc: number;
+  percentage: number;
+}
+
+export interface IssuerConcentrationResult {
+  items: IssuerConcentrationItem[];
+  totalExposure: bigint;
+  totalExposureUsdc: number;
+  activeCount: number;
+}
+
+const STROOPS_PER_USDC = 10_000_000;
+
+/**
+ * Hook that aggregates active funded invoices by issuer to compute issuer
+ * concentration for LPs. Retains the top N issuers and groups the remaining
+ * into an "Other" bucket while guaranteeing totals reconcile exactly to
+ * displayed exposure.
+ */
+export function useIssuerConcentration(
+  invoices: Invoice[] | undefined,
+  topLimit: number = 4,
+): IssuerConcentrationResult {
+  return useMemo(() => {
+    if (!invoices || invoices.length === 0) {
+      return {
+        items: [],
+        totalExposure: 0n,
+        totalExposureUsdc: 0,
+        activeCount: 0,
+      };
+    }
+
+    // Filter to active funded invoices (status === "Funded" or "Active" with fundedAmount > 0)
+    const activeInvoices = invoices.filter(
+      (inv) =>
+        (inv.status === "Funded" || inv.status === "Active") &&
+        inv.fundedAmount > 0n,
+    );
+
+    const totalsByIssuer = new Map<string, bigint>();
+    let totalExposure = 0n;
+
+    for (const inv of activeInvoices) {
+      const current = totalsByIssuer.get(inv.issuer) ?? 0n;
+      totalsByIssuer.set(inv.issuer, current + inv.fundedAmount);
+      totalExposure += inv.fundedAmount;
+    }
+
+    const sortedIssuers = Array.from(totalsByIssuer.entries()).sort(
+      (a, b) => (b[1] > a[1] ? 1 : b[1] < a[1] ? -1 : 0),
+    );
+
+    const topIssuers = sortedIssuers.slice(0, topLimit);
+    const remainingIssuers = sortedIssuers.slice(topLimit);
+
+    let otherTotal = 0n;
+    for (const [, amount] of remainingIssuers) {
+      otherTotal += amount;
+    }
+
+    const items: IssuerConcentrationItem[] = topIssuers.map(([issuer, amount], index) => {
+      const amountUsdc = Number(amount) / STROOPS_PER_USDC;
+      const percentage =
+        totalExposure > 0n ? Number((amount * 10000n) / totalExposure) / 100 : 0;
+      const shortIssuer =
+        issuer.length > 10
+          ? `${issuer.slice(0, 4)}...${issuer.slice(-4)}`
+          : issuer;
+      return {
+        issuer,
+        label: `Issuer ${shortIssuer}`,
+        amount,
+        amountUsdc,
+        percentage,
+      };
+    });
+
+    if (otherTotal > 0n) {
+      const amountUsdc = Number(otherTotal) / STROOPS_PER_USDC;
+      const percentage =
+        totalExposure > 0n ? Number((otherTotal * 10000n) / totalExposure) / 100 : 0;
+      items.push({
+        issuer: "other",
+        label: "Other Issuers",
+        amount: otherTotal,
+        amountUsdc,
+        percentage,
+      });
+    }
+
+    const totalExposureUsdc = Number(totalExposure) / STROOPS_PER_USDC;
+
+    return {
+      items,
+      totalExposure,
+      totalExposureUsdc,
+      activeCount: activeInvoices.length,
+    };
+  }, [invoices, topLimit]);
 }

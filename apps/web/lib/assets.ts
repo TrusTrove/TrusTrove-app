@@ -16,6 +16,7 @@ export interface AssetInfo {
   isNative: boolean;
   issuer: string | null;
   decimals: number;
+  network: string;
 }
 
 /**
@@ -32,6 +33,7 @@ export const ASSET_INFO: Record<AssetType, AssetInfo> = {
     isNative: false,
     issuer: USDC_ISSUER,
     decimals: 7,
+    network: process.env.NEXT_PUBLIC_STELLAR_NETWORK || "testnet",
   },
   XLM: {
     type: "XLM",
@@ -40,6 +42,7 @@ export const ASSET_INFO: Record<AssetType, AssetInfo> = {
     isNative: true,
     issuer: null,
     decimals: 7,
+    network: process.env.NEXT_PUBLIC_STELLAR_NETWORK || "testnet",
   },
 };
 
@@ -150,3 +153,20 @@ export const ASSET_OPTIONS: { value: AssetType; label: string }[] = [
   { value: "USDC", label: "USDC" },
   { value: "XLM", label: "XLM" },
 ];
+
+/**
+ * Returns asset details for a given asset type.
+ */
+export function getAssetDetails(asset: AssetType = "USDC"): AssetInfo {
+  return ASSET_INFO[asset] || ASSET_INFO.USDC;
+}
+
+/**
+ * Constructs a detailed tooltip label containing asset code, issuer, network, and decimal precision.
+ */
+export function getAmountTooltipLabel(amount: bigint | undefined, asset: AssetType = "USDC"): string {
+  const info = getAssetDetails(asset);
+  const formatted = formatAmount(amount, asset);
+  const issuerText = info.issuer ? `Issuer: ${info.issuer}` : "Issuer: Native";
+  return `${formatted} | Asset: ${info.code} | ${issuerText} | Network: ${info.network} | Decimals: ${info.decimals}`;
+}
