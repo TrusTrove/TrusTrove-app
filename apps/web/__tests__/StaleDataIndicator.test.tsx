@@ -1,10 +1,11 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
 import { StaleDataIndicator } from '../components/shared/StaleDataIndicator';
 
 describe('StaleDataIndicator', () => {
   it('renders synced state correctly with ledger and time', () => {
-    const onRefresh = jest.fn();
+    const onRefresh = vi.fn();
     render(
       <StaleDataIndicator
         lastIndexedLedger={100}
@@ -19,7 +20,7 @@ describe('StaleDataIndicator', () => {
   });
 
   it('renders stale state correctly and handles manual refresh boundary', () => {
-    const onRefresh = jest.fn();
+    const onRefresh = vi.fn();
     render(
       <StaleDataIndicator
         lastIndexedLedger={99}
@@ -36,7 +37,7 @@ describe('StaleDataIndicator', () => {
   });
 
   it('handles empty and missing optional props gracefully', () => {
-    const onRefresh = jest.fn();
+    const onRefresh = vi.fn();
     render(<StaleDataIndicator onRefresh={onRefresh} />);
     expect(screen.getByTestId('stale-data-indicator')).toBeInTheDocument();
   });
