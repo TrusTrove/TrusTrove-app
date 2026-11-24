@@ -29,6 +29,8 @@ describe("useWatchlist", () => {
 
     act(() => {
       result.current.addBookmark("inv-1");
+    });
+    act(() => {
       result.current.addBookmark("inv-2");
     });
 
