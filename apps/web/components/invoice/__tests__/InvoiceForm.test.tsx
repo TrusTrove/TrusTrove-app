@@ -1,7 +1,8 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
 import { InvoiceForm } from "../InvoiceForm";
+import { renderWithProviders as render } from "@/test-utils/renderWithProviders";
 
 describe("InvoiceForm Financing Cost & Boundary Validations", () => {
   it("renders financing cost slider and initial defaults correctly", () => {
