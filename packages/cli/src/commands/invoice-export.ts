@@ -274,15 +274,11 @@ export async function exportInvoices(
  * code.
  */
 export function registerInvoiceExportCommand(program: Command): Command {
-  const invoice = program
-    .command("invoice")
-    .description("Invoice commands");
+  const invoice = program.command("invoice").description("Invoice commands");
 
   return invoice
     .command("export")
-    .description(
-      "Export every matching invoice from the indexer as CSV",
-    )
+    .description("Export every matching invoice from the indexer as CSV")
     .option(
       "--status <status>",
       "filter by invoice status (Created, Listed, Funded, Active, Confirmed, Repaid, Defaulted)",
