@@ -30,15 +30,15 @@ trusttrove list-invoices \
   --network testnet
 ```
 
-| Flag                   | Description                                                              |
-| ---------------------- | ------------------------------------------------------------------------ |
-| `--status <status>`    | One of `Created`, `Listed`, `Funded`, `Active`, `Confirmed`, `Repaid`, `Defaulted` (case-insensitive). Mutually exclusive with `--issuer`. |
-| `--issuer <address>`   | Issuer Stellar address. Mutually exclusive with `--status`.            |
-| `--public-key <key>`   | Public key for the read-only simulation. Defaults to `TRUSTTROVE_PUBLIC_KEY`. |
-| `--contract-id <id>`   | Invoice contract ID. Defaults to `INVOICE_CONTRACT_ID`.                |
-| `--network <network>`  | `testnet` or `mainnet`. See [Network selection](#network-selection).    |
-| `--rpc-url <url>`      | Custom Soroban RPC endpoint.                                            |
-| `--json`               | Emit errors as structured JSON on stderr.                               |
+| Flag                  | Description                                                                                                                                |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--status <status>`   | One of `Created`, `Listed`, `Funded`, `Active`, `Confirmed`, `Repaid`, `Defaulted` (case-insensitive). Mutually exclusive with `--issuer`. |
+| `--issuer <address>`  | Issuer Stellar address. Mutually exclusive with `--status`.                                                                                |
+| `--public-key <key>`  | Public key for the read-only simulation. Defaults to `TRUSTTROVE_PUBLIC_KEY`.                                                              |
+| `--contract-id <id>`  | Invoice contract ID. Defaults to `INVOICE_CONTRACT_ID`.                                                                                    |
+| `--network <network>` | `testnet` or `mainnet`. See [Network selection](#network-selection).                                                                       |
+| `--rpc-url <url>`     | Custom Soroban RPC endpoint.                                                                                                               |
+| `--json`              | Emit errors as structured JSON on stderr.                                                                                                  |
 
 `--status` and `--issuer` are required, and passing both is an error. A filter
 that matches nothing prints the header-only table and `No invoices found.`
@@ -55,13 +55,13 @@ trusttrove check-pool-balance \
   --network mainnet
 ```
 
-| Flag                     | Description                                                                 |
-| ------------------------ | --------------------------------------------------------------------------- |
-| `--public-key <key>`     | Public key for the read-only simulation. Defaults to `TRUSTTROVE_PUBLIC_KEY`, `NEXT_PUBLIC_PUBLIC_KEY`, or `PUBLIC_KEY`. |
-| `--pool-contract-id <id>`| Pool contract ID. Defaults to `TRUSTTROVE_POOL_CONTRACT_ID`, `NEXT_PUBLIC_POOL_CONTRACT_ID`, `POOL_CONTRACT_ID`, then the SDK config. |
-| `--network <network>`    | `testnet` or `mainnet`.                                                     |
-| `--rpc-url <url>`        | Custom Soroban RPC endpoint.                                                |
-| `--json`                 | Emit errors as structured JSON on stderr.                                   |
+| Flag                      | Description                                                                                                                           |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `--public-key <key>`      | Public key for the read-only simulation. Defaults to `TRUSTTROVE_PUBLIC_KEY`, `NEXT_PUBLIC_PUBLIC_KEY`, or `PUBLIC_KEY`.              |
+| `--pool-contract-id <id>` | Pool contract ID. Defaults to `TRUSTTROVE_POOL_CONTRACT_ID`, `NEXT_PUBLIC_POOL_CONTRACT_ID`, `POOL_CONTRACT_ID`, then the SDK config. |
+| `--network <network>`     | `testnet` or `mainnet`.                                                                                                               |
+| `--rpc-url <url>`         | Custom Soroban RPC endpoint.                                                                                                          |
+| `--json`                  | Emit errors as structured JSON on stderr.                                                                                             |
 
 ### `webhook-deliveries`
 
@@ -76,13 +76,13 @@ trusttrove webhook-deliveries \
   --limit 20
 ```
 
-| Flag                        | Description                                                        |
-| --------------------------- | ------------------------------------------------------------------ |
-| `--subscription-id <uuid>`  | Subscription to inspect. Required.                                 |
-| `--token <jwt>`             | JWT for the owner. Defaults to `TRUSTTROVE_API_TOKEN`.              |
-| `--api-url <url>`           | Indexer base URL. Defaults to `TRUSTTROVE_API_URL`, then `http://localhost:8080`. |
-| `--limit <n>`               | Rows to request, `1`–`100` (default `20`).                         |
-| `--json`                    | Print `{ "data": [...] }` on stdout and errors as JSON on stderr.   |
+| Flag                       | Description                                                                       |
+| -------------------------- | --------------------------------------------------------------------------------- |
+| `--subscription-id <uuid>` | Subscription to inspect. Required.                                                |
+| `--token <jwt>`            | JWT for the owner. Defaults to `TRUSTTROVE_API_TOKEN`.                            |
+| `--api-url <url>`          | Indexer base URL. Defaults to `TRUSTTROVE_API_URL`, then `http://localhost:8080`. |
+| `--limit <n>`              | Rows to request, `1`–`100` (default `20`).                                        |
+| `--json`                   | Print `{ "data": [...] }` on stdout and errors as JSON on stderr.                 |
 
 Each row shows the delivery `ID`, `EVENT`, `STATUS` (`pending`, `delivered`, or
 `dead_letter`), `ATTEMPTS` (`used/max`), `LAST STATUS`, `NEXT RETRY` (only for
@@ -140,18 +140,24 @@ networks without `--rpc-url` always uses that network's public endpoint.
 
 Automation can branch on the exit status without parsing messages:
 
-| Code | Meaning                                                              |
-| ---- | -------------------------------------------------------------------- |
-| `0`  | Success.                                                             |
-| `1`  | Usage or configuration error (bad flag, missing key, invalid ID).    |
-| `2`  | Soroban RPC, Horizon, or indexer API failure.                        |
+| Code | Meaning                                                               |
+| ---- | --------------------------------------------------------------------- |
+| `0`  | Success.                                                              |
+| `1`  | Usage or configuration error (bad flag, missing key, invalid ID).     |
+| `2`  | Soroban RPC, Horizon, or indexer API failure.                         |
 | `3`  | Authorization failure (missing, invalid, expired, or rejected token). |
-| `4`  | Unexpected internal error.                                           |
+| `4`  | Unexpected internal error.                                            |
 
 With `--json`, errors are a single line on stderr:
 
 ```json
-{"error":{"code":"AUTH_ERROR","message":"The indexer API rejected the token (HTTP 401). Check --token or TRUSTTROVE_API_TOKEN.","exitCode":3}}
+{
+  "error": {
+    "code": "AUTH_ERROR",
+    "message": "The indexer API rejected the token (HTTP 401). Check --token or TRUSTTROVE_API_TOKEN.",
+    "exitCode": 3
+  }
+}
 ```
 
 URLs in error messages, and the `RPC:` header, are always redacted: userinfo,

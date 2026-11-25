@@ -8,10 +8,7 @@ vi.mock("@trusttrove/sdk", () => ({
   configureSDK: mockConfigureSDK,
 }));
 
-import {
-  formatNetworkHeader,
-  resolveNetwork,
-} from "../src/network.js";
+import { formatNetworkHeader, resolveNetwork } from "../src/network.js";
 
 const ENV_KEYS = [
   "NEXT_PUBLIC_STELLAR_NETWORK",
@@ -40,9 +37,7 @@ describe("resolveNetwork", () => {
     const network = resolveNetwork();
 
     expect(network.name).toBe("testnet");
-    expect(network.sorobanRpcUrl).toBe(
-      "https://soroban-testnet.stellar.org",
-    );
+    expect(network.sorobanRpcUrl).toBe("https://soroban-testnet.stellar.org");
     expect(network.isCustomRpc).toBe(false);
     expect(mockConfigureSDK).toHaveBeenCalledWith({
       sorobanRpcUrl: "https://soroban-testnet.stellar.org",
@@ -70,9 +65,7 @@ describe("resolveNetwork", () => {
     });
 
     expect(network.name).toBe("mainnet");
-    expect(network.sorobanRpcUrl).toBe(
-      "https://rpc.provider.example/stellar",
-    );
+    expect(network.sorobanRpcUrl).toBe("https://rpc.provider.example/stellar");
     expect(network.isCustomRpc).toBe(true);
   });
 

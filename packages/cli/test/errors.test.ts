@@ -56,12 +56,12 @@ describe("classifyError", () => {
   });
 
   it("maps authorization and RPC messages from the SDK", () => {
-    expect(classifyError(new Error("Simulation failed: unauthorized")).code).toBe(
-      "AUTH_ERROR",
-    );
-    expect(classifyError(new Error("Simulation failed: host unreachable")).code).toBe(
-      "RPC_ERROR",
-    );
+    expect(
+      classifyError(new Error("Simulation failed: unauthorized")).code,
+    ).toBe("AUTH_ERROR");
+    expect(
+      classifyError(new Error("Simulation failed: host unreachable")).code,
+    ).toBe("RPC_ERROR");
     expect(classifyError(new Error("ECONNREFUSED 127.0.0.1:8000")).code).toBe(
       "RPC_ERROR",
     );

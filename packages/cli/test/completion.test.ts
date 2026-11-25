@@ -43,7 +43,7 @@ describe("generateCompletion", () => {
     expect(script).toContain("'webhook-deliveries:");
     expect(script).toContain("'--network[");
     expect(script).toContain("(testnet mainnet)");
-    expect(script).toContain("_trusttrove \"$@\"");
+    expect(script).toContain('_trusttrove "$@"');
   });
 
   it("generates PowerShell completion", () => {
@@ -74,7 +74,7 @@ describe("generateCompletion", () => {
 
     expect(script).toContain("_demo_completion()");
     expect(script).toContain("complete -F _demo_completion demo");
-    expect(script).not.toContain("case \"${sub}\" in\n    )");
+    expect(script).not.toContain('case "${sub}" in\n    )');
   });
 
   it("accepts shells case-insensitively", () => {

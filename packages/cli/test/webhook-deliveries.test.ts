@@ -144,12 +144,7 @@ describe("webhook-deliveries command", () => {
   it("handles an empty delivery list", async () => {
     fetchMock.mockResolvedValue(jsonResponse({ data: [] }));
 
-    await runCli([
-      "--subscription-id",
-      SUBSCRIPTION_ID,
-      "--token",
-      TOKEN,
-    ]);
+    await runCli(["--subscription-id", SUBSCRIPTION_ID, "--token", TOKEN]);
 
     expect(stdout()).toContain("No deliveries found.");
     expect(process.exitCode).toBeUndefined();
@@ -174,12 +169,7 @@ describe("webhook-deliveries command", () => {
   it("reports a rejected token as an auth error", async () => {
     fetchMock.mockResolvedValue(textResponse("unauthorized", 401));
 
-    await runCli([
-      "--subscription-id",
-      SUBSCRIPTION_ID,
-      "--token",
-      TOKEN,
-    ]);
+    await runCli(["--subscription-id", SUBSCRIPTION_ID, "--token", TOKEN]);
 
     expect(stderr()).toContain("rejected the token (HTTP 401)");
     expect(process.exitCode).toBe(3);
@@ -204,12 +194,7 @@ describe("webhook-deliveries command", () => {
   it("reports a subscription the token cannot see as not found", async () => {
     fetchMock.mockResolvedValue(textResponse("webhook not found", 404));
 
-    await runCli([
-      "--subscription-id",
-      SUBSCRIPTION_ID,
-      "--token",
-      TOKEN,
-    ]);
+    await runCli(["--subscription-id", SUBSCRIPTION_ID, "--token", TOKEN]);
 
     expect(stderr()).toContain("was not found for this token");
     expect(process.exitCode).toBe(1);
@@ -283,7 +268,9 @@ describe("fetchWebhookDeliveries", () => {
         token: TOKEN,
         apiUrl: "https://user:key@api.example.com",
       }),
-    ).rejects.toThrow("Failed to reach the indexer API at https://***@api.example.com");
+    ).rejects.toThrow(
+      "Failed to reach the indexer API at https://***@api.example.com",
+    );
   });
 
   it("rejects a response without a data array", async () => {

@@ -15,7 +15,8 @@ export const EXIT_AUTH = 3;
 /** Any other unexpected failure. */
 export const EXIT_INTERNAL = 4;
 
-export type CliErrorCode = "USAGE_ERROR" | "RPC_ERROR" | "AUTH_ERROR" | "INTERNAL_ERROR";
+export type CliErrorCode =
+  "USAGE_ERROR" | "RPC_ERROR" | "AUTH_ERROR" | "INTERNAL_ERROR";
 
 /** An error carrying the machine-readable code and process exit status. */
 export class CliError extends Error {

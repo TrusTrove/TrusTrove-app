@@ -61,7 +61,10 @@ export function extractCommandSpecs(program: Command): {
 }
 
 function singleLine(text: string): string {
-  return text.replace(/[\r\n]+/g, " ").replace(/'/g, "").trim();
+  return text
+    .replace(/[\r\n]+/g, " ")
+    .replace(/'/g, "")
+    .trim();
 }
 
 function uniqueOptions(options: OptionSpec[]): OptionSpec[] {
@@ -152,8 +155,7 @@ function generateZsh(program: Command): string {
   const spec = extractCommandSpecs(program);
   const commands = spec.commands
     .map(
-      (command) =>
-        `    '${command.name}:${singleLine(command.description)}'`,
+      (command) => `    '${command.name}:${singleLine(command.description)}'`,
     )
     .join("\n");
 
@@ -263,10 +265,7 @@ export function parseCompletionShell(value: string): CompletionShell {
 }
 
 /** Generates a completion script for `shell` from the live command tree. */
-export function generateCompletion(
-  program: Command,
-  shell: string,
-): string {
+export function generateCompletion(program: Command, shell: string): string {
   switch (parseCompletionShell(shell)) {
     case "bash":
       return generateBash(program);

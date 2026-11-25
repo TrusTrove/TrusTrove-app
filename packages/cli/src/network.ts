@@ -106,9 +106,7 @@ function assertHostMatches(url: string, network: KnownNetwork) {
  * Contradictory sources are rejected instead of silently picking one, which is
  * what lets `--network mainnet` never run against a testnet endpoint.
  */
-export function resolveNetwork(
-  options: NetworkOptions = {},
-): ResolvedNetwork {
+export function resolveNetwork(options: NetworkOptions = {}): ResolvedNetwork {
   const requested = options.network
     ? parseKnownNetwork(options.network, "--network")
     : undefined;
@@ -120,7 +118,8 @@ export function resolveNetwork(
     : undefined;
   const envPassphrase =
     process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE?.trim() || undefined;
-  const envRpcUrl = process.env.NEXT_PUBLIC_SOROBAN_RPC_URL?.trim() || undefined;
+  const envRpcUrl =
+    process.env.NEXT_PUBLIC_SOROBAN_RPC_URL?.trim() || undefined;
   const explicitRpcUrl = options.rpcUrl?.trim() || undefined;
 
   const envPassphraseNetwork = envPassphrase
@@ -141,11 +140,7 @@ export function resolveNetwork(
       `Conflicting network configuration: --network ${requested} disagrees with NEXT_PUBLIC_STELLAR_NETWORK=${envNetwork}.`,
     );
   }
-  if (
-    requested &&
-    envPassphraseNetwork &&
-    requested !== envPassphraseNetwork
-  ) {
+  if (requested && envPassphraseNetwork && requested !== envPassphraseNetwork) {
     throw usageError(
       `Conflicting network configuration: --network ${requested} disagrees with NEXT_PUBLIC_NETWORK_PASSPHRASE.`,
     );

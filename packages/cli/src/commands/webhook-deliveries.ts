@@ -162,7 +162,9 @@ function parseAttempts(payload: unknown): WebhookDeliveryAttempt[] {
     typeof payload !== "object" ||
     !Array.isArray((payload as { data?: unknown }).data)
   ) {
-    throw rpcError("Unexpected response from the indexer API: missing data array.");
+    throw rpcError(
+      "Unexpected response from the indexer API: missing data array.",
+    );
   }
   return (payload as { data: WebhookDeliveryAttempt[] }).data;
 }
@@ -214,9 +216,7 @@ export async function fetchWebhookDeliveries(
   if (!response.ok) {
     const body = await response.text().catch(() => "");
     const detail = body.trim() ? `: ${redactUrls(body.trim())}` : "";
-    throw rpcError(
-      `The indexer API returned HTTP ${response.status}${detail}`,
-    );
+    throw rpcError(`The indexer API returned HTTP ${response.status}${detail}`);
   }
 
   let payload: unknown;
