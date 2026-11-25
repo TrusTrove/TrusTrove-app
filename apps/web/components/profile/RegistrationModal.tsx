@@ -13,6 +13,7 @@ import {
   Mail,
 } from "lucide-react";
 import type { useProfile } from "@/hooks/useProfile";
+import { getErrorMessage } from "@/lib/errors";
 
 interface RegistrationModalProps {
   isOpen: boolean;
@@ -296,7 +297,10 @@ export function RegistrationModal({
                     <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
                     <span>
                       {localError ||
-                        (registerError as any)?.message ||
+                        getErrorMessage(
+                          registerError,
+                          "Failed to submit registration",
+                        ) ||
                         "Failed to submit registration"}
                     </span>
                   </div>
