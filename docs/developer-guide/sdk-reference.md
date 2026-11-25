@@ -87,13 +87,13 @@ const invoices = await readers.invoice.getByStatus("Funded", publicKey);
 // readers.pool.deposit(...) is not part of the type.
 ```
 
-| Field              | Description                                                                                                  |
-| ------------------ | ------------------------------------------------------------------------------------------------------------ |
-| `network`          | Required. `testnet`, `mainnet`, or `custom` (which requires `networkPassphrase`).                             |
-| `rpcUrl`           | Required. Soroban RPC endpoint to read from; must be an http(s) URL.                                         |
-| `networkPassphrase`| Optional for presets, required for `custom`.                                                                 |
-| `contractIds`      | Optional per-contract overrides. Missing IDs fall back to the active SDK config.                             |
-| `usdc`             | Optional USDC issuer/asset override used to derive the token contract ID.                                    |
+| Field               | Description                                                                       |
+| ------------------- | --------------------------------------------------------------------------------- |
+| `network`           | Required. `testnet`, `mainnet`, or `custom` (which requires `networkPassphrase`). |
+| `rpcUrl`            | Required. Soroban RPC endpoint to read from; must be an http(s) URL.              |
+| `networkPassphrase` | Optional for presets, required for `custom`.                                      |
+| `contractIds`       | Optional per-contract overrides. Missing IDs fall back to the active SDK config.  |
+| `usdc`              | Optional USDC issuer/asset override used to derive the token contract ID.         |
 
 Each client is created lazily on first access, so a contract that is never read
 never needs an ID. Available readers are `registry`, `invoice`, `pool`,

@@ -11,8 +11,11 @@ export const DEFAULT_API_URL = "http://localhost:8080";
  * removed so callers can append paths directly.
  */
 export function resolveApiUrl(explicit?: string): string {
-  const raw = (explicit ?? process.env[API_URL_ENV_VAR] ?? DEFAULT_API_URL)
-    .trim();
+  const raw = (
+    explicit ??
+    process.env[API_URL_ENV_VAR] ??
+    DEFAULT_API_URL
+  ).trim();
   let parsed: URL;
   try {
     parsed = new URL(raw);
