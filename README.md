@@ -23,4 +23,8 @@ Run `docker-compose up` to start the one-command stack.
 - `examples` — integration examples
 - `docs` — developer and operational documentation
 
+## User Interaction
+
+- **Invoice Detail Payment Reference:** Buyers can view and copy the invoice ID and a buyer-facing payment reference on the invoice detail view. Note that off-chain transfers require manual on-chain settlement and do not automatically settle the on-chain invoice.
+
 Root command coverage: `pnpm build` builds SDK, SDK React, CLI, and web; `pnpm test` runs Vitest suites for those four packages; `pnpm lint` runs SDK and web lint; and `pnpm typecheck` builds SDK, SDK React, and CLI before checking TypeScript across the workspaces. Run `go build -v .`, `go vet ./...`, and `go test ./...` separately from `indexer`.

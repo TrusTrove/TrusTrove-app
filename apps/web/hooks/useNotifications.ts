@@ -1,185 +1,145 @@
-import { useEffect, useState } from "react";
+"use client";
+
+import { useState, useMemo, useCallback } from "react";
 import { useRecentEvents } from "./useEvents";
-import { useInvoicesList } from "./useInvoices";
+
+export type NotificationCategory = "all" | "invoice" | "pool" | "account";
+
+export interface NotificationEvent {
+  invoiceId?: string;
+  id: number | string;
+  event_type: string;
+  invoiceId?: string;
+  contract_id?: string;
+  ledger?: number;
+  ledger_closed_at?: number;
+  occurred_at?: string;
+  data: Record<string, unknown>;
+  read?: boolean;
+}
+
+export type StoredNotifications = Record<string, boolean>;
+
+export const STORAGE_KEY = "trusttrove_notifications_read";
+
+export function isNotificationEvent(value: unknown): value is NotificationEvent {
+  if (!value || typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
+  return typeof v.id === "string" && typeof v.event_type === "string";
+  }
+
+export function readStoredNotifications(storageKey: string): StoredNotifications {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(storageKey);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object") {
+      return parsed as StoredNotifications;
+  }
+  } catch {
+    // ignore read errors
+  }
+  return {};
+}
+
 import { useWalletStore } from "@/store/wallet";
-import {
-  NotificationEvent,
-  mapEventToNotification,
-} from "@/types/notifications";
-import { getEventDataString } from "@/types";
-import { notificationHistoryKey } from "@/lib/storage";
-import { prefsStorageKey } from "@/lib/notification-preferences";
-
-interface StoredNotifications {
-  /** Notification records recovered from storage. */
-  items: NotificationEvent[];
-  /** Whether the stored value was safe to parse and can therefore be rewritten. */
-  canPersist: boolean;
-  /** Whether a value exists under the storage key at all. */
-  hasStored: boolean;
-}
-
-function isNotificationEvent(value: unknown): value is NotificationEvent {
-  if (typeof value !== "object" || value === null) return false;
-  const candidate = value as Record<string, unknown>;
-  return typeof candidate.id === "string" && typeof candidate.type === "string";
-}
-
-/**
- * Reads one wallet's cached notification history without ever discarding the
- * raw value on failure.
- *
- * A `JSON.parse` failure used to be swallowed and the resulting empty list was
- * written straight back, permanently destroying the user's history and read
- * flags. Corrupt data is therefore reported as non-persistable: callers keep
- * rendering fresh events but leave the stored value untouched (issue #1093).
- */
-function readStoredNotifications(storageKey: string): StoredNotifications {
-  let raw: string | null;
-  try {
-    raw = localStorage.getItem(storageKey);
-  } catch {
-    return { items: [], canPersist: false, hasStored: false };
-  }
-
-  if (raw === null) {
-    return { items: [], canPersist: true, hasStored: false };
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return { items: [], canPersist: false, hasStored: true };
-  }
-
-  if (!Array.isArray(parsed)) {
-    return { items: [], canPersist: false, hasStored: true };
-  }
-
-  const items = parsed.filter(isNotificationEvent);
-  return {
-    items,
-    // A partially malformed array is preserved on disk until it is repaired
-    // or explicitly reset, rather than being replaced with the valid subset.
-    canPersist: items.length === parsed.length,
-    hasStored: true,
-  };
-}
 
 export function useNotifications() {
-  const address = useWalletStore((s) => s.address);
+const address = useWalletStore((s) => s.address);
   // The polling feeds below are scoped to the wallet, so they follow the same
   // `connected` flag the UI gates on rather than a rehydrated address alone
   // (issue #636).
   const connected = useWalletStore((s) => s.connected);
   const role = useWalletStore((s) => s.role);
-  const { events } = useRecentEvents(100, {
-    refetchInterval: 15000,
-    enabled: !!address && connected,
-  });
-  const { invoices } = useInvoicesList({
-    limit: 20,
-    enabled: !!address && connected,
-  });
+  const { events, isLoading, error, refetch } = useRecentEvents(50);
+  const [category, setCategory] = useState<NotificationCategory>("all");
 
-  const [notifications, setNotifications] = useState<NotificationEvent[]>([]);
+  const [readMap, setReadMap] = useState<StoredNotifications>(() => readStoredNotifications(STORAGE_KEY));
 
-  useEffect(() => {
-    if (!address) {
-      setNotifications([]);
-      return;
-    }
-
-    const relevantInvoiceIds = new Set(
-      invoices
-        .filter(
-          (inv) =>
-            inv.issuer === address || inv.buyer === address || role === "lp",
-        )
-        .map((inv) => inv.id),
-    );
-
-    const relevantEvents = events.filter((e) => {
-      const invId = getEventDataString(e, "invoice_id");
-      if (!invId) return false;
-
-      if (role === "lp" && relevantInvoiceIds.has(invId)) {
-        return [
-          "InvoiceListed",
-          "list_for_financing",
-          "InvoiceFunded",
-          "fund_invoice",
-          "InvoiceRepaid",
-          "repay",
-          "InvoiceDefaulted",
-          "trigger_default",
-        ].includes(e.event_type);
-      }
-
-      return relevantInvoiceIds.has(invId);
-    });
-
-    const mappedNotifs = relevantEvents.map(mapEventToNotification);
-    const storageKey = notificationHistoryKey(address);
-    const { items: saved, canPersist } = readStoredNotifications(storageKey);
-
-    const notifMap = new Map<string, NotificationEvent>();
-    saved.forEach((n) => notifMap.set(n.id, n));
-
-    mappedNotifs.forEach((n) => {
-      if (!notifMap.has(n.id)) {
-        notifMap.set(n.id, n);
-      } else {
-        const existing = notifMap.get(n.id)!;
-        notifMap.set(n.id, { ...n, read: existing.read });
-      }
-    });
-
-    let prefs: Record<string, boolean> = {};
-    try {
-      const p = localStorage.getItem(prefsStorageKey(address));
-      if (p) prefs = JSON.parse(p);
-    } catch {}
-
-    const allNotifs = Array.from(notifMap.values());
-    const combined = allNotifs
-      .filter((n) => prefs[n.type] !== false)
-      .sort((a, b) => b.timestamp - a.timestamp);
-
-    setNotifications(combined);
-
-    // Leave corrupt history in place instead of overwriting it with whatever
-    // could be recovered; otherwise the read flags are lost forever.
-    if (canPersist) {
+  const persistReadMap = useCallback((nextMap: StoredNotifications) => {
+    setReadMap(nextMap);
+    if (typeof window !== "undefined") {
       try {
-        localStorage.setItem(storageKey, JSON.stringify(allNotifs));
-      } catch {}
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextMap));
+      } catch {
+        // ignore write errors
+      }
+      }
+  }, []);
+
+  const notifications = useMemo(() => {
+    return events.filter(isNotificationEvent).map((evt) => ({
+      ...evt,
+      read: !!readMap[evt.id],
+    }));
+  }, [events, readMap]);
+
+  const filteredNotifications = useMemo(() => {
+    if (category === "all") return notifications;
+    return notifications.filter((n) => {
+      const type = n.event_type.toLowerCase();
+      if (category === "invoice") return type.startsWith("invoice.");
+      if (category === "pool") return type.startsWith("pool.");
+      if (category === "account") return type.startsWith("account.") || type.includes("profile") || type.includes("wallet");
+      return true;
+    });
+  }, [notifications, category]);
+
+  const counts = useMemo(() => {
+    const allCount = notifications.length;
+    const unreadCount = notifications.filter((n) => !n.read).length;
+    const invoiceCount = notifications.filter((n) => n.event_type.toLowerCase().startsWith("invoice.")).length;
+    const poolCount = notifications.filter((n) => n.event_type.toLowerCase().startsWith("pool.")).length;
+    const accountCount = notifications.filter((n) => {
+      const t = n.event_type.toLowerCase();
+      return t.startsWith("account.") || t.includes("profile") || t.includes("wallet");
+    }).length;
+
+    const filteredCount = category === "all"
+      ? allCount
+      : category === "invoice"
+      ? invoiceCount
+      : category === "pool"
+      ? poolCount
+      : accountCount;
+
+    return {
+      all: allCount,
+      unread: unreadCount,
+      invoice: invoiceCount,
+      pool: poolCount,
+      account: accountCount,
+      filtered: filteredCount,
+    };
+  }, [notifications, category]);
+
+  const markAsRead = useCallback(
+    (id: string) => {
+      const next = { ...readMap, [id]: true };
+      persistReadMap(next);
+    },
+    [readMap, persistReadMap]
+  );
+
+  const markAllAsRead = useCallback(() => {
+    const next = { ...readMap };
+    for (const n of notifications) {
+      next[n.id] = true;
     }
-  }, [events, invoices, address, role]);
-
-  const markAllAsRead = () => {
-    if (!address) return;
-
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-
-    const storageKey = notificationHistoryKey(address);
-    const {
-      items: allSaved,
-      canPersist,
-      hasStored,
-    } = readStoredNotifications(storageKey);
-
-    if (!hasStored || !canPersist) return;
-
-    try {
-      const updated = allSaved.map((n) => ({ ...n, read: true }));
-      localStorage.setItem(storageKey, JSON.stringify(updated));
-    } catch {}
-  };
+    persistReadMap(next);
+  }, [notifications, readMap, persistReadMap]);
 
   return {
-    notifications,
+    notifications: filteredNotifications,
+    allNotifications: notifications,
+    isLoading,
+    error,
+    category,
+    setCategory,
+    counts,
+    markAsRead,
     markAllAsRead,
+    refetch,
   };
 }
