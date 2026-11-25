@@ -17,11 +17,31 @@ function wrapper({ children }: { children: ReactNode }) {
   );
 }
 
-vi.mock("@stellar/stellar-sdk", () => ({
-  Horizon: {
-    Server: vi.fn(function () {}),
-  },
-}));
+vi.mock("@stellar/stellar-sdk", () => {
+  class MockNotFoundError extends Error {
+    response: { status: number };
+    constructor(message = "Not found", response = { status: 404 }) {
+      super(message);
+      this.name = "NotFoundError";
+      this.response = response;
+    }
+  }
+
+  class MockNetworkError extends Error {
+    constructor(message = "Network error") {
+      super(message);
+      this.name = "NetworkError";
+    }
+  }
+
+  return {
+    Horizon: {
+      Server: vi.fn(function () {}),
+    },
+    NotFoundError: MockNotFoundError,
+    NetworkError: MockNetworkError,
+  };
+});
 
 describe("useBalances", () => {
   let mockLoadAccount: ReturnType<typeof vi.fn>;
@@ -48,6 +68,36 @@ describe("useBalances", () => {
     expect(result.current.balances).toEqual({ usdc: null, xlm: null });
     expect(result.current.loading).toBe(false);
     expect(result.current.error).toBeNull();
+    expect(mockLoadAccount).not.toHaveBeenCalled();
+  });
+
+  it("reports loading=true while the initial Horizon request is pending (#1086)", async () => {
+    let resolveAccount!: (value: unknown) => void;
+    mockLoadAccount.mockReturnValue(
+      new Promise((resolve) => {
+        resolveAccount = resolve;
+      }),
+    );
+
+    act(() => {
+      useWalletStore.getState().connect("G123", "testnet");
+    });
+
+    const { result } = renderHook(() => useBalances(), { wrapper });
+
+    // The query must not be pre-seeded into a successful state.
+    expect(result.current.loading).toBe(true);
+    expect(result.current.balances).toEqual({ usdc: null, xlm: null });
+
+    await act(async () => {
+      resolveAccount({
+        balances: [{ asset_type: "native", balance: "10.00" }],
+      });
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(result.current.loading).toBe(false);
+    expect(result.current.balances).toEqual({ usdc: null, xlm: "10.00" });
   });
 
   it("fetches balances on connect", async () => {
@@ -69,7 +119,7 @@ describe("useBalances", () => {
 
     const { result } = renderHook(() => useBalances(), { wrapper });
 
-    expect(result.current.loading).toBe(false);
+    expect(result.current.loading).toBe(true);
 
     await act(async () => {
       await Promise.resolve();
@@ -128,8 +178,11 @@ describe("useBalances", () => {
     expect(result.current.error).toBeNull();
   });
 
-  it("handles generic error", async () => {
-    mockLoadAccount.mockRejectedValue(new Error("Network error"));
+  it("handles typed Horizon NotFoundError class as unfunded account", async () => {
+    const { NotFoundError } = await import("@stellar/stellar-sdk");
+    mockLoadAccount.mockRejectedValue(
+      new NotFoundError("Resource Missing", { status: 404 }),
+    );
 
     act(() => {
       useWalletStore.getState().connect("G123", "testnet");
@@ -142,6 +195,47 @@ describe("useBalances", () => {
       await vi.advanceTimersByTimeAsync(0);
     });
 
+    expect(result.current.balances).toEqual({ usdc: null, xlm: "0" });
+    expect(result.current.error).toBeNull();
+    expect(result.current.isOffline).toBe(false);
+  });
+
+  it("handles simulated network failure (TypeError: Failed to fetch) as offline", async () => {
+    mockLoadAccount.mockRejectedValue(new TypeError("Failed to fetch"));
+
+    act(() => {
+      useWalletStore.getState().connect("G123", "testnet");
+    });
+
+    const { result } = renderHook(() => useBalances(), { wrapper });
+
+    await act(async () => {
+      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(result.current.balances).toEqual({ usdc: null, xlm: null });
+    expect(result.current.isOffline).toBe(true);
+    expect(result.current.error).toBe(
+      "You appear to be offline. Please check your network connection.",
+    );
+  });
+
+  it("handles generic error", async () => {
+    mockLoadAccount.mockRejectedValue(new Error("Server Internal Error 500"));
+
+    act(() => {
+      useWalletStore.getState().connect("G123", "testnet");
+    });
+
+    const { result } = renderHook(() => useBalances(), { wrapper });
+
+    await act(async () => {
+      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(result.current.isOffline).toBe(false);
     expect(result.current.error).toBe("Failed to fetch balances");
   });
 

@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -19,6 +20,55 @@ import (
 // authentication challenge.
 const ChallengeOperationName = "trusttrove auth"
 
+// challengeTTL is how long a generated challenge may be redeemed. It matches
+// the transaction's timebounds.
+const challengeTTL = 15 * time.Minute
+
+// nonceStore remembers challenge nonces until they are redeemed. A nonce is
+// single-use: VerifyChallenge deletes it, so replaying a signed challenge is
+// rejected even while its timebounds are still valid (#1079). The store is
+// in-memory because the indexer runs as a single process; a multi-instance
+// deployment would need a shared store at the same seam.
+type nonceStore struct {
+	mu      sync.Mutex
+	expires map[string]time.Time
+}
+
+func newNonceStore() *nonceStore {
+	return &nonceStore{expires: make(map[string]time.Time)}
+}
+
+var challengeNonces = newNonceStore()
+
+// put records a freshly issued nonce, pruning entries that have already
+// expired so an unauthenticated GET /auth loop cannot grow the map without
+// bound.
+func (s *nonceStore) put(nonce string, expiresAt time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := time.Now()
+	for n, exp := range s.expires {
+		if !now.Before(exp) {
+			delete(s.expires, n)
+		}
+	}
+	s.expires[nonce] = expiresAt
+}
+
+// consume removes nonce and reports whether it was known and unexpired. The
+// delete and the lookup happen under one lock, so two concurrent submissions
+// of the same signed challenge cannot both succeed.
+func (s *nonceStore) consume(nonce string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	expiresAt, ok := s.expires[nonce]
+	if !ok {
+		return false
+	}
+	delete(s.expires, nonce)
+	return time.Now().Before(expiresAt)
+}
+
 // GenerateChallenge constructs and signs a SEP-10 challenge transaction
 func GenerateChallenge(serverKP *keypair.Full, clientAddr string, passphrase string) (string, error) {
 	nonce := make([]byte, 48)
@@ -26,6 +76,7 @@ func GenerateChallenge(serverKP *keypair.Full, clientAddr string, passphrase str
 		return "", err
 	}
 	nonceStr := base64.StdEncoding.EncodeToString(nonce)
+	expiresAt := time.Now().Add(challengeTTL)
 
 	tx, err := txnbuild.NewTransaction(txnbuild.TransactionParams{
 		SourceAccount: &txnbuild.SimpleAccount{
@@ -35,7 +86,7 @@ func GenerateChallenge(serverKP *keypair.Full, clientAddr string, passphrase str
 		IncrementSequenceNum: false,
 		BaseFee:              txnbuild.MinBaseFee,
 		Preconditions: txnbuild.Preconditions{
-			TimeBounds: txnbuild.NewTimebounds(time.Now().Unix(), time.Now().Add(15*time.Minute).Unix()),
+			TimeBounds: txnbuild.NewTimebounds(time.Now().Unix(), expiresAt.Unix()),
 		},
 		Operations: []txnbuild.Operation{
 			&txnbuild.ManageData{
@@ -54,7 +105,15 @@ func GenerateChallenge(serverKP *keypair.Full, clientAddr string, passphrase str
 		return "", err
 	}
 
-	return tx.Base64()
+	signed, err := tx.Base64()
+	if err != nil {
+		return "", err
+	}
+
+	// Only remember the nonce once the challenge is actually issuable, so a
+	// signing failure does not leave an unreachable entry behind.
+	challengeNonces.put(nonceStr[:64], expiresAt)
+	return signed, nil
 }
 
 // VerifyChallenge parses the signed transaction and checks the server and client signatures
@@ -90,6 +149,11 @@ func VerifyChallenge(signedXDR string, serverKP *keypair.Full, passphrase string
 
 	if op.Name != ChallengeOperationName {
 		return "", fmt.Errorf("invalid operation name: %s", op.Name)
+	}
+
+	nonce := string(op.Value)
+	if nonce == "" {
+		return "", errors.New("challenge nonce is missing")
 	}
 
 	tb := tx.Timebounds()
@@ -131,6 +195,13 @@ func VerifyChallenge(signedXDR string, serverKP *keypair.Full, passphrase string
 	}
 	if !clientSigned {
 		return "", errors.New("missing client signature")
+	}
+
+	// Consume only after every other check passed: an invalid submission must
+	// not be able to burn a legitimate challenge's nonce. consume() is atomic,
+	// so two simultaneous redemptions of the same challenge yield one JWT.
+	if !challengeNonces.consume(nonce) {
+		return "", errors.New("challenge nonce is invalid, expired, or already used")
 	}
 
 	return clientAddr, nil

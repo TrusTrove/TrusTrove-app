@@ -328,16 +328,16 @@ func TestBuildEnvelopeEventIDFallback(t *testing.T) {
 // criterion: Dispatch writes a delivery row whose payload is the full
 // envelope, and the claiming read path returns it.
 //
-// The subscription is registered with the internal contract event name
-// ("fund_invoice") because that is the string Dispatch uses for the lookup —
-// see the internal-vs-public note in the PR description.
+// The subscription is registered with the public event type ("invoice.funded")
+// because Dispatch maps the internal contract event name ("fund_invoice") to
+// the public type before looking subscriptions up.
 func TestDispatchQueuesPopulatedEnvelope(t *testing.T) {
 	skipIfNoDB(t)
 	ctx := context.Background()
 
 	sub := &db.WebhookSubscription{
 		TargetURL:     "https://example.invalid/webhook-930",
-		EventTypes:    []string{"fund_invoice"},
+		EventTypes:    []string{string(webhooks.EventInvoiceFunded)},
 		SigningSecret: "synthetic-secret-930",
 		Active:        true,
 	}
@@ -359,19 +359,14 @@ func TestDispatchQueuesPopulatedEnvelope(t *testing.T) {
 
 	NewDispatcher().Dispatch(ctx, "fund_invoice", data)
 
-	claimed, err := db.GetPendingDeliveries(ctx, 50)
-	if err != nil {
-		t.Fatalf("GetPendingDeliveries: %v", err)
-	}
+	// Read this test's row directly rather than claiming: a claim takes any
+	// pending rows, including rows another package's tests are claiming in the
+	// same database at the same time.
 	var payload []byte
-	for _, d := range claimed {
-		if d.EventID == eventID && d.SubscriptionID == sub.ID {
-			payload = d.Payload
-			break
-		}
-	}
-	if payload == nil {
-		t.Fatalf("Dispatch wrote no delivery row for event %s (claimed %d rows)", eventID, len(claimed))
+	if err := db.Pool.QueryRow(ctx,
+		"SELECT payload FROM webhook_deliveries WHERE event_id = $1 AND subscription_id = $2", eventID, sub.ID,
+	).Scan(&payload); err != nil {
+		t.Fatalf("Dispatch wrote no delivery row for event %s: %v", eventID, err)
 	}
 
 	var env webhooks.WebhookEnvelope
@@ -396,6 +391,50 @@ func TestDispatchQueuesPopulatedEnvelope(t *testing.T) {
 	}
 }
 
+func TestDispatchSameEventQueuesOneDeliveryPerSubscription(t *testing.T) {
+	skipIfNoDB(t)
+	ctx := context.Background()
+
+	sub := &db.WebhookSubscription{
+		TargetURL:     "https://example.invalid/webhook-916",
+		EventTypes:    []string{string(webhooks.EventInvoiceFunded)},
+		SigningSecret: "synthetic-secret-916",
+		Active:        true,
+	}
+	if err := db.CreateWebhookSubscription(ctx, sub); err != nil {
+		t.Fatalf("CreateWebhookSubscription: %v", err)
+	}
+	t.Cleanup(func() {
+		if db.Pool != nil {
+			_, _ = db.Pool.Exec(ctx, "DELETE FROM webhook_subscriptions WHERE id = $1", sub.ID)
+			_, _ = db.Pool.Exec(ctx, "DELETE FROM webhook_deliveries WHERE subscription_id = $1", sub.ID)
+		}
+	})
+
+	eventID := fmt.Sprintf("dispatch-916-%d", time.Now().UnixNano())
+	data := invoiceDispatchData("fund_invoice")
+	data["event_id"] = eventID
+
+	dispatcher := NewDispatcher()
+	for attempt := 0; attempt < 2; attempt++ {
+		if err := dispatcher.EnqueueDeliveries(ctx, db.Pool, "fund_invoice", data); err != nil {
+			t.Fatalf("EnqueueDeliveries attempt %d: %v", attempt+1, err)
+		}
+	}
+
+	var count int
+	if err := db.Pool.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM webhook_deliveries
+		WHERE subscription_id = $1 AND event_id = $2
+	`, sub.ID, eventID).Scan(&count); err != nil {
+		t.Fatalf("count webhook deliveries: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("delivery count for subscription %s and event %s: got %d, want 1", sub.ID, eventID, count)
+	}
+}
+
 // TestDispatchWithoutSubscriptionsQueuesNothing keeps Dispatch's early return
 // honest: no rows (and no wasted envelope builds) for untracked events.
 func TestDispatchWithoutSubscriptionsQueuesNothing(t *testing.T) {
@@ -408,14 +447,16 @@ func TestDispatchWithoutSubscriptionsQueuesNothing(t *testing.T) {
 
 	NewDispatcher().Dispatch(ctx, "fund_invoice", data)
 
-	claimed, err := db.GetPendingDeliveries(ctx, 200)
-	if err != nil {
-		t.Fatalf("GetPendingDeliveries: %v", err)
+	// Count this test's rows directly rather than claiming, for the same reason
+	// as TestDispatchQueuesPopulatedEnvelope.
+	var queued int
+	if err := db.Pool.QueryRow(ctx,
+		"SELECT COUNT(*) FROM webhook_deliveries WHERE event_id = $1", eventID,
+	).Scan(&queued); err != nil {
+		t.Fatalf("count deliveries: %v", err)
 	}
-	for _, d := range claimed {
-		if d.EventID == eventID {
-			t.Fatalf("delivery %d queued for untracked event %s", d.ID, eventID)
-		}
+	if queued != 0 {
+		t.Fatalf("%d deliveries queued for untracked event %s", queued, eventID)
 	}
 }
 

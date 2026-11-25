@@ -91,6 +91,29 @@ func TestVerifyChallenge_RoundTripReturnsClientAddress(t *testing.T) {
 	}
 }
 
+func TestVerifyChallenge_RejectsReplayedChallenge(t *testing.T) {
+	serverKP, _ := keypair.Random()
+	clientKP, _ := keypair.Random()
+
+	challenge, err := GenerateChallenge(serverKP, clientKP.Address(), testNetworkPassphrase)
+	if err != nil {
+		t.Fatalf("generate challenge: %v", err)
+	}
+	signed := signChallengeAs(t, challenge, clientKP)
+
+	if _, err := VerifyChallenge(signed, serverKP, testNetworkPassphrase); err != nil {
+		t.Fatalf("first redemption should succeed: %v", err)
+	}
+
+	// The same signed bytes are still inside their 15-minute timebounds, but
+	// the nonce was consumed by the first call.
+	if _, err := VerifyChallenge(signed, serverKP, testNetworkPassphrase); err == nil {
+		t.Fatal("replaying a consumed challenge should fail")
+	} else if !strings.Contains(err.Error(), "already used") {
+		t.Fatalf("expected an already-used error, got %v", err)
+	}
+}
+
 func TestVerifyChallenge_MissingClientSignature(t *testing.T) {
 	serverKP, _ := keypair.Random()
 	clientKP, _ := keypair.Random()

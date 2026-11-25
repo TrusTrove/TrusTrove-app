@@ -1,6 +1,8 @@
 import {
   Contract,
+  FeeBumpTransaction,
   rpc,
+  Transaction,
   TransactionBuilder,
   Networks,
   BASE_FEE,
@@ -8,7 +10,7 @@ import {
   scValToNative,
 } from "@stellar/stellar-sdk";
 import * as freighterApi from "@stellar/freighter-api";
-import { getConfig, getSorobanServer } from "./config.js";
+import { getConfig, getSorobanServer, type SDKConfig } from "./config.js";
 
 const signTransactionFn =
   (
@@ -148,6 +150,51 @@ export class TransactionFailedError extends Error {
   }
 }
 
+/**
+ * How a mutating call re-broadcasts an already-signed transaction.
+ *
+ * Reads and simulations are retried on any network-shaped error because they
+ * carry no side effects. Broadcasting is different: if the RPC accepted the
+ * transaction and only the response was lost, retrying re-submits the same
+ * signed XDR — a double funding/repayment, or a confusing `tx_bad_seq`. So a
+ * transport error is never retried here. Only an explicit `TRY_AGAIN_LATER`
+ * is, because the RPC defines that status as having not queued the transaction.
+ */
+export interface MutationRetryPolicy {
+  /** Total broadcast attempts, including the first. Values below 1 mean one. */
+  maxAttempts: number;
+  /** Backoff before the next attempt, in ms, doubling from this base. */
+  baseDelayMs: number;
+}
+
+const DEFAULT_MUTATION_RETRY_POLICY: MutationRetryPolicy = {
+  maxAttempts: 3,
+  baseDelayMs: 1000,
+};
+
+/**
+ * Thrown when every broadcast attempt allowed by the `MutationRetryPolicy` was
+ * answered with `TRY_AGAIN_LATER`, i.e. the RPC stayed congested.
+ */
+export class TransactionTryAgainLaterError extends Error {
+  /** Contract method whose transaction was refused. */
+  readonly method: string;
+  /** Hash of the transaction that was never queued, so it is safe to re-submit. */
+  readonly txHash: string;
+  /** Broadcast attempts made before giving up. */
+  readonly attempts: number;
+
+  constructor(method: string, txHash: string, attempts: number) {
+    super(
+      `Send refused as TRY_AGAIN_LATER for ${method} after ${attempts} attempt(s): ${txHash}`,
+    );
+    this.name = "TransactionTryAgainLaterError";
+    this.method = method;
+    this.txHash = txHash;
+    this.attempts = attempts;
+  }
+}
+
 function isNetworkError(err: unknown): boolean {
   if (err instanceof TypeError) return true;
   const msg = err instanceof Error ? err.message.toLowerCase() : "";
@@ -193,6 +240,17 @@ async function withRetry<T>(
 }
 
 /**
+ * Network settings a client can bind to at construction time instead of
+ * reading from the process-wide SDK configuration. Used by the read-only
+ * factory so analytics callers can select a network and RPC endpoint
+ * explicitly without calling {@link configureSDK}.
+ */
+export interface ContractClientNetworkConfig {
+  sorobanRpcUrl: string;
+  networkPassphrase: string;
+}
+
+/**
  * Result type returned by transaction simulations.
  */
 export interface SimulationResult {
@@ -209,15 +267,50 @@ export interface SimulationResult {
 export class BaseContractClient {
   protected contractId: string;
   private contractInstance: Contract;
+  /** Broadcast policy for this client's mutating calls. */
+  readonly mutationRetryPolicy: MutationRetryPolicy;
+  /** Per-client network override; `undefined` means use the active SDK config. */
+  private readonly networkConfig?: ContractClientNetworkConfig;
 
-  constructor(contractId: string) {
+  constructor(
+    contractId: string,
+    mutationRetryPolicy: Partial<MutationRetryPolicy> = {},
+    networkConfig?: ContractClientNetworkConfig,
+  ) {
     if (!contractId) throw new Error("Contract ID is required");
     this.contractId = contractId;
     this.contractInstance = new Contract(contractId);
+    this.mutationRetryPolicy = {
+      ...DEFAULT_MUTATION_RETRY_POLICY,
+      ...mutationRetryPolicy,
+    };
+    this.networkConfig = networkConfig;
   }
 
   protected get contract(): Contract {
     return this.contractInstance;
+  }
+
+  /**
+   * The SDK config this client reads through. When the client was constructed
+   * with an explicit network, its RPC URL and passphrase take precedence over
+   * the active global configuration; everything else (contract IDs, USDC) is
+   * inherited so callers only have to state what they are overriding.
+   */
+  protected get sdkConfig(): SDKConfig {
+    const config = getConfig();
+    if (!this.networkConfig) return config;
+    return {
+      ...config,
+      sorobanRpcUrl: this.networkConfig.sorobanRpcUrl,
+      networkPassphrase: this.networkConfig.networkPassphrase,
+    };
+  }
+
+  private get sorobanServer(): rpc.Server {
+    return this.networkConfig
+      ? new rpc.Server(this.networkConfig.sorobanRpcUrl)
+      : getSorobanServer();
   }
 
   protected async readContract<T>(
@@ -226,8 +319,8 @@ export class BaseContractClient {
     publicKey: string,
     parse: (val: xdr.ScVal) => T,
   ): Promise<T> {
-    const config = getConfig();
-    const server = getSorobanServer();
+    const config = this.sdkConfig;
+    const server = this.sorobanServer;
     const account = await withRetry(() => server.getAccount(publicKey));
     const tx = new TransactionBuilder(account, {
       fee: BASE_FEE,
@@ -251,8 +344,8 @@ export class BaseContractClient {
     args: xdr.ScVal[],
     publicKey: string,
   ): Promise<string> {
-    const config = getConfig();
-    const server = getSorobanServer();
+    const config = this.sdkConfig;
+    const server = this.sorobanServer;
     const account = await withRetry(() => server.getAccount(publicKey));
     const tx = new TransactionBuilder(account, {
       fee: BASE_FEE,
@@ -271,16 +364,11 @@ export class BaseContractClient {
       networkPassphrase: config.networkPassphrase,
       accountToSign: publicKey,
     });
-    const result = await withRetry(() =>
-      server.sendTransaction(
-        TransactionBuilder.fromXDR(signed, config.networkPassphrase),
-      ),
+    const result = await this.broadcast(
+      method,
+      server,
+      TransactionBuilder.fromXDR(signed, config.networkPassphrase),
     );
-    if (result.status === "ERROR")
-      throw new TransactionSendError(
-        method,
-        result.errorResult?.toXDR().toString("base64"),
-      );
     let response = await withRetry(() => server.getTransaction(result.hash));
     let attempts = 1;
     while (
@@ -298,13 +386,59 @@ export class BaseContractClient {
     return result.hash;
   }
 
+  /**
+   * Broadcasts an already-signed mutating transaction.
+   *
+   * `PENDING` and `DUPLICATE` both return normally: a duplicate means the RPC
+   * already holds this exact transaction, so the caller resolves it by polling
+   * the hash instead of reporting a second submission as a failure. `ERROR`
+   * throws `TransactionSendError`. `TRY_AGAIN_LATER` — which the RPC defines as
+   * not having queued the transaction — is re-broadcast with exponential
+   * backoff until `MutationRetryPolicy.maxAttempts` is exhausted.
+   *
+   * Deliberately not wrapped in `withRetry`: a transport error can follow a
+   * send the RPC already accepted, and re-submitting the same XDR would risk a
+   * duplicate funding or repayment. Such errors propagate to the caller.
+   */
+  private async broadcast(
+    method: string,
+    server: rpc.Server,
+    tx: Transaction | FeeBumpTransaction,
+  ): Promise<rpc.Api.SendTransactionResponse> {
+    // A policy of 0 would make the loop below never broadcast at all.
+    const maxAttempts = Math.max(1, this.mutationRetryPolicy.maxAttempts);
+    const { baseDelayMs } = this.mutationRetryPolicy;
+    let lastRefusedHash = "";
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const result = await server.sendTransaction(tx);
+      if (result.status !== "TRY_AGAIN_LATER") {
+        if (result.status === "ERROR")
+          throw new TransactionSendError(
+            method,
+            result.errorResult?.toXDR().toString("base64"),
+          );
+        return result;
+      }
+      lastRefusedHash = result.hash;
+      if (attempt < maxAttempts)
+        await new Promise((resolve) =>
+          setTimeout(resolve, baseDelayMs * Math.pow(2, attempt - 1)),
+        );
+    }
+    throw new TransactionTryAgainLaterError(
+      method,
+      lastRefusedHash,
+      maxAttempts,
+    );
+  }
+
   public async simulateTransaction(
     method: string,
     args: xdr.ScVal[],
     publicKey: string,
   ): Promise<SimulationResult> {
-    const config = getConfig();
-    const server = getSorobanServer();
+    const config = this.sdkConfig;
+    const server = this.sorobanServer;
     const account = await withRetry(() => server.getAccount(publicKey));
     const tx = new TransactionBuilder(account, {
       fee: BASE_FEE,

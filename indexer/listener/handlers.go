@@ -3,6 +3,7 @@ package listener
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -524,7 +525,11 @@ func (l *EventListener) handleEvent(ctx context.Context, event SorobanEvent) err
 	var data map[string]interface{}
 	_ = json.Unmarshal([]byte(event.Value), &data) // Unmarshal if it's JSON, ignore if it fails
 
-	return db.WithTx(ctx, func(tx pgx.Tx) error {
+	// handled tracks whether the event matched a known handler, so the
+	// indexed-event counter is only incremented for events this listener
+	// actually applied (not the default "skip" branch or an early return).
+	handled := false
+	err = db.WithTx(ctx, func(tx pgx.Tx) error {
 		// logData is the structured payload persisted with the event in
 		// events_log and handed to the webhook dispatcher. Pool handlers fill
 		// it while parsing; for invoice events the keys are extracted after
@@ -565,9 +570,14 @@ func (l *EventListener) handleEvent(ctx context.Context, event SorobanEvent) err
 			slog.Debug("Skipping unhandled contract event", "name", eventName)
 			return nil
 		}
+		if errors.Is(err, db.ErrInvalidInvoiceTransition) {
+			slog.Warn("Ignoring stale invoice event", "eventId", event.ID, "event", eventName, "error", err)
+			return db.LogEvent(ctx, tx, event.ID, event.ContractID, event.Ledger, ledgerClosedAt, eventName, event.Value)
+		}
 		if err != nil {
 			return fmt.Errorf("handler for %s failed: %w", eventName, err)
 		}
+		handled = true
 
 		// Try to extract invoice_id from topic[1] for events that carry it
 		if len(event.Topic) >= 2 && eventName != "create" && eventName != "InvoiceCreated" {
@@ -616,6 +626,18 @@ func (l *EventListener) handleEvent(ctx context.Context, event SorobanEvent) err
 
 		return nil
 	})
+	if err != nil {
+		if errors.Is(err, db.ErrInvoiceNotFound) {
+			slog.Warn("Invoice event references an unknown invoice; retrying", "eventId", event.ID, "event", eventName, "error", err)
+		}
+		return err
+	}
+	// Count only committed events so a rolled-back transaction is never
+	// reported as indexed.
+	if handled {
+		api.InvoicesIndexed.WithLabelValues(eventName).Inc()
+	}
+	return nil
 }
 
 // webhookDispatchData builds the data map webhook.Dispatcher turns into an

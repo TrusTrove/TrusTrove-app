@@ -16,6 +16,7 @@ import (
 	"trusttrove/indexer/config"
 	"trusttrove/indexer/db"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stellar/go-stellar-sdk/keypair"
 )
 
@@ -154,6 +155,66 @@ func TestPollEvents_EmptyEventsReturnsLatestPlusOne(t *testing.T) {
 	}
 }
 
+func TestPollEvents_UpdatesLedgerMetrics(t *testing.T) {
+	const (
+		startLedger       int32 = 100
+		latestLedger      int32 = 250
+		confirmationDepth       = 3
+		wantProcessed           = latestLedger - confirmationDepth // 247
+	)
+
+	server := stubSorobanRPC(t, func(method string) (any, int) {
+		if method != "getEvents" {
+			t.Errorf("unexpected RPC method: %s", method)
+			return nil, http.StatusOK
+		}
+		return map[string]any{
+			"events":       []any{},
+			"latestLedger": uint32(latestLedger),
+			"cursor":       "",
+		}, http.StatusOK
+	})
+
+	l := newTestEventListener(t, func(c *config.Config) {
+		c.SorobanRPCURL = server.URL
+		c.InvoiceContractID = "CA4O3MR7LWHRSUDBNU6FY6UDFFYBN7TGBZXBDZB4OYYXFYXIFJ6RJF6B"
+		c.IndexerConfirmationDepth = confirmationDepth
+	})
+
+	if _, err := l.pollEvents(context.Background(), startLedger); err != nil {
+		t.Fatalf("pollEvents: %v", err)
+	}
+
+	if got := gaugeValue(t, "trustrove_listener_last_ledger"); got != float64(wantProcessed) {
+		t.Errorf("listener_last_ledger: got %v, want %d", got, wantProcessed)
+	}
+	if got := gaugeValue(t, "stellar_ledger_lag"); got != float64(confirmationDepth) {
+		t.Errorf("stellar_ledger_lag: got %v, want %d", got, confirmationDepth)
+	}
+}
+
+// gaugeValue reads the current value of an unlabelled gauge from the default
+// Prometheus registry.
+func gaugeValue(t *testing.T, name string) float64 {
+	t.Helper()
+	families, err := prometheus.DefaultGatherer.Gather()
+	if err != nil {
+		t.Fatalf("gather metrics: %v", err)
+	}
+	for _, family := range families {
+		if family.GetName() != name {
+			continue
+		}
+		for _, metric := range family.GetMetric() {
+			if metric.GetGauge() != nil {
+				return metric.GetGauge().GetValue()
+			}
+		}
+	}
+	t.Fatalf("metric %q not found", name)
+	return 0
+}
+
 func TestPollEvents_RPCErrorIsPropagated(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -168,6 +229,45 @@ func TestPollEvents_RPCErrorIsPropagated(t *testing.T) {
 
 	if _, err := l.pollEvents(context.Background(), 100); err == nil {
 		t.Fatal("expected error when RPC returns HTTP 500")
+	}
+}
+
+func TestBackfillRangeOnlyProcessesRequestedLedgers(t *testing.T) {
+	events := []any{
+		rpcEventFor("124-000001", "issuer_registered"),
+		rpcEventFor("126-000001", "issuer_registered"),
+	}
+	events[1].(map[string]any)["ledger"] = 126
+	server := stubSorobanRPC(t, func(method string) (any, int) {
+		if method != "getEvents" {
+			t.Errorf("unexpected RPC method: %s", method)
+			return nil, http.StatusOK
+		}
+		return map[string]any{
+			"events":       events,
+			"latestLedger": uint32(200),
+		}, http.StatusOK
+	})
+
+	l := newTestEventListener(t, func(c *config.Config) {
+		c.SorobanRPCURL = server.URL
+		c.RegistryContractID = "CABGWVIZFF62FG67ZGFEP67NEEY4WYTMFURDMFTKKNRDAFPKPOJDTN4C"
+	})
+	var processedIDs []string
+	l.areEventsProcessedFn = func(_ context.Context, ids []string) (map[string]bool, error) {
+		processedIDs = append(processedIDs, ids...)
+		processed := make(map[string]bool, len(ids))
+		for _, id := range ids {
+			processed[id] = true
+		}
+		return processed, nil
+	}
+
+	if err := l.BackfillRange(context.Background(), 124, 125); err != nil {
+		t.Fatalf("BackfillRange failed: %v", err)
+	}
+	if len(processedIDs) != 1 || processedIDs[0] != "124-000001" {
+		t.Fatalf("expected only ledger 124 event to be processed, got %v", processedIDs)
 	}
 }
 
@@ -418,6 +518,12 @@ func TestStart_ProcessesAtLeastOnceThenStopsOnCancel(t *testing.T) {
 			}, http.StatusOK
 		case "getLatestLedger":
 			return map[string]any{"sequence": latestLedger}, http.StatusOK
+		case "getLedgers":
+			// The post-poll hash record (issue #882) reads the finalized
+			// ledger's header through getLedgers.
+			return map[string]any{
+				"ledgers": []any{map[string]any{"sequence": latestLedger, "hash": "abc123"}},
+			}, http.StatusOK
 		default:
 			t.Errorf("unexpected method: %s", method)
 			return nil, http.StatusOK
@@ -521,5 +627,338 @@ func TestStart_SurvivesConsecutivePollErrors(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("Start did not return after cancel")
+	}
+}
+
+// ------------------------------------------------------------------
+// Reorg protection (#882): confirmation depth + ledger hash verification
+// ------------------------------------------------------------------
+
+// eventAtLedger builds a getEvents entry for a specific ledger sequence on
+// the registry contract.
+func eventAtLedger(id string, ledger int32) map[string]any {
+	ev := rpcEventFor(id, "issuer_registered")
+	ev["ledger"] = ledger
+	return ev
+}
+
+// TestPollEvents_ConfirmationDepthOnlyAppliesConfirmedEvents: with a depth of
+// 3 and a tip at 104, only the ledger-101 event may enter processing, and the
+// checkpoint must stop at the confirmation boundary (102) rather than the tip.
+func TestPollEvents_ConfirmationDepthOnlyAppliesConfirmedEvents(t *testing.T) {
+	const (
+		startLedger  = int32(100)
+		latestLedger = int32(104)
+	)
+	events := []any{
+		eventAtLedger("101-000001", 101),
+		eventAtLedger("102-000001", 102),
+		eventAtLedger("103-000001", 103),
+		eventAtLedger("104-000001", 104),
+	}
+
+	server := stubSorobanRPC(t, func(method string) (any, int) {
+		if method != "getEvents" {
+			return map[string]any{"sequence": latestLedger}, http.StatusOK
+		}
+		return map[string]any{
+			"events":       events,
+			"latestLedger": uint32(latestLedger),
+			"cursor":       "",
+		}, http.StatusOK
+	})
+
+	l := newTestEventListener(t, func(c *config.Config) {
+		c.SorobanRPCURL = server.URL
+		c.RegistryContractID = "CABGWVIZFF62FG67ZGFEP67NEEY4WYTMFURDMFTKKNRDAFPKPOJDTN4C"
+		c.IndexerConfirmationDepth = 3
+	})
+
+	var lookedUp []string
+	l.areEventsProcessedFn = func(_ context.Context, ids []string) (map[string]bool, error) {
+		lookedUp = ids
+		// Report everything as already indexed so handleEvent never runs: this
+		// assertion is about which events entered the pipeline at all.
+		processed := make(map[string]bool, len(ids))
+		for _, id := range ids {
+			processed[id] = true
+		}
+		return processed, nil
+	}
+
+	got, err := l.pollEvents(context.Background(), startLedger)
+	if err != nil {
+		t.Fatalf("pollEvents: %v", err)
+	}
+	if len(lookedUp) != 1 || lookedUp[0] != "101-000001" {
+		t.Errorf("de-duplication lookup = %v, want only the confirmed ledger-101 event", lookedUp)
+	}
+	if want := int32(102); got != want { // safeLedger (104-3=101) + 1
+		t.Errorf("next ledger = %d, want %d: the checkpoint must stop at the confirmation boundary", got, want)
+	}
+}
+
+// TestPollEvents_PageInsideConfirmationWindowIsDeferredEntirely: when every
+// event on the page is younger than the confirmation window, nothing is
+// looked up or handled and the checkpoint does not advance past the window.
+func TestPollEvents_PageInsideConfirmationWindowIsDeferredEntirely(t *testing.T) {
+	const (
+		startLedger  = int32(102)
+		latestLedger = int32(104)
+	)
+	events := []any{
+		eventAtLedger("102-000001", 102),
+		eventAtLedger("103-000001", 103),
+		eventAtLedger("104-000001", 104),
+	}
+
+	server := stubSorobanRPC(t, func(method string) (any, int) {
+		if method != "getEvents" {
+			return map[string]any{"sequence": latestLedger}, http.StatusOK
+		}
+		return map[string]any{
+			"events":       events,
+			"latestLedger": uint32(latestLedger),
+			"cursor":       "",
+		}, http.StatusOK
+	})
+
+	l := newTestEventListener(t, func(c *config.Config) {
+		c.SorobanRPCURL = server.URL
+		c.RegistryContractID = "CABGWVIZFF62FG67ZGFEP67NEEY4WYTMFURDMFTKKNRDAFPKPOJDTN4C"
+		c.IndexerConfirmationDepth = 3
+	})
+	l.areEventsProcessedFn = func(_ context.Context, _ []string) (map[string]bool, error) {
+		t.Error("no event on the page has cleared the confirmation window, so nothing may be looked up")
+		return map[string]bool{}, nil
+	}
+
+	got, err := l.pollEvents(context.Background(), startLedger)
+	if err != nil {
+		t.Fatalf("pollEvents: %v", err)
+	}
+	if got != startLedger {
+		t.Errorf("next ledger = %d, want %d: nothing confirmed yet, so the range is retried", got, startLedger)
+	}
+}
+
+func TestVerifyFinalizedLedger_HashMismatchHalts(t *testing.T) {
+	l := newTestEventListener(t)
+	l.finalizedLedger = 500
+	l.finalizedHash = "expected-hash"
+	l.getLedgerHashFn = func(_ context.Context, sequence int32) (string, error) {
+		if sequence != 500 {
+			t.Errorf("verified ledger %d, want 500", sequence)
+		}
+		return "reorged-hash", nil
+	}
+
+	err := l.verifyFinalizedLedger(context.Background())
+	if err == nil {
+		t.Fatal("expected a reorg error when the finalized ledger's hash changed")
+	}
+	for _, want := range []string{"reorg detected at ledger 500", "replay", "restart the listener"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("reorg error %q does not contain the recovery step %q", err, want)
+		}
+	}
+}
+
+func TestVerifyFinalizedLedger_MatchingHashContinues(t *testing.T) {
+	l := newTestEventListener(t)
+	l.finalizedLedger = 500
+	l.finalizedHash = "same-hash"
+	l.getLedgerHashFn = func(context.Context, int32) (string, error) {
+		return "same-hash", nil
+	}
+
+	if err := l.verifyFinalizedLedger(context.Background()); err != nil {
+		t.Fatalf("expected nil when the hash is unchanged, got %v", err)
+	}
+}
+
+// A transient RPC failure must not look like a reorg: absence of proof is not
+// proof of divergence, so verification is skipped until the next poll.
+func TestVerifyFinalizedLedger_TransientRPCFailureIsNotFatal(t *testing.T) {
+	l := newTestEventListener(t)
+	l.finalizedLedger = 500
+	l.finalizedHash = "expected-hash"
+	l.getLedgerHashFn = func(context.Context, int32) (string, error) {
+		return "", errors.New("rpc unavailable")
+	}
+
+	if err := l.verifyFinalizedLedger(context.Background()); err != nil {
+		t.Fatalf("expected a skipped verification rather than an error, got %v", err)
+	}
+}
+
+func TestVerifyFinalizedLedger_NothingRecordedIsNoOp(t *testing.T) {
+	l := newTestEventListener(t)
+	l.getLedgerHashFn = func(context.Context, int32) (string, error) {
+		t.Error("no hash was recorded yet, so nothing should be verified")
+		return "", nil
+	}
+
+	if err := l.verifyFinalizedLedger(context.Background()); err != nil {
+		t.Fatalf("expected nil before anything is finalized, got %v", err)
+	}
+}
+
+func TestRecordFinalizedLedger_StoresNewBoundary(t *testing.T) {
+	l := newTestEventListener(t)
+	l.getLedgerHashFn = func(_ context.Context, sequence int32) (string, error) {
+		return fmt.Sprintf("hash-%d", sequence), nil
+	}
+
+	l.recordFinalizedLedger(context.Background(), 500)
+
+	if l.finalizedLedger != 500 || l.finalizedHash != "hash-500" {
+		t.Errorf("recorded = (%d, %q), want (500, hash-500)", l.finalizedLedger, l.finalizedHash)
+	}
+}
+
+// A failed hash read keeps the previous record (still valid to verify) rather
+// than overwriting it with an unreadable state.
+func TestRecordFinalizedLedger_KeepsPreviousOnRPCError(t *testing.T) {
+	l := newTestEventListener(t)
+	l.finalizedLedger = 500
+	l.finalizedHash = "hash-500"
+	l.getLedgerHashFn = func(context.Context, int32) (string, error) {
+		return "", errors.New("rpc unavailable")
+	}
+
+	l.recordFinalizedLedger(context.Background(), 510)
+
+	if l.finalizedLedger != 500 || l.finalizedHash != "hash-500" {
+		t.Errorf("record = (%d, %q), want the previous (500, hash-500)", l.finalizedLedger, l.finalizedHash)
+	}
+}
+
+func TestRecordFinalizedLedger_IgnoresOlderAndZeroSequences(t *testing.T) {
+	l := newTestEventListener(t)
+	l.finalizedLedger = 500
+	l.finalizedHash = "hash-500"
+	var calls int32
+	l.getLedgerHashFn = func(context.Context, int32) (string, error) {
+		atomic.AddInt32(&calls, 1)
+		return "new-hash", nil
+	}
+
+	l.recordFinalizedLedger(context.Background(), 499)
+	l.recordFinalizedLedger(context.Background(), 0)
+
+	if got := atomic.LoadInt32(&calls); got != 0 {
+		t.Errorf("hash read %d times, want 0 for non-advancing sequences", got)
+	}
+	if l.finalizedLedger != 500 || l.finalizedHash != "hash-500" {
+		t.Errorf("record = (%d, %q), want the untouched (500, hash-500)", l.finalizedLedger, l.finalizedHash)
+	}
+}
+
+func TestGetLedgerHash_ReturnsHeaderHash(t *testing.T) {
+	server := stubSorobanRPC(t, func(method string) (any, int) {
+		if method != "getLedgers" {
+			t.Errorf("expected getLedgers, got %s", method)
+		}
+		return map[string]any{
+			"ledgers": []any{map[string]any{"sequence": 500, "hash": "abc123"}},
+		}, http.StatusOK
+	})
+
+	l := newTestEventListener(t, func(c *config.Config) { c.SorobanRPCURL = server.URL })
+
+	hash, err := l.getLedgerHash(context.Background(), 500)
+	if err != nil {
+		t.Fatalf("getLedgerHash: %v", err)
+	}
+	if hash != "abc123" {
+		t.Errorf("hash = %q, want abc123", hash)
+	}
+}
+
+func TestGetLedgerHash_MissingLedgerIsAnError(t *testing.T) {
+	server := stubSorobanRPC(t, func(method string) (any, int) {
+		if method != "getLedgers" {
+			t.Errorf("expected getLedgers, got %s", method)
+		}
+		// The response covers a different ledger than the one asked for.
+		return map[string]any{
+			"ledgers": []any{map[string]any{"sequence": 501, "hash": "abc123"}},
+		}, http.StatusOK
+	})
+
+	l := newTestEventListener(t, func(c *config.Config) { c.SorobanRPCURL = server.URL })
+
+	if _, err := l.getLedgerHash(context.Background(), 500); err == nil {
+		t.Fatal("expected an error when the requested ledger is absent from the response")
+	}
+}
+
+// TestStart_ReorgOnFinalizedLedgerHaltsListener is the end-to-end #882
+// scenario: the first poll records the boundary ledger's hash, a later poll
+// sees a different hash for it, and Start must stop with a reorg error (which
+// main turns into a non-zero exit) instead of checkpointing further.
+func TestStart_ReorgOnFinalizedLedgerHaltsListener(t *testing.T) {
+	const (
+		latestLedger = int32(200)
+		checkpoint   = int32(100)
+	)
+	server := stubSorobanRPC(t, func(method string) (any, int) {
+		switch method {
+		case "getEvents":
+			return map[string]any{
+				"events":       []any{},
+				"latestLedger": uint32(latestLedger),
+				"cursor":       "",
+			}, http.StatusOK
+		case "getLatestLedger":
+			return map[string]any{"sequence": latestLedger}, http.StatusOK
+		default:
+			t.Errorf("unexpected RPC method: %s", method)
+			return nil, http.StatusOK
+		}
+	})
+
+	l := newTestEventListener(t, func(c *config.Config) {
+		c.SorobanRPCURL = server.URL
+		c.IndexerPollIntervalMs = 10
+		c.RegistryContractID = "CABGWVIZFF62FG67ZGFEP67NEEY4WYTMFURDMFTKKNRDAFPKPOJDTN4C"
+	})
+	l.getCheckpointFn = func(context.Context) (int32, error) { return checkpoint, nil }
+
+	// First read records the original hash (the record step); every later read
+	// returns a different one, which is exactly what a reorg looks like.
+	var hashCalls int32
+	l.getLedgerHashFn = func(_ context.Context, sequence int32) (string, error) {
+		if sequence != latestLedger {
+			t.Errorf("hash requested for ledger %d, want the boundary %d", sequence, latestLedger)
+		}
+		if atomic.AddInt32(&hashCalls, 1) == 1 {
+			return "original-hash", nil
+		}
+		return "reorged-hash", nil
+	}
+
+	errCh := make(chan error, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() { errCh <- l.Start(ctx) }()
+
+	select {
+	case err := <-errCh:
+		if err == nil {
+			t.Fatal("expected Start to return a reorg error")
+		}
+		if !strings.Contains(err.Error(), "reorg detected at ledger") {
+			t.Errorf("error = %v, want a reorg error", err)
+		}
+		if !strings.Contains(err.Error(), "replay") {
+			t.Errorf("error = %v, want it to carry the manual replay step", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("Start did not halt within 3s of the finalized ledger's hash changing")
+	}
+	if l.health.IsHealthy() {
+		t.Error("expected listener health to report the halt")
 	}
 }

@@ -1,11 +1,24 @@
 import { renderHook, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { useInvoiceList, useInvoiceActions, useInvoice } from "./useInvoices";
+import {
+  useInvoiceList,
+  useInvoiceStats,
+  useInvoiceActions,
+  useInvoice,
+  computeInvoiceStats,
+  EMPTY_INVOICE_STATS,
+} from "./useInvoices";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getInvoices, getInvoiceByID, createInvoice } from "@/lib/api";
+import {
+  getInvoices,
+  getAllInvoices,
+  getInvoiceByID,
+  createInvoice,
+} from "@/lib/api";
 import { InvoiceClient, PoolClient } from "@trusttrove/sdk";
 import { useWalletStore } from "@/store/wallet";
 import * as toast from "@/lib/toast";
+import type { Invoice } from "@/types";
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: vi.fn(),
@@ -15,6 +28,7 @@ vi.mock("@tanstack/react-query", () => ({
 
 vi.mock("@/lib/api", () => ({
   getInvoices: vi.fn(),
+  getAllInvoices: vi.fn(),
   getInvoiceByID: vi.fn(),
   createInvoice: vi.fn(),
 }));
@@ -149,6 +163,9 @@ describe("useInvoices", () => {
     );
     expect(mockInvalidateQueries).toHaveBeenCalledWith({
       queryKey: ["invoices"],
+    });
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["invoiceStats"],
     });
     expect(toast.showSuccessToast).toHaveBeenCalled();
   });
@@ -294,9 +311,13 @@ describe("useInvoices", () => {
       useWalletStore.getState().connect("G123", "testnet");
     });
 
-    vi.mocked(getInvoiceByID).mockResolvedValue({ buyer: "G_BUYER" } as any);
+    vi.mocked(getInvoiceByID).mockResolvedValue({
+      buyer: "G_BUYER",
+      status: "Active",
+    } as any);
     vi.mocked(InvoiceClient).mockImplementation(function () {
       return {
+        get: vi.fn().mockResolvedValue({ buyer: "G_BUYER", status: "Active" }),
         confirmDelivery: vi.fn().mockRejectedValue(new Error("Confirm failed")),
       };
     } as any);
@@ -317,10 +338,16 @@ describe("useInvoices", () => {
       useWalletStore.getState().connect("G123", "testnet");
     });
 
-    vi.mocked(getInvoiceByID).mockResolvedValue({ buyer: "G_BUYER" } as any);
+    vi.mocked(getInvoiceByID).mockResolvedValue({
+      buyer: "G_BUYER",
+      status: "Active",
+    } as any);
     const mockConfirm = vi.fn().mockResolvedValue("ok");
+    const mockGet = vi
+      .fn()
+      .mockResolvedValue({ buyer: "G_BUYER", status: "Active" });
     vi.mocked(InvoiceClient).mockImplementation(function () {
-      return { confirmDelivery: mockConfirm };
+      return { get: mockGet, confirmDelivery: mockConfirm };
     } as any);
 
     const { result } = renderHook(() => useInvoiceActions());
@@ -329,7 +356,113 @@ describe("useInvoices", () => {
       await result.current.confirmDelivery({ invoiceId: "inv1" });
     });
 
+    expect(mockGet).toHaveBeenCalledWith("inv1", "G123");
     expect(mockConfirm).toHaveBeenCalledWith("inv1", "G_BUYER", "G123");
+  });
+
+  it("fails fast with clear error if invoice buyer changes between read and submit (TOCTOU)", async () => {
+    act(() => {
+      useWalletStore.getState().connect("G123", "testnet");
+    });
+
+    vi.mocked(getInvoiceByID).mockResolvedValue({
+      id: "inv1",
+      buyer: "G_OLD_BUYER",
+      status: "Active",
+    } as any);
+
+    const mockConfirm = vi.fn().mockResolvedValue("ok");
+    vi.mocked(InvoiceClient).mockImplementation(function () {
+      return {
+        get: vi.fn().mockResolvedValue({
+          id: "inv1",
+          buyer: "G_NEW_BUYER",
+          status: "Active",
+        }),
+        confirmDelivery: mockConfirm,
+      };
+    } as any);
+
+    const { result } = renderHook(() => useInvoiceActions());
+
+    await expect(
+      act(async () => {
+        await result.current.confirmDelivery({ invoiceId: "inv1" });
+      }),
+    ).rejects.toThrow("Invoice changed, please retry");
+
+    expect(mockConfirm).not.toHaveBeenCalled();
+    expect(toast.showErrorToast).toHaveBeenCalled();
+  });
+
+  it("fails fast with clear error if invoice status changes between read and submit (TOCTOU)", async () => {
+    act(() => {
+      useWalletStore.getState().connect("G123", "testnet");
+    });
+
+    vi.mocked(getInvoiceByID).mockResolvedValue({
+      id: "inv1",
+      buyer: "G_BUYER",
+      status: "Active",
+    } as any);
+
+    const mockConfirm = vi.fn().mockResolvedValue("ok");
+    vi.mocked(InvoiceClient).mockImplementation(function () {
+      return {
+        get: vi.fn().mockResolvedValue({
+          id: "inv1",
+          buyer: "G_BUYER",
+          status: "Repaid",
+        }),
+        confirmDelivery: mockConfirm,
+      };
+    } as any);
+
+    const { result } = renderHook(() => useInvoiceActions());
+
+    await expect(
+      act(async () => {
+        await result.current.confirmDelivery({ invoiceId: "inv1" });
+      }),
+    ).rejects.toThrow("Invoice changed, please retry");
+
+    expect(mockConfirm).not.toHaveBeenCalled();
+    expect(toast.showErrorToast).toHaveBeenCalled();
+  });
+
+  it("fails fast if invoice is non-Active even when off-chain and on-chain match", async () => {
+    act(() => {
+      useWalletStore.getState().connect("G123", "testnet");
+    });
+
+    vi.mocked(getInvoiceByID).mockResolvedValue({
+      id: "inv1",
+      buyer: "G_BUYER",
+      status: "Repaid",
+    } as any);
+
+    const mockConfirm = vi.fn().mockResolvedValue("ok");
+    vi.mocked(InvoiceClient).mockImplementation(function () {
+      return {
+        get: vi.fn().mockResolvedValue({
+          id: "inv1",
+          buyer: "G_BUYER",
+          status: "Repaid",
+        }),
+        confirmDelivery: mockConfirm,
+      };
+    } as any);
+
+    const { result } = renderHook(() => useInvoiceActions());
+
+    await expect(
+      act(async () => {
+        await result.current.confirmDelivery({ invoiceId: "inv1" });
+      }),
+    ).rejects.toThrow("Invoice changed, please retry");
+
+    expect(mockConfirm).not.toHaveBeenCalled();
+    expect(toast.showErrorToast).toHaveBeenCalled();
   });
 
   it("repayInvoice works", async () => {
@@ -452,6 +585,43 @@ describe("useInvoice", () => {
     expect(result.current.error).toBeNull();
   });
 
+  // #1118: the server render already resolved this invoice. The hook must be
+  // able to seed React Query's cache with it, otherwise the client fetches a
+  // third copy and flashes "Fetching invoice state from ledger...".
+  it("seeds the cache from a server-fetched invoice", () => {
+    vi.mocked(useQuery).mockReturnValue({
+      data: { id: "inv1" },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+
+    const seed = { id: "inv1", status: "Funded" } as any;
+    renderHook(() => useInvoice("inv1", { initialData: seed }));
+
+    expect(vi.mocked(useQuery).mock.calls.at(-1)?.[0]).toEqual(
+      expect.objectContaining({
+        queryKey: ["invoice", "inv1"],
+        initialData: seed,
+      }),
+    );
+  });
+
+  it("seeds nothing when the server had no invoice to hand over", () => {
+    vi.mocked(useQuery).mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+
+    renderHook(() => useInvoice("inv1"));
+
+    expect(vi.mocked(useQuery).mock.calls.at(-1)?.[0]).toEqual(
+      expect.objectContaining({ initialData: undefined }),
+    );
+  });
+
   it("shows loading state", () => {
     vi.mocked(useQuery).mockReturnValue({
       data: undefined,
@@ -489,5 +659,157 @@ describe("useInvoice", () => {
     expect(vi.mocked(useQuery)).toHaveBeenCalledWith(
       expect.objectContaining({ enabled: false }),
     );
+  });
+});
+
+/** Builds a minimal invoice for stats aggregation tests. */
+function makeInvoice(
+  id: string,
+  status: Invoice["status"],
+  fundedAmount = 0n,
+): Invoice {
+  return { id, status, fundedAmount } as unknown as Invoice;
+}
+
+// 250 invoices spread over what would be multiple table pages: 120 Listed,
+// 50 Funded, 60 Repaid, and 110 funded with 1_000_000 stroops each.
+const FULL_SET: Invoice[] = [
+  ...Array.from({ length: 80 }, (_, i) => makeInvoice(`inv-${i}`, "Listed")),
+  ...Array.from({ length: 20 }, (_, i) =>
+    makeInvoice(`inv-${80 + i}`, "Created"),
+  ),
+  ...Array.from({ length: 50 }, (_, i) =>
+    makeInvoice(`inv-${100 + i}`, "Funded", 1_000_000n),
+  ),
+  ...Array.from({ length: 60 }, (_, i) =>
+    makeInvoice(`inv-${150 + i}`, "Repaid", 1_000_000n),
+  ),
+  ...Array.from({ length: 40 }, (_, i) =>
+    makeInvoice(`inv-${210 + i}`, "Listed"),
+  ),
+];
+
+describe("computeInvoiceStats", () => {
+  it("aggregates an invoice set spanning more than one table page", () => {
+    const stats = computeInvoiceStats(FULL_SET);
+
+    expect(stats.totalInvoicesCreated).toBe(250);
+    expect(stats.totalListed).toBe(120);
+    expect(stats.totalFundedActive).toBe(50);
+    expect(stats.totalRepaid).toBe(60);
+    expect(stats.totalFunded).toBe(110_000_000n);
+  });
+
+  it("counts Active and Confirmed as funded & active", () => {
+    const stats = computeInvoiceStats([
+      makeInvoice("a", "Active"),
+      makeInvoice("b", "Confirmed"),
+      makeInvoice("c", "Funded"),
+      makeInvoice("d", "Defaulted"),
+    ]);
+
+    expect(stats.totalFundedActive).toBe(3);
+    expect(stats.totalInvoicesCreated).toBe(4);
+    expect(stats.totalRepaid).toBe(0);
+  });
+
+  it("returns zeroed stats for an empty set", () => {
+    expect(computeInvoiceStats([])).toEqual(EMPTY_INVOICE_STATS);
+  });
+});
+
+describe("useInvoiceStats", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // The stats query is gated on the wallet store's `connected` flag as well
+    // as the issuer argument (issue #636), so state it explicitly instead of
+    // inheriting whatever a previous describe left in the store.
+    useWalletStore.getState().connect("GISSUER", "testnet");
+    vi.mocked(useQuery).mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+  });
+
+  const lastQueryOptions = () =>
+    vi.mocked(useQuery).mock.calls.at(-1)![0] as any;
+
+  it("aggregates the full unpaged set via getAllInvoices, not a page slice", async () => {
+    vi.mocked(getAllInvoices).mockResolvedValue(FULL_SET);
+
+    renderHook(() => useInvoiceStats("GISSUER"));
+    const options = lastQueryOptions();
+
+    expect(options.enabled).toBe(true);
+    const signal = new AbortController().signal;
+    const stats = await options.queryFn({ signal });
+    // The signal is forwarded so an unmounted/refetched query cancels the
+    // underlying request (#638).
+    expect(getAllInvoices).toHaveBeenCalledWith(
+      { issuer: "GISSUER" },
+      { signal },
+    );
+    expect(stats).toEqual({
+      totalInvoicesCreated: 250,
+      totalListed: 120,
+      totalFundedActive: 50,
+      totalRepaid: 60,
+      totalFunded: 110_000_000n,
+    });
+  });
+
+  it("keys the stats query by issuer only, independent of table pagination", () => {
+    const statsKey = () => {
+      renderHook(() => useInvoiceStats("GISSUER"));
+      return lastQueryOptions().queryKey;
+    };
+
+    const before = statsKey();
+    // The user pages the table around — the list query key changes…
+    renderHook(() => useInvoiceList({ issuer: "GISSUER", page: 1, limit: 20 }));
+    const listKeyPage1 = lastQueryOptions().queryKey;
+    renderHook(() => useInvoiceList({ issuer: "GISSUER", page: 3, limit: 50 }));
+    const listKeyPage3 = lastQueryOptions().queryKey;
+    expect(listKeyPage1).not.toEqual(listKeyPage3);
+
+    // …but the stats query key must not (issue #874).
+    const after = statsKey();
+    expect(after).toEqual(before);
+    expect(after).toEqual(["invoiceStats", "GISSUER"]);
+  });
+
+  it("is disabled until an issuer address is known", () => {
+    renderHook(() => useInvoiceStats(undefined));
+    expect(vi.mocked(useQuery)).toHaveBeenCalledWith(
+      expect.objectContaining({ enabled: false }),
+    );
+  });
+
+  it("returns zeroed stats while loading", () => {
+    const { result } = renderHook(() => useInvoiceStats("GISSUER"));
+    expect(result.current.stats).toEqual(EMPTY_INVOICE_STATS);
+    expect(result.current.isLoading).toBe(true);
+  });
+
+  it("returns cached stats once loaded", () => {
+    vi.mocked(useQuery).mockReturnValue({
+      data: {
+        totalInvoicesCreated: 250,
+        totalListed: 120,
+        totalFundedActive: 50,
+        totalRepaid: 60,
+        totalFunded: 110_000_000n,
+      },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+
+    const { result } = renderHook(() => useInvoiceStats("GISSUER"));
+    expect(result.current.stats.totalInvoicesCreated).toBe(250);
+    expect(result.current.stats.totalRepaid).toBe(60);
+    expect(result.current.isLoading).toBe(false);
   });
 });

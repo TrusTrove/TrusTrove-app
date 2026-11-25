@@ -55,7 +55,7 @@ export function NotificationBell({
       <button
         ref={buttonRef}
         type="button"
-        className="relative p-2 rounded-lg border border-border bg-neutral-900 text-slate-400 hover:text-white hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors"
+        className="relative p-2 rounded-lg border border-border bg-background-secondary text-muted-foreground hover:text-foreground hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors"
         onClick={toggleOpen}
         aria-label="Notifications"
         aria-expanded={isOpen}
@@ -73,7 +73,7 @@ export function NotificationBell({
         >
           <div ref={trapRef} tabIndex={-1} className="outline-none">
             <div className="flex items-center justify-between px-2 py-1 mb-2 border-b border-border/40 pb-2">
-              <span className="text-xs font-bold font-mono text-white uppercase tracking-wider">
+              <span className="text-xs font-bold font-mono text-foreground uppercase tracking-wider">
                 Notifications
               </span>
               {unreadCount > 0 && (
@@ -84,7 +84,7 @@ export function NotificationBell({
             </div>
 
             {notifications.length === 0 ? (
-              <div className="px-4 py-8 text-center text-slate-500 text-xs font-mono">
+              <div className="px-4 py-8 text-center text-foreground/70 text-xs font-mono">
                 No notifications yet
               </div>
             ) : (
@@ -101,16 +101,16 @@ export function NotificationBell({
                     <div className="flex justify-between items-start mb-1">
                       <span
                         className={`text-xs font-bold font-mono ${
-                          notif.read ? "text-slate-300" : "text-primary"
+                          notif.read ? "text-foreground/70" : "text-primary"
                         }`}
                       >
                         {notif.type}
                       </span>
-                      <span className="text-[10px] text-slate-500 whitespace-nowrap ml-2">
+                      <span className="text-[10px] text-foreground/70 whitespace-nowrap ml-2">
                         {formatTime(notif.timestamp)}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-400 font-mono leading-relaxed">
+                    <p className="text-xs text-foreground/80 font-mono leading-relaxed">
                       {notif.message}
                     </p>
                   </div>

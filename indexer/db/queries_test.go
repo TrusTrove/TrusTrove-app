@@ -2,12 +2,234 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 )
+
+func TestInvoiceUpdatesEnforceLifecycle(t *testing.T) {
+	skipIfNoDB(t)
+	ctx := context.Background()
+
+	tests := []struct {
+		name      string
+		target    string
+		validFrom []string
+		staleFrom string
+		update    func(context.Context, Querier, string) error
+	}{
+		{
+			name:      "listed",
+			target:    "Listed",
+			validFrom: []string{"Created"},
+			staleFrom: "Funded",
+			update: func(ctx context.Context, q Querier, id string) error {
+				return UpdateInvoiceListed(ctx, q, id, "Listed", 250)
+			},
+		},
+		{
+			name:      "funded",
+			target:    "Funded",
+			validFrom: []string{"Listed"},
+			staleFrom: "Active",
+			update: func(ctx context.Context, q Querier, id string) error {
+				return UpdateInvoiceFunded(ctx, q, id, "Funded", "100", 1)
+			},
+		},
+		{
+			name:      "active",
+			target:    "Active",
+			validFrom: []string{"Funded"},
+			staleFrom: "Confirmed",
+			update: func(ctx context.Context, q Querier, id string) error {
+				return UpdateInvoiceShipped(ctx, q, id, "Active", 1)
+			},
+		},
+		{
+			name:      "confirmed",
+			target:    "Confirmed",
+			validFrom: []string{"Active"},
+			staleFrom: "Repaid",
+			update: func(ctx context.Context, q Querier, id string) error {
+				return UpdateInvoiceDeliveryConfirmed(ctx, q, id, "Confirmed", 1)
+			},
+		},
+		{
+			name:      "repaid",
+			target:    "Repaid",
+			validFrom: []string{"Confirmed"},
+			staleFrom: "Repaid",
+			update: func(ctx context.Context, q Querier, id string) error {
+				return UpdateInvoiceRepaid(ctx, q, id, "Repaid", 1)
+			},
+		},
+		{
+			name:      "defaulted",
+			target:    "Defaulted",
+			validFrom: []string{"Funded", "Active", "Confirmed"},
+			staleFrom: "Defaulted",
+			update: func(ctx context.Context, q Querier, id string) error {
+				return UpdateInvoiceStatus(ctx, q, id, "Defaulted")
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name+"/not-found", func(t *testing.T) {
+			err := test.update(ctx, Pool, newTestInvoiceID())
+			if !errors.Is(err, ErrInvoiceNotFound) {
+				t.Fatalf("expected ErrInvoiceNotFound, got %v", err)
+			}
+		})
+
+		t.Run(test.name+"/stale", func(t *testing.T) {
+			id := insertTestInvoice(t, ctx, test.staleFrom)
+			err := test.update(ctx, Pool, id)
+			if !errors.Is(err, ErrInvalidInvoiceTransition) {
+				t.Fatalf("expected ErrInvalidInvoiceTransition, got %v", err)
+			}
+			assertInvoiceStatus(t, ctx, id, test.staleFrom)
+		})
+
+		for _, source := range test.validFrom {
+			t.Run(test.name+"/from-"+source, func(t *testing.T) {
+				id := insertTestInvoice(t, ctx, source)
+				if err := test.update(ctx, Pool, id); err != nil {
+					t.Fatalf("update invoice: %v", err)
+				}
+				assertInvoiceStatus(t, ctx, id, test.target)
+			})
+		}
+	}
+
+	t.Run("attestation/not-found", func(t *testing.T) {
+		err := UpdateInvoiceAttestation(ctx, Pool, newTestInvoiceID(), "agent", "", 0, 1)
+		if !errors.Is(err, ErrInvoiceNotFound) {
+			t.Fatalf("expected ErrInvoiceNotFound, got %v", err)
+		}
+	})
+}
+
+func TestPlatformHistoryQueries(t *testing.T) {
+	skipIfNoDB(t)
+	ctx := context.Background()
+	party := "GPARTYHISTORYTEST"
+	other := "GOTHERPARTYTEST"
+	now := int64(2_000_000_000)
+
+	type invoiceState struct {
+		status   string
+		dueDate  int64
+		repaidAt *int64
+		asBuyer  bool
+	}
+	day := int64(86400)
+	repaidOneDayLate := now - 9*day
+	repaidThreeDaysLate := now - 7*day
+	states := []invoiceState{
+		{status: "Repaid", dueDate: now - 10*day, repaidAt: &repaidOneDayLate},
+		{status: "Repaid", dueDate: now - 10*day, repaidAt: &repaidThreeDaysLate, asBuyer: true},
+		{status: "Defaulted", dueDate: now - day},
+		{status: "Confirmed", dueDate: now - day, asBuyer: true},
+		{status: "Created", dueDate: now + day},
+	}
+
+	ids := make([]string, 0, len(states))
+	for _, state := range states {
+		id := newTestInvoiceID()
+		issuer, buyer := party, other
+		if state.asBuyer {
+			issuer, buyer = other, party
+		}
+		if _, err := Pool.Exec(ctx, `
+			INSERT INTO invoices (
+				id, issuer, buyer, face_value, discount_bps, due_date,
+				status, created_at, repaid_at
+			) VALUES ($1, $2, $3, '100', 0, $4, $5, $6, $7)
+		`, id, issuer, buyer, state.dueDate, state.status, now-20*day, state.repaidAt); err != nil {
+			t.Fatalf("insert invoice: %v", err)
+		}
+		ids = append(ids, id)
+	}
+	t.Cleanup(func() {
+		_, _ = Pool.Exec(context.Background(), `DELETE FROM invoice_document_hashes WHERE invoice_id = ANY($1)`, ids)
+		_, _ = Pool.Exec(context.Background(), `DELETE FROM invoices WHERE id = ANY($1)`, ids)
+	})
+
+	history, err := GetPartyHistory(ctx, Pool, party, now)
+	if err != nil {
+		t.Fatalf("GetPartyHistory: %v", err)
+	}
+	if history.TotalInvoices != 5 || history.RepaidInvoices != 2 || history.DefaultedInvoices != 1 || history.LateInvoices != 1 {
+		t.Fatalf("history counts = %#v", history)
+	}
+	if history.AverageDaysLate == nil || *history.AverageDaysLate != 2 {
+		t.Fatalf("averageDaysLate = %v", history.AverageDaysLate)
+	}
+
+	empty, err := GetPartyHistory(ctx, Pool, "GNOBODY", now)
+	if err != nil {
+		t.Fatalf("GetPartyHistory empty: %v", err)
+	}
+	if empty.TotalInvoices != 0 || empty.AverageDaysLate != nil {
+		t.Fatalf("empty history = %#v", empty)
+	}
+
+	hash := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	if err := StoreInvoiceDocumentHash(ctx, Pool, ids[0], hash); err != nil {
+		t.Fatalf("store first hash: %v", err)
+	}
+	if err := StoreInvoiceDocumentHash(ctx, Pool, ids[1], hash); err != nil {
+		t.Fatalf("store duplicate hash: %v", err)
+	}
+	matches, err := GetInvoiceIDsByDocumentHash(ctx, Pool, hash)
+	if err != nil {
+		t.Fatalf("GetInvoiceIDsByDocumentHash: %v", err)
+	}
+	if len(matches) != 2 {
+		t.Fatalf("matches = %#v", matches)
+	}
+	missing, err := GetInvoiceIDsByDocumentHash(ctx, Pool, "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789")
+	if err != nil || len(missing) != 0 {
+		t.Fatalf("missing = %#v, err = %v", missing, err)
+	}
+}
+
+func insertTestInvoice(t *testing.T, ctx context.Context, status string) string {
+	t.Helper()
+	id := newTestInvoiceID()
+	_, err := Pool.Exec(ctx, `
+		INSERT INTO invoices (id, issuer, buyer, face_value, discount_bps, due_date, status, created_at)
+		VALUES ($1, 'issuer', 'buyer', 100, 0, 0, $2, 0)
+	`, id, status)
+	if err != nil {
+		t.Fatalf("insert test invoice: %v", err)
+	}
+	t.Cleanup(func() {
+		if _, err := Pool.Exec(context.Background(), `DELETE FROM invoices WHERE id = $1`, id); err != nil {
+			t.Errorf("delete test invoice: %v", err)
+		}
+	})
+	return id
+}
+
+func assertInvoiceStatus(t *testing.T, ctx context.Context, id, want string) {
+	t.Helper()
+	var got string
+	if err := Pool.QueryRow(ctx, `SELECT status FROM invoices WHERE id = $1`, id).Scan(&got); err != nil {
+		t.Fatalf("read invoice status: %v", err)
+	}
+	if got != want {
+		t.Fatalf("invoice status = %q, want %q", got, want)
+	}
+}
+
+func newTestInvoiceID() string {
+	return fmt.Sprintf("queries-test-%d", time.Now().UnixNano())
+}
 
 // skipIfNoDB skips the test when TEST_DATABASE_URL is not set.
 // This allows go test ./... to pass in CI without a live database.
@@ -229,6 +451,14 @@ func TestGetProtocolStats_CountsListenerStatuses(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = tx.Rollback(ctx) })
 
+	// `go test ./...` runs packages in parallel against the same database, and
+	// other packages (e.g. listener) insert invoices while this test runs. Take
+	// an exclusive table lock before clearing so those writers block until this
+	// transaction rolls back; otherwise they can commit rows that skew the
+	// aggregate assertions below.
+	if _, err := tx.Exec(ctx, "LOCK TABLE invoices IN ACCESS EXCLUSIVE MODE"); err != nil {
+		t.Fatalf("lock invoices: %v", err)
+	}
 	if _, err := tx.Exec(ctx, "DELETE FROM invoices"); err != nil {
 		t.Fatalf("clear invoices: %v", err)
 	}
@@ -281,6 +511,62 @@ func TestGetProtocolStats_CountsListenerStatuses(t *testing.T) {
 	// avg(100, 200, 300, 400) = 250.
 	if stats.AverageYieldBps != 250 {
 		t.Errorf("AverageYieldBps = %d, want 250", stats.AverageYieldBps)
+	}
+}
+
+// TestGetProtocolStats_RegisteredIssuersFromRegistryEvents pins the source of
+// registered_issuers (#1085): it must come from issuer_registered registry
+// events, not from the set of accounts that happen to have invoices.
+func TestGetProtocolStats_RegisteredIssuersFromRegistryEvents(t *testing.T) {
+	skipIfNoDB(t)
+
+	ctx := context.Background()
+	tx, err := Pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	t.Cleanup(func() { _ = tx.Rollback(ctx) })
+
+	// Other packages write invoices and events while `go test ./...` runs in
+	// parallel; lock both tables so the counts below only see this test's rows.
+	if _, err := tx.Exec(ctx, "LOCK TABLE invoices, events_log IN ACCESS EXCLUSIVE MODE"); err != nil {
+		t.Fatalf("lock tables: %v", err)
+	}
+	if _, err := tx.Exec(ctx, "DELETE FROM invoices"); err != nil {
+		t.Fatalf("clear invoices: %v", err)
+	}
+	if _, err := tx.Exec(ctx, "DELETE FROM events_log"); err != nil {
+		t.Fatalf("clear events_log: %v", err)
+	}
+
+	const (
+		registeredIssuer = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
+		invoiceIssuer    = "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN"
+	)
+
+	// An issuer with activity but no registry registration.
+	inv := newTestInvoice(fmt.Sprintf("stats-registry%d", time.Now().UnixNano()))
+	inv.Issuer = invoiceIssuer
+	if _, err := InsertInvoice(ctx, tx, inv); err != nil {
+		t.Fatalf("InsertInvoice: %v", err)
+	}
+
+	// A registered issuer with no invoices. Logging the event twice proves the
+	// count is DISTINCT by address rather than by event.
+	for i := 0; i < 2; i++ {
+		eventID := fmt.Sprintf("registry-test-%d-%d", time.Now().UnixNano(), i)
+		if err := LogEvent(ctx, tx, eventID, "CREGISTRYCONTRACT", 900001, time.Now().Unix(), "issuer_registered", map[string]string{"address": registeredIssuer}); err != nil {
+			t.Fatalf("LogEvent(%d): %v", i, err)
+		}
+	}
+
+	stats, err := getProtocolStats(ctx, tx)
+	if err != nil {
+		t.Fatalf("getProtocolStats: %v", err)
+	}
+
+	if stats.RegisteredIssuers != 1 {
+		t.Errorf("RegisteredIssuers = %d, want 1 (only issuer_registered events count)", stats.RegisteredIssuers)
 	}
 }
 
@@ -386,7 +672,9 @@ func TestUpdateInvoiceFunded(t *testing.T) {
 
 	ctx := context.Background()
 	id := fmt.Sprintf("funded-test%d", time.Now().UnixNano())
-	if _, err := InsertInvoice(ctx, Pool, newTestInvoice(id)); err != nil {
+	invoice := newTestInvoice(id)
+	invoice.Status = "Listed"
+	if _, err := InsertInvoice(ctx, Pool, invoice); err != nil {
 		t.Fatalf("InsertInvoice: %v", err)
 	}
 	t.Cleanup(func() {
@@ -420,7 +708,9 @@ func TestUpdateInvoiceShipped(t *testing.T) {
 
 	ctx := context.Background()
 	id := fmt.Sprintf("shipped-test%d", time.Now().UnixNano())
-	if _, err := InsertInvoice(ctx, Pool, newTestInvoice(id)); err != nil {
+	invoice := newTestInvoice(id)
+	invoice.Status = "Funded"
+	if _, err := InsertInvoice(ctx, Pool, invoice); err != nil {
 		t.Fatalf("InsertInvoice: %v", err)
 	}
 	t.Cleanup(func() {
@@ -454,7 +744,9 @@ func TestUpdateInvoiceDeliveryConfirmed(t *testing.T) {
 
 	ctx := context.Background()
 	id := fmt.Sprintf("delivered-test%d", time.Now().UnixNano())
-	if _, err := InsertInvoice(ctx, Pool, newTestInvoice(id)); err != nil {
+	invoice := newTestInvoice(id)
+	invoice.Status = "Active"
+	if _, err := InsertInvoice(ctx, Pool, invoice); err != nil {
 		t.Fatalf("InsertInvoice: %v", err)
 	}
 	t.Cleanup(func() {
@@ -488,7 +780,9 @@ func TestUpdateInvoiceRepaid(t *testing.T) {
 
 	ctx := context.Background()
 	id := fmt.Sprintf("repaid-test%d", time.Now().UnixNano())
-	if _, err := InsertInvoice(ctx, Pool, newTestInvoice(id)); err != nil {
+	invoice := newTestInvoice(id)
+	invoice.Status = "Confirmed"
+	if _, err := InsertInvoice(ctx, Pool, invoice); err != nil {
 		t.Fatalf("InsertInvoice: %v", err)
 	}
 	t.Cleanup(func() {
@@ -519,7 +813,9 @@ func TestUpdateInvoiceStatus(t *testing.T) {
 
 	ctx := context.Background()
 	id := fmt.Sprintf("status-test%d", time.Now().UnixNano())
-	if _, err := InsertInvoice(ctx, Pool, newTestInvoice(id)); err != nil {
+	invoice := newTestInvoice(id)
+	invoice.Status = "Funded"
+	if _, err := InsertInvoice(ctx, Pool, invoice); err != nil {
 		t.Fatalf("InsertInvoice: %v", err)
 	}
 	t.Cleanup(func() {
@@ -642,7 +938,7 @@ func TestLogEventAndProcessedLookups(t *testing.T) {
 		t.Errorf("AreEventsProcessed (empty ids): got %d entries, want 0", len(empty))
 	}
 
-	events, err := GetRecentEvents(ctx, 10)
+	events, err := GetRecentEvents(ctx, 10, "")
 	if err != nil {
 		t.Fatalf("GetRecentEvents: %v", err)
 	}
@@ -665,6 +961,122 @@ func TestLogEventAndProcessedLookups(t *testing.T) {
 	}
 	if latest < ledger {
 		t.Errorf("GetLatestProcessedLedger: got %d, want >= %d", latest, ledger)
+	}
+}
+
+// TestGetRecentEventsIssuerScope covers the optional issuer filter added for
+// issue #1115: a filtered call returns only events on that account's own
+// invoices, an empty issuer still returns the protocol-wide feed, and an event
+// that refers to no invoice is never attributed to an issuer.
+func TestGetRecentEventsIssuerScope(t *testing.T) {
+	skipIfNoDB(t)
+
+	ctx := context.Background()
+	const (
+		issuerA = "GBV3KE6L2A6BTZEYCY24PLMKDRJLIQJHCTE3DQAZDD2GEEGOK4LYW4G6"
+		issuerB = "GAQYZGKFIEEO2CFFTP7AQMV6QUPZL3ZACKWRGBH7C7PW2ZNV52G2CO5A"
+	)
+
+	stamp := time.Now().UnixNano()
+	invoiceA := fmt.Sprintf("scope-a-%d", stamp)
+	invoiceB := fmt.Sprintf("scope-b-%d", stamp)
+	eventA := fmt.Sprintf("event-scope-a-%d", stamp)
+	eventB := fmt.Sprintf("event-scope-b-%d", stamp)
+	eventOrphan := fmt.Sprintf("event-scope-orphan-%d", stamp)
+
+	for _, seed := range []struct {
+		id, issuer string
+	}{{invoiceA, issuerA}, {invoiceB, issuerB}} {
+		inv := newTestInvoice(seed.id)
+		inv.Issuer = seed.issuer
+		if _, err := InsertInvoice(ctx, Pool, inv); err != nil {
+			t.Fatalf("InsertInvoice(%s): %v", seed.id, err)
+		}
+	}
+
+	contractID := "CABGWVIZFF62FG67ZGFEP67NEEY4WYTMFURDMFTKKNRDAFPKPOJDTN4C"
+	seedEvent := func(eventID, invoiceID string) {
+		t.Helper()
+		var data map[string]string
+		if invoiceID == "" {
+			// A pool-level event: no invoice reference at all.
+			data = map[string]string{"kind": "pool_deposit"}
+		} else {
+			data = map[string]string{"invoice_id": invoiceID}
+		}
+		if err := LogEvent(ctx, Pool, eventID, contractID, 500000, time.Now().Unix(), "invoice_funded", data); err != nil {
+			t.Fatalf("LogEvent(%s): %v", eventID, err)
+		}
+	}
+	seedEvent(eventA, invoiceA)
+	seedEvent(eventB, invoiceB)
+	seedEvent(eventOrphan, "")
+
+	t.Cleanup(func() {
+		if Pool == nil {
+			return
+		}
+		for _, id := range []string{eventA, eventB, eventOrphan} {
+			_, _ = Pool.Exec(ctx, "DELETE FROM events_log WHERE event_id = $1", id)
+		}
+		for _, id := range []string{invoiceA, invoiceB} {
+			_, _ = Pool.Exec(ctx, "DELETE FROM invoices WHERE id = $1", id)
+		}
+	})
+
+	byEventID := func(events []*EventLog) map[string]*EventLog {
+		out := make(map[string]*EventLog, len(events))
+		for _, ev := range events {
+			out[ev.EventID] = ev
+		}
+		return out
+	}
+
+	scoped, err := GetRecentEvents(ctx, 200, issuerA)
+	if err != nil {
+		t.Fatalf("GetRecentEvents(issuer=%q): %v", issuerA, err)
+	}
+	got := byEventID(scoped)
+	if _, ok := got[eventA]; !ok {
+		t.Errorf("issuer A: expected its own event %q in results", eventA)
+	}
+	if _, ok := got[eventB]; ok {
+		t.Errorf("issuer A: event on issuer B's invoice %q leaked into the feed", eventB)
+	}
+	if _, ok := got[eventOrphan]; ok {
+		t.Errorf("issuer A: invoice-less event %q leaked into the feed", eventOrphan)
+	}
+	if ev := got[eventA]; ev != nil && ev.InvoiceIssuer != issuerA {
+		t.Errorf("issuer A: got InvoiceIssuer %q, want %q", ev.InvoiceIssuer, issuerA)
+	}
+
+	wide, err := GetRecentEvents(ctx, 200, "")
+	if err != nil {
+		t.Fatalf("GetRecentEvents(issuer=\"\"): %v", err)
+	}
+	unscoped := byEventID(wide)
+	for _, eventID := range []string{eventA, eventB, eventOrphan} {
+		if _, ok := unscoped[eventID]; !ok {
+			t.Errorf("unscoped feed: expected %q to be present", eventID)
+		}
+	}
+	if ev := unscoped[eventOrphan]; ev != nil && ev.InvoiceIssuer != "" {
+		t.Errorf("unscoped feed: got InvoiceIssuer %q for an invoice-less event, want empty", ev.InvoiceIssuer)
+	}
+
+	// An issuer that has never issued an invoice gets an empty feed, not an
+	// error and not the protocol-wide list.
+	const issuerWithoutInvoices = "GCKNYAGAVRJWFHBFSS7DDRXOOODUEMRFQ5RE3P2R32YYOGBLNZ2ZBYZG"
+	none, err := GetRecentEvents(ctx, 200, issuerWithoutInvoices)
+	if err != nil {
+		t.Fatalf("GetRecentEvents(unknown issuer): %v", err)
+	}
+	if len(none) != 0 {
+		names := make([]string, 0, len(none))
+		for _, ev := range none {
+			names = append(names, ev.EventID+"@"+ev.InvoiceIssuer)
+		}
+		t.Errorf("unknown issuer: got %d events, want 0 (%v)", len(none), names)
 	}
 }
 

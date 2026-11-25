@@ -63,6 +63,44 @@ const agents = new AgentRegistryClient(
 
 ---
 
+## Read-only client factory
+
+Analytics and other read-only consumers can skip the global setup above and
+call `createReadOnlyClient` with an explicit network and RPC endpoint. The
+returned clients carry their own network configuration, so they do not depend
+on (or mutate) `configureSDK` state, and their types omit every write method.
+
+```typescript
+import { createReadOnlyClient } from "@trusttrove/sdk";
+
+const readers = createReadOnlyClient({
+  network: "testnet", // "testnet" | "mainnet" | "custom"
+  rpcUrl: "https://soroban-testnet.stellar.org",
+  contractIds: {
+    pool: process.env.NEXT_PUBLIC_POOL_CONTRACT_ID!,
+    invoice: process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID!,
+  },
+});
+
+const stats = await readers.pool.getStats(publicKey);
+const invoices = await readers.invoice.getByStatus("Funded", publicKey);
+// readers.pool.deposit(...) is not part of the type.
+```
+
+| Field              | Description                                                                                                  |
+| ------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `network`          | Required. `testnet`, `mainnet`, or `custom` (which requires `networkPassphrase`).                             |
+| `rpcUrl`           | Required. Soroban RPC endpoint to read from; must be an http(s) URL.                                         |
+| `networkPassphrase`| Optional for presets, required for `custom`.                                                                 |
+| `contractIds`      | Optional per-contract overrides. Missing IDs fall back to the active SDK config.                             |
+| `usdc`             | Optional USDC issuer/asset override used to derive the token contract ID.                                    |
+
+Each client is created lazily on first access, so a contract that is never read
+never needs an ID. Available readers are `registry`, `invoice`, `pool`,
+`escrow`, `token`, and `agentRegistry`; each exposes only its `get*` methods.
+
+---
+
 ## Registry Client
 
 ```typescript
@@ -126,9 +164,9 @@ interface Agent {
 ```
 
 > **Note:** `getAgent` is a read-only (simulated) call with no on-chain side
-> effects, and `AgentRegistryClient` exposes no `initialize` method. There is
-> currently no `InvoiceClient` wrapper for `submit_attestation` (tracked in
-> #815) — attestations are submitted directly against the contract.
+> effects, and `AgentRegistryClient` exposes no `initialize` method.
+> Attestations are submitted through `InvoiceClient.submitAttestation` (see
+> Invoice Client below).
 
 ---
 
@@ -141,6 +179,16 @@ const txHash = await invoice.create(
   buyerPublicKey,
   BigInt(10_000_000_000), // 1000 USDC in stroops
   Math.floor(Date.now() / 1000) + 60 * 24 * 60 * 60, // 60 days
+  signerPublicKey,
+);
+
+// Record an Underwrite agent's off-chain attestation (returns tx hash).
+// Required before listForFinancing, which otherwise fails with
+// VerificationRequired.
+const attestationTx = await invoice.submitAttestation(
+  invoiceIdHex,
+  attestationPayload, // Uint8Array
+  signature65Bytes, // Uint8Array, exactly 65 bytes
   signerPublicKey,
 );
 
@@ -237,6 +285,9 @@ await pool.fundInvoice(invoiceIdHex, signerPublicKey);
 
 // Record a repayment back into the pool
 await pool.receiveRepayment(invoiceIdHex, repaymentAmount, signerPublicKey);
+
+// Handle an invoice default (normally called internally by triggerDefault)
+await pool.handleDefault(invoiceIdHex, signerPublicKey);
 ```
 
 ---
@@ -390,5 +441,41 @@ try {
 
 Every typed error records the contract method name it was raised for, and the
 simulation- and send-related classes additionally carry the underlying Soroban
-error where the RPC returned one. The SDK automatically retries transient
-network errors up to 3 times with exponential backoff before throwing.
+error where the RPC returned one.
+
+Reads, simulations and transaction preparation retry transient network errors
+up to 3 times with exponential backoff before throwing. Broadcasting a signed
+transaction is the exception: a network error there may follow a send the RPC
+already accepted, and re-submitting the same XDR would double a funding or
+repayment, or land as `tx_bad_seq`. So a failed broadcast surfaces as-is.
+
+The two non-error statuses the RPC can answer with are handled explicitly:
+
+- `TRY_AGAIN_LATER` means the transaction was not queued, so the same signed
+  XDR is re-broadcast with exponential backoff until the client's retry policy
+  runs out, then `TransactionTryAgainLaterError` is thrown (with `txHash`).
+- `DUPLICATE` means the RPC already holds this exact transaction, so it counts
+  as submitted and is resolved by polling `txHash` — a repeated submission is
+  not reported as a failure.
+
+The policy is configurable per client, and is the second constructor argument
+every client inherits from `BaseContractClient`:
+
+```typescript
+import { TransactionTryAgainLaterError } from "@trusttrove/sdk";
+
+const invoice = new InvoiceClient(
+  process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID!,
+  { maxAttempts: 1, baseDelayMs: 500 }, // defaults: 3 attempts, 1000 ms base
+);
+
+try {
+  await invoice.repay(invoiceIdHex, signerPublicKey);
+} catch (err) {
+  if (err instanceof TransactionTryAgainLaterError) {
+    // Still congested after err.attempts broadcasts. err.txHash was never
+    // queued, so it is safe to re-submit later.
+    console.warn("RPC congested:", err.txHash);
+  }
+}
+```

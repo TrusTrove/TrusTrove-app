@@ -1,8 +1,23 @@
 import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ProfilePage from "@/app/profile/page";
+
+// Shared so individual tests can describe a registered wallet without
+// re-declaring the whole hook shape.
+const mocks = vi.hoisted(() => ({
+  register: vi.fn(),
+  refetchProfile: vi.fn(),
+  isVerified: false,
+  isVerifiedError: null as Error | null,
+  profile: null as null | {
+    address: string;
+    role: "issuer" | "buyer";
+    verified: boolean;
+    registeredAt: number;
+  },
+}));
 
 vi.mock("@/store/wallet", () => ({
   useWalletStore: (selector: any) => {
@@ -13,11 +28,13 @@ vi.mock("@/store/wallet", () => ({
 
 vi.mock("@/hooks/useProfile", () => ({
   useProfile: () => ({
-    profile: null,
+    profile: mocks.profile,
     isProfileLoading: false,
-    isVerified: false,
+    isVerified: mocks.isVerified,
     isVerifiedLoading: false,
-    register: vi.fn(),
+    isVerifiedError: mocks.isVerifiedError,
+    refetchProfile: mocks.refetchProfile,
+    register: mocks.register,
     isRegistering: false,
     registerError: null,
   }),
@@ -41,6 +58,11 @@ vi.mock("@/components/shared/WalletConnect", () => ({
 
 vi.mock("@/components/shared/TransactionPending", () => ({
   TransactionPending: () => null,
+}));
+
+// TxHistory owns its react-query data flow and is covered by its own tests.
+vi.mock("@/components/shared/TxHistory", () => ({
+  TxHistory: () => null,
 }));
 
 describe("Notification preference toggles", () => {
@@ -212,5 +234,75 @@ describe("Profile registration dialog", () => {
 
     // Focus should return to the element that opened the modal
     expect(openButton).toHaveFocus();
+  });
+});
+
+describe("Metadata update for a registered profile", () => {
+  beforeEach(() => {
+    // A wallet that is already on the registry as a *buyer*: exactly the state
+    // the old "Update Metadata" modal defaulted its hidden role picker away
+    // from (issue #1109).
+    mocks.profile = {
+      address: "GTESTADDRESS",
+      role: "buyer",
+      verified: true,
+      registeredAt: 1700000000,
+    };
+    mocks.register.mockReset();
+    mocks.refetchProfile.mockReset();
+    mocks.isVerified = false;
+    mocks.isVerifiedError = null;
+  });
+
+  afterEach(() => {
+    mocks.profile = null;
+    mocks.isVerified = false;
+    mocks.isVerifiedError = null;
+  });
+
+  it("shows distinct couldn't verify status state when verification check fails", () => {
+    mocks.isVerified = false;
+    mocks.isVerifiedError = new Error("RPC failure");
+    render(<ProfilePage />);
+
+    expect(
+      screen.getByText(/Couldn't verify status, try again/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Verification Check Failed/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Pending Review/i)).not.toBeInTheDocument();
+
+    const retryButton = screen.getByRole("button", { name: /retry/i });
+    fireEvent.click(retryButton);
+    expect(mocks.refetchProfile).toHaveBeenCalledTimes(1);
+  });
+
+  it("explains why the on-chain profile cannot be updated", () => {
+    render(<ProfilePage />);
+
+    const button = screen.getByRole("button", { name: "Update Metadata" });
+    expect(button).toBeDisabled();
+    expect(button.getAttribute("aria-describedby")).toBe(
+      "metadata-update-note",
+    );
+    expect(
+      document.getElementById("metadata-update-note")?.textContent,
+    ).toMatch(/one-time/);
+  });
+
+  it("leaves no path that re-runs the one-time register call", () => {
+    render(<ProfilePage />);
+
+    // The registration CTA is not rendered for an existing profile either.
+    expect(
+      screen.queryByRole("button", { name: "Register Business Profile" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Update Metadata" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "SME / Issuer" }),
+    ).not.toBeInTheDocument();
+    expect(mocks.register).not.toHaveBeenCalled();
   });
 });

@@ -26,6 +26,16 @@ export default function DocsPage() {
       "DELEGATING TRAFFIC TO SECURE SOURCE...",
     ];
 
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+
+    if (prefersReducedMotion) {
+      setLogs(logMessages);
+      setBootFinished(true);
+      return;
+    }
+
     let currentLogIndex = 0;
     const logInterval = setInterval(() => {
       if (currentLogIndex < logMessages.length) {
@@ -34,7 +44,6 @@ export default function DocsPage() {
       } else {
         clearInterval(logInterval);
         setBootFinished(true);
-        goToDocs();
       }
     }, 350);
 
@@ -46,14 +55,18 @@ export default function DocsPage() {
       <TopStatusBar />
       <Navbar />
 
-      <main className="flex-1 w-full max-w-4xl mx-auto px-4 py-16 flex flex-col justify-center items-center relative">
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#1a2330_1px,transparent_1px),linear-gradient(to_bottom,#1a2330_1px,transparent_1px)] bg-[size:3rem_3rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)] -z-10 opacity-25 pointer-events-none" />
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="flex-1 w-full max-w-4xl mx-auto px-4 py-16 flex flex-col justify-center items-center relative focus:outline-none"
+      >
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,hsl(var(--border))_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border))_1px,transparent_1px)] bg-[size:3rem_3rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)] -z-10 opacity-25 pointer-events-none" />
 
-        <div className="w-full max-w-xl bg-[#080d14]/90 border border-border rounded-lg shadow-2xl p-6 font-mono relative overflow-hidden terminal-grid">
+        <div className="w-full max-w-xl bg-card/90 border border-border rounded-lg shadow-2xl p-6 font-mono relative overflow-hidden terminal-grid">
           <div className="flex items-center justify-between border-b border-border/60 pb-4 mb-6">
             <div className="flex items-center gap-2">
               <Terminal className="w-4 h-4 text-primary animate-pulse" />
-              <span className="text-xs font-bold text-white tracking-widest uppercase">
+              <span className="text-xs font-bold text-foreground tracking-widest uppercase">
                 SYSTEM MODULE: ROUTING_GATEWAY
               </span>
             </div>
@@ -64,23 +77,25 @@ export default function DocsPage() {
             </div>
           </div>
 
-          <div className="min-h-[160px] bg-[#03060a] border border-border/40 rounded p-4 text-[11px] leading-relaxed text-slate-400 space-y-1 mb-6">
-            {logs.map((log, idx) => (
-              <div key={idx} className="flex gap-2">
-                <span className="text-slate-600 font-bold select-none">
-                  [LOG_{idx}]
-                </span>
-                <span
-                  className={
-                    idx === logs.length - 1 && !bootFinished
-                      ? "text-primary"
-                      : "text-slate-300"
-                  }
-                >
-                  {log}
-                </span>
-              </div>
-            ))}
+          <div className="min-h-[160px] bg-background border border-border/40 rounded p-4 text-[11px] leading-relaxed text-muted-foreground space-y-1 mb-6">
+            <div role="status" aria-live="polite">
+              {logs.map((log, idx) => (
+                <div key={idx} className="flex gap-2">
+                  <span className="text-muted-foreground font-bold select-none">
+                    [LOG_{idx}]
+                  </span>
+                  <span
+                    className={
+                      idx === logs.length - 1 && !bootFinished
+                        ? "text-primary"
+                        : "text-foreground"
+                    }
+                  >
+                    {log}
+                  </span>
+                </div>
+              ))}
+            </div>
             {!bootFinished && (
               <>
                 <div className="flex items-center gap-2 pt-1">
@@ -90,12 +105,14 @@ export default function DocsPage() {
                   </span>
                 </div>
                 <div className="pt-3">
-                  <button
-                    onClick={goToDocs}
-                    className="text-[10px] text-primary/70 hover:text-primary underline underline-offset-2 transition-colors uppercase tracking-wider"
+                  <a
+                    href={docUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[10px] text-primary hover:underline underline-offset-2 transition-colors uppercase tracking-wider rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   >
                     [Skip to Docs]
-                  </button>
+                  </a>
                 </div>
               </>
             )}
@@ -106,32 +123,34 @@ export default function DocsPage() {
             )}
           </div>
 
-          <div className="bg-[#0c1420] border border-border/80 rounded-lg p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all duration-300 hover:border-primary/55">
+          <div className="bg-muted border border-border/80 rounded-lg p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all duration-300 hover:border-primary/55">
             <div className="flex items-center gap-3">
               <div className="p-3 bg-primary/10 border border-primary/20 rounded-md text-primary">
                 <BookOpen className="w-6 h-6" />
               </div>
               <div>
-                <h2 className="text-sm font-bold text-white tracking-wide uppercase">
+                <h1 className="text-sm font-bold text-foreground tracking-wide uppercase">
                   TrusTrove GitBook
-                </h2>
-                <p className="text-[11px] text-slate-500 mt-1 max-w-[280px]">
+                </h1>
+                <p className="text-[11px] text-muted-foreground mt-1 max-w-[280px]">
                   Protocol mechanics, economic modeling, smart contracts, and
                   developer references.
                 </p>
               </div>
             </div>
 
-            <button
-              onClick={goToDocs}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary/90 text-[#0d131a] text-xs font-bold uppercase rounded transition-colors cursor-pointer"
+            <a
+              href={docUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold uppercase rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
               <span>Access Docs</span>
-              <ExternalLink className="w-3.5 h-3.5" />
-            </button>
+              <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
+            </a>
           </div>
 
-          <div className="flex items-center justify-between text-[9px] text-slate-600 mt-6 pt-3 border-t border-border/40 select-none">
+          <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-6 pt-3 border-t border-border/40 select-none">
             <span>SECURE GATEWAY ENFORCED</span>
             <span>STATUS: ACTIVE</span>
           </div>

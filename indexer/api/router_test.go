@@ -156,6 +156,44 @@ func TestMetricsEndpoint_RemainsPublicForLocalDevelopment(t *testing.T) {
 	}
 }
 
+func TestMetricsEndpoint_IncludesHTTPRequestDuration(t *testing.T) {
+	h := newTestHandler(t)
+	router, stopRouter := NewRouter(h)
+	t.Cleanup(stopRouter)
+
+	router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/health", nil))
+
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("metrics status: got %d, want %d", rr.Code, http.StatusOK)
+	}
+	if !strings.Contains(rr.Body.String(), "http_request_duration_seconds") {
+		t.Fatal("expected /metrics to expose http_request_duration_seconds after a request")
+	}
+}
+
+func TestMetricsEndpoint_UsesBoundedRouteLabels(t *testing.T) {
+	h := newTestHandler(t)
+	h.cfg.RateLimitRPS = 1
+	router, stopRouter := NewRouter(h)
+	t.Cleanup(stopRouter)
+
+	// Any value is fine: the limiter may answer 429, but the route must have
+	// matched before the middleware records it.
+	router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/invoices/INV-123", nil))
+
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	body := rr.Body.String()
+	if !strings.Contains(body, `path="/invoices/{id}"`) {
+		t.Fatalf("expected the chi route template as the metric label, got:\n%s", body)
+	}
+	if strings.Contains(body, "INV-123") {
+		t.Fatal("metric label leaked the raw request path, creating unbounded cardinality")
+	}
+}
+
 func TestHealthEndpoint_Returns503WhenListenerStops(t *testing.T) {
 	h := newTestHandler(t)
 	h.dbHealthChecker = func(context.Context) error { return nil }
@@ -348,6 +386,94 @@ func TestPerClientRateLimiter_JWTvsIPKeys(t *testing.T) {
 	}
 }
 
+func TestGetClientKey_IgnoresSourcePortForBuckets(t *testing.T) {
+	rl := newPerClientRateLimiter(1, 1, 1000)
+	defer rl.Stop()
+
+	req1 := httptest.NewRequest(http.MethodGet, "/auth", nil)
+	req1.RemoteAddr = "203.0.113.7:45000"
+	req2 := httptest.NewRequest(http.MethodGet, "/auth", nil)
+	req2.RemoteAddr = "203.0.113.7:45001"
+
+	key1 := getClientKey(req1)
+	key2 := getClientKey(req2)
+	if key1 != key2 {
+		t.Fatalf("same client IP with different ports should share a bucket: %q != %q", key1, key2)
+	}
+	if !rl.allow(key1) {
+		t.Fatal("first request should be allowed")
+	}
+	if rl.allow(key2) {
+		t.Fatal("second request from the same IP should hit the same bucket and be rate limited")
+	}
+}
+
+func TestTrustedProxyMiddleware_IgnoresSpoofedForwardedHeaders(t *testing.T) {
+	t.Run("untrusted peer ignores forwarded headers", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/auth", nil)
+		req.RemoteAddr = "198.51.100.9:45678"
+		req.Header.Set("X-Forwarded-For", "203.0.113.55")
+
+		mw := TrustedProxyMiddleware([]string{"10.0.0.0/8"})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		rr := httptest.NewRecorder()
+		mw.ServeHTTP(rr, req)
+
+		if got := getClientKey(req); got != "ip:198.51.100.9" {
+			t.Fatalf("spoofed X-Forwarded-For from untrusted peer should be ignored; got %q", got)
+		}
+	})
+
+	t.Run("trusted proxy forwards the original client IP", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/auth", nil)
+		req.RemoteAddr = "10.0.0.9:45678"
+		req.Header.Set("X-Forwarded-For", "203.0.113.55")
+
+		mw := TrustedProxyMiddleware([]string{"10.0.0.0/8"})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		rr := httptest.NewRecorder()
+		mw.ServeHTTP(rr, req)
+
+		if got := getClientKey(req); got != "ip:203.0.113.55" {
+			t.Fatalf("trusted proxy should set the client IP from X-Forwarded-For; got %q", got)
+		}
+	})
+}
+
+func TestTrustedProxyMiddleware_UsesRightmostUntrustedHop(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/auth", nil)
+	req.RemoteAddr = "10.0.0.9:45678"
+	// The proxy appends the real client (203.0.113.9) to whatever the client
+	// sent, so the leftmost value is spoofable and must be ignored.
+	req.Header.Set("X-Forwarded-For", "1.2.3.4, 203.0.113.9")
+
+	mw := TrustedProxyMiddleware([]string{"10.0.0.0/8"})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	mw.ServeHTTP(httptest.NewRecorder(), req)
+
+	if got := getClientKey(req); got != "ip:203.0.113.9" {
+		t.Fatalf("rightmost untrusted hop should key the limiter; got %q", got)
+	}
+}
+
+func TestTrustedProxyMiddleware_SkipsTrustedHopsFromTheRight(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/auth", nil)
+	req.RemoteAddr = "10.0.0.9:45678"
+	req.Header.Set("X-Forwarded-For", "1.2.3.4, 10.0.0.5")
+
+	mw := TrustedProxyMiddleware([]string{"10.0.0.0/8"})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	mw.ServeHTTP(httptest.NewRecorder(), req)
+
+	if got := getClientKey(req); got != "ip:1.2.3.4" {
+		t.Fatalf("should skip trusted proxy hops and use the first untrusted one; got %q", got)
+	}
+}
+
 func TestPerClientRateLimiter_MaxSizeEviction(t *testing.T) {
 	maxSize := 10
 	rl := newPerClientRateLimiter(10, 20, maxSize)
@@ -496,6 +622,31 @@ func TestRouter_PublicReadRoutesAreRateLimited(t *testing.T) {
 	}
 	if limited == 0 {
 		t.Fatalf("expected status %d once the client exceeded the configured RPS", http.StatusTooManyRequests)
+	}
+}
+
+func TestRateLimitMiddleware_UsesGenericTooManyRequestsBody(t *testing.T) {
+	rl := newPerClientRateLimiter(1, 1, 1000)
+	defer rl.Stop()
+	mw := RateLimitMiddleware(rl)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/auth", nil)
+	req.RemoteAddr = "203.0.113.8:52000"
+	first := httptest.NewRecorder()
+	mw.ServeHTTP(first, req)
+	if first.Code != http.StatusOK {
+		t.Fatalf("first request status=%d, want %d; body=%s", first.Code, http.StatusOK, first.Body.String())
+	}
+
+	second := httptest.NewRecorder()
+	mw.ServeHTTP(second, req)
+	if second.Code != http.StatusTooManyRequests {
+		t.Fatalf("second request status=%d, want %d; body=%s", second.Code, http.StatusTooManyRequests, second.Body.String())
+	}
+	if body := strings.TrimSpace(second.Body.String()); body != "Too Many Requests" {
+		t.Fatalf("body=%q, want %q", body, "Too Many Requests")
 	}
 }
 

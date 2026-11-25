@@ -17,6 +17,12 @@ const (
 	// maxCreateInvoiceBodyBytes bounds POST /invoices (buyer, face_value,
 	// due_date).
 	maxCreateInvoiceBodyBytes int64 = 4 << 10
+	// maxPatchInvoiceStatusBodyBytes bounds PATCH /invoices/{id}/status
+	// (a single `status` field).
+	maxPatchInvoiceStatusBodyBytes int64 = 1 << 10
+	// maxCreateWebhookBodyBytes bounds POST /webhooks (a target URL and a
+	// short list of event types).
+	maxCreateWebhookBodyBytes int64 = 4 << 10
 )
 
 // decodeJSONBody decodes exactly one JSON object from r.Body into dst, reading

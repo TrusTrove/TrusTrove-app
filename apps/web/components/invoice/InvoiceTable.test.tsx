@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { InvoiceTable } from "./InvoiceTable";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -61,9 +61,29 @@ const mockInvoices = [
 describe("InvoiceTable", () => {
   it("renders a list of invoices", () => {
     renderWithQueryClient(<InvoiceTable invoices={mockInvoices as any} />);
-    // Check table rows (desktop view) - use getAllByText since mobile cards also render
-    expect(screen.getAllByText(/1,000.00 USDC/)).toHaveLength(2); // table + mobile card
-    expect(screen.getAllByText(/2,000.00 USDC/)).toHaveLength(2); // table + mobile card
+
+    const table = screen.getByRole("grid", { name: /Invoice Ledger/i });
+    const tableWrapper = table.parentElement as HTMLElement;
+
+    // The desktop table is hidden below md (hidden md:block) so phones only
+    // get the mobile cards, never both views at once.
+    expect(tableWrapper.classList.contains("hidden")).toBe(true);
+    expect(tableWrapper.classList.contains("md:block")).toBe(true);
+
+    const cardsWrapper = Array.from(document.querySelectorAll("div")).find(
+      (el) =>
+        el.classList.contains("md:hidden") &&
+        el.classList.contains("space-y-4"),
+    );
+    expect(cardsWrapper).toBeTruthy();
+
+    // On mobile only the cards are visible: exactly one copy of each invoice.
+    expect(within(cardsWrapper!).getAllByText(/1,000.00 USDC/)).toHaveLength(1);
+    expect(within(cardsWrapper!).getAllByText(/2,000.00 USDC/)).toHaveLength(1);
+
+    // Both views still render one copy each in the DOM (table + mobile card).
+    expect(screen.getAllByText(/1,000.00 USDC/)).toHaveLength(2);
+    expect(screen.getAllByText(/2,000.00 USDC/)).toHaveLength(2);
   });
 
   it("renders a helpful empty state when no invoices", () => {
@@ -99,6 +119,31 @@ describe("InvoiceTable", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Next/i }));
     expect(onPageChange).toHaveBeenCalledWith(2);
+  });
+  it("has an accessible name for the items per page select", () => {
+    const onPageChange = vi.fn();
+    const onLimitChange = vi.fn();
+
+    renderWithQueryClient(
+      <InvoiceTable
+        invoices={mockInvoices as any}
+        pagination={{
+          page: 1,
+          limit: 20,
+          total: 40,
+          totalPages: 2,
+          onPageChange,
+          onLimitChange,
+        }}
+      />,
+    );
+
+    const select = screen.getByLabelText("Items per page");
+    expect(select).toHaveAttribute("id", "items-per-page-select");
+    fireEvent.change(select, {
+      target: { value: "50" },
+    });
+    expect(onLimitChange).toHaveBeenCalledWith(50);
   });
 
   // #802 — semantic table structure

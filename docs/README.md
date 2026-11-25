@@ -17,3 +17,5 @@ If you want to provide liquidity and earn yield → [For LPs](for-lps/getting-st
 If you want to build on or contribute to TrusTrove → [Developer Guide](developer-guide/local-setup.md)
 
 If you want to understand the system design and request flows → [System Architecture](ARCHITECTURE.md)
+
+If you want on-chain invoice and pool events pushed to your own service → [Webhooks](webhooks.md)

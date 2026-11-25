@@ -62,4 +62,27 @@ describe("LpYieldCalculator", () => {
     const hundredPercentElements = screen.getAllByText("100%");
     expect(hundredPercentElements.length).toBeGreaterThanOrEqual(2);
   });
+
+  it("parses comma-grouped deposits: '10,000' earns like 10000 (#1104)", () => {
+    render(<LpYieldCalculator />);
+
+    const depositInput = screen.getByPlaceholderText("10,000");
+    fireEvent.change(depositInput, { target: { value: "10,000" } });
+
+    // Default 75% utilization -> 9.125% APY -> 10000 * 0.09125 / 12 = 76.04.
+    // Before the fix, parseFloat("10,000") returned 10 and showed 0.08.
+    expect(screen.getByText(/76\.04 USDC/)).toBeInTheDocument();
+    expect(screen.queryByText(/0\.08 USDC/)).not.toBeInTheDocument();
+  });
+
+  it("does not compute '1,000' as if it were 1 (#1104)", () => {
+    render(<LpYieldCalculator />);
+
+    const depositInput = screen.getByPlaceholderText("10,000");
+    fireEvent.change(depositInput, { target: { value: "1,000" } });
+
+    // 1000 * 0.09125 / 12 = 7.60; the bug produced 0.01 from parseFloat -> 1.
+    expect(screen.getByText(/7\.60 USDC/)).toBeInTheDocument();
+    expect(screen.queryByText(/0\.01 USDC/)).not.toBeInTheDocument();
+  });
 });

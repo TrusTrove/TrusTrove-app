@@ -30,17 +30,17 @@ function StatTile({
 }) {
   return (
     <div className="rounded-lg border border-border bg-card p-5">
-      <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+      <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
         {label}
       </span>
       {isLoading ? (
         <SkeletonShimmer className="mt-2 h-7 w-24" />
       ) : hasError || value === null ? (
-        <span className="mt-1 block font-mono text-2xl font-bold text-slate-600">
+        <span className="mt-1 block font-mono text-2xl font-bold text-muted-foreground">
           —
         </span>
       ) : (
-        <span className="mt-1 block font-mono text-2xl font-bold text-white">
+        <span className="mt-1 block font-mono text-2xl font-bold text-foreground">
           {value}
         </span>
       )}
@@ -62,10 +62,10 @@ export default function AnalyticsClient() {
     <PageLayout>
       <div className="mx-auto max-w-5xl space-y-6 py-4">
         <div>
-          <h1 className="text-xl font-bold uppercase text-white">
+          <h1 className="text-xl font-bold uppercase text-foreground">
             Protocol Analytics
           </h1>
-          <p className="mt-1 text-sm text-slate-400">
+          <p className="mt-1 text-sm text-muted-foreground">
             Total value locked, funding volume, and pool utilization across the
             TrusTrove protocol.
           </p>
@@ -137,7 +137,7 @@ export default function AnalyticsClient() {
             />
           </div>
           {hasError && (
-            <p className="text-xs font-mono text-slate-500">
+            <p className="text-xs font-mono text-muted-foreground">
               Live stats are temporarily unavailable — showing placeholders.
             </p>
           )}

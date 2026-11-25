@@ -31,6 +31,19 @@
     --accent-foreground: 0 0% 100%;
     --destructive: 0 72% 44%;
     --destructive-foreground: 0 0% 100%;
+    /*
+     * Status accents. Each `--<status>` is dark enough to be used as *text*
+     * on every light surface (background, card and muted) at >= 4.5:1, and its
+     * `-foreground` is the readable ink on top of it when it is used as a fill.
+     * Pages must use these instead of `text-emerald-400`-style palette classes,
+     * which are tuned for one theme only.
+     */
+    --success: 160 84% 25%;
+    --success-foreground: 0 0% 100%;
+    --warning: 32 90% 30%;
+    --warning-foreground: 0 0% 100%;
+    --info: 199 89% 32%;
+    --info-foreground: 0 0% 100%;
     --border: 214 25% 85%;
     --input: 214 25% 85%;
     --ring: 168 84% 26%;
@@ -50,13 +63,27 @@
     --primary: 168 100% 41.6%;
     --primary-foreground: 210 33% 4.7%;
     --secondary: 217 91% 60%;
-    --secondary-foreground: 210 40% 98%;
+    /* See --accent-foreground: white on this bright blue fails AA (3.63:1). */
+    --secondary-foreground: 210 33% 4.7%;
     --muted: 211 32% 7.6%;
-    --muted-foreground: 215 16% 47%;
+    /* 47% measured 3.97:1 on --card/--background (AA needs 4.5:1 for the
+       9-11px captions that use text-muted-foreground). 54% clears 4.5:1 on
+       both dark surfaces (~5.1:1) while staying clearly below --foreground. */
+    --muted-foreground: 215 16% 54%;
     --accent: 217 91% 60%;
-    --accent-foreground: 210 40% 98%;
+    /* --accent and --secondary are bright fills in the dark theme; white text
+       on them measured 3.63:1 (AA fail). Near-black restores ~5.3:1, mirroring
+       what --primary-foreground already does over --primary. */
+    --accent-foreground: 210 33% 4.7%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
+    /* Status accents light enough for text on the dark surfaces (9-10:1). */
+    --success: 160 84% 45%;
+    --success-foreground: 210 33% 4.7%;
+    --warning: 38 92% 60%;
+    --warning-foreground: 210 33% 4.7%;
+    --info: 199 89% 64%;
+    --info-foreground: 210 33% 4.7%;
     --border: 214 30% 14.7%;
     --input: 214 30% 14.7%;
     --ring: 168 100% 41.6%;
@@ -122,4 +149,48 @@
     100% 2px,
     3px 100%;
   pointer-events: none;
+}
+
+/*
+ * Display preferences from app/settings/page.tsx, published on <html>.
+ *
+ * Tailwind expresses every spacing and font utility in rem, so scaling the
+ * root font size is what actually compacts the terminal's spacing.
+ */
+[data-density="compact"] {
+  font-size: 87.5%;
+}
+
+/*
+ * "UI Animations" off removes motion outright, including the hover and
+ * transition feedback utilities.
+ */
+[data-animations="off"] *,
+[data-animations="off"] *::before,
+[data-animations="off"] *::after {
+  animation: none !important;
+  transition: none !important;
+}
+
+/*
+ * "Reduced Motion" keeps state changes visible but stops the movement.
+ * Durations are clamped to a non-zero value rather than set to 0 so that
+ * `transitionend`/`animationend` listeners still fire.
+ */
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -479,7 +479,7 @@ func TestHandleEventInvoiceCreatedDuplicate(t *testing.T) {
 		issuer = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
 		buyer  = "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN"
 	)
-	rawIDBytes := []byte(fmt.Sprintf("duplicate-event%d", time.Now().UnixNano()))
+	rawIDBytes := []byte(fmt.Sprintf("%032x", time.Now().UnixNano()))
 	invoiceID := fmt.Sprintf("%x", rawIDBytes)
 	eventID := fmt.Sprintf("event-invoice-created-duplicate-%d", time.Now().UnixNano())
 	event := SorobanEvent{

@@ -11,7 +11,7 @@
 # JWT_SECRET, and so on. Nothing about the deployment is hardcoded here.
 
 # ---------- build: compile a static binary ----------
-FROM golang:1.25-alpine AS build
+FROM golang:1.26-alpine AS build
 WORKDIR /src
 
 # Dependencies are resolved in their own layer so edits that don't touch

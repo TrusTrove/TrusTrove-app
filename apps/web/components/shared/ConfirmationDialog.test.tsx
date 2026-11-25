@@ -1,9 +1,10 @@
 import React from "react";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { ConfirmationDialog } from "./ConfirmationDialog";
 import { useConfirmDialogStore } from "@/store/confirmDialog";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
+import { renderWithProviders as render } from "@/test-utils/renderWithProviders";
 
 vi.mock("@/store/confirmDialog", () => ({
   useConfirmDialogStore: vi.fn(),
@@ -11,6 +12,15 @@ vi.mock("@/store/confirmDialog", () => ({
 
 vi.mock("@/hooks/useFocusTrap", () => ({
   useFocusTrap: vi.fn(() => ({ current: null })),
+}));
+
+vi.mock("@/hooks/useWallet", () => ({
+  useWallet: vi.fn(() => ({
+    connected: true,
+    canSign: true,
+    connectWallet: vi.fn(),
+    error: null,
+  })),
 }));
 
 describe("ConfirmationDialog", () => {
@@ -115,5 +125,20 @@ describe("ConfirmationDialog", () => {
     const dialogRoot = screen.getByRole("dialog");
     fireEvent.click(dialogRoot);
     expect(mockCancel).toHaveBeenCalled();
+  });
+
+  it("renders confirmation dialog", () => {
+    const mockCancel = vi.fn();
+    vi.mocked(useConfirmDialogStore).mockReturnValue({
+      pendingAction: {
+        label: "Test Action",
+        invoiceId: "inv_1",
+        fn: vi.fn(),
+      },
+      cancel: mockCancel,
+      request: vi.fn(),
+    });
+    render(<ConfirmationDialog />);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });

@@ -43,13 +43,34 @@ func (d *Dispatcher) Dispatch(ctx context.Context, eventType string, data map[st
 	}
 }
 
+// AllEventTypes returns the list of supported public event types.
+var AllEventTypes = webhooks.AllEventTypes
+
 // EnqueueDeliveries writes one webhook_deliveries row per active subscription
 // matching eventType, executing every insert through q. Callers pass db.Pool
 // for standalone fan-out, or a pgx.Tx when the rows must commit (or roll back)
 // together with the event's state change and events_log row. It returns the
 // first error instead of swallowing it so a transactional caller can roll back.
 func (d *Dispatcher) EnqueueDeliveries(ctx context.Context, q db.Querier, eventType string, data map[string]interface{}) error {
-	subs, err := db.ListActiveWebhookSubscriptionsForEvent(ctx, eventType)
+	// Map the internal event type to the public type before querying subscriptions.
+	// This ensures subscriptions registered with public event types (e.g. "invoice.funded")
+	// match events emitted with internal symbols (e.g. "fund_invoice").
+	publicEventType := mapInternalEventType(eventType)
+
+	// Reject unknown event types that are not in the supported list.
+	supported := webhooks.AllEventTypes()
+	found := false
+	for _, et := range supported {
+		if et == publicEventType {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("webhook: unsupported event type %s", publicEventType)
+	}
+
+	subs, err := db.ListActiveWebhookSubscriptionsForEvent(ctx, string(publicEventType))
 	if err != nil {
 		return fmt.Errorf("webhook: list subscriptions: %w", err)
 	}
@@ -216,7 +237,7 @@ func mapInternalEventType(internal string) webhooks.EventType {
 		return webhooks.EventInvoiceConfirmed
 	case "repay", "InvoiceRepaid":
 		return webhooks.EventInvoiceRepaid
-	case "trigger_default", "InvoiceDefaulted":
+	case "trigger_default", "InvoiceDefaulted", "invoice_defaulted", "handle_default":
 		return webhooks.EventInvoiceDefaulted
 	case "deposit", "PoolDeposit", "lp_deposited":
 		return webhooks.EventPoolDeposit

@@ -1,7 +1,7 @@
 # How It Works
 
-TrusTrove runs on four Soroban smart contracts deployed on Stellar. Here is the complete
-flow from invoice creation to repayment.
+TrusTrove runs on four TrusTrove contracts plus the Underwrite agent registry deployed on
+Stellar. Here is the complete flow from invoice creation to repayment.
 
 ### Step 1 — Register
 
@@ -13,6 +13,7 @@ in the protocol. This is a one-time step.
 
 The SME calls `invoice_contract.create()` with four pieces of information:
 
+- Issuer address (the SME)
 - Buyer address
 - Face value in USDC
 - Due date
@@ -21,6 +22,11 @@ The contract generates a unique invoice ID and stores the invoice on-chain with 
 `Created`. Nothing moves at this point.
 
 ### Step 3 — List for financing
+
+> **Attestation requirement:** Before an invoice can be listed, an Underwrite agent must
+> submit an on-chain risk attestation. Calling `list_for_financing()` without a stored
+> attestation fails with `VerificationRequired`. See
+> [submit_attestation](../smart-contracts/invoice-contract.md#submit_attestation).
 
 The SME calls `list_for_financing()` and sets a discount rate in basis points.
 200 basis points = 2%. This is the cost of getting paid early. Status changes to `Listed`.
@@ -57,7 +63,8 @@ as yield across LP shares, increasing the share price for all LPs proportionally
 
 ### What happens on default
 
-If the due date passes without repayment, anyone can call `trigger_default()`.
+If the due date passes without repayment, the admin or `pool_contract` can call `trigger_default()`
+(the invoice must be in `Funded`, `Active`, or `Confirmed` status).
 Because the funded amount was already released to the SME at funding time,
 escrow holds nothing for the invoice and the pool recovers nothing. The pool
 writes down the full funded amount, which reduces share value for all LPs —
