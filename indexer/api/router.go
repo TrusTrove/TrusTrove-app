@@ -519,9 +519,9 @@ func AccessLogMiddleware() func(http.Handler) http.Handler {
 // Aliases for callers/tests that refer to the slog access logger by other
 // common names.
 func SlogAccessLogMiddleware() func(http.Handler) http.Handler { return AccessLogMiddleware() }
-func SlogLoggerMiddleware() func(http.Handler) http.Handler       { return AccessLogMiddleware() }
-func RequestLoggerMiddleware() func(http.Handler) http.Handler     { return AccessLogMiddleware() }
-func LoggingMiddleware() func(http.Handler) http.Handler           { return AccessLogMiddleware() }
+func SlogLoggerMiddleware() func(http.Handler) http.Handler    { return AccessLogMiddleware() }
+func RequestLoggerMiddleware() func(http.Handler) http.Handler { return AccessLogMiddleware() }
+func LoggingMiddleware() func(http.Handler) http.Handler       { return AccessLogMiddleware() }
 
 func metricsTokenMiddleware(expected string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
