@@ -119,13 +119,13 @@ func (h *APIHandler) HandleCreateWebhook(w http.ResponseWriter, r *http.Request)
 
 	secret, err := generateSecret()
 	if err != nil {
-		http.Error(w, "failed to generate secret", http.StatusInternalServerError)
+		internalError(w, r, "failed to generate secret", err)
 		return
 	}
 
 	sub, err := createWebhookSub(r.Context(), userAddr, req.URL, secret, req.EventTypes)
 	if err != nil {
-		http.Error(w, "failed to create webhook subscription", http.StatusInternalServerError)
+		internalError(w, r, "failed to create webhook subscription", err)
 		return
 	}
 
@@ -143,7 +143,7 @@ func (h *APIHandler) HandleGetWebhooks(w http.ResponseWriter, r *http.Request) {
 
 	subs, err := getWebhookSubs(r.Context(), userAddr)
 	if err != nil {
-		http.Error(w, "failed to query webhooks", http.StatusInternalServerError)
+		internalError(w, r, "failed to query webhooks", err)
 		return
 	}
 
@@ -169,7 +169,7 @@ func (h *APIHandler) HandleDeleteWebhook(w http.ResponseWriter, r *http.Request)
 
 	affected, err := deleteWebhookSub(r.Context(), id, userAddr)
 	if err != nil {
-		http.Error(w, "failed to delete webhook", http.StatusInternalServerError)
+		internalError(w, r, "failed to delete webhook", err)
 		return
 	}
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { PageLayout } from "@/components/shared/PageLayout";
 import { WalletConnect } from "@/components/shared/WalletConnect";
 import { SimulationPreview } from "@/components/shared/SimulationPreview";
@@ -9,11 +9,13 @@ import {
   PoolStatsPanelSkeleton,
 } from "@/components/shared/SkeletonLoader";
 import { usePool } from "@/hooks/usePool";
+import { useRecentEvents } from "@/hooks/useEvents";
 import { useWalletStore } from "@/store/wallet";
 import { useConfirmDialogStore } from "@/store/confirmDialog";
 import { PoolClient, type SimulationResult } from "@trusttrove/sdk";
 import { Address, nativeToScVal } from "@stellar/stellar-sdk";
 import { formatAmount } from "@/lib/assets";
+import { getEventDataString } from "@/types";
 
 const poolContractID = process.env.NEXT_PUBLIC_POOL_CONTRACT_ID || "";
 const STROOPS_PER_UNIT = 10_000_000;
@@ -25,6 +27,9 @@ function formatShareValue(value: bigint | undefined): string {
 export default function LPDashboard() {
   const connected = useWalletStore((s) => s.connected);
   const address = useWalletStore((s) => s.address);
+  const { events: indexedEvents } = useRecentEvents(1000);
+  const [statementStart, setStatementStart] = useState("");
+  const [statementEnd, setStatementEnd] = useState("");
   const {
     deposit,
     withdraw,
@@ -86,6 +91,77 @@ export default function LPDashboard() {
       clearTimeout(timer);
     };
   }, [address, depositAmount]);
+
+  const statement = useMemo(() => {
+    const startTs = statementStart
+      ? Math.floor(new Date(statementStart).getTime() / 1000)
+      : 0;
+    const endTs = statementEnd
+      ? Math.floor(new Date(statementEnd).getTime() / 1000) + 86399
+      : Number.MAX_SAFE_INTEGER;
+
+    let deposits = 0n;
+    let withdrawals = 0n;
+    let yieldEarned = 0n;
+    const rows: Array<{
+      date: string;
+      type: string;
+      amount: string;
+      cashFlow: string;
+      yield: string;
+    }> = [];
+
+    for (const event of indexedEvents) {
+      if (event.ledger_closed_at < startTs || event.ledger_closed_at > endTs)
+        continue;
+      const account = getEventDataString(event, "account");
+      const amount = getEventDataString(event, "amount") ?? "0";
+      const yieldAmount = getEventDataString(event, "yield_amount") ?? "0";
+      const type = event.event_type.toLowerCase();
+
+      if (
+        (type === "deposit" || type === "lp_deposited") &&
+        account === address
+      ) {
+        deposits += BigInt(amount);
+        rows.push({
+          date: new Date(event.ledger_closed_at * 1000).toISOString(),
+          type: "Deposit",
+          amount,
+          cashFlow: `-${amount}`,
+          yield: "0",
+        });
+      } else if (
+        (type === "withdraw" || type === "lp_withdrawn") &&
+        account === address
+      ) {
+        withdrawals += BigInt(amount);
+        rows.push({
+          date: new Date(event.ledger_closed_at * 1000).toISOString(),
+          type: "Withdrawal",
+          amount,
+          cashFlow: amount,
+          yield: "0",
+        });
+      } else if (
+        type === "receive_repayment" ||
+        type === "repayment_received" ||
+        type === "yield_distribution"
+      ) {
+        yieldEarned += BigInt(yieldAmount);
+        rows.push({
+          date: new Date(event.ledger_closed_at * 1000).toISOString(),
+          type: "Yield",
+          amount: yieldAmount,
+          cashFlow: "0",
+          yield: yieldAmount,
+        });
+      }
+    }
+
+    const netCashFlow = withdrawals - deposits;
+    return { deposits, withdrawals, yieldEarned, netCashFlow, rows };
+  }, [indexedEvents, address, statementStart, statementEnd]);
 
   if (!connected) {
     return (
@@ -149,6 +225,23 @@ export default function LPDashboard() {
     100,
     Math.max(0, (stats?.utilizationRateBps ?? 0) / 100),
   );
+
+  const handleExportStatement = () => {
+    const header = ["date", "type", "amount", "cash_flow", "yield"];
+    const lines = [header.join(",")];
+    for (const row of statement.rows) {
+      lines.push(
+        [row.date, row.type, row.amount, row.cashFlow, row.yield].join(","),
+      );
+    }
+    const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "lp-position-statement.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   // Both arcs come from the theme. `--muted` equals `--card` in the dark theme,
   // so the empty arc uses muted-foreground at low opacity instead of vanishing;
@@ -249,6 +342,63 @@ export default function LPDashboard() {
               </div>
             </div>
           )}
+        </section>
+
+        <section aria-labelledby="statement-heading" className="space-y-3">
+          <h2
+            id="statement-heading"
+            className="text-sm font-bold uppercase tracking-wider text-foreground"
+          >
+            Position Statement
+          </h2>
+          <div className="bg-card border border-border rounded-lg p-5 space-y-4">
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="space-y-1">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Start date
+                </span>
+                <input
+                  type="date"
+                  value={statementStart}
+                  onChange={(e) => setStatementStart(e.target.value)}
+                  className="rounded border border-input bg-background px-3 py-2 text-foreground"
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  End date
+                </span>
+                <input
+                  type="date"
+                  value={statementEnd}
+                  onChange={(e) => setStatementEnd(e.target.value)}
+                  className="rounded border border-input bg-background px-3 py-2 text-foreground"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={handleExportStatement}
+                className="rounded bg-primary px-4 py-2 font-semibold text-primary-foreground"
+              >
+                Export CSV
+              </button>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-4">
+              <Stat label="Deposits" value={statement.deposits.toString()} />
+              <Stat
+                label="Withdrawals"
+                value={statement.withdrawals.toString()}
+              />
+              <Stat
+                label="Realized Yield"
+                value={statement.yieldEarned.toString()}
+              />
+              <Stat
+                label="Net Cash Flow"
+                value={statement.netCashFlow.toString()}
+              />
+            </div>
+          </div>
         </section>
 
         <div className="grid gap-6 lg:grid-cols-2">
