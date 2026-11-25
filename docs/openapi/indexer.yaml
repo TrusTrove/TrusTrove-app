@@ -489,6 +489,46 @@ paths:
       responses:
         '204':
           description: Webhook deleted
+  /webhooks/{id}/deliveries:
+    get:
+      tags: [Webhooks]
+      summary: List webhook delivery attempts
+      description: >-
+        Returns one subscription's recent delivery attempts, newest first. The
+        subscription must belong to the token subject. Responses omit the
+        target URL, signing secret, and payload so destination credentials are
+        never exposed; `last_error` is the worker's stored error message.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        '200':
+          description: Delivery attempts for the subscription
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/WebhookDeliveryAttempt"
+                required: [data]
+        '400':
+          $ref: "#/components/responses/BadRequest"
+        '401':
+          $ref: "#/components/responses/Unauthorized"
+        '404':
+          $ref: "#/components/responses/NotFound"
+        '429':
+          $ref: "#/components/responses/RateLimited"
 components:
   securitySchemes:
     bearerAuth:
@@ -573,6 +613,56 @@ components:
         expires_in:
           type: integer
       required: [token, expires_in]
+
+    WebhookDeliveryAttempt:
+      type: object
+      description: >-
+        Redacted delivery row. Destination URL, signing secret, and payload are
+        intentionally absent.
+      properties:
+        id:
+          type: integer
+          format: int64
+        subscription_id:
+          type: string
+          format: uuid
+        event_type:
+          type: string
+        event_id:
+          type: string
+        status:
+          type: string
+          enum: [pending, delivered, dead_letter]
+        attempts:
+          type: integer
+        max_attempts:
+          type: integer
+        next_attempt_at:
+          type: string
+          format: date-time
+        last_status:
+          type: integer
+          nullable: true
+        last_error:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - subscription_id
+        - event_type
+        - event_id
+        - status
+        - attempts
+        - max_attempts
+        - next_attempt_at
+        - created_at
+        - updated_at
 
     CreateInvoiceRequest:
       type: object

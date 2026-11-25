@@ -37,6 +37,8 @@ vi.mock("@trusttrove/sdk", () => ({
   // Minimal stand-in for the SDK's stroop formatter, so the mocked module does
   // not pull in the rest of the SDK graph.
   toUsdc: (stroops: bigint) => (Number(stroops) / 10_000_000).toFixed(2),
+  // Network resolution applies its selection through the SDK.
+  configureSDK: () => {},
 }));
 
 import {
@@ -279,7 +281,43 @@ describe("list-invoices command", () => {
     ]);
 
     expect(stderr()).toContain("Error: Simulation failed");
-    expect(process.exitCode).toBe(1);
+    // RPC failures use their own documented exit code, not the usage code.
+    expect(process.exitCode).toBe(2);
+  });
+
+  it("emits a structured error with --json", async () => {
+    await runCli([
+      "--status",
+      "Nope",
+      "--public-key",
+      PUBLIC_KEY,
+      "--contract-id",
+      CONTRACT_ID,
+      "--json",
+    ]);
+
+    const payload = JSON.parse(stderr()) as {
+      error: { code: string; message: string; exitCode: number };
+    };
+    expect(payload.error.code).toBe("USAGE_ERROR");
+    expect(payload.error.exitCode).toBe(1);
+    expect(payload.error.message).toContain('Unknown status "Nope"');
+  });
+
+  it("prints the selected network header", async () => {
+    await runCli([
+      "--status",
+      "Funded",
+      "--public-key",
+      PUBLIC_KEY,
+      "--contract-id",
+      CONTRACT_ID,
+      "--network",
+      "mainnet",
+    ]);
+
+    expect(stdout()).toContain("Network: mainnet");
+    expect(stdout()).toContain("RPC: https://soroban-mainnet.stellar.org");
   });
 });
 

@@ -340,6 +340,29 @@ two tables hold the state:
   [Delivery Guarantees](#delivery-guarantees)) and is `NULL` when the row is
   free; migration `010_add_webhook_delivery_locking.sql` added the column.
 
+To inspect recent failures without opening a dashboard, call
+`GET /webhooks/{id}/deliveries?limit=20` with the same JWT the subscription
+routes use:
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8080/webhooks/00000000-0000-0000-0000-000000000001/deliveries?limit=20"
+```
+
+The response is `{ "data": [...] }`, newest first, with `status`, `attempts`,
+`max_attempts`, `last_status`, `last_error`, and `next_attempt_at`. It omits the
+subscription's target URL, signing secret, and the delivery payload, so
+destination credentials are never exposed. A subscription owned by another user
+returns `404`, identical to a missing subscription.
+
+The CLI wraps this endpoint as
+[`trusttrove webhook-deliveries`](./cli.md#webhook-deliveries):
+
+```bash
+TRUSTTROVE_API_TOKEN="$TOKEN" trusttrove webhook-deliveries \
+  --subscription-id 00000000-0000-0000-0000-000000000001
+```
+
 ## Implementation Details
 
 The webhook system was implemented in three phases:
