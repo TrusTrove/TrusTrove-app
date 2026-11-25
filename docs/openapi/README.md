@@ -20,6 +20,7 @@ The OpenAPI 3.0 specification for the Go indexer/API lives in [`indexer.yaml`](.
 | GET    | `/pool/position/{address}` | None | LP position by address                                |
 | POST   | `/webhooks`                | JWT  | Create webhook subscription                           |
 | GET    | `/webhooks`                | JWT  | List webhook subscriptions                            |
+| GET    | `/webhooks/{id}/deliveries` | JWT  | List delivery attempts for a webhook subscription     |
 | DELETE | `/webhooks/{id}`           | JWT  | Delete webhook subscription                           |
 
 ## Linting
