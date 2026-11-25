@@ -8,10 +8,13 @@
    * `apps/web/app/layout.tsx` renders on <html> by default and the theme
    * toggle (components/shared/ThemeToggle.tsx) adds/removes at runtime.
    *
-   * Light values are tuned for WCAG AA (>= 4.5:1) wherever they are used as
-   * text: foreground/muted-foreground on every surface, and the --primary,
-   * --secondary and --destructive accents both as text on background, card and
-   * muted surfaces and as fills behind their *-foreground counterparts.
+   * Both `:root` and `.dark` values are tuned for WCAG AA (>= 4.5:1) wherever
+   * they are used as text: foreground/muted-foreground on every surface
+   * (background, card, muted, popover), and the --primary, --secondary,
+   * --accent, and --destructive accents both as text on surfaces and as fills
+   * behind their *-foreground counterparts (dark ratios: muted-fg 5.33:1 on
+   * background / 5.07:1 on card/muted, secondary-fg & accent-fg 5.41:1,
+   * destructive-fg 5.21:1).
    */
   :root {
     --background: 210 40% 98%;
@@ -76,7 +79,9 @@
        what --primary-foreground already does over --primary. */
     --accent-foreground: 210 33% 4.7%;
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    /* Light text (210 40% 98%) on --destructive measured 3.59:1 (AA fail);
+       near-black restores 5.21:1, matching the other dark accent fills. */
+    --destructive-foreground: 210 33% 4.7%;
     /* Status accents light enough for text on the dark surfaces (9-10:1). */
     --success: 160 84% 45%;
     --success-foreground: 210 33% 4.7%;
