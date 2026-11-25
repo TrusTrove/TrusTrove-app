@@ -8,9 +8,11 @@ import { useFocusTrap } from "@/hooks/useFocusTrap";
 export function NotificationBell({
   notifications = [],
   onOpen,
+  align = "right",
 }: {
   notifications?: NotificationEvent[];
   onOpen?: () => void;
+  align?: "left" | "right";
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -69,7 +71,11 @@ export function NotificationBell({
       {isOpen && (
         <div
           ref={dropdownRef}
-          className="absolute right-0 md:right-auto md:left-auto mt-2 w-80 max-h-96 overflow-y-auto bg-card border border-border rounded-lg shadow-2xl z-50 p-2 flex flex-col gap-2 origin-top-right md:origin-top"
+          className={`absolute ${
+            align === "left"
+              ? "left-0 right-auto origin-top-left"
+              : "right-0 left-auto origin-top-right"
+          } mt-2 w-[min(20rem,calc(100vw-2rem))] max-h-96 overflow-y-auto bg-card border border-border rounded-lg shadow-2xl z-50 p-2 flex flex-col gap-2`}
         >
           <div ref={trapRef} tabIndex={-1} className="outline-none">
             <div className="flex items-center justify-between px-2 py-1 mb-2 border-b border-border/40 pb-2">

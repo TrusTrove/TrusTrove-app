@@ -15,6 +15,10 @@ function renderNavbar() {
 }
 
 const setRole = vi.fn();
+const mockBalancesState = vi.hoisted(() => ({
+  balances: { usdc: "1" as string | null, xlm: "2" as string | null },
+  loading: false,
+}));
 
 vi.mock("next/link", () => ({
   default: ({
@@ -28,7 +32,7 @@ vi.mock("./WalletConnect", () => ({
 }));
 vi.mock("./SkeletonLoader", () => ({ SkeletonShimmer: () => <span /> }));
 vi.mock("@/hooks/useBalances", () => ({
-  useBalances: () => ({ balances: { usdc: "1", xlm: "2" }, loading: false }),
+  useBalances: () => mockBalancesState,
 }));
 vi.mock("@/hooks/useProfile", () => ({
   useProfile: () => ({ isVerified: false }),
@@ -151,5 +155,38 @@ describe("Navbar onboarding tour", () => {
     expect(screen.getByRole("dialog")).toHaveAccessibleName(
       "Welcome to TrusTrove",
     );
+  });
+});
+
+describe("Navbar testnet USDC faucet link", () => {
+  beforeEach(() => {
+    mockBalancesState.balances = { usdc: "1", xlm: "2" };
+    mockBalancesState.loading = false;
+  });
+
+  it("is hidden when USDC balance is positive", () => {
+    renderNavbar();
+    expect(
+      screen.queryByRole("link", { name: /get testnet usdc/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders an inline keyboard-reachable link when USDC balance is zero", () => {
+    mockBalancesState.balances = { usdc: "0", xlm: "2" };
+    renderNavbar();
+    const link = screen.getByRole("link", { name: /get testnet usdc/i });
+    expect(link).toHaveAttribute("href", "https://demo.stellar.org");
+    expect(link.closest(".hidden")).toBeNull();
+  });
+
+  it("renders the faucet link and balances in the mobile menu when USDC is unavailable", () => {
+    mockBalancesState.balances = { usdc: null, xlm: "2" };
+    renderNavbar();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open navigation menu" }),
+    );
+    const links = screen.getAllByRole("link", { name: /get testnet usdc/i });
+    expect(links.length).toBe(2);
+    expect(screen.getAllByText("— USDC").length).toBe(2);
   });
 });

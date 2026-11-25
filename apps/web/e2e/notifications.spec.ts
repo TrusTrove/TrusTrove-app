@@ -370,4 +370,21 @@ test.describe("Notification bell, persistence and preferences", () => {
       dropdown(page).getByText("Invoice Funded", { exact: true }),
     ).toHaveCount(0);
   });
+
+  test("keeps the notification dropdown within a 320px mobile viewport", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.goto("/");
+
+    await page
+      .getByRole("button", { name: /open navigation menu/i })
+      .click();
+    await openBell(page);
+
+    const box = await dropdown(page).boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(320);
+  });
 });

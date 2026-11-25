@@ -36,6 +36,14 @@ program
     "--pool-contract-id <id>",
     `override the pool contract ID (or set ${POOL_CONTRACT_ID_ENV_VARS.join(", ")})`,
   )
+  .option(
+    "--rpc-url <url>",
+    "Soroban RPC URL (or set TRUSTTROVE_RPC_URL)",
+  )
+  .option(
+    "--network-passphrase <passphrase>",
+    "Stellar network passphrase (or set TRUSTTROVE_NETWORK_PASSPHRASE)",
+  )
   .action(async (options: CheckPoolBalanceOptions) => {
     await checkPoolBalanceCommand(options);
   });
