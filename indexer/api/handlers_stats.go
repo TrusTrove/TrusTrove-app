@@ -199,7 +199,7 @@ func (h *APIHandler) HandleGetLPPosition(w http.ResponseWriter, r *http.Request)
 
 	addrVal, err := soroban.MakeAddressScVal(address)
 	if err != nil {
-		http.Error(w, "failed to build address ScVal", http.StatusInternalServerError)
+		internalError(w, r, "failed to build address ScVal", err)
 		return
 	}
 

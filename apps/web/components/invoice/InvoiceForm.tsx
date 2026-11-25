@@ -339,7 +339,8 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
                 Financing Cost
               </span>
               <span className="text-primary font-bold">
-                {discountBps} bps ({(discountBps / 100).toFixed(2)}%) • {discountPaid.toLocaleString()} {asset}
+                {discountBps} bps ({(discountBps / 100).toFixed(2)}%) •{" "}
+                {discountPaid.toLocaleString()} {asset}
               </span>
             </div>
             <input
@@ -404,7 +405,10 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
             {immediateList && (
               <>
                 <div className="flex justify-between text-rose-400">
-                  <span>Discount ({discountBps} bps / {(discountBps / 100).toFixed(2)}%):</span>
+                  <span>
+                    Discount ({discountBps} bps /{" "}
+                    {(discountBps / 100).toFixed(2)}%):
+                  </span>
                   <span>
                     -{discountPaid.toLocaleString()} {asset}
                   </span>

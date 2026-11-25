@@ -35,7 +35,8 @@ export function ConfirmationDialog() {
       return (
         <div className="space-y-3 mb-5">
           <p className="text-xs text-amber-700 dark:text-amber-400 font-mono">
-            {walletError || "Active wallet cannot sign on the configured network."}
+            {walletError ||
+              "Active wallet cannot sign on the configured network."}
           </p>
           <Button
             className="w-full bg-primary text-primary-foreground text-xs font-bold uppercase py-2"
@@ -119,12 +120,12 @@ export function ConfirmationDialog() {
             Cancel
           </Button>
           {canSign && (
-          <Button
-            className="flex-1 bg-rose-700 hover:bg-rose-800 dark:bg-rose-600 dark:hover:bg-rose-700 text-white text-[10px] font-bold uppercase py-2"
-            onClick={handleConfirm}
-          >
-            CONFIRM
-          </Button>
+            <Button
+              className="flex-1 bg-rose-700 hover:bg-rose-800 dark:bg-rose-600 dark:hover:bg-rose-700 text-white text-[10px] font-bold uppercase py-2"
+              onClick={handleConfirm}
+            >
+              CONFIRM
+            </Button>
           )}
         </div>
       </div>

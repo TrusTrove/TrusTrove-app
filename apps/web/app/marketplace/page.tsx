@@ -88,7 +88,22 @@ function readPresetsFromStorage(address?: string): FilterPreset[] {
     const stored = window.localStorage.getItem(key);
     if (!stored) return [];
     const parsed = JSON.parse(stored);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    // Malformed saved data (missing fields, wrong types, or a hand-edited
+    // blob) must never crash the table: drop anything that does not look like
+    // a valid preset and keep the rest.
+    return parsed.filter(
+      (entry): entry is FilterPreset =>
+        typeof entry === "object" &&
+        entry !== null &&
+        typeof entry.name === "string" &&
+        typeof entry.filters === "object" &&
+        entry.filters !== null &&
+        typeof entry.filters.statusFilter === "string" &&
+        typeof entry.filters.minAmount === "string" &&
+        typeof entry.filters.maxAmount === "string" &&
+        typeof entry.filters.maxDiscount === "string",
+    );
   } catch {
     return [];
   }

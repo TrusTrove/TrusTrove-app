@@ -23,6 +23,8 @@ import (
 type APIHandler struct {
 	cfg             *config.Config
 	serverKP        *keypair.Full
+	submitMu        sync.Mutex
+	seqMgr          sequenceManager
 	statsMu         sync.RWMutex
 	statsData       *db.ProtocolStats
 	statsCached     time.Time
@@ -55,7 +57,7 @@ func NewAPIHandler(cfg *config.Config) (*APIHandler, error) {
 		cfg:             cfg,
 		serverKP:        kp,
 		respCache:       NewTTLCache(),
-		listenerHealth:  NewListenerHealth(),
+		listenerHealth:  NewListenerHealth(time.Duration(cfg.IndexerPollIntervalMs) * time.Millisecond),
 		dbHealthChecker: defaultDBHealthChecker,
 		getInvoiceByIDFn: func(ctx context.Context, id string) (*db.DbInvoice, error) {
 			return db.GetInvoiceByID(ctx, db.Pool, id)
@@ -146,7 +148,11 @@ func writeHTTPError(w http.ResponseWriter, r *http.Request, err error) {
 
 func (h *APIHandler) ListenerHealth() *ListenerHealth {
 	if h.listenerHealth == nil {
-		h.listenerHealth = NewListenerHealth()
+		var pollInterval time.Duration
+		if h.cfg != nil {
+			pollInterval = time.Duration(h.cfg.IndexerPollIntervalMs) * time.Millisecond
+		}
+		h.listenerHealth = NewListenerHealth(pollInterval)
 	}
 	return h.listenerHealth
 }
