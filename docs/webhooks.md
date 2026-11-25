@@ -2,6 +2,9 @@
 
 The TrusTrove indexer provides a webhook system for external systems to subscribe to real-time event notifications.
 
+For receiver-side setup, signature checks, retries, dead letters, and secret
+rotation, see the [Webhook Operations Runbook](./developer-guide/webhook-operations-runbook.md).
+
 ## Overview
 
 Webhooks allow external systems to receive HTTP POST notifications when specific events occur on-chain. The system supports:
@@ -90,12 +93,10 @@ arguments:
 | `pool.withdrawal`        | User withdrew from pool      |
 | `pool.yield_distributed` | Yield distributed to LPs     |
 
-> **Known issue:** the envelope's `event_type` always uses the names above, but
-> the subscription lookup currently compares a subscription's `event_types`
-> against the raw contract event name (for example `InvoiceCreated`) instead of
-> the public name. A subscription that lists `invoice.created` therefore receives
-> no deliveries today. Subscribe with the public names above; they will start
-> matching once the lookup is fixed.
+The dispatcher maps the contract's internal event name (for example
+`InvoiceCreated` or `fund_invoice`) to the public name before it looks up
+subscriptions, so a subscription that lists `invoice.created` matches the
+event and receives deliveries.
 
 ### Signatures
 
@@ -213,11 +214,12 @@ de-duplicating on `event_id` (which you need anyway, see
 [Delivery Guarantees](#delivery-guarantees)) makes a replay inside the window
 harmless.
 
-**Endpoint security:** subscription URLs are checked once, when the
-subscription is created (see [Subscription Management](#subscription-management)),
-not at delivery time. Plain `http://` is accepted, so use an `https://`
-endpoint, keep the signing secret out of source control and logs, and rotate it
-if it leaks.
+**Endpoint security:** subscription URLs are checked when the subscription is
+created and re-checked on every delivery and redirect (see
+[Subscription Management](#subscription-management)), so a hostname that later
+resolves to a private address is refused at delivery time. Plain `http://` is
+accepted, so use an `https://` endpoint, keep the signing secret out of source
+control and logs, and rotate it if it leaks.
 
 ### Delivery Semantics
 
@@ -232,8 +234,10 @@ What a receiver sees, per attempt:
   attempt. Answer quickly and process asynchronously.
 - **Timeout:** the whole attempt (connect, send, response headers and body) has
   10 seconds.
-- **Redirects** are followed (Go's default, up to 10). A `301`, `302` or `303`
-  turns the `POST` into a `GET` without a body, so register the final URL.
+- **Redirects** are followed until the request chain reaches 10 requests (at
+  most 9 redirects), and every hop is re-checked against the public-address
+  guard. A `301`, `302` or `303` turns the `POST` into a `GET` without a body,
+  so register the final URL.
 - **Response storage:** on success, up to the first 4096 bytes of your response
   body are stored in `webhook_deliveries.last_response`. On failure only the
   status code (`last_status`) and an error message (`last_error`, for example
