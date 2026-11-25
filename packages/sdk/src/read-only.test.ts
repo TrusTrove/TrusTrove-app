@@ -88,9 +88,9 @@ describe("createReadOnlyClient", () => {
     expect(() => createReadOnlyClient(config({ rpcUrl: "  " }))).toThrow(
       /RPC URL is required/,
     );
-    expect(() => createReadOnlyClient(config({ rpcUrl: "ftp://example.com" }))).toThrow(
-      /Expected an http\(s\) URL/,
-    );
+    expect(() =>
+      createReadOnlyClient(config({ rpcUrl: "ftp://example.com" })),
+    ).toThrow(/Expected an http\(s\) URL/);
   });
 
   it("requires a passphrase for a custom network", () => {

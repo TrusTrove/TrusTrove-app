@@ -105,10 +105,7 @@ export async function lpPositionCommand(
   dependencies: LpPositionDependencies = {},
 ): Promise<void> {
   try {
-    const address = assertStellarAccountAddress(
-      options.address ?? "",
-      "LP",
-    );
+    const address = assertStellarAccountAddress(options.address ?? "", "LP");
     const publicKey = resolvePublicKey(options, address);
     const poolContractId = resolvePoolContractId(options);
     const network = resolveNetwork({
@@ -143,9 +140,7 @@ export async function lpPositionCommand(
  * RPC call, and simulation failures are reported on stderr with exit code 2.
  */
 export function registerLpPositionCommand(program: Command): Command {
-  const lp = program
-    .command("lp")
-    .description("Liquidity provider commands");
+  const lp = program.command("lp").description("Liquidity provider commands");
 
   return lp
     .command("position")
@@ -168,10 +163,7 @@ export function registerLpPositionCommand(program: Command): Command {
     )
     .option("--json", "emit structured errors as JSON on stderr")
     .action(
-      async (
-        address: string,
-        options: Omit<LpPositionOptions, "address">,
-      ) => {
+      async (address: string, options: Omit<LpPositionOptions, "address">) => {
         await lpPositionCommand({ ...options, address });
       },
     );
