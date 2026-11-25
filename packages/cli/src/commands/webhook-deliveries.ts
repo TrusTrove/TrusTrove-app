@@ -1,9 +1,5 @@
 import { Command } from "commander";
-import {
-  API_URL_ENV_VAR,
-  DEFAULT_API_URL,
-  resolveApiUrl,
-} from "../api.js";
+import { API_URL_ENV_VAR, DEFAULT_API_URL, resolveApiUrl } from "../api.js";
 import {
   authError,
   redactUrl,
