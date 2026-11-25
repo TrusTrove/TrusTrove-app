@@ -2,12 +2,14 @@
 
 ## Tech Stack
 
+
 - **Web application:** Next.js app in `apps/web`.
 - **TypeScript SDK:** `@trusttrove/sdk` in `packages/sdk`, with contract client wrappers.
 - **React package:** `@trusttrove/sdk-react` in `packages/sdk-react`, with React hooks and providers.
 - **CLI:** `@trusttrove/cli` in `packages/cli`.
 - **Examples:** Runnable integrations and SDK usage in `examples/`.
 - **Indexer and API:** Go service in `indexer/`.
+
 
 ## Local Setup
 
