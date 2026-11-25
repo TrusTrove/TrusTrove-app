@@ -1,6 +1,13 @@
-import { renderHook, act } from '@testing-library/react';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { useInvoiceDraft } from '../useInvoiceDraft';
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { renderHook, act } from "@testing-library/react";
+import { useInvoiceDraft } from "../useInvoiceDraft";
+
+vi.mock("@/store/wallet", () => ({
+  useWalletStore: vi.fn((selector) => {
+    const state = { address: "addr1", connected: true };
+    return selector ? selector(state) : state;
+  }),
+}));
 
 describe('useInvoiceDraft', () => {
   beforeEach(() => {
