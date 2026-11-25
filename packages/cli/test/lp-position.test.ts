@@ -29,7 +29,8 @@ import { Command } from "commander";
 import { registerLpPositionCommand } from "../src/commands/lp-position.js";
 
 const LP = "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB";
-const POOL_CONTRACT_ID = "CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS";
+const POOL_CONTRACT_ID =
+  "CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS";
 
 const makePosition = (overrides: Record<string, unknown> = {}) => ({
   shares: 1_000_000n,
