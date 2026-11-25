@@ -30,6 +30,30 @@ export const POOL_CONTRACT_ID_ENV_VARS = [
   "POOL_CONTRACT_ID",
 ] as const;
 
+/**
+ * Resolves the pool contract ID from the flag, the documented environment
+ * variables, then the SDK config. Shared by pool read commands so they all
+ * honor the same precedence.
+ */
+export function resolvePoolContractId(
+  options: Pick<CheckPoolBalanceOptions, "poolContractId"> = {},
+): string {
+  const poolContractId =
+    options.poolContractId ??
+    process.env.TRUSTTROVE_POOL_CONTRACT_ID ??
+    process.env.NEXT_PUBLIC_POOL_CONTRACT_ID ??
+    process.env.POOL_CONTRACT_ID ??
+    getConfig().contractIds.pool;
+
+  if (!poolContractId) {
+    throw usageError(
+      `Missing pool contract ID. Provide --pool-contract-id or set ` +
+        `${POOL_CONTRACT_ID_ENV_VARS.join(", ")} (see .env.example).`,
+    );
+  }
+  return poolContractId;
+}
+
 export async function checkPoolBalanceCommand(
   options: CheckPoolBalanceOptions = {},
 ): Promise<void> {
@@ -46,19 +70,7 @@ export async function checkPoolBalanceCommand(
       );
     }
 
-    const poolContractId =
-      options.poolContractId ??
-      process.env.TRUSTTROVE_POOL_CONTRACT_ID ??
-      process.env.NEXT_PUBLIC_POOL_CONTRACT_ID ??
-      process.env.POOL_CONTRACT_ID ??
-      getConfig().contractIds.pool;
-
-    if (!poolContractId) {
-      throw usageError(
-        `Missing pool contract ID. Provide --pool-contract-id or set ` +
-          `${POOL_CONTRACT_ID_ENV_VARS.join(", ")} (see .env.example).`,
-      );
-    }
+    const poolContractId = resolvePoolContractId(options);
 
     const network = resolveNetwork({
       network: options.network,

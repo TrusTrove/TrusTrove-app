@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs";
 import { Command } from "commander";
 import { registerCheckPoolBalanceCommand } from "./commands/check-pool-balance.js";
+import { registerInvoiceExportCommand } from "./commands/invoice-export.js";
 import { registerListInvoicesCommand } from "./commands/list-invoices.js";
+import { registerLpPositionCommand } from "./commands/lp-position.js";
 import { registerWebhookDeliveriesCommand } from "./commands/webhook-deliveries.js";
 import { registerCompletionCommand } from "./completion.js";
 
@@ -32,6 +34,8 @@ export function createProgram(): Command {
 
   registerCheckPoolBalanceCommand(program);
   registerListInvoicesCommand(program);
+  registerLpPositionCommand(program);
+  registerInvoiceExportCommand(program);
   registerWebhookDeliveriesCommand(program);
   registerCompletionCommand(program);
 

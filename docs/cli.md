@@ -63,6 +63,83 @@ trusttrove check-pool-balance \
 | `--rpc-url <url>`         | Custom Soroban RPC endpoint.                                                                                                          |
 | `--json`                  | Emit errors as structured JSON on stderr.                                                                                             |
 
+### `lp position`
+
+Shows one liquidity provider's current pool position: shares, estimated asset
+value, principal, and yield earned. The address is validated locally, so a
+malformed address fails before any Soroban RPC call.
+
+```bash
+trusttrove lp position G... \
+  --public-key G... \
+  --pool-contract-id C... \
+  --network mainnet
+```
+
+| Flag                      | Description                                                                                                                                 |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<address>`               | LP Stellar account address (`G...`). Required.                                                                                              |
+| `--public-key <key>`      | Public key for the read-only simulation. Defaults to `TRUSTTROVE_PUBLIC_KEY`, `NEXT_PUBLIC_PUBLIC_KEY`, `PUBLIC_KEY`, then the LP address.   |
+| `--pool-contract-id <id>` | Pool contract ID. Defaults to `TRUSTTROVE_POOL_CONTRACT_ID`, `NEXT_PUBLIC_POOL_CONTRACT_ID`, `POOL_CONTRACT_ID`, then the SDK config.       |
+| `--network <network>`     | `testnet` or `mainnet`. See [Network selection](#network-selection).                                                                         |
+| `--rpc-url <url>`         | Custom Soroban RPC endpoint.                                                                                                                 |
+| `--json`                  | Emit errors as structured JSON on stderr.                                                                                                    |
+
+Shares are printed as raw share units, not USDC. Principal is the estimated
+original deposit (`usdc_value - yield_earned`) and is floored at zero. An
+address with no shares prints a zero position rather than an error.
+
+```text
+Network: testnet
+RPC: https://soroban-testnet.stellar.org
+Pool contract: C...
+LP address: G...
+Shares: 1000000
+Estimated asset value: 2600.00 USDC
+Principal: 2500.00 USDC
+Yield earned: 100.00 USDC
+Deposits: 3
+```
+
+### `invoice export`
+
+Exports every invoice matching the filters from the indexer API as CSV. The
+command walks all API pages (100 rows per page), so the output is the complete
+filtered set rather than one page.
+
+```bash
+trusttrove invoice export \
+  --status Funded \
+  --issuer G... \
+  --buyer G... \
+  --output invoices.csv
+```
+
+| Flag                  | Description                                                                                             |
+| --------------------- | ------------------------------------------------------------------------------------------------------- |
+| `--status <status>`   | One of `Created`, `Listed`, `Funded`, `Active`, `Confirmed`, `Repaid`, `Defaulted` (case-insensitive).  |
+| `--issuer <address>`  | Filter by issuer Stellar account address.                                                               |
+| `--buyer <address>`   | Filter by buyer Stellar account address.                                                                |
+| `--api-url <url>`     | Indexer base URL. Defaults to `TRUSTTROVE_API_URL`, then `http://localhost:8080`.                       |
+| `--output <file>`     | Write the CSV to a file instead of stdout.                                                              |
+| `--json`              | Emit errors as structured JSON on stderr.                                                               |
+
+Filters are optional and can be combined. The indexer supports `status` and
+`issuer` server-side; because `GET /invoices` has no buyer parameter, a
+`--buyer` filter is applied to the rows after all pages are read. Invalid
+statuses and addresses fail before the first request.
+
+CSV output has a header row and one row per invoice. `face_value` and
+`funded_amount` are written exactly as the indexer returns them (full decimal
+strings, no JavaScript number conversion). Cells that begin with `=`, `+`,
+`-`, `@`, a tab, or a carriage return are prefixed with `'` so spreadsheets do
+not execute them as formulas. An empty result writes just the header row.
+When stdout is used, redirect or pipe it as usual:
+
+```bash
+trusttrove invoice export --status Repaid > repaid.csv
+```
+
 ### `webhook-deliveries`
 
 Lists recent delivery attempts for one webhook subscription. This command calls
