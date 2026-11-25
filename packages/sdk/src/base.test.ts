@@ -444,8 +444,12 @@ describe("BaseContractClient", () => {
 
   describe("simulateTransaction", () => {
     it("returns the expected fee, footprint, and decoded result", async () => {
+      const requiredAuthorization = [{ entry: "authorization" }];
       mockServer.simulateTransaction.mockResolvedValue({
-        result: { retval: xdr.ScVal.scvU32(7) },
+        result: {
+          retval: xdr.ScVal.scvU32(7),
+          auth: requiredAuthorization,
+        },
         transactionData: {
           getReadOnly: () => Array.from({ length: 2 }),
           getReadWrite: () => Array.from({ length: 1 }),
@@ -462,8 +466,14 @@ describe("BaseContractClient", () => {
       expect(result.functionName).toBe("test_method");
       expect(result.expectedResult).toBe(7);
       expect(result.footprintSize).toBe(3);
+      expect(result.success).toBe(true);
+      expect(result.resourceFeeStroops).toBe(100n);
+      expect(result.requiredAuthorization).toBe(requiredAuthorization);
+      expect(result.failureDetails).toBeNull();
       // BASE_FEE (100) + minResourceFee (100) = 200 stroops => 0.00002 XLM
       expect(result.estimatedFeeXlm).toBe("0.0000200");
+      expect(mockServer.prepareTransaction).not.toHaveBeenCalled();
+      expect(mockServer.sendTransaction).not.toHaveBeenCalled();
     });
 
     it("falls back to the raw ScVal when scValToNative cannot decode the result", async () => {
@@ -501,7 +511,13 @@ describe("BaseContractClient", () => {
           [],
           "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB",
         ),
-      ).rejects.toBeInstanceOf(SimulationError);
+      ).rejects.toMatchObject({
+        method: "test_method",
+        failureDetails: {
+          method: "test_method",
+          message: "simulation rejected",
+        },
+      });
     });
   });
 

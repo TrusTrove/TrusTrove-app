@@ -86,6 +86,8 @@ export class SimulationError extends Error {
   readonly method: string;
   /** Underlying Soroban error message, when the RPC returned one. */
   readonly cause?: string;
+  /** Structured details about the rejected simulation. */
+  readonly failureDetails: SimulationFailureDetails;
 
   constructor(method: string, message?: string) {
     super(
@@ -95,8 +97,18 @@ export class SimulationError extends Error {
     );
     this.name = "SimulationError";
     this.method = method;
+    this.failureDetails = {
+      method,
+      message: message ?? "The RPC did not provide an error message",
+    };
     if (message) this.cause = message;
   }
+}
+
+/** Failure information carried by {@link SimulationError}. */
+export interface SimulationFailureDetails {
+  method: string;
+  message: string;
 }
 
 /**
@@ -243,14 +255,22 @@ async function withRetry<T>(
  * Result type returned by transaction simulations.
  */
 export interface SimulationResult {
+  /** Whether the RPC accepted the transaction simulation. */
+  success: true;
   /** Estimated fee in XLM (formatted to 7 decimal places) */
   estimatedFeeXlm: string;
+  /** Estimated Soroban resource fee in stroops, before the base fee. */
+  resourceFeeStroops: bigint;
   /** Name of the contract method being simulated */
   functionName: string;
   /** Decoded return value from the simulation, or undefined if none */
   expectedResult: unknown;
   /** Number of ledger entries accessed (read-only + read-write) */
   footprintSize: number;
+  /** Authorization entries the wallet may need to authorize. */
+  requiredAuthorization: xdr.SorobanAuthorizationEntry[];
+  /** Successful simulations have no failure details; failures throw {@link SimulationError}. */
+  failureDetails: null;
 }
 
 export class BaseContractClient {
@@ -426,12 +446,21 @@ export class BaseContractClient {
         expectedResult = retval;
       }
     }
-    const totalStroops = BigInt(BASE_FEE) + BigInt(sim.minResourceFee || "0");
+    const resourceFeeStroops = BigInt(sim.minResourceFee || "0");
+    const totalStroops = BigInt(BASE_FEE) + resourceFeeStroops;
+    const feeWholeXlm = totalStroops / 10_000_000n;
+    const feeFractionXlm = (totalStroops % 10_000_000n)
+      .toString()
+      .padStart(7, "0");
     return {
-      estimatedFeeXlm: (Number(totalStroops) / 10_000_000).toFixed(7),
+      success: true,
+      estimatedFeeXlm: `${feeWholeXlm}.${feeFractionXlm}`,
+      resourceFeeStroops,
       functionName: method,
       expectedResult,
       footprintSize,
+      requiredAuthorization: sim.result?.auth ?? [],
+      failureDetails: null,
     };
   }
 }

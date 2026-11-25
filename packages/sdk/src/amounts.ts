@@ -5,6 +5,7 @@
  * All SDK financial methods accept and return `bigint` in stroops.
  */
 const STROOPS_PER_USDC = 10_000_000;
+const BPS_DENOMINATOR = 10_000n;
 
 /**
  * Converts a stroop-denominated bigint to a human-readable USDC string
@@ -68,4 +69,89 @@ export function fromUsdc(usdc: string): bigint {
 
   const stroops = BigInt(intPart + paddedFrac);
   return negative ? -stroops : stroops;
+}
+
+function validateNonNegativeAmount(name: string, amount: bigint): void {
+  if (amount < 0n) {
+    throw new RangeError(`${name} must not be negative`);
+  }
+}
+
+function calculateDiscountAmount(faceValue: bigint, discountBps: number): bigint {
+  validateNonNegativeAmount("faceValue", faceValue);
+  if (!Number.isSafeInteger(discountBps) || discountBps < 0 || discountBps > 10_000) {
+    throw new RangeError("discountBps must be a whole number from 0 to 10000");
+  }
+
+  // Match the web preview: fractional-stroop discounts are rounded up.
+  return (
+    (faceValue * BigInt(discountBps) + BPS_DENOMINATOR - 1n) /
+    BPS_DENOMINATOR
+  );
+}
+
+/**
+ * Calculates the invoice discount in stroops, rounding up to the next stroop
+ * when the basis-point calculation has a fractional result.
+ *
+ * @param faceValue - Invoice face value in stroops.
+ * @param discountBps - Discount rate from 0 through 10,000 basis points.
+ */
+export function calculateDiscount(
+  faceValue: bigint,
+  discountBps: number,
+): bigint {
+  return calculateDiscountAmount(faceValue, discountBps);
+}
+
+/**
+ * Calculates the initial advance: face value less the financing discount.
+ *
+ * @param faceValue - Invoice face value in stroops.
+ * @param discountBps - Discount rate from 0 through 10,000 basis points.
+ */
+export function calculateAdvance(
+  faceValue: bigint,
+  discountBps: number,
+): bigint {
+  return faceValue - calculateDiscountAmount(faceValue, discountBps);
+}
+
+/**
+ * Calculates the time-proportional discount refund for early repayment.
+ * Integer division rounds down to the nearest stroop.
+ *
+ * @param discountAmount - Original financing discount in stroops.
+ * @param remainingTerm - Time remaining at repayment, in the same units as `totalTerm`.
+ * @param totalTerm - Original financing term; must be greater than zero.
+ */
+export function calculateEarlyRepaymentRefund(
+  discountAmount: bigint,
+  remainingTerm: bigint,
+  totalTerm: bigint,
+): bigint {
+  validateNonNegativeAmount("discountAmount", discountAmount);
+  if (totalTerm <= 0n) {
+    throw new RangeError("totalTerm must be greater than zero");
+  }
+  if (remainingTerm < 0n || remainingTerm > totalTerm) {
+    throw new RangeError("remainingTerm must be between zero and totalTerm");
+  }
+  return (discountAmount * remainingTerm) / totalTerm;
+}
+
+/**
+ * Calculates net proceeds after adding any early-repayment refund to the
+ * initial advance.
+ *
+ * @param advance - Initial advance in stroops.
+ * @param earlyRepaymentRefund - Discount refund in stroops, or zero.
+ */
+export function calculateNetProceeds(
+  advance: bigint,
+  earlyRepaymentRefund: bigint = 0n,
+): bigint {
+  validateNonNegativeAmount("advance", advance);
+  validateNonNegativeAmount("earlyRepaymentRefund", earlyRepaymentRefund);
+  return advance + earlyRepaymentRefund;
 }
