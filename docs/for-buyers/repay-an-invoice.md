@@ -13,13 +13,13 @@ command, endpoint, or UI control.
 
 ## What you need
 
-| Requirement    | Details                                                                                     |
-| -------------- | ------------------------------------------------------------------------------------------- |
-| Wallet         | Freighter on **Stellar Testnet**, connected with **Connect Wallet**                         |
+| Requirement    | Details                                                                                               |
+| -------------- | ----------------------------------------------------------------------------------------------------- |
+| Wallet         | Freighter on **Stellar Testnet**, connected with **Connect Wallet**                                   |
 | Identity       | Your wallet must be the invoice's buyer (registered in TrusTrove), and the app role must be **Buyer** |
-| Asset          | USDC for the current invoice repayment flow. Always repay in the asset shown on the invoice |
-| Balance        | At least the invoice face value, plus a small XLM balance for network fees                  |
-| Invoice status | `Confirmed`. If the invoice is `Funded` or `Active`, an earlier step is still pending       |
+| Asset          | USDC for the current invoice repayment flow. Always repay in the asset shown on the invoice           |
+| Balance        | At least the invoice face value, plus a small XLM balance for network fees                            |
+| Invoice status | `Confirmed`. If the invoice is `Funded` or `Active`, an earlier step is still pending                 |
 
 Amounts are stored in **stroops**: 1 USDC = 10,000,000 stroops. A $10,000.00
 invoice has `face_value: "100000000000"` in the API and in the contract call.
@@ -153,13 +153,13 @@ accounting entries.
 
 ### Invalid state, role, or network
 
-| Symptom                             | Cause                                                                   | Recovery                                                               |
-| ----------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Symptom                             | Cause                                                                                               | Recovery                                                                                 |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | **REPAY INVOICE** is not shown      | Invoice is not `Confirmed`, the app role is not **Buyer**, or the connected wallet is not the buyer | Complete **CONFIRM DELIVERY**, set the role to **Buyer**, and reconnect the buyer wallet |
-| Wrong-network message               | Freighter is not on Testnet                                             | Use **Switch to Testnet** or switch in Freighter, then reconnect       |
-| **Ledger entry not found**          | The invoice ID is wrong or not indexed                                  | Recheck the link and invoice ID; return to **Dashboard**               |
-| Repayment fails immediately         | Wrong status, wrong signer, unregistered buyer, or insufficient balance | Check status, wallet, registration, and USDC balance; no state changed |
-| Contract rejects a second repayment | Invoice is already `Repaid`                                             | Nothing to do; the first repayment already settled the invoice         |
+| Wrong-network message               | Freighter is not on Testnet                                                                         | Use **Switch to Testnet** or switch in Freighter, then reconnect                         |
+| **Ledger entry not found**          | The invoice ID is wrong or not indexed                                                              | Recheck the link and invoice ID; return to **Dashboard**                                 |
+| Repayment fails immediately         | Wrong status, wrong signer, unregistered buyer, or insufficient balance                             | Check status, wallet, registration, and USDC balance; no state changed                   |
+| Contract rejects a second repayment | Invoice is already `Repaid`                                                                         | Nothing to do; the first repayment already settled the invoice                           |
 
 ### Signing and transaction failures
 
