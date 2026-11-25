@@ -1,5 +1,10 @@
 import { Command } from "commander";
 import {
+  API_URL_ENV_VAR,
+  DEFAULT_API_URL,
+  resolveApiUrl,
+} from "../api.js";
+import {
   authError,
   redactUrl,
   redactUrls,
@@ -11,9 +16,7 @@ import { formatTable } from "./list-invoices.js";
 
 /** Env var that can stand in for `--token`. */
 export const API_TOKEN_ENV_VAR = "TRUSTTROVE_API_TOKEN";
-/** Env var that can stand in for `--api-url`. */
-export const API_URL_ENV_VAR = "TRUSTTROVE_API_URL";
-export const DEFAULT_API_URL = "http://localhost:8080";
+export { API_URL_ENV_VAR, DEFAULT_API_URL };
 export const DEFAULT_DELIVERY_LIMIT = 20;
 export const MAX_DELIVERY_LIMIT = 100;
 
@@ -99,28 +102,6 @@ function resolveToken(options: WebhookDeliveriesOptions): string {
   return token;
 }
 
-function resolveApiUrl(options: WebhookDeliveriesOptions): string {
-  const raw = (
-    options.apiUrl ??
-    process.env[API_URL_ENV_VAR] ??
-    DEFAULT_API_URL
-  ).trim();
-  let parsed: URL;
-  try {
-    parsed = new URL(raw);
-  } catch {
-    throw usageError(
-      `Invalid API URL "${raw}". Expected an http(s) URL, for example ${DEFAULT_API_URL}.`,
-    );
-  }
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    throw usageError(
-      `Invalid API URL "${redactUrl(raw)}". Expected an http(s) URL, for example ${DEFAULT_API_URL}.`,
-    );
-  }
-  return raw.replace(/\/+$/, "");
-}
-
 function resolveLimit(options: WebhookDeliveriesOptions): number {
   const raw =
     options.limit === undefined || options.limit === ""
@@ -182,7 +163,7 @@ export async function fetchWebhookDeliveries(
 ): Promise<WebhookDeliveriesResult> {
   const subscriptionId = resolveSubscriptionId(options);
   const token = resolveToken(options);
-  const apiUrl = resolveApiUrl(options);
+  const apiUrl = resolveApiUrl(options.apiUrl);
   const limit = resolveLimit(options);
   const doFetch = dependencies.fetch ?? fetch;
   const url = `${apiUrl}/webhooks/${encodeURIComponent(subscriptionId)}/deliveries?limit=${limit}`;

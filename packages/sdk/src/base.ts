@@ -10,7 +10,7 @@ import {
   scValToNative,
 } from "@stellar/stellar-sdk";
 import * as freighterApi from "@stellar/freighter-api";
-import { getConfig, getSorobanServer } from "./config.js";
+import { getConfig, getSorobanServer, type SDKConfig } from "./config.js";
 
 const signTransactionFn =
   (
@@ -240,6 +240,17 @@ async function withRetry<T>(
 }
 
 /**
+ * Network settings a client can bind to at construction time instead of
+ * reading from the process-wide SDK configuration. Used by the read-only
+ * factory so analytics callers can select a network and RPC endpoint
+ * explicitly without calling {@link configureSDK}.
+ */
+export interface ContractClientNetworkConfig {
+  sorobanRpcUrl: string;
+  networkPassphrase: string;
+}
+
+/**
  * Result type returned by transaction simulations.
  */
 export interface SimulationResult {
@@ -258,10 +269,13 @@ export class BaseContractClient {
   private contractInstance: Contract;
   /** Broadcast policy for this client's mutating calls. */
   readonly mutationRetryPolicy: MutationRetryPolicy;
+  /** Per-client network override; `undefined` means use the active SDK config. */
+  private readonly networkConfig?: ContractClientNetworkConfig;
 
   constructor(
     contractId: string,
     mutationRetryPolicy: Partial<MutationRetryPolicy> = {},
+    networkConfig?: ContractClientNetworkConfig,
   ) {
     if (!contractId) throw new Error("Contract ID is required");
     this.contractId = contractId;
@@ -270,10 +284,33 @@ export class BaseContractClient {
       ...DEFAULT_MUTATION_RETRY_POLICY,
       ...mutationRetryPolicy,
     };
+    this.networkConfig = networkConfig;
   }
 
   protected get contract(): Contract {
     return this.contractInstance;
+  }
+
+  /**
+   * The SDK config this client reads through. When the client was constructed
+   * with an explicit network, its RPC URL and passphrase take precedence over
+   * the active global configuration; everything else (contract IDs, USDC) is
+   * inherited so callers only have to state what they are overriding.
+   */
+  protected get sdkConfig(): SDKConfig {
+    const config = getConfig();
+    if (!this.networkConfig) return config;
+    return {
+      ...config,
+      sorobanRpcUrl: this.networkConfig.sorobanRpcUrl,
+      networkPassphrase: this.networkConfig.networkPassphrase,
+    };
+  }
+
+  private get sorobanServer(): rpc.Server {
+    return this.networkConfig
+      ? new rpc.Server(this.networkConfig.sorobanRpcUrl)
+      : getSorobanServer();
   }
 
   protected async readContract<T>(
@@ -282,8 +319,8 @@ export class BaseContractClient {
     publicKey: string,
     parse: (val: xdr.ScVal) => T,
   ): Promise<T> {
-    const config = getConfig();
-    const server = getSorobanServer();
+    const config = this.sdkConfig;
+    const server = this.sorobanServer;
     const account = await withRetry(() => server.getAccount(publicKey));
     const tx = new TransactionBuilder(account, {
       fee: BASE_FEE,
@@ -307,8 +344,8 @@ export class BaseContractClient {
     args: xdr.ScVal[],
     publicKey: string,
   ): Promise<string> {
-    const config = getConfig();
-    const server = getSorobanServer();
+    const config = this.sdkConfig;
+    const server = this.sorobanServer;
     const account = await withRetry(() => server.getAccount(publicKey));
     const tx = new TransactionBuilder(account, {
       fee: BASE_FEE,
@@ -400,8 +437,8 @@ export class BaseContractClient {
     args: xdr.ScVal[],
     publicKey: string,
   ): Promise<SimulationResult> {
-    const config = getConfig();
-    const server = getSorobanServer();
+    const config = this.sdkConfig;
+    const server = this.sorobanServer;
     const account = await withRetry(() => server.getAccount(publicKey));
     const tx = new TransactionBuilder(account, {
       fee: BASE_FEE,
