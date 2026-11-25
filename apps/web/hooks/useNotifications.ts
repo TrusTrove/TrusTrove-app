@@ -6,6 +6,7 @@ import { useRecentEvents } from "./useEvents";
 export type NotificationCategory = "all" | "invoice" | "pool" | "account";
 
 export interface NotificationEvent {
+  invoiceId?: string;
   id: number | string;
   event_type: string;
   invoiceId?: string;

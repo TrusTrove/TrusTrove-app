@@ -19,11 +19,11 @@ describe("NotificationBell activity filtering", () => {
 
     vi.mocked(useNotificationsModule.useNotifications).mockReturnValue({
       notifications: [
-        { id: "1", event_type: "invoice.created", occurred_at: "2026-03-30T10:00:00Z", data: { invoice_id: "inv1" }, read: false },
+        { id: 1, event_type: "invoice.created", occurred_at: "2026-03-30T10:00:00Z", data: { invoice_id: "inv1" }, read: false },
       ],
       allNotifications: [
-        { id: "1", event_type: "invoice.created", occurred_at: "2026-03-30T10:00:00Z", data: { invoice_id: "inv1" }, read: false },
-        { id: "2", event_type: "pool.deposit", occurred_at: "2026-03-30T10:05:00Z", data: { amount: "100" }, read: true },
+        { id: 1, event_type: "invoice.created", occurred_at: "2026-03-30T10:00:00Z", data: { invoice_id: "inv1" }, read: false },
+        { id: 2, event_type: "pool.deposit", occurred_at: "2026-03-30T10:05:00Z", data: { amount: "100" }, read: true },
       ],
       isLoading: false,
       error: null,
