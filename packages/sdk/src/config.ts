@@ -1,4 +1,4 @@
-import { Networks, rpc } from "@stellar/stellar-sdk";
+import { Networks, rpc, StrKey } from "@stellar/stellar-sdk";
 
 export const DEFAULT_NETWORK = Object.freeze({
   network:
@@ -68,6 +68,22 @@ export interface SDKConfig {
   };
 }
 
+/** Validates a Stellar contract StrKey, including its checksum and key type. */
+export function validateContractAddress(address: unknown): address is string {
+  return typeof address === "string" && StrKey.isValidContract(address);
+}
+
+/** @deprecated Use {@link validateContractAddress}. */
+export const isValidContractId = validateContractAddress;
+
+for (const [name, address] of Object.entries(DEFAULT_CONTRACTS)) {
+  if (address && !validateContractAddress(address)) {
+    throw new Error(
+      `Invalid Stellar contract address in configuration: ${name}`,
+    );
+  }
+}
+
 let activeConfig: SDKConfig = {
   horizonUrl: DEFAULT_NETWORK.horizonUrl,
   sorobanRpcUrl: DEFAULT_NETWORK.sorobanRpcUrl,
@@ -85,7 +101,22 @@ let activeConfig: SDKConfig = {
   },
 };
 
-export function configureSDK(config: Partial<SDKConfig>) {
+export function configureSDK(
+  config: Partial<Omit<SDKConfig, "contractIds" | "usdc">> & {
+    contractIds?: Partial<SDKConfig["contractIds"]>;
+    usdc?: Partial<SDKConfig["usdc"]>;
+  },
+) {
+  for (const [name, address] of Object.entries(config.contractIds ?? {})) {
+    if (
+      address !== undefined &&
+      address !== "" &&
+      !validateContractAddress(address)
+    ) {
+      throw new Error(`Invalid Stellar contract address for "${name}"`);
+    }
+  }
+
   activeConfig = {
     ...activeConfig,
     ...config,

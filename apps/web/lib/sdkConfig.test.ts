@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Asset } from "@stellar/stellar-sdk";
 
 const ISSUER = "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN7";
+const POOL_CONTRACT =
+  "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4";
 const RPC_URL = "https://rpc.example.test";
 const PASSPHRASE = "Test Network ; custom";
 
@@ -15,7 +17,7 @@ describe("SDK startup config (#1090)", () => {
       NEXT_PUBLIC_USDC_ISSUER: ISSUER,
       NEXT_PUBLIC_SOROBAN_RPC_URL: RPC_URL,
       NEXT_PUBLIC_NETWORK_PASSPHRASE: PASSPHRASE,
-      NEXT_PUBLIC_POOL_CONTRACT_ID: "CPOOL",
+      NEXT_PUBLIC_POOL_CONTRACT_ID: POOL_CONTRACT,
     };
   });
 
@@ -32,7 +34,7 @@ describe("SDK startup config (#1090)", () => {
     expect(config.usdc.issuer).toBe(ISSUER);
     expect(config.sorobanRpcUrl).toBe(RPC_URL);
     expect(config.networkPassphrase).toBe(PASSPHRASE);
-    expect(config.contractIds.pool).toBe("CPOOL");
+    expect(config.contractIds.pool).toBe(POOL_CONTRACT);
   });
 
   it("keeps SDK defaults for variables the web app does not set", async () => {

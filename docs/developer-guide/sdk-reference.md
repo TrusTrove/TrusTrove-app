@@ -61,6 +61,63 @@ const agents = new AgentRegistryClient(
 
 > **Note:** All write methods (`writeContract`) require a `signerPublicKey` argument — the Freighter wallet address that will sign the transaction. All read methods (`readContract`) also require it to build and simulate the transaction.
 
+## Validation and transaction preflight
+
+`validateContractAddress` verifies a contract StrKey, including its checksum
+and contract key type. `configureSDK` applies the same check to any non-empty
+contract IDs and throws with the invalid field name before the SDK makes RPC
+calls. Empty IDs remain permitted for applications that configure contracts
+incrementally.
+
+```typescript
+import { checkPreflight, validateContractAddress } from "@trusttrove/sdk";
+
+if (!validateContractAddress(contractId)) {
+  throw new Error("Invalid contract address");
+}
+
+const preflight = await checkPreflight(
+  "https://soroban-testnet.stellar.org",
+  "Test SDF Network ; September 2015",
+  wallet.signTransaction,
+);
+if (
+  !preflight.connectionHealthy ||
+  !preflight.networkSupported ||
+  !preflight.signingSupported
+) {
+  throw new Error(preflight.errors.join("; "));
+}
+```
+
+Preflight checks the RPC health endpoint, supports public and test networks,
+and verifies that a wallet signing function is available. It does not invoke
+the wallet or sign, submit, or mutate any transaction.
+
+## Invoice status and receipt events
+
+`invoiceStatusTransitionMap` is the canonical invoice lifecycle map.
+`allowedActions(status, role)` returns the actions exposed for an issuer or
+buyer. After a successful Soroban transaction, pass the response from
+`rpc.Server.getTransaction` to `parseContractEvents`; each result includes its
+contract ID, decoded topics and data, and the original XDR event (including for
+event names the SDK does not recognize).
+
+```typescript
+import {
+  allowedActions,
+  invoiceStatusTransitionMap,
+  parseContractEvents,
+} from "@trusttrove/sdk";
+import { rpc } from "@stellar/stellar-sdk";
+
+const rpcServer = new rpc.Server("https://soroban-testnet.stellar.org");
+const nextStatuses = invoiceStatusTransitionMap.get("Listed"); // Funded, Defaulted
+const actions = allowedActions("Listed", "buyer"); // viewStatus, fundInvoice
+const transaction = await rpcServer.getTransaction(transactionHash);
+const events = parseContractEvents(transaction);
+```
+
 ---
 
 ## Read-only client factory
