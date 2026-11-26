@@ -48,15 +48,12 @@ export interface AppConfig {
 export type ContractIds = ContractIdsConfig;
 
 export const HORIZON_URL = Object.freeze(
-  process.env.NEXT_PUBLIC_HORIZON_URL ||
-    "https://horizon-testnet.stellar.org",
+  process.env.NEXT_PUBLIC_HORIZON_URL || "https://horizon-testnet.stellar.org",
 );
 
 export const API_BASE_URL = Object.freeze(
   (() => {
-    const url =
-      process.env.NEXT_PUBLIC_API_BASE_URL ||
-      "http://localhost:8080";
+    const url = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
     if (
       typeof process !== "undefined" &&
       process.env.NODE_ENV === "production" &&
@@ -65,7 +62,7 @@ export const API_BASE_URL = Object.freeze(
     ) {
       console.warn(
         "[Warning] NEXT_PUBLIC_API_BASE_URL is not set in production. Falling back to http://localhost:8080",
-);
+      );
     }
     return url;
   })(),
@@ -73,9 +70,7 @@ export const API_BASE_URL = Object.freeze(
 
 export const APP_URL = Object.freeze(
   (() => {
-    const url =
-      process.env.NEXT_PUBLIC_APP_URL ||
-      "http://localhost:3000";
+    const url = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     if (
       typeof process !== "undefined" &&
       process.env.NODE_ENV === "production" &&
@@ -85,7 +80,7 @@ export const APP_URL = Object.freeze(
       console.warn(
         "[Warning] NEXT_PUBLIC_APP_URL is not set in production. Falling back to http://localhost:3000",
       );
-}
+    }
     return url;
   })(),
 );
@@ -96,21 +91,11 @@ export const USDC_ISSUER = Object.freeze(
 );
 
 export const CONTRACT_IDS: ContractIds = Object.freeze({
-  registry:
-    process.env.NEXT_PUBLIC_REGISTRY_CONTRACT_ID ||
-    "",
-  invoice:
-    process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID ||
-    "",
-  pool:
-    process.env.NEXT_PUBLIC_POOL_CONTRACT_ID ||
-    "",
-  escrow:
-    process.env.NEXT_PUBLIC_ESCROW_CONTRACT_ID ||
-    "",
-  agentRegistry:
-    process.env.NEXT_PUBLIC_AGENT_REGISTRY_CONTRACT_ID ||
-    "",
+  registry: process.env.NEXT_PUBLIC_REGISTRY_CONTRACT_ID || "",
+  invoice: process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID || "",
+  pool: process.env.NEXT_PUBLIC_POOL_CONTRACT_ID || "",
+  escrow: process.env.NEXT_PUBLIC_ESCROW_CONTRACT_ID || "",
+  agentRegistry: process.env.NEXT_PUBLIC_AGENT_REGISTRY_CONTRACT_ID || "",
 });
 
 export const env: AppConfig = Object.freeze({

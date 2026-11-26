@@ -87,8 +87,7 @@ function makeInvoice(id: string): Invoice {
 describe("Buyer workspace page", () => {
   beforeEach(() => {
     wallet.connected = true;
-    wallet.address =
-      "GDSCOJVNZ4JUVWZ5O6VBTUGOH4ZE22QJ6WMOYWHB3FEDQ2APJ2RQEIHY";
+    wallet.address = "GDSCOJVNZ4JUVWZ5O6VBTUGOH4ZE22QJ6WMOYWHB3FEDQ2APJ2RQEIHY";
     buyer.groups = [];
     buyer.invoices = [];
     buyer.actionableCount = 0;

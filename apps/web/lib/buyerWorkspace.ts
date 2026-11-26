@@ -168,8 +168,7 @@ export function groupBuyerInvoices(
 export function countActionableInvoices(groups: BuyerInvoiceGroup[]): number {
   return groups
     .filter(
-      (group) =>
-        group.key !== "awaiting-financing" && group.key !== "closed",
+      (group) => group.key !== "awaiting-financing" && group.key !== "closed",
     )
     .reduce((total, group) => total + group.invoices.length, 0);
 }

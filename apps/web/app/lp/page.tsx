@@ -544,9 +544,7 @@ export default function LPDashboard() {
             >
               <div className="flex justify-between gap-2">
                 <dt className="text-muted-foreground">Redeemable amount</dt>
-                <dd className="font-bold text-foreground">
-                  {redeemableLabel}
-                </dd>
+                <dd className="font-bold text-foreground">{redeemableLabel}</dd>
               </div>
               <div className="flex justify-between gap-2">
                 <dt className="text-muted-foreground">Current utilization</dt>
@@ -558,9 +556,7 @@ export default function LPDashboard() {
                 <dt className="text-muted-foreground">
                   Available pool liquidity
                 </dt>
-                <dd className="font-bold text-foreground">
-                  {availableLabel}
-                </dd>
+                <dd className="font-bold text-foreground">{availableLabel}</dd>
               </div>
             </dl>
 

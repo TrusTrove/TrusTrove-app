@@ -119,11 +119,12 @@ test.describe("LP Lifecycle - Pool Deposit & Redeem", () => {
     // Utilization gauge: 4000 bps -> 40.0%
     await expect(poolOverview.getByText("40.0%")).toBeVisible();
 
-    // The four pool stats, formatted from stroops by `formatAmount`.
-    await expect(page.getByText("10,000.00 USDC")).toBeVisible();
-    await expect(page.getByText("6,000.00 USDC")).toBeVisible();
-    await expect(page.getByText("200.00 USDC")).toBeVisible();
-    await expect(page.getByText("7", { exact: true })).toBeVisible();
+    // The four pool stats, formatted from stroops by `formatAmount`. Scoped to
+    // the overview because the withdraw summary repeats the available figure.
+    await expect(poolOverview.getByText("10,000.00 USDC")).toBeVisible();
+    await expect(poolOverview.getByText("6,000.00 USDC")).toBeVisible();
+    await expect(poolOverview.getByText("200.00 USDC")).toBeVisible();
+    await expect(poolOverview.getByText("7", { exact: true })).toBeVisible();
 
     // The connected wallet's position.
     await expect(page.getByText("3 deposits")).toBeVisible();
