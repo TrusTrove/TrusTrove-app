@@ -1,8 +1,6 @@
 import type { ReactNode } from "react";
 import { toast } from "sonner";
-
-const explorerUrl = (txHash: string) =>
-  `https://stellar.expert/explorer/testnet/tx/${txHash}`;
+import { explorerTxUrl } from "./explorer";
 
 function ToastAnnouncement({
   variant,
@@ -31,7 +29,7 @@ export function showSuccessToast(action: string, txHash?: string) {
     <ToastAnnouncement variant="success" action={action}>
       {txHash ? (
         <a
-          href={explorerUrl(txHash)}
+          href={explorerTxUrl(txHash)}
           target="_blank"
           rel="noopener noreferrer"
           className="text-primary underline underline-offset-2 hover:text-primary/80 text-xs font-mono"

@@ -5,6 +5,7 @@ import { ConfirmationDialog } from "./ConfirmationDialog";
 import { useConfirmDialogStore } from "@/store/confirmDialog";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { renderWithProviders } from "@/test-utils/renderWithProviders";
+import { renderWithProviders as render } from "@/test-utils/renderWithProviders";
 
 vi.mock("@/store/confirmDialog", () => ({
   useConfirmDialogStore: vi.fn(),
@@ -12,6 +13,15 @@ vi.mock("@/store/confirmDialog", () => ({
 
 vi.mock("@/hooks/useFocusTrap", () => ({
   useFocusTrap: vi.fn(() => ({ current: null })),
+}));
+
+vi.mock("@/hooks/useWallet", () => ({
+  useWallet: vi.fn(() => ({
+    connected: true,
+    canSign: true,
+    connectWallet: vi.fn(),
+    error: null,
+  })),
 }));
 
 describe("ConfirmationDialog", () => {

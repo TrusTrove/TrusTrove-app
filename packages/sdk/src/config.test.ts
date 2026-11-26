@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { rpc, Networks } from "@stellar/stellar-sdk";
+import { Networks } from "@stellar/stellar-sdk";
 
 vi.mock("@stellar/stellar-sdk", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@stellar/stellar-sdk")>();

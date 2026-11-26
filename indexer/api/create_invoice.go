@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"trusttrove/indexer/soroban"
@@ -20,6 +21,12 @@ import (
 // maxPollAttempts bounds how long HandleCreateInvoice waits for a submitted
 // transaction to reach a terminal state before giving up.
 const maxPollAttempts = 30
+
+// maxSequenceAttempts bounds how many times a create-invoice transaction is
+// built and submitted when the network rejects it for a sequence reason. The
+// first attempt plus one retry after refreshing the sequence is enough to
+// recover from a stale cached sequence (issue #940).
+const maxSequenceAttempts = 2
 
 // maxFaceValueDigits caps the length of the decimal face_value string accepted
 // by validateCreateInvoiceRequest before it is parsed with big.Int. The u128
@@ -70,13 +77,13 @@ func (h *APIHandler) HandleCreateInvoice(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	signedTx, invoiceID, err := h.buildCreateInvoiceTx(r.Context(), params)
+	hash, invoiceID, err := h.submitCreateInvoiceTx(r.Context(), params)
 	if err != nil {
 		writeHTTPError(w, r, err)
 		return
 	}
 
-	hash, status, err := h.submitAndConfirm(r.Context(), signedTx)
+	status, err := h.awaitTransaction(r.Context(), hash)
 	if err != nil {
 		writeHTTPError(w, r, err)
 		return
@@ -159,15 +166,10 @@ func validateDueDate(dueDate int64) (uint64, error) {
 	return uint64(dueDate), nil
 }
 
-// buildCreateInvoiceTx fetches the server account sequence, assembles the
-// invoke-host-function transaction, simulates it to obtain the Soroban resource
+// buildCreateInvoiceTx assembles the invoke-host-function transaction using the
+// supplied server-account sequence, simulates it to obtain the Soroban resource
 // footprint and the generated invoice ID, and returns the signed envelope.
-func (h *APIHandler) buildCreateInvoiceTx(ctx context.Context, params *createInvoiceParams) (signedTx string, invoiceID string, err error) {
-	seq, err := h.fetchServerSequence(ctx)
-	if err != nil {
-		return "", "", err
-	}
-
+func (h *APIHandler) buildCreateInvoiceTx(ctx context.Context, params *createInvoiceParams, seq int64) (signedTx string, invoiceID string, err error) {
 	op, err := buildCreateInvoiceOp(h.cfg.InvoiceContractID, params)
 	if err != nil {
 		return "", "", err
@@ -327,32 +329,84 @@ func (h *APIHandler) signCreateInvoiceTx(tx *txnbuild.Transaction, txBase64 stri
 	return signedBase64, nil
 }
 
-// submitAndConfirm sends the signed transaction to the network and polls
-// getTransaction until it reaches a terminal state, returning the transaction
-// hash and final status.
-func (h *APIHandler) submitAndConfirm(ctx context.Context, signedTx string) (hash string, status string, err error) {
-	var submitResp struct {
-		Hash   string `json:"hash"`
-		Status string `json:"status"`
-		Error  string `json:"error"`
-	}
-	if err := soroban.CallSorobanRPC(ctx, h.cfg.SorobanRPCURL, "sendTransaction", map[string]string{"transaction": signedTx}, &submitResp); err != nil {
-		// err may embed the full RPC URL (and any API key in it); log it and
-		// return a client-safe message instead of interpolating it (issue #921).
-		slog.ErrorContext(ctx, "failed to send transaction", "error", err)
-		return "", "", httpErrorf(http.StatusInternalServerError, "failed to send transaction")
-	}
+// submitTransactionResponse is the subset of the sendTransaction result the
+// indexer uses.
+type submitTransactionResponse struct {
+	Hash   string `json:"hash"`
+	Status string `json:"status"`
+	Error  string `json:"error"`
+}
 
-	if submitResp.Status == "ERROR" {
+// isSequenceError reports whether a sendTransaction error string indicates the
+// transaction was rejected because of its sequence number. Soroban RPC reports
+// these as tx_bad_seq, sometimes with other separators or casing.
+func isSequenceError(msg string) bool {
+	lower := strings.ToLower(msg)
+	return strings.Contains(lower, "bad_seq") ||
+		strings.Contains(lower, "bad seq") ||
+		strings.Contains(lower, "badseq")
+}
+
+// submitCreateInvoiceTx builds, signs and submits a create-invoice transaction
+// for the shared server account. Build and submission are serialized by
+// submitMu so concurrent requests are assigned distinct sequence numbers and
+// reach the network in sequence order. If the network rejects the transaction
+// for a sequence reason, the cached sequence is refreshed and the transaction
+// is rebuilt and retried once.
+func (h *APIHandler) submitCreateInvoiceTx(ctx context.Context, params *createInvoiceParams) (hash string, invoiceID string, err error) {
+	h.submitMu.Lock()
+	defer h.submitMu.Unlock()
+
+	for attempt := 0; attempt < maxSequenceAttempts; attempt++ {
+		seq, err := h.seqMgr.next(ctx, h.fetchServerSequence)
+		if err != nil {
+			return "", "", err
+		}
+
+		signedTx, id, err := h.buildCreateInvoiceTx(ctx, params, seq)
+		if err != nil {
+			// The allocated sequence was never consumed; force a re-sync so it
+			// cannot leave a gap in the account's sequence.
+			h.seqMgr.invalidate()
+			return "", "", err
+		}
+
+		submitResp, err := h.sendTransaction(ctx, signedTx)
+		if err != nil {
+			h.seqMgr.invalidate()
+			return "", "", err
+		}
+
+		if submitResp.Status != "ERROR" {
+			return submitResp.Hash, id, nil
+		}
+
+		h.seqMgr.invalidate()
+		if isSequenceError(submitResp.Error) {
+			if attempt < maxSequenceAttempts-1 {
+				slog.WarnContext(ctx, "retrying invoice submission after sequence rejection", "error", submitResp.Error)
+				continue
+			}
+			return "", "", httpErrorf(http.StatusConflict, "transaction rejected due to a sequence conflict; please retry")
+		}
+
 		return "", "", httpErrorf(http.StatusInternalServerError, "transaction submission rejected: %s", submitResp.Error)
 	}
 
-	finalStatus, err := h.awaitTransaction(ctx, submitResp.Hash)
-	if err != nil {
-		return "", "", err
-	}
+	return "", "", httpErrorf(http.StatusConflict, "transaction rejected due to a sequence conflict; please retry")
+}
 
-	return submitResp.Hash, finalStatus, nil
+// sendTransaction submits signedTx to the network without waiting for the
+// transaction to be confirmed.
+func (h *APIHandler) sendTransaction(ctx context.Context, signedTx string) (*submitTransactionResponse, error) {
+	var resp submitTransactionResponse
+	if err := soroban.CallSorobanRPC(ctx, h.cfg.SorobanRPCURL, "sendTransaction", map[string]string{"transaction": signedTx}, &resp); err != nil {
+		// err may embed the full RPC URL (and any API key in it); log it and
+		// return a client-safe message instead of interpolating it (issue #921).
+		slog.ErrorContext(ctx, "failed to send transaction", "error", err)
+		return nil, httpErrorf(http.StatusInternalServerError, "failed to send transaction")
+	}
+	return &resp, nil
 }
 
 // awaitTransaction polls getTransaction for hash until it succeeds, fails, or

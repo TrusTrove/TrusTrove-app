@@ -5,6 +5,12 @@ import {
   type Invoice,
   type InvoiceStatus,
 } from "@trusttrove/sdk";
+import { CliError, EXIT_USAGE, reportError } from "../errors.js";
+import {
+  formatNetworkHeader,
+  resolveNetwork,
+  type ResolvedNetwork,
+} from "../network.js";
 
 /**
  * Every on-chain invoice status, in lifecycle order. `--status` accepts these
@@ -37,13 +43,12 @@ const TABLE_HEADERS = [
 ];
 
 /** Thrown for invalid flags/configuration; the command exits with status 1. */
-export class ListInvoicesError extends Error {
+export class ListInvoicesError extends CliError {
   constructor(message: string) {
-    super(message);
+    super("USAGE_ERROR", message, EXIT_USAGE);
     this.name = "ListInvoicesError";
   }
 }
-
 export interface ListInvoicesOptions {
   /** Invoice status to filter by. Mutually exclusive with `issuer`. */
   status?: string;
@@ -53,6 +58,12 @@ export interface ListInvoicesOptions {
   publicKey?: string;
   /** Address of the invoice contract to read from. */
   contractId?: string;
+  /** `testnet` or `mainnet`; defaults to the environment/SDK config. */
+  network?: string;
+  /** Custom Soroban RPC endpoint. */
+  rpcUrl?: string;
+  /** Emit structured errors as JSON on stderr. */
+  json?: boolean;
 }
 
 export interface ListInvoicesResult {
@@ -60,6 +71,8 @@ export interface ListInvoicesResult {
   invoices: Invoice[];
   /** The rendered table (header row included), ready for stdout. */
   table: string;
+  /** The network and RPC endpoint the read used. */
+  network: ResolvedNetwork;
 }
 
 export interface ListInvoicesDependencies {
@@ -201,6 +214,10 @@ export async function listInvoices(
   const publicKey = resolvePublicKey(options);
   const contractId = resolveContractId(options);
   const filter = resolveFilter(options);
+  const network = resolveNetwork({
+    network: options.network,
+    rpcUrl: options.rpcUrl,
+  });
 
   const createClient =
     dependencies.createClient ?? ((id: string) => new InvoiceClient(id));
@@ -211,7 +228,7 @@ export async function listInvoices(
       ? await client.getByStatus(filter.status, publicKey)
       : await client.getByIssuer(filter.issuer, publicKey);
 
-  return { invoices, table: formatInvoiceTable(invoices) };
+  return { invoices, table: formatInvoiceTable(invoices), network };
 }
 
 /**
@@ -237,17 +254,22 @@ export function registerListInvoicesCommand(program: Command): Command {
       "--contract-id <id>",
       `invoice contract ID (or set ${CONTRACT_ID_ENV_VAR})`,
     )
+    .option("--network <network>", "Stellar network: testnet or mainnet")
+    .option(
+      "--rpc-url <url>",
+      "custom Soroban RPC endpoint (defaults to the selected network)",
+    )
+    .option("--json", "emit structured errors as JSON on stderr")
     .action(async (options: ListInvoicesOptions) => {
       try {
-        const { invoices, table } = await listInvoices(options);
+        const { invoices, table, network } = await listInvoices(options);
+        console.log(formatNetworkHeader(network));
         console.log(table);
         if (invoices.length === 0) {
           console.log("\nNo invoices found.");
         }
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        console.error(`Error: ${message}`);
-        process.exitCode = 1;
+        reportError(error, { json: options.json });
       }
     });
 }
