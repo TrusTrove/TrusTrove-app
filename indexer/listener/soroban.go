@@ -387,6 +387,10 @@ func (l *EventListener) Start(ctx context.Context) error {
 			}
 			backoff = initialBackoff
 			if l.health != nil {
+				// Every completed poll is a heartbeat, including polls that
+				// return no events. MarkStarted revives health after a
+				// transient error marked the listener stopped, where
+				// MarkHeartbeat alone would be a no-op.
 				if l.health.IsHealthy() {
 					l.health.MarkHeartbeat()
 				} else {

@@ -7,7 +7,9 @@ import { useAppError } from "./useAppError";
 
 const { captureError } = createErrorHandler("useProfile");
 
-const registryContractID = process.env.NEXT_PUBLIC_REGISTRY_CONTRACT_ID || "";
+import { CONTRACT_IDS } from "@/lib/env";
+
+const registryContractID = CONTRACT_IDS.registry;
 
 type ErrorWithResponse = {
   status?: number;
@@ -67,6 +69,10 @@ function isProfileNotFoundError(error: unknown): boolean {
 export function useProfile() {
   const queryClient = useQueryClient();
   const address = useWalletStore((s) => s.address);
+  // Both queries are keyed on the wallet address, so they must follow the same
+  // `connected` flag the UI gates on: after a reload the store rehydrates as
+  // disconnected and no address-keyed query may fire (issue #636).
+  const connected = useWalletStore((s) => s.connected);
   const { error: appError, handleError, clearError } = useAppError();
 
   // The Navbar calls this hook on every route, so the SDK import and client
@@ -100,7 +106,7 @@ export function useProfile() {
         throw err;
       }
     },
-    enabled: !!address,
+    enabled: !!address && connected,
   });
 
   const isVerifiedQuery = useQuery({
@@ -113,10 +119,10 @@ export function useProfile() {
         return verified;
       } catch (err) {
         captureError(err);
-        return false;
+        throw err;
       }
     },
-    enabled: !!address,
+    enabled: !!address && connected,
   });
 
   const registerMutation = useMutation({

@@ -11,7 +11,9 @@ import type { AssetType } from "@/types";
 
 const { handleMutationError } = createErrorHandler("usePool");
 
-const poolContractID = process.env.NEXT_PUBLIC_POOL_CONTRACT_ID || "";
+import { CONTRACT_IDS } from "@/lib/env";
+
+const poolContractID = CONTRACT_IDS.pool;
 
 interface DepositArguments {
   amount: bigint;
@@ -28,6 +30,10 @@ interface DepositArguments {
 export function usePool() {
   const queryClient = useQueryClient();
   const address = useWalletStore((s) => s.address);
+  // A reload rehydrates the store as disconnected, so gating on the address
+  // alone would let this query fire while the UI renders as disconnected
+  // (issue #636). `connected` is the same signal the UI reads.
+  const connected = useWalletStore((s) => s.connected);
   const { ensureAllowance } = useTokenAllowance();
   const { error: appError, handleError, clearError } = useAppError();
 
@@ -46,15 +52,15 @@ export function usePool() {
 
   const statsQuery = useQuery({
     queryKey: ["poolStats"],
-    queryFn: () => getPoolStats(),
+    queryFn: ({ signal }) => getPoolStats({ signal }),
     refetchInterval: 45000,
     staleTime: 45000,
   });
 
   const positionQuery = useQuery({
     queryKey: ["lpPosition", address],
-    queryFn: () => getLPPosition(address!),
-    enabled: !!address,
+    queryFn: ({ signal }) => getLPPosition(address!, { signal }),
+    enabled: !!address && connected,
   });
 
   const depositMutation = useMutation({

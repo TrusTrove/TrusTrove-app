@@ -63,6 +63,44 @@ const agents = new AgentRegistryClient(
 
 ---
 
+## Read-only client factory
+
+Analytics and other read-only consumers can skip the global setup above and
+call `createReadOnlyClient` with an explicit network and RPC endpoint. The
+returned clients carry their own network configuration, so they do not depend
+on (or mutate) `configureSDK` state, and their types omit every write method.
+
+```typescript
+import { createReadOnlyClient } from "@trusttrove/sdk";
+
+const readers = createReadOnlyClient({
+  network: "testnet", // "testnet" | "mainnet" | "custom"
+  rpcUrl: "https://soroban-testnet.stellar.org",
+  contractIds: {
+    pool: process.env.NEXT_PUBLIC_POOL_CONTRACT_ID!,
+    invoice: process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID!,
+  },
+});
+
+const stats = await readers.pool.getStats(publicKey);
+const invoices = await readers.invoice.getByStatus("Funded", publicKey);
+// readers.pool.deposit(...) is not part of the type.
+```
+
+| Field               | Description                                                                       |
+| ------------------- | --------------------------------------------------------------------------------- |
+| `network`           | Required. `testnet`, `mainnet`, or `custom` (which requires `networkPassphrase`). |
+| `rpcUrl`            | Required. Soroban RPC endpoint to read from; must be an http(s) URL.              |
+| `networkPassphrase` | Optional for presets, required for `custom`.                                      |
+| `contractIds`       | Optional per-contract overrides. Missing IDs fall back to the active SDK config.  |
+| `usdc`              | Optional USDC issuer/asset override used to derive the token contract ID.         |
+
+Each client is created lazily on first access, so a contract that is never read
+never needs an ID. Available readers are `registry`, `invoice`, `pool`,
+`escrow`, `token`, and `agentRegistry`; each exposes only its `get*` methods.
+
+---
+
 ## Registry Client
 
 ```typescript

@@ -460,4 +460,24 @@ describe("WalletConnect", () => {
     const liveRegion = await screen.findByRole("status");
     expect(liveRegion).toHaveTextContent("Address copied");
   });
+
+  it("renders distinct offline alert when balances check fails due to offline error", async () => {
+    vi.mocked(useWallet).mockReturnValue({
+      connected: true,
+      loading: false,
+      address: "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB",
+      error: null,
+      errorCode: null,
+      balancesError:
+        "You appear to be offline. Please check your network connection.",
+      balancesIsOffline: true,
+      connectWallet: vi.fn(),
+      disconnectWallet: vi.fn(),
+    } as any);
+    render(<WalletConnect />);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "You appear to be offline. Check connection.",
+    );
+  });
 });
