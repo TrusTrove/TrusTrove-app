@@ -1,5 +1,3 @@
-import { describe, it, expect, vi } from 'vitest';
-
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { SIMULATION_PLACEHOLDER_INVOICE_ID, simulateInvoiceCreation } from "../components/invoice/InvoiceForm";
 
