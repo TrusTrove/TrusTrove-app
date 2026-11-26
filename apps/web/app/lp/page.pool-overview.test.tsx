@@ -119,7 +119,10 @@ describe("LP pool overview panel", () => {
     expect(statValue("Yield Distributed")).toBe("1,000.00 USDC");
     expect(statValue("Active Invoices")).toBe("10");
     // utilization_rate_bps is basis points: 5000 -> 50.0%.
-    expect(screen.getByText("50.0%")).toBeInTheDocument();
+    const panel = screen
+      .getByText("Pool Overview")
+      .closest("section") as HTMLElement;
+    expect(within(panel).getByText("50.0%")).toBeInTheDocument();
   });
 
   it("renders no Share Price tile from the real API payload", () => {

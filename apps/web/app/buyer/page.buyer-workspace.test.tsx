@@ -44,8 +44,16 @@ vi.mock("@/components/shared/WalletConnect", () => ({
 // The card carries its own contract hooks; the workspace test only cares that
 // the page mounts one per invoice with the buyer role.
 vi.mock("@/components/invoice/InvoiceCard", () => ({
-  InvoiceCard: ({ invoice, role }: { invoice: Invoice; role?: string }) => (
-    <div data-testid="invoice-card">
+  InvoiceCard: ({
+    invoice,
+    role,
+    onSelect,
+  }: {
+    invoice: Invoice;
+    role?: string;
+    onSelect?: () => void;
+  }) => (
+    <div data-testid="invoice-card" onClick={onSelect}>
       {invoice.id} ({role})
     </div>
   ),
