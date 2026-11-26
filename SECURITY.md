@@ -109,6 +109,33 @@ smart contracts have not been formally audited.
 Users interact with testnet contracts at their own risk.
 A security audit is planned prior to any mainnet deployment.
 
+## Repository malware guard
+
+The `malware-preflight` job scans tracked files before CI installs dependencies,
+builds the web app, or runs Go code. A separate `malware-guard` workflow scans
+every pull request with the trusted base-branch scanner against a checkout of
+the exact proposed commit. It uses a read-only token and does not execute PR
+files. It also rejects edits to its scanner or workflow so a PR cannot silently
+disable the check.
+
+The scanner blocks editor startup configuration, reported PolinRider loader
+hashes and markers, hidden JavaScript after long whitespace, fake fonts,
+`node api.js &&` hooks, malformed appended JSON, and npm lifecycle scripts that
+need manual review. This is a targeted static check; passing it does not prove
+that arbitrary code or a developer machine is malware-free.
+
+Run it locally with `python3 scripts/security/scan_repo.py .` before trusting a
+new checkout. It covers tracked files; inspect local untracked files too. Keep
+unfamiliar folders in [VS Code Restricted Mode](https://code.visualstudio.com/docs/editing/workspaces/workspace-trust)
+until reviewed, since a trusted workspace can run a `runOn: folderOpen` task.
+The campaign patterns are described in
+[StepSecurity's PolinRider analysis](https://www.stepsecurity.io/blog/polinrider-malware-open-source-pull-requests).
+
+Repository rules should require both `malware-preflight` and the trusted
+`malware-guard` check for `main`, alongside the existing frontend and Go checks.
+To change the scanner or trusted workflow deliberately, a maintainer must use
+a reviewed administrative procedure.
+
 ## Important Notice
 
 TrusTrove is experimental software. Do not deposit real funds.

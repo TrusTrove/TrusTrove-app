@@ -11,14 +11,32 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
+  malware-preflight:
+    name: malware-preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Scan repository before installing dependencies or running code
+        run: python3 scripts/security/scan_repo.py .
+
   verify-frontend-and-sdk:
     name: Verify TypeScript Frontend & SDK
+    needs: malware-preflight
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+
+      - name: Test malware scanner
+        run: python3 -m unittest discover -s scripts/security -p 'test_*.py' -v
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -81,6 +99,7 @@ jobs:
 
   e2e-web:
     name: Web E2E Tests (Playwright)
+    needs: malware-preflight
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -145,6 +164,7 @@ jobs:
 
   verify-go-indexer:
     name: Verify Go Indexer & API
+    needs: malware-preflight
     runs-on: ubuntu-24.04
 
     services:
