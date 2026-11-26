@@ -1,9 +1,3 @@
-const REQUIRED_ENV_VARS = [
-  "NEXT_PUBLIC_INVOICE_CONTRACT_ID",
-  "NEXT_PUBLIC_POOL_CONTRACT_ID",
-  "NEXT_PUBLIC_REGISTRY_CONTRACT_ID",
-] as const;
-
 /**
  * Result of validating the required environment variables.
  *
@@ -40,9 +34,15 @@ let cachedValidation: ConfigValidation | null = null;
 export function validateConfig(): ConfigValidation {
   if (cachedValidation) return cachedValidation;
 
-  const missing = REQUIRED_ENV_VARS.filter(
-    (key) => !process.env[key] || process.env[key] === "",
-  );
+  // Next.js only inlines public variables referenced by name in client bundles.
+  const requiredEnv = {
+    NEXT_PUBLIC_INVOICE_CONTRACT_ID: process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID,
+    NEXT_PUBLIC_POOL_CONTRACT_ID: process.env.NEXT_PUBLIC_POOL_CONTRACT_ID,
+    NEXT_PUBLIC_REGISTRY_CONTRACT_ID: process.env.NEXT_PUBLIC_REGISTRY_CONTRACT_ID,
+  };
+  const missing = Object.entries(requiredEnv)
+    .filter(([, value]) => !value)
+    .map(([key]) => key);
 
   if (missing.length > 0) {
     console.warn(
