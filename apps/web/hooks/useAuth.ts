@@ -35,6 +35,11 @@ const { captureError } = createErrorHandler("useAuth");
  * @example
  * const { isAuthenticated, login, logout, loading, error } = useAuth();
  */
+export function normalizeNetworkForAuth(raw: string | undefined): string {
+  const network = raw || "TESTNET";
+  return network.toUpperCase() === "PUBLIC" ? "PUBLIC" : "TESTNET";
+}
+
 export function useAuth() {
   const address = useWalletStore((s) => s.address);
   const token = useWalletStore((s) => s.token);
@@ -73,9 +78,7 @@ export function useAuth() {
     try {
       const { transaction, network_passphrase } = await fetchChallenge(address);
 
-      const rawNetwork = process.env.NEXT_PUBLIC_STELLAR_NETWORK || "TESTNET";
-      const stellarNetwork =
-        rawNetwork.toUpperCase() === "PUBLIC" ? "PUBLIC" : "TESTNET";
+      const stellarNetwork = normalizeNetworkForAuth(process.env.NEXT_PUBLIC_STELLAR_NETWORK);
       const signedXdr = await signTransaction(transaction, {
         network: "TESTNET",
         networkPassphrase: network_passphrase,
