@@ -15,6 +15,12 @@ import { useConfirmDialogStore } from "@/store/confirmDialog";
 import { PoolClient, type SimulationResult } from "@trusttrove/sdk";
 import { Address, nativeToScVal } from "@stellar/stellar-sdk";
 import { formatAmount } from "@/lib/assets";
+import {
+  assessWithdrawal,
+  formatPoolAmount,
+  formatUtilization,
+  sharesInputToStroops,
+} from "@/lib/poolWithdrawal";
 import { getEventDataString } from "@/types";
 
 import { CONTRACT_IDS } from "@/lib/env";
@@ -195,19 +201,41 @@ export default function LPDashboard() {
     setDepositAmount("");
   };
 
+  const withdrawal = assessWithdrawal({
+    shares: sharesInputToStroops(withdrawShares),
+    position,
+    stats,
+  });
+
+  const redeemableLabel = formatPoolAmount(withdrawal.redeemable);
+  const availableLabel = formatPoolAmount(withdrawal.availableLiquidity);
+  const shortfallLabel = formatPoolAmount(withdrawal.shortfall);
+  const utilizationLabel = formatUtilization(withdrawal.utilizationRateBps);
+
+  const liquidityWarning = withdrawal.insufficientLiquidity
+    ? `Insufficient pool liquidity: this withdrawal needs ${redeemableLabel} but only ${availableLabel} is currently available, leaving a shortfall of ${shortfallLabel}. Most pool capital is deployed in invoices at ${utilizationLabel} utilization. Withdraw fewer shares or wait for invoices to repay before withdrawing this amount.`
+    : "";
+
   const handleWithdraw = (event: React.FormEvent) => {
     event.preventDefault();
-    const shares = Number(withdrawShares);
-    const shareAmount = Number.isFinite(shares)
-      ? BigInt(Math.floor(shares * STROOPS_PER_UNIT))
-      : 0n;
-    if (!Number.isFinite(shares) || shares <= 0) {
+    const shareAmount = sharesInputToStroops(withdrawShares);
+    if (shareAmount === null) {
       setWithdrawError("Enter an amount greater than zero.");
       withdrawInputRef.current?.focus();
       return;
     }
     if (shareAmount > (position?.shares ?? 0n)) {
       setWithdrawError("Amount exceeds your redeemable shares.");
+      withdrawInputRef.current?.focus();
+      return;
+    }
+    // The pool can only pay out liquidity that is not currently deployed.
+    // Block here so the user never signs a withdrawal that is guaranteed to
+    // fail, and explain the shortfall before the wallet prompt.
+    if (withdrawal.insufficientLiquidity) {
+      setWithdrawError(
+        `Insufficient pool liquidity: this withdrawal needs ${redeemableLabel} but only ${availableLabel} is available. Withdraw fewer shares or wait for invoices to repay.`,
+      );
       withdrawInputRef.current?.focus();
       return;
     }
@@ -476,7 +504,16 @@ export default function LPDashboard() {
               step="any"
               value={withdrawShares}
               aria-invalid={withdrawError ? "true" : undefined}
-              aria-describedby={`withdraw-available${withdrawError ? " withdraw-shares-error" : ""}`}
+              aria-describedby={[
+                "withdraw-available",
+                "withdraw-liquidity-summary",
+                withdrawal.insufficientLiquidity
+                  ? "withdraw-liquidity-warning"
+                  : null,
+                withdrawError ? "withdraw-shares-error" : null,
+              ]
+                .filter(Boolean)
+                .join(" ")}
               onChange={(event) => {
                 setWithdrawShares(event.target.value);
                 setWithdrawError(null);
@@ -498,9 +535,47 @@ export default function LPDashboard() {
             >
               Available: {formatShareValue(position?.shares)}
             </p>
+
+            {/* Pre-signing liquidity summary: what these shares redeem, how
+                much of the pool is deployed, and what it can pay right now. */}
+            <dl
+              id="withdraw-liquidity-summary"
+              className="space-y-1 rounded border border-border/40 bg-background/40 p-3 font-mono text-xs"
+            >
+              <div className="flex justify-between gap-2">
+                <dt className="text-muted-foreground">Redeemable amount</dt>
+                <dd className="font-bold text-foreground">{redeemableLabel}</dd>
+              </div>
+              <div className="flex justify-between gap-2">
+                <dt className="text-muted-foreground">Current utilization</dt>
+                <dd className="font-bold text-foreground">
+                  {utilizationLabel}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-2">
+                <dt className="text-muted-foreground">
+                  Available pool liquidity
+                </dt>
+                <dd className="font-bold text-foreground">{availableLabel}</dd>
+              </div>
+            </dl>
+
+            {withdrawal.insufficientLiquidity && (
+              <p
+                id="withdraw-liquidity-warning"
+                role="status"
+                className="rounded border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400"
+              >
+                {liquidityWarning}
+              </p>
+            )}
             <button
               type="submit"
-              disabled={isWithdrawing || !position?.shares}
+              disabled={
+                isWithdrawing ||
+                !position?.shares ||
+                withdrawal.insufficientLiquidity
+              }
               className="rounded border border-destructive/60 px-4 py-2 font-semibold text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
             >
               {isWithdrawing ? "Withdrawing..." : "Withdraw Shares"}
