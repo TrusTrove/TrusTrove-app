@@ -7,7 +7,8 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { useWalletStore } from "@/store/wallet";
 import type { TxHistoryItem } from "@/types";
 
-import { HORIZON_URL } from "@/lib/env";
+import { getConfig } from "@trusttrove/sdk";
+const HORIZON_URL = getConfig().horizonUrl;
 
 const CONTRACT_IDS = [
   process.env.NEXT_PUBLIC_REGISTRY_CONTRACT_ID,

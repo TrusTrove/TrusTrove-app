@@ -10,7 +10,8 @@ export interface Balances {
   xlm: string | null;
 }
 
-import { HORIZON_URL } from "@/lib/env";
+import { getConfig } from "@trusttrove/sdk";
+const HORIZON_URL = getConfig().horizonUrl;
 
 export class OfflineError extends Error {
   readonly isOffline = true;
