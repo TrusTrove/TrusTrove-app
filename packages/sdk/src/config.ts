@@ -1,6 +1,6 @@
 import { Networks, rpc } from "@stellar/stellar-sdk";
 
-export const DEFAULT_NETWORK = {
+export const DEFAULT_NETWORK = Object.freeze({
   network:
     (typeof process !== "undefined" &&
       process.env?.NEXT_PUBLIC_STELLAR_NETWORK) ||
@@ -16,9 +16,9 @@ export const DEFAULT_NETWORK = {
     (typeof process !== "undefined" &&
       process.env?.NEXT_PUBLIC_NETWORK_PASSPHRASE) ||
     Networks.TESTNET,
-};
+});
 
-export const DEFAULT_CONTRACTS = {
+export const DEFAULT_CONTRACTS = Object.freeze({
   registry:
     (typeof process !== "undefined" &&
       process.env?.NEXT_PUBLIC_REGISTRY_CONTRACT_ID) ||
@@ -39,9 +39,9 @@ export const DEFAULT_CONTRACTS = {
     (typeof process !== "undefined" &&
       process.env?.NEXT_PUBLIC_AGENT_REGISTRY_CONTRACT_ID) ||
     "",
-};
+});
 
-export const DEFAULT_USDC = {
+export const DEFAULT_USDC = Object.freeze({
   issuer:
     (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_USDC_ISSUER) ||
     "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
@@ -49,7 +49,7 @@ export const DEFAULT_USDC = {
     (typeof process !== "undefined" &&
       process.env?.NEXT_PUBLIC_USDC_ASSET_CODE) ||
     "USDC",
-};
+});
 
 export interface SDKConfig {
   horizonUrl: string;
