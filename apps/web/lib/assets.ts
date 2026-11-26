@@ -1,5 +1,5 @@
 import type { AssetType } from "@/types";
-import { USDC_ISSUER } from "./env";
+import { USDC_ISSUER } from "@/lib/env";
 
 /**
  * Number of stroops per whole unit on Stellar (10^7 = 1 unit).

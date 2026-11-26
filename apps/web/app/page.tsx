@@ -27,9 +27,11 @@ export const metadata: Metadata = {
     "Tokenize unpaid trade invoices as Stellar assets and receive immediate USDC funding. Yield opportunities for liquidity providers.",
 };
 
+import { CONTRACT_IDS } from "@/lib/env";
+
 const specificationUrl = "https://k1ngd4vid.gitbook.io/trustrove/";
-const stellarExpertUrl = process.env.NEXT_PUBLIC_POOL_CONTRACT_ID
-  ? explorerContractUrl(process.env.NEXT_PUBLIC_POOL_CONTRACT_ID)
+const stellarExpertUrl = CONTRACT_IDS.pool
+  ? explorerContractUrl(CONTRACT_IDS.pool)
   : explorerBaseUrl();
 
 export default function Home() {
