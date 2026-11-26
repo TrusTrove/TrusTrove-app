@@ -30,7 +30,13 @@ function App() {
 function InvoiceList() {
   const { invoices, isLoading } = useInvoices({ issuer: "G..." });
   if (isLoading) return <p>Loading...</p>;
-  return <ul>{invoices.map((inv) => <li key={inv.id}>{inv.id}</li>)}</ul>;
+  return (
+    <ul>
+      {invoices.map((inv) => (
+        <li key={inv.id}>{inv.id}</li>
+      ))}
+    </ul>
+  );
 }
 ```
 

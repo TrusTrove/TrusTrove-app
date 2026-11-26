@@ -59,7 +59,6 @@ func newTestEventListener(t *testing.T, cfgOverrides ...func(*config.Config)) *E
 		t.Fatalf("failed to generate random keypair: %v", err)
 	}
 	cfg := &config.Config{
-		StellarNetwork:        "testnet",
 		IndexerPollIntervalMs: 50,
 		ServerSeed:            kp.Seed(),
 		NetworkPassphrase:     "Test SDF Network ; September 2015",
