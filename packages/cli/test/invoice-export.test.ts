@@ -9,11 +9,12 @@ import {
 
 const ISSUER = "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB";
 const BUYER = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
-const OTHER_BUYER =
-  "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN";
+const OTHER_BUYER = "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN";
 const API_URL = "http://localhost:8080";
 
-const makeInvoice = (overrides: Partial<IndexerInvoice> = {}): IndexerInvoice => ({
+const makeInvoice = (
+  overrides: Partial<IndexerInvoice> = {},
+): IndexerInvoice => ({
   id: "a1".repeat(32),
   issuer: ISSUER,
   buyer: BUYER,
@@ -80,7 +81,7 @@ describe("toInvoiceCsv", () => {
   });
 
   it("escapes formula-shaped data cells, not just headers", () => {
-    const csv = toInvoiceCsv([makeInvoice({ issuer: "=HYPERLINK(\"x\")" })]);
+    const csv = toInvoiceCsv([makeInvoice({ issuer: '=HYPERLINK("x")' })]);
 
     expect(csv).toContain(`"'=HYPERLINK(""x"")"`);
   });
@@ -116,12 +117,8 @@ describe("exportInvoices", () => {
     ]);
 
     const urls = fetchMock.mock.calls.map((call) => String(call[0]));
-    expect(urls[0]).toBe(
-      `${API_URL}/invoices?page=1&limit=100&status=Funded`,
-    );
-    expect(urls[1]).toBe(
-      `${API_URL}/invoices?page=2&limit=100&status=Funded`,
-    );
+    expect(urls[0]).toBe(`${API_URL}/invoices?page=1&limit=100&status=Funded`);
+    expect(urls[1]).toBe(`${API_URL}/invoices?page=2&limit=100&status=Funded`);
     expect(result.csv.split("\n")).toHaveLength(3);
   });
 
@@ -171,10 +168,7 @@ describe("exportInvoices", () => {
       ),
     ).rejects.toThrow(/Invalid issuer address/);
     await expect(
-      exportInvoices(
-        { apiUrl: API_URL, status: "Nope" },
-        { fetch: fetchMock },
-      ),
+      exportInvoices({ apiUrl: API_URL, status: "Nope" }, { fetch: fetchMock }),
     ).rejects.toThrow(/Unknown status "Nope"/);
 
     expect(fetchMock).not.toHaveBeenCalled();
@@ -182,16 +176,17 @@ describe("exportInvoices", () => {
 
   it("rejects an unknown status and reports indexer failures", async () => {
     await expect(
-      exportInvoices(
-        { apiUrl: API_URL, status: "Nope" },
-        { fetch: vi.fn() },
-      ),
+      exportInvoices({ apiUrl: API_URL, status: "Nope" }, { fetch: vi.fn() }),
     ).rejects.toThrow(/Unknown status "Nope"/);
 
     await expect(
       exportInvoices(
         { apiUrl: API_URL },
-        { fetch: vi.fn().mockResolvedValue(new Response("boom", { status: 500 })) },
+        {
+          fetch: vi
+            .fn()
+            .mockResolvedValue(new Response("boom", { status: 500 })),
+        },
       ),
     ).rejects.toThrow(/returned HTTP 500/);
   });
