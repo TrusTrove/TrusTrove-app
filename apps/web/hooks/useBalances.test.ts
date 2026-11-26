@@ -5,6 +5,7 @@ import { useBalances } from "./useBalances";
 import { useWalletStore } from "@/store/wallet";
 import { Horizon } from "@stellar/stellar-sdk";
 import { ASSET_INFO } from "@/lib/assets";
+import { HORIZON_URL } from "@/lib/env";
 import type { ReactNode } from "react";
 import React from "react";
 import { createTestQueryClient } from "@/test-utils/renderWithProviders";

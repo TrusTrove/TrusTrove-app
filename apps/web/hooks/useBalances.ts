@@ -10,8 +10,8 @@ export interface Balances {
   xlm: string | null;
 }
 
-const HORIZON_URL =
-  process.env.NEXT_PUBLIC_HORIZON_URL || "https://horizon-testnet.stellar.org";
+import { getConfig } from "@trusttrove/sdk";
+const HORIZON_URL = getConfig().horizonUrl;
 
 export class OfflineError extends Error {
   readonly isOffline = true;

@@ -7,7 +7,9 @@ import { useAppError } from "./useAppError";
 
 const { captureError } = createErrorHandler("useProfile");
 
-const registryContractID = process.env.NEXT_PUBLIC_REGISTRY_CONTRACT_ID || "";
+import { CONTRACT_IDS } from "@/lib/env";
+
+const registryContractID = CONTRACT_IDS.registry;
 
 type ErrorWithResponse = {
   status?: number;
