@@ -15,6 +15,12 @@ import { useConfirmDialogStore } from "@/store/confirmDialog";
 import { PoolClient, type SimulationResult } from "@trusttrove/sdk";
 import { Address, nativeToScVal } from "@stellar/stellar-sdk";
 import { formatAmount } from "@/lib/assets";
+import {
+  assessWithdrawal,
+  formatPoolAmount,
+  formatUtilization,
+  sharesInputToStroops,
+} from "@/lib/poolWithdrawal";
 import { getEventDataString } from "@/types";
 
 import { CONTRACT_IDS } from "@/lib/env";

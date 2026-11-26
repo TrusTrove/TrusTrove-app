@@ -119,7 +119,9 @@ describe("useBuyerInvoices", () => {
 
     renderHook(() => useBuyerInvoices(BUYER));
 
-    const call = vi.mocked(useQuery).mock.calls[0][0];
+    const call = vi.mocked(useQuery).mock.calls[0][0] as unknown as {
+      queryFn: () => Promise<unknown>;
+    };
     void call.queryFn();
     expect(getAllInvoices).toHaveBeenCalledTimes(1);
   });
