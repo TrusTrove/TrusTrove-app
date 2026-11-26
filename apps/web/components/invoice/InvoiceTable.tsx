@@ -16,6 +16,15 @@ import { Button } from "@/components/ui/button";
 import { InvoiceStatus } from "./InvoiceStatus";
 import { InvoiceCard } from "./InvoiceCard";
 import { truncateAddress } from "@/lib/format";
+import { useWalletStore } from "@/store/wallet";
+import {
+  DEFAULT_INVOICE_COLUMNS,
+  INVOICE_COLUMNS,
+  type InvoiceColumnId,
+  invoiceColumnsKey,
+  readStoredInvoiceColumns,
+  writeStoredInvoiceColumns,
+} from "@/lib/invoice-columns";
 import {
   ChevronLeft,
   ChevronRight,
@@ -285,6 +294,23 @@ export function InvoiceTable({
   // imperatively focus the newly active row after an arrow-key press.
   const rowRefs = useRef<Map<number, HTMLTableRowElement>>(new Map());
   const [focusedIndex, setFocusedIndex] = useState(0);
+
+  const address = useWalletStore((s) => s.address);
+  const [visibleColumns, setVisibleColumns] = useState<InvoiceColumnId[]>([
+    ...DEFAULT_INVOICE_COLUMNS,
+  ]);
+  const [showColumnChooser, setShowColumnChooser] = useState(false);
+
+  useEffect(() => {
+    if (!address) return;
+    const stored = readStoredInvoiceColumns(invoiceColumnsKey(address));
+    if (stored) setVisibleColumns(stored);
+  }, [address]);
+
+  useEffect(() => {
+    if (!address) return;
+    writeStoredInvoiceColumns(invoiceColumnsKey(address), visibleColumns);
+  }, [address, visibleColumns]);
   // Uncontrolled fallback: used only while `selectedIds` is not supplied.
   const [internalSelectedIds, setInternalSelectedIds] = useState<string[]>([]);
   const selectAllRef = useRef<HTMLInputElement | null>(null);
@@ -474,6 +500,107 @@ export function InvoiceTable({
         <div className="bg-background/40">{emptyNode}</div>
       ) : (
         <>
+          <div className="border-b border-border/60 bg-background/50 px-4 py-2.5 sm:px-5">
+            <div className="relative inline-block">
+              <button
+                type="button"
+                onClick={() => setShowColumnChooser((v) => !v)}
+                className="rounded border border-border bg-background px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-foreground"
+                aria-expanded={showColumnChooser}
+                aria-haspopup="true"
+              >
+                Columns
+              </button>
+              {showColumnChooser && (
+                <div className="absolute z-20 mt-2 w-56 rounded border border-border bg-card p-3 shadow-lg">
+                  <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Show / hide columns
+                  </p>
+                  <div className="space-y-2">
+                    {INVOICE_COLUMNS.filter((c) => !c.essential).map((col) => (
+                      <label
+                        key={col.id}
+                        className="flex items-center gap-2 text-xs text-foreground"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={visibleColumns.includes(col.id)}
+                          onChange={() => {
+                            setVisibleColumns((prev) =>
+                              prev.includes(col.id)
+                                ? prev.filter((id) => id !== col.id)
+                                : [...prev, col.id],
+                            );
+                          }}
+                        />
+                        {col.label}
+                      </label>
+                    ))}
+                  </div>
+                  <div className="mt-3 space-y-1">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Reorder
+                    </p>
+                    {visibleColumns
+                      .filter((id) =>
+                        INVOICE_COLUMNS.find(
+                          (c) => c.id === id && !c.essential,
+                        ),
+                      )
+                      .map((id, idx, arr) => (
+                        <div
+                          key={id}
+                          className="flex items-center justify-between text-xs"
+                        >
+                          <span>{id}</span>
+                          <div className="flex gap-1">
+                            <button
+                              type="button"
+                              disabled={idx === 0}
+                              onClick={() =>
+                                setVisibleColumns((prev) => {
+                                  // move within full array is complex; do simple swap of positions in visibleColumns
+                                  const i = prev.indexOf(id);
+                                  if (i <= 0) return prev;
+                                  const next = [...prev];
+                                  [next[i - 1], next[i]] = [
+                                    next[i],
+                                    next[i - 1],
+                                  ];
+                                  return next;
+                                })
+                              }
+                            >
+                              ↑
+                            </button>
+                            <button
+                              type="button"
+                              disabled={idx === arr.length - 1}
+                              onClick={() =>
+                                setVisibleColumns((prev) => {
+                                  const i = prev.indexOf(id);
+                                  if (i < 0 || i >= prev.length - 1)
+                                    return prev;
+                                  const next = [...prev];
+                                  [next[i], next[i + 1]] = [
+                                    next[i + 1],
+                                    next[i],
+                                  ];
+                                  return next;
+                                })
+                              }
+                            >
+                              ↓
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Desktop table: hidden below md so phones don't get a
               horizontally-scrolling table *and* duplicate mobile cards. */}
           <div className="overflow-x-auto hidden md:block">
@@ -503,48 +630,31 @@ export function InvoiceTable({
                       />
                     </th>
                   )}
-                  <th
-                    scope="col"
-                    style={{ flex: COL_FLEX[0] }}
-                    className="text-left"
-                  >
-                    Invoice ID
-                  </th>
-                  <th
-                    scope="col"
-                    style={{ flex: COL_FLEX[1] }}
-                    className="text-left"
-                  >
-                    Buyer
-                  </th>
-                  <th
-                    scope="col"
-                    style={{ flex: COL_FLEX[2] }}
-                    className="text-left"
-                  >
-                    Face Value
-                  </th>
-                  <th
-                    scope="col"
-                    style={{ flex: COL_FLEX[3] }}
-                    className="text-left"
-                  >
-                    Discount
-                  </th>
-                  <th
-                    scope="col"
-                    style={{ flex: COL_FLEX[4] }}
-                    className="text-left"
-                  >
-                    Due Date
-                  </th>
-                  <th
-                    scope="col"
-                    style={{ flex: COL_FLEX[5] }}
-                    className="text-left"
-                  >
-                    Status
-                  </th>
+                  {visibleColumns.map((colId) => {
+                    const meta = INVOICE_COLUMNS.find((c) => c.id === colId)!;
+                    const flex =
+                      colId === "invoiceId"
+                        ? COL_FLEX[0]
+                        : colId === "buyer"
+                          ? COL_FLEX[1]
+                          : colId === "faceValue"
+                            ? COL_FLEX[2]
+                            : colId === "discount"
+                              ? COL_FLEX[3]
+                              : colId === "dueDate"
+                                ? COL_FLEX[4]
+                                : COL_FLEX[5];
+                    return (
+                      <th
+                        key={colId}
+                        scope="col"
+                        style={{ flex }}
+                        className="text-left"
+                      >
+                        {meta.label}
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
 
@@ -622,44 +732,88 @@ export function InvoiceTable({
                           />
                         </td>
                       )}
-                      <td
-                        style={{ flex: COL_FLEX[0] }}
-                        className="font-bold text-primary"
-                      >
-                        {truncateAddress(invoice.id)}
-                      </td>
-                      <td
-                        style={{ flex: COL_FLEX[1] }}
-                        className="text-muted-foreground"
-                      >
-                        {truncateAddress(invoice.buyer)}
-                      </td>
-                      <td
-                        style={{ flex: COL_FLEX[2] }}
-                        className="font-bold text-foreground"
-                      >
-                        {formatAmount(invoice.faceValue, invoice.asset)}
-                      </td>
-                      <td
-                        style={{ flex: COL_FLEX[3] }}
-                        className="text-foreground"
-                      >
-                        {invoice.discountBps > 0
-                          ? `${(invoice.discountBps / 100).toFixed(2)}%`
-                          : "—"}
-                      </td>
-                      <td
-                        style={{ flex: COL_FLEX[4] }}
-                        className="text-muted-foreground"
-                      >
-                        {new Date(invoice.dueDate * 1000).toLocaleDateString()}
-                      </td>
-                      <td
-                        style={{ flex: COL_FLEX[5] }}
-                        className="flex justify-start"
-                      >
-                        <InvoiceStatus status={invoice.status} />
-                      </td>
+                      {visibleColumns.map((colId) => {
+                        const flex =
+                          colId === "invoiceId"
+                            ? COL_FLEX[0]
+                            : colId === "buyer"
+                              ? COL_FLEX[1]
+                              : colId === "faceValue"
+                                ? COL_FLEX[2]
+                                : colId === "discount"
+                                  ? COL_FLEX[3]
+                                  : colId === "dueDate"
+                                    ? COL_FLEX[4]
+                                    : COL_FLEX[5];
+                        if (colId === "invoiceId") {
+                          return (
+                            <td
+                              key={colId}
+                              style={{ flex }}
+                              className="font-bold text-primary"
+                            >
+                              {truncateAddress(invoice.id)}
+                            </td>
+                          );
+                        }
+                        if (colId === "buyer") {
+                          return (
+                            <td
+                              key={colId}
+                              style={{ flex }}
+                              className="text-muted-foreground"
+                            >
+                              {truncateAddress(invoice.buyer)}
+                            </td>
+                          );
+                        }
+                        if (colId === "faceValue") {
+                          return (
+                            <td
+                              key={colId}
+                              style={{ flex }}
+                              className="font-bold text-foreground"
+                            >
+                              {formatAmount(invoice.faceValue, invoice.asset)}
+                            </td>
+                          );
+                        }
+                        if (colId === "discount") {
+                          return (
+                            <td
+                              key={colId}
+                              style={{ flex }}
+                              className="text-foreground"
+                            >
+                              {invoice.discountBps > 0
+                                ? `${(invoice.discountBps / 100).toFixed(2)}%`
+                                : "—"}
+                            </td>
+                          );
+                        }
+                        if (colId === "dueDate") {
+                          return (
+                            <td
+                              key={colId}
+                              style={{ flex }}
+                              className="text-muted-foreground"
+                            >
+                              {new Date(
+                                invoice.dueDate * 1000,
+                              ).toLocaleDateString()}
+                            </td>
+                          );
+                        }
+                        return (
+                          <td
+                            key={colId}
+                            style={{ flex }}
+                            className="flex justify-start"
+                          >
+                            <InvoiceStatus status={invoice.status} />
+                          </td>
+                        );
+                      })}
                     </tr>
                   );
                 })}
