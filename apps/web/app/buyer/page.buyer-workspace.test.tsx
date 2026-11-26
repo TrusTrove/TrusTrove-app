@@ -5,9 +5,11 @@ import type { Invoice } from "@/types";
 import BuyerWorkspacePage from "@/app/buyer/page";
 
 const { wallet } = vi.hoisted(() => {
-  const address: string | null =
-    "GDSCOJVNZ4JUVWZ5O6VBTUGOH4ZE22QJ6WMOYWHB3FEDQ2APJ2RQEIHY";
-  return { wallet: { connected: true, address } };
+  const wallet: { connected: boolean; address: string | null } = {
+    connected: true,
+    address: "GDSCOJVNZ4JUVWZ5O6VBTUGOH4ZE22QJ6WMOYWHB3FEDQ2APJ2RQEIHY",
+  };
+  return { wallet };
 });
 
 const { buyer } = vi.hoisted(() => ({
