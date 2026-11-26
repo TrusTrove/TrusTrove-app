@@ -1,13 +1,15 @@
 export const DEFAULT_USDC_ISSUER = Object.freeze(
-  "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
+  "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
 );
 
 export const SOROBAN_RPC_URL = Object.freeze(
-  process.env.NEXT_PUBLIC_SOROBAN_RPC_URL || "https://soroban-testnet.stellar.org"
+  process.env.NEXT_PUBLIC_SOROBAN_RPC_URL ||
+    "https://soroban-testnet.stellar.org",
 );
 
 export const NETWORK_PASSPHRASE = Object.freeze(
-  process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE || "Test SDF Network ; September 2015"
+  process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ||
+    "Test SDF Network ; September 2015",
 );
 
 export function readNetworkEnv() {
