@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { explorerBaseUrl, explorerContractUrl } from "@/lib/explorer";
 import { TopStatusBar } from "@/components/shared/TopStatusBar";
 import { Navbar } from "@/components/shared/Navbar";
 import { InvoiceFeed } from "@/components/shared/InvoiceFeed";
@@ -28,8 +29,8 @@ export const metadata: Metadata = {
 
 const specificationUrl = "https://k1ngd4vid.gitbook.io/trustrove/";
 const stellarExpertUrl = process.env.NEXT_PUBLIC_POOL_CONTRACT_ID
-  ? `https://stellar.expert/explorer/testnet/contract/${process.env.NEXT_PUBLIC_POOL_CONTRACT_ID}`
-  : "https://stellar.expert/explorer/testnet";
+  ? explorerContractUrl(process.env.NEXT_PUBLIC_POOL_CONTRACT_ID)
+  : explorerBaseUrl();
 
 export default function Home() {
   return (

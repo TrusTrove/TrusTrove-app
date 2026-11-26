@@ -7,10 +7,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -20,6 +22,55 @@ import (
 
 	"trusttrove/indexer/db"
 )
+
+func TestRedactURL(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{"userinfo", "https://demo-user:demo-password@subscriber.example", "https://subscriber.example"},
+		{"query token", "https://subscriber.example/?token=demo-query&key=demo-key", "https://subscriber.example"},
+		{"path tokens", "https://subscriber.example/hooks/demo-group/demo-token", "https://subscriber.example/[redacted]"},
+		{"escaped path and fragment", "https://subscriber.example/%2Fdemo#demo-fragment", "https://subscriber.example/[redacted]"},
+		{"port", "http://subscriber.example:8080/hook", "http://subscriber.example:8080/[redacted]"},
+		{"invalid", "https://subscriber.example/hooks/%zz", "[invalid URL]"},
+		{"relative", "/hooks/demo", "[invalid URL]"},
+		{"no host", "https:///hook", "[invalid URL]"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := redactURL(tc.raw); got != tc.want {
+				t.Errorf("redactURL() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRequestErrorMessage(t *testing.T) {
+	const endpoint = "https://subscriber.example/hook?token=demo"
+	tests := []struct {
+		name  string
+		stage string
+		err   error
+		want  string
+	}{
+		{"invalid request", "build request", fmt.Errorf("invalid request for %q", endpoint), "build request: request failed"},
+		{"transport error", "http", fmt.Errorf("invalid response from %q", endpoint), "http: request failed"},
+		{"timeout", "http", context.DeadlineExceeded, "http: request timed out"},
+		{"canceled", "http", context.Canceled, "http: request canceled"},
+		{"redirect refused", "http", errUnsafeRedirect, "http: redirect to unsafe URL refused"},
+		{"redirect limit", "http", errTooManyRedirects, "http: stopped after 10 redirects"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := &url.Error{Op: "Post", URL: endpoint, Err: tc.err}
+			if got := requestErrorMessage(tc.stage, err); got != tc.want {
+				t.Errorf("requestErrorMessage() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
 
 // fakeDelivery builds an in-memory claimed row. The worker only reads these
 // fields when attempting, so no database is needed to exercise the pool.
@@ -67,8 +118,8 @@ func TestDeliveryClientBlocksRedirectToUnsafeURL(t *testing.T) {
 		_ = resp.Body.Close()
 		t.Fatal("client followed a redirect to an unsafe URL, want an error")
 	}
-	if !strings.Contains(err.Error(), "unsafe url") {
-		t.Errorf("redirect error = %q, want it to mention an unsafe url", err)
+	if !errors.Is(err, errUnsafeRedirect) {
+		t.Errorf("redirect error = %v, want %v", err, errUnsafeRedirect)
 	}
 	if got := redirected.Load(); got != 0 {
 		t.Errorf("unsafe target received %d request(s), want 0", got)
