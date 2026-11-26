@@ -5,8 +5,10 @@ import { formatAmount } from "@/lib/assets";
 import { parseInvoiceResponse } from "@/lib/parsers";
 import InvoiceDetailClient from "./InvoiceDetailClient";
 
+import { API_BASE_URL, APP_URL } from "@/lib/env";
+
 const getIndexerApiUrl = () => {
-  return process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
+  return API_BASE_URL;
 };
 
 // Request-scoped memo. `generateMetadata` and the page render resolve in the
@@ -56,9 +58,8 @@ export async function generateMetadata({
     ? `Trade finance invoice on Stellar. Status: ${invoice.status}. Due: ${dueDate}.`
     : "Trade finance invoice on Stellar.";
 
-  // Construct an absolute origin for social image URLs. Prefer an explicit public URL
-  // if provided via `NEXT_PUBLIC_APP_URL`, otherwise fall back to localhost.
-  const origin = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  // Construct an absolute origin for social image URLs using the centralized APP_URL.
+  const origin = APP_URL;
   const ogImage = `${origin.replace(/\/$/, "")}/og-image.png`;
 
   return {

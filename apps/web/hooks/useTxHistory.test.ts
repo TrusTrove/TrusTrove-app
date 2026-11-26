@@ -11,6 +11,7 @@ import {
   txOpsQueryKey,
 } from "./useTxHistory";
 import { useQuery, useQueryClient, QueryClient } from "@tanstack/react-query";
+import { HORIZON_URL, CONTRACT_IDS } from "@/lib/env";
 
 vi.mock("@tanstack/react-query", async () => {
   const actual = await vi.importActual<typeof import("@tanstack/react-query")>(

@@ -11,7 +11,9 @@ import type { AssetType } from "@/types";
 
 const { handleMutationError } = createErrorHandler("usePool");
 
-const poolContractID = process.env.NEXT_PUBLIC_POOL_CONTRACT_ID || "";
+import { CONTRACT_IDS } from "@/lib/env";
+
+const poolContractID = CONTRACT_IDS.pool;
 
 interface DepositArguments {
   amount: bigint;

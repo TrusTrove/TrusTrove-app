@@ -7,8 +7,7 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { useWalletStore } from "@/store/wallet";
 import type { TxHistoryItem } from "@/types";
 
-const HORIZON_URL =
-  process.env.NEXT_PUBLIC_HORIZON_URL || "https://horizon-testnet.stellar.org";
+import { HORIZON_URL } from "@/lib/env";
 
 const CONTRACT_IDS = [
   process.env.NEXT_PUBLIC_REGISTRY_CONTRACT_ID,

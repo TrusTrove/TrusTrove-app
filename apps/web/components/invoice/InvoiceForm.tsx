@@ -12,7 +12,9 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { getErrorMessage } from "@/lib/errors";
 import { updateInvoiceStatus } from "@/lib/api";
 
-const invoiceContractID = process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID || "";
+import { CONTRACT_IDS } from "@/lib/env";
+
+const invoiceContractID = CONTRACT_IDS.invoice;
 
 const getStellarSdk = () => import("@stellar/stellar-sdk");
 const getTrustroveSdk = () => import("@trusttrove/sdk");
