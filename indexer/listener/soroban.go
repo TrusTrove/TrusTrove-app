@@ -203,7 +203,7 @@ func NewEventListener(cfg *config.Config, health *api.ListenerHealth, dispatcher
 		areEventsProcessedFn:       db.AreEventsProcessed,
 	}
 	l.getLedgerHashFn = l.getLedgerHash
-l.handleEventFn = l.handleEvent
+	l.handleEventFn = l.handleEvent
 	l.syncPoolStatsFn = func(ctx context.Context) error {
 		serverKP, err := api.GetServerKeypair(l.cfg.ServerSeed)
 		if err != nil {

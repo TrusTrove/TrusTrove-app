@@ -19,15 +19,43 @@ import (
 	"github.com/stellar/go-stellar-sdk/xdr"
 )
 
+// poolStatsSyncTimeout is the debounce/max window for coalescing pool stats updates
+const poolStatsSyncTimeout = 5 * time.Second
 
+// markPoolStatsDirty marks pool stats as needing sync, resetting the timer
+func (l *EventListener) markPoolStatsDirty(eventID string) {
+	l.poolStatsMu.Lock()
+	defer l.poolStatsMu.Unlock()
+	
+	l.poolStatsDirty = true
+	if l.poolStatsTimer != nil {
+		l.poolStatsTimer.Stop()
+	}
+	l.poolStatsTimer = time.AfterFunc(poolStatsSyncTimeout, func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		if err := l.flushPoolStats(ctx); err != nil {
+			slog.Error("failed to flush pool stats on timeout", "error", err)
+		}
+	})
+}
 
+// flushPoolStats syncs pool stats if dirty
+func (l *EventListener) flushPoolStats(ctx context.Context) error {
+	l.poolStatsMu.Lock()
+	if !l.poolStatsDirty {
+		l.poolStatsMu.Unlock()
+		return nil
+	}
+	l.poolStatsDirty = false
+	if l.poolStatsTimer != nil {
+		l.poolStatsTimer.Stop()
+		l.poolStatsTimer = nil
+	}
+	l.poolStatsMu.Unlock()
 
-
-
-
-
-
-
+	return l.syncPoolStats(ctx, "flush", l.serverKP)
+}
 
 // getPoolStatsFn delegates to SyncPoolStats
 func (l *EventListener) getPoolStatsFn(ctx context.Context, cfg *config.Config, serverKP *keypair.Full) error {
