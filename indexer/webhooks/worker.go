@@ -6,11 +6,15 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -38,6 +42,11 @@ type WorkerConfig struct {
 const (
 	defaultConcurrency  = 8
 	defaultLockDuration = 60 * time.Second
+)
+
+var (
+	errTooManyRedirects = errors.New("stopped after 10 redirects")
+	errUnsafeRedirect   = errors.New("redirect to unsafe URL refused")
 )
 
 // DefaultWorkerConfig returns sensible defaults for the webhook worker.
@@ -107,12 +116,49 @@ func NewDeliveryWorker(cfg WorkerConfig) *DeliveryWorker {
 // re-runs the SSRF guard against every hop's target.
 func (w *DeliveryWorker) checkRedirect(req *http.Request, via []*http.Request) error {
 	if len(via) >= 10 {
-		return fmt.Errorf("webhook delivery: stopped after 10 redirects")
+		return errTooManyRedirects
 	}
 	if !w.isSafeURL(req.URL.String()) {
-		return fmt.Errorf("webhook delivery: refusing redirect to unsafe url %s", req.URL.Redacted())
+		return errUnsafeRedirect
 	}
 	return nil
+}
+
+// redactURL keeps the origin and replaces any path segments with a single
+// marker. A webhook token can appear anywhere in the path.
+func redactURL(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" {
+		return "[invalid URL]"
+	}
+	origin := u.Scheme + "://" + u.Host
+	if strings.Trim(u.Path, "/") != "" {
+		return origin + "/[redacted]"
+	}
+	return origin
+}
+
+// requestErrorMessage returns a diagnostic safe for logs and last_error.
+// Underlying HTTP errors may also quote a URL or redirect Location, so use
+// known error categories without formatting the underlying error itself.
+func requestErrorMessage(stage string, err error) string {
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		err = urlErr.Err
+	}
+	var netErr net.Error
+	switch {
+	case errors.Is(err, errTooManyRedirects):
+		return stage + ": " + errTooManyRedirects.Error()
+	case errors.Is(err, errUnsafeRedirect):
+		return stage + ": " + errUnsafeRedirect.Error()
+	case errors.Is(err, context.Canceled):
+		return stage + ": request canceled"
+	case errors.Is(err, context.DeadlineExceeded), errors.As(err, &netErr) && netErr.Timeout():
+		return stage + ": request timed out"
+	default:
+		return stage + ": request failed"
+	}
 }
 
 // Start begins the worker's delivery loop. It blocks until ctx is cancelled.
@@ -194,7 +240,7 @@ func (w *DeliveryWorker) attemptDelivery(ctx context.Context, delivery *db.Webho
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, delivery.EndpointURL, bytes.NewReader(delivery.Payload))
 	if err != nil {
-		w.handleFailure(ctx, delivery, nil, fmt.Sprintf("build request: %v", err))
+		w.handleFailure(ctx, delivery, nil, requestErrorMessage("build request", err))
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -203,7 +249,7 @@ func (w *DeliveryWorker) attemptDelivery(ctx context.Context, delivery *db.Webho
 
 	resp, err := w.client.Do(req)
 	if err != nil {
-		w.handleFailure(ctx, delivery, nil, fmt.Sprintf("http: %v", err))
+		w.handleFailure(ctx, delivery, nil, requestErrorMessage("http", err))
 		return
 	}
 	defer resp.Body.Close()
@@ -218,7 +264,7 @@ func (w *DeliveryWorker) attemptDelivery(ctx context.Context, delivery *db.Webho
 			slog.Error("webhook worker: mark success failed", "delivery_id", delivery.ID, "error", dbErr)
 		}
 		api.WebhookDeliveriesTotal.WithLabelValues("delivered").Inc()
-		slog.Info("webhook worker: delivered", "delivery_id", delivery.ID, "endpoint", delivery.EndpointURL, "status", resp.StatusCode)
+		slog.Info("webhook worker: delivered", "delivery_id", delivery.ID, "endpoint", redactURL(delivery.EndpointURL), "status", resp.StatusCode)
 		return
 	}
 
@@ -231,11 +277,12 @@ func (w *DeliveryWorker) handleFailure(ctx context.Context, delivery *db.Webhook
 	writeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	nextAttempt := delivery.Attempts + 1
+	endpoint := redactURL(delivery.EndpointURL)
 	slog.Warn("webhook worker: delivery failed",
 		"delivery_id", delivery.ID,
 		"attempt", nextAttempt,
 		"max_attempts", delivery.MaxAttempts,
-		"endpoint", delivery.EndpointURL,
+		"endpoint", endpoint,
 		"error", errMsg,
 	)
 
@@ -244,7 +291,7 @@ func (w *DeliveryWorker) handleFailure(ctx context.Context, delivery *db.Webhook
 			slog.Error("webhook worker: mark dead_letter failed", "delivery_id", delivery.ID, "error", err)
 		}
 		api.WebhookDeliveriesTotal.WithLabelValues("dead_lettered").Inc()
-		slog.Error("webhook worker: delivery dead-lettered", "delivery_id", delivery.ID, "endpoint", delivery.EndpointURL)
+		slog.Error("webhook worker: delivery dead-lettered", "delivery_id", delivery.ID, "endpoint", endpoint)
 		return
 	}
 

@@ -14,6 +14,7 @@ import { WalletConnect } from "@/components/shared/WalletConnect";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { TransactionPending } from "@/components/shared/TransactionPending";
 import { TxHistory } from "@/components/shared/TxHistory";
+import { CONTRACT_IDS } from "@/lib/env";
 import { Button } from "@/components/ui/button";
 import {
   ShieldCheck,

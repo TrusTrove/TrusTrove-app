@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Loader2, ExternalLink, ShieldCheck } from "lucide-react";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
+import { explorerTxUrl } from "@/lib/explorer";
 
 interface TransactionPendingProps {
   isOpen: boolean;
@@ -134,7 +135,7 @@ export function TransactionPending({
               {txHash}
             </div>
             <a
-              href={`https://stellar.expert/explorer/testnet/tx/${txHash}`}
+              href={explorerTxUrl(txHash)}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-primary hover:underline hover:text-primary-hover font-bold"
