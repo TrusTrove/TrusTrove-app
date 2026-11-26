@@ -4,8 +4,8 @@ Follow these steps to set up the TrusTrove repository locally.
 
 ### Prerequisites
 
-- Node.js 20+
-- pnpm 9+
+- Node.js 22+
+- pnpm 10+
 - Go 1.25+
 - Docker
 - Freighter browser extension installed
