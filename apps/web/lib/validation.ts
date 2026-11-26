@@ -26,3 +26,17 @@ export const MAX_DISCOUNT_BPS = 5000;
 export function validateDiscountBps(bps: number): boolean {
   return Number.isInteger(bps) && bps > 0 && bps <= MAX_DISCOUNT_BPS;
 }
+
+import { StrKey } from "@stellar/stellar-sdk";
+
+/**
+ * Validates a buyer Stellar public key (G...)
+ */
+export function isValidBuyerAddress(addr: string): boolean {
+  if (!addr) return false;
+  try {
+    return StrKey.isValidEd25519PublicKey(addr);
+  } catch {
+    return false;
+  }
+}

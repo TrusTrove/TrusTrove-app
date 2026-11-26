@@ -19,6 +19,48 @@ import (
 	"github.com/stellar/go-stellar-sdk/xdr"
 )
 
+// poolStatsSyncTimeout is the debounce/max window for coalescing pool stats updates
+const poolStatsSyncTimeout = 5 * time.Second
+
+// markPoolStatsDirty marks pool stats as needing sync, resetting the timer
+func (l *EventListener) markPoolStatsDirty(eventID string) {
+	l.poolStatsMu.Lock()
+	defer l.poolStatsMu.Unlock()
+	
+	l.poolStatsDirty = true
+	if l.poolStatsTimer != nil {
+		l.poolStatsTimer.Stop()
+	}
+	l.poolStatsTimer = time.AfterFunc(poolStatsSyncTimeout, func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		if err := l.flushPoolStats(ctx); err != nil {
+			slog.Error("failed to flush pool stats on timeout", "error", err)
+		}
+	})
+}
+
+// flushPoolStats syncs pool stats if dirty
+func (l *EventListener) flushPoolStats(ctx context.Context) error {
+	l.poolStatsMu.Lock()
+	if !l.poolStatsDirty {
+		l.poolStatsMu.Unlock()
+		return nil
+	}
+	l.poolStatsDirty = false
+	if l.poolStatsTimer != nil {
+		l.poolStatsTimer.Stop()
+		l.poolStatsTimer = nil
+	}
+	l.poolStatsMu.Unlock()
+
+	return l.syncPoolStats(ctx, "flush", l.serverKP)
+}
+
+// getPoolStatsFn delegates to SyncPoolStats
+func (l *EventListener) getPoolStatsFn(ctx context.Context, cfg *config.Config, serverKP *keypair.Full) error {
+	return SyncPoolStats(ctx, cfg, serverKP)
+}
 // SyncPoolStats retrieves latest pool statistics from the contract on-chain and updates the database
 func SyncPoolStats(ctx context.Context, cfg *config.Config, serverKP *keypair.Full) error {
 	slog.Info("Syncing pool stats from chain...")
@@ -78,51 +120,17 @@ func SyncPoolStats(ctx context.Context, cfg *config.Config, serverKP *keypair.Fu
 	return nil
 }
 
-// poolStatsSyncTimeout bounds the coalesced SyncPoolStats call. The RPC read
-// can otherwise retry for far longer than a poll interval, stalling the
-// listener's event loop.
-const poolStatsSyncTimeout = 10 * time.Second
-
-// markPoolStatsDirty records that an indexed event changed pool state. The
-// actual SyncPoolStats call is deferred to the end of the poll cycle, so a
-// batch of N funded/repaid/defaulted events costs one RPC round trip instead
-// of N (issue #943). The event id is kept only for the warning logged if that
-// single sync fails.
-func (l *EventListener) markPoolStatsDirty(eventID string) {
-	l.poolStatsDirty = true
-	if eventID != "" {
-		l.poolStatsPendingEvents = append(l.poolStatsPendingEvents, eventID)
+func (l *EventListener) syncPoolStats(ctx context.Context, eventName string, serverKP *keypair.Full) {
+	fn := l.getPoolStatsFn
+	if fn == nil {
+		fn = SyncPoolStats
+	}
+	if err := fn(ctx, l.cfg, serverKP); err != nil {
+		slog.Warn("pool stats sync failed", "event", eventName, "error", err)
 	}
 }
 
-// flushPoolStats runs the deferred SyncPoolStats once per poll cycle. A
-// failure is logged instead of returned: the events themselves were already
-// indexed, so a transient chain/DB error here must not cause them to be
-// retried or dropped, and the next poll retries the sync.
-func (l *EventListener) flushPoolStats(ctx context.Context) {
-	if !l.poolStatsDirty {
-		return
-	}
-	l.poolStatsDirty = false
-	events := l.poolStatsPendingEvents
-	l.poolStatsPendingEvents = nil
 
-	if ctx.Err() != nil {
-		// The listener is stopping; leave the flag clean for the next poll
-		// after a restart rather than delaying shutdown with a sync.
-		return
-	}
-
-	syncCtx, cancel := context.WithTimeout(
-		context.WithoutCancel(ctx),
-		poolStatsSyncTimeout,
-	)
-	defer cancel()
-
-	if err := l.syncPoolStatsFn(syncCtx); err != nil {
-		slog.Warn("pool stats sync failed", "eventIds", events, "error", err)
-	}
-}
 
 // Event-specific handlers called by the listener loop
 
