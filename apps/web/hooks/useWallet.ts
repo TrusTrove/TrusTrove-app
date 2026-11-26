@@ -59,6 +59,10 @@ async function validateFreighterNetwork(): Promise<void> {
  * @example
  * const { address, connected, connectWallet, disconnectWallet, loading, error } = useWallet();
  */
+export function normalizeNetworkForWallet(raw: string | undefined): string {
+  return (raw || "testnet").toLowerCase();
+}
+
 export function useWallet() {
   const address = useWalletStore((s) => s.address);
   const connected = useWalletStore((s) => s.connected);
