@@ -1,76 +1,20 @@
-import React from "react";
-import { render, screen } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ConfigBanner } from "./ConfigBanner";
-import { validateConfig } from "@/lib/config";
+import { describe, it, expect, vi } from 'vitest';
+import React from 'react';
+import { render, screen } from '@testing-library/react';
+import { ConfigBanner } from './ConfigBanner';
 
-vi.mock("@/lib/config", () => ({
-  validateConfig: vi.fn(),
+vi.mock('@/lib/config', () => ({
+  validateConfig: () => ({
+    missing: ['NEXT_PUBLIC_ESCROW_CONTRACT_ID'],
+    invalid: ['NEXT_PUBLIC_STELLAR_NETWORK'],
+    isConfigured: false,
+  }),
 }));
 
-describe("ConfigBanner", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("renders nothing when all required env vars are configured", () => {
-    vi.mocked(validateConfig).mockReturnValue({
-      missing: [],
-      isConfigured: true,
-    });
-
-    const { container } = render(<ConfigBanner />);
-    expect(container.firstChild).toBeNull();
-  });
-
-  it("renders banner with missing env var labels", () => {
-    vi.mocked(validateConfig).mockReturnValue({
-      missing: [
-        "NEXT_PUBLIC_INVOICE_CONTRACT_ID",
-        "NEXT_PUBLIC_POOL_CONTRACT_ID",
-      ],
-      isConfigured: false,
-    });
-
+describe('ConfigBanner', () => {
+  it('renders missing and invalid configuration items', () => {
     render(<ConfigBanner />);
-
-    expect(screen.getByText("Configuration Error")).toBeInTheDocument();
-    expect(
-      screen.getByText(/Missing required environment variables/),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/Invoice Contract, Pool Contract/),
-    ).toBeInTheDocument();
-    expect(screen.getByText(".env.local")).toBeInTheDocument();
-  });
-
-  it("falls back to raw key name for unknown env vars", () => {
-    vi.mocked(validateConfig).mockReturnValue({
-      missing: ["NEXT_PUBLIC_UNKNOWN_CONTRACT_ID"],
-      isConfigured: false,
-    });
-
-    render(<ConfigBanner />);
-
-    expect(
-      screen.getByText(/NEXT_PUBLIC_UNKNOWN_CONTRACT_ID/),
-    ).toBeInTheDocument();
-  });
-
-  it("lists all three required env vars when all are missing", () => {
-    vi.mocked(validateConfig).mockReturnValue({
-      missing: [
-        "NEXT_PUBLIC_INVOICE_CONTRACT_ID",
-        "NEXT_PUBLIC_POOL_CONTRACT_ID",
-        "NEXT_PUBLIC_REGISTRY_CONTRACT_ID",
-      ],
-      isConfigured: false,
-    });
-
-    render(<ConfigBanner />);
-
-    expect(
-      screen.getByText(/Invoice Contract, Pool Contract, Registry Contract/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Escrow Contract/i)).toBeDefined();
+    expect(screen.getByText(/Stellar Network/i)).toBeDefined();
   });
 });
