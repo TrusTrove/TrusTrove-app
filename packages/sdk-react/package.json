@@ -1,8 +1,32 @@
 {
   "name": "@trusttrove/sdk-react",
   "version": "1.0.0",
+  "private": true,
+  "description": "React hooks and providers for the TrusTrove TypeScript SDK",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TrusTrove/TrusTrove-app.git",
+    "directory": "packages/sdk-react"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
   "type": "module",
   "scripts": {
     "build": "tsc",

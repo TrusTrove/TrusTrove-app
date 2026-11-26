@@ -1,6 +1,22 @@
 {
   "name": "@trusttrove/sdk",
   "version": "1.0.0",
+  "private": true,
+  "description": "TypeScript SDK for the TrusTrove decentralised trade-finance protocol on Stellar Soroban",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TrusTrove/TrusTrove-app.git",
+    "directory": "packages/sdk"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
@@ -26,7 +42,7 @@
   },
   "dependencies": {
     "@stellar/freighter-api": "^2.0.0",
-    "@stellar/stellar-sdk": "^13.0.0",
+    "@stellar/stellar-sdk": "^13.3.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
