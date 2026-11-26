@@ -1,6 +1,8 @@
 export function explorerBaseUrl(): string {
   const network =
-    process.env.NEXT_PUBLIC_STELLAR_NETWORK === "mainnet" ? "public" : "testnet";
+    process.env.NEXT_PUBLIC_STELLAR_NETWORK === "mainnet"
+      ? "public"
+      : "testnet";
   return `https://stellar.expert/explorer/${network}`;
 }
 

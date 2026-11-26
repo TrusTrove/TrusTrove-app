@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { explorerBaseUrl, explorerContractUrl, explorerTxUrl } from "./explorer";
+import {
+  explorerBaseUrl,
+  explorerContractUrl,
+  explorerTxUrl,
+} from "./explorer";
 
 describe("Stellar Expert links", () => {
   afterEach(() => {
