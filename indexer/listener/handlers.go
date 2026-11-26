@@ -27,6 +27,8 @@ import (
 
 
 
+
+
 // getPoolStatsFn delegates to SyncPoolStats
 func (l *EventListener) getPoolStatsFn(ctx context.Context, cfg *config.Config, serverKP *keypair.Full) error {
 	return SyncPoolStats(ctx, cfg, serverKP)
