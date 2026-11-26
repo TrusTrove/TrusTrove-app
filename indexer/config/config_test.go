@@ -9,16 +9,12 @@ import (
 
 var configEnvNames = []string{
 	"APP_ENV",
-	"STELLAR_NETWORK",
-	"HORIZON_URL",
 	"SOROBAN_RPC_URL",
 	"NETWORK_PASSPHRASE",
 	"REGISTRY_CONTRACT_ID",
 	"INVOICE_CONTRACT_ID",
 	"POOL_CONTRACT_ID",
 	"ESCROW_CONTRACT_ID",
-	"USDC_ISSUER",
-	"USDC_ASSET_CODE",
 	"DATABASE_URL",
 	"JWT_SECRET",
 	"SERVER_SEED",
@@ -44,17 +40,74 @@ func setConfigEnv(t *testing.T, values map[string]string) {
 
 func requiredConfigEnv() map[string]string {
 	return map[string]string{
-		"STELLAR_NETWORK":      "testnet",
-		"HORIZON_URL":          "https://horizon.example",
 		"SOROBAN_RPC_URL":      "https://rpc.example",
 		"NETWORK_PASSPHRASE":   "Test SDF Network ; September 2015",
 		"REGISTRY_CONTRACT_ID": "registry",
 		"INVOICE_CONTRACT_ID":  "invoice",
 		"POOL_CONTRACT_ID":     "pool",
 		"ESCROW_CONTRACT_ID":   "escrow",
-		"USDC_ISSUER":          "issuer",
-		"USDC_ASSET_CODE":      "USDC",
 		"DATABASE_URL":         "postgres://localhost/test",
+	}
+}
+
+// TestLoadConfigAppEnv verifies that the APP_ENV enum is strictly validated:
+// only "development" and "production" (case-insensitive) are accepted; any
+// other value must be rejected at startup so a typo like "prod" or "live"
+// never silently degrades to development-mode secret generation.
+func TestLoadConfigAppEnv(t *testing.T) {
+	cases := []struct {
+		value   string
+		wantErr bool
+		wantEnv string // expected cfg.AppEnv on success
+	}{
+		// Empty defaults to "development" and must succeed.
+		{value: "", wantErr: false, wantEnv: "development"},
+		// Canonical values.
+		{value: "development", wantErr: false, wantEnv: "development"},
+		{value: "production", wantErr: false, wantEnv: "production"},
+		// Normalisation: leading/trailing whitespace and mixed case are both handled.
+		{value: "Production", wantErr: false, wantEnv: "production"},
+		{value: " development ", wantErr: false, wantEnv: "development"},
+		// Invalid values must be rejected.
+		{value: "prod", wantErr: true},
+		{value: "staging", wantErr: true},
+		{value: "live", wantErr: true},
+		{value: "test", wantErr: true},
+	}
+
+	for _, tc := range cases {
+		name := tc.value
+		if name == "" {
+			name = "empty"
+		}
+		t.Run(name, func(t *testing.T) {
+			env := requiredConfigEnv()
+			env["APP_ENV"] = tc.value
+			// production requires JWT_SECRET and SERVER_SEED; supply them so
+			// those missing-variable errors don't mask the APP_ENV check.
+			if strings.ToLower(strings.TrimSpace(tc.value)) == "production" {
+				env["JWT_SECRET"] = "configured-secret"
+				env["SERVER_SEED"] = "SAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF"
+			}
+			setConfigEnv(t, env)
+
+			cfg, err := LoadConfig()
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("LoadConfig() succeeded for APP_ENV=%q, want error", tc.value)
+				}
+				if !strings.Contains(err.Error(), "APP_ENV") {
+					t.Errorf("error %q does not mention APP_ENV", err.Error())
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("LoadConfig() error = %v, want nil for APP_ENV=%q", err, tc.value)
+			}
+			if cfg.AppEnv != tc.wantEnv {
+				t.Errorf("cfg.AppEnv = %q, want %q", cfg.AppEnv, tc.wantEnv)
+			}
+		})
 	}
 }
 
@@ -158,6 +211,9 @@ func TestLoadConfig(t *testing.T) {
 				return env
 			}(),
 			check: func(t *testing.T, cfg *Config) {
+				if cfg.AppEnv != "production" {
+					t.Errorf("AppEnv = %q, want production", cfg.AppEnv)
+				}
 				if cfg.JWTSecret != "configured-secret" || cfg.JWTSecretGenerated {
 					t.Errorf("JWT secret = %q, generated = %v; want configured secret and false", cfg.JWTSecret, cfg.JWTSecretGenerated)
 				}
@@ -187,6 +243,9 @@ func TestLoadConfig(t *testing.T) {
 			name: "development defaults and generated secrets",
 			env:  requiredConfigEnv(),
 			check: func(t *testing.T, cfg *Config) {
+				if cfg.AppEnv != "development" {
+					t.Errorf("AppEnv = %q, want development", cfg.AppEnv)
+				}
 				if !cfg.JWTSecretGenerated || len(cfg.JWTSecret) != 64 {
 					t.Errorf("JWT fallback = (%q, %v); want 64-character generated secret", cfg.JWTSecret, cfg.JWTSecretGenerated)
 				}
@@ -215,6 +274,11 @@ func TestLoadConfig(t *testing.T) {
 			name:    "production rejects missing required values",
 			env:     map[string]string{"APP_ENV": "production"},
 			wantErr: "missing required environment variables",
+		},
+		{
+			name:    "invalid APP_ENV is rejected",
+			env:     map[string]string{"APP_ENV": "prod"},
+			wantErr: "APP_ENV",
 		},
 	}
 

@@ -19,17 +19,22 @@ import (
 // cannot stall event indexing indefinitely. 20 ledgers is ~100s.
 const maxConfirmationDepth = 20
 
+// validAppEnvs is the closed set of accepted APP_ENV values. Any other string
+// is rejected at startup so a typo (e.g. "prod", "live") never silently falls
+// back to development-mode secret generation.
+var validAppEnvs = map[string]bool{
+	"development": true,
+	"production":  true,
+}
+
 type Config struct {
-	StellarNetwork           string
-	HorizonURL               string
+	AppEnv                   string
 	SorobanRPCURL            string
 	NetworkPassphrase        string
 	RegistryContractID       string
 	InvoiceContractID        string
 	PoolContractID           string
 	EscrowContractID         string
-	USDCIssuer               string
-	USDCAssetCode            string
 	DatabaseURL              string
 	APIPort                  string
 	IndexerPollIntervalMs    int
@@ -70,9 +75,17 @@ func LoadConfig() (*Config, error) {
 		return value
 	}
 
+	// Normalise and validate APP_ENV. Reject anything outside the allowed set
+	// so a typo like "prod" never silently degrades to development behaviour.
 	appEnv := strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
 	if appEnv == "" {
 		appEnv = "development"
+	}
+	if !validAppEnvs[appEnv] {
+		return nil, fmt.Errorf(
+			"APP_ENV %q is not a recognised value; allowed values are: development, production",
+			appEnv,
+		)
 	}
 
 	jwtSecret := strings.TrimSpace(os.Getenv("JWT_SECRET"))
@@ -209,16 +222,13 @@ func LoadConfig() (*Config, error) {
 	}
 
 	cfg := &Config{
-		StellarNetwork:           getRequired("STELLAR_NETWORK"),
-		HorizonURL:               getRequired("HORIZON_URL"),
+		AppEnv:                   appEnv,
 		SorobanRPCURL:            getRequired("SOROBAN_RPC_URL"),
 		NetworkPassphrase:        getRequired("NETWORK_PASSPHRASE"),
 		RegistryContractID:       getRequired("REGISTRY_CONTRACT_ID"),
 		InvoiceContractID:        getRequired("INVOICE_CONTRACT_ID"),
 		PoolContractID:           getRequired("POOL_CONTRACT_ID"),
 		EscrowContractID:         getRequired("ESCROW_CONTRACT_ID"),
-		USDCIssuer:               getRequired("USDC_ISSUER"),
-		USDCAssetCode:            getRequired("USDC_ASSET_CODE"),
 		DatabaseURL:              getRequired("DATABASE_URL"),
 		APIPort:                  apiPort,
 		IndexerPollIntervalMs:    pollIntervalMs,

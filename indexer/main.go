@@ -82,7 +82,7 @@ func runMain() int {
 	// documented no-op: the SDK still initializes but simply discards events.
 	if err := sentry.Init(sentry.ClientOptions{
 		Dsn:              cfg.SentryDSN,
-		Environment:      os.Getenv("APP_ENV"),
+		Environment:      cfg.AppEnv,
 		AttachStacktrace: true,
 	}); err != nil {
 		slog.Error("Failed to initialize Sentry", "error", err)
