@@ -68,10 +68,14 @@ describe("Regression: SimulationPreview fallback state (PR #176)", () => {
     render(
       <SimulationPreview
         details={{
+          success: true,
           estimatedFeeXlm: "0.001",
+          resourceFeeStroops: 0n,
           functionName: "list_for_financing",
           expectedResult: null,
           footprintSize: 4,
+          requiredAuthorization: [],
+          failureDetails: null,
         }}
         error={null}
         isLoading={false}

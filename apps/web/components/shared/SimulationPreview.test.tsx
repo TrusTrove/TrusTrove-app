@@ -1,14 +1,19 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
+import type { SimulationResult } from "@trusttrove/sdk";
 import { SimulationPreview } from "@/components/shared/SimulationPreview";
 
 const happyDetails = {
+  success: true,
   estimatedFeeXlm: "0.0001",
+  resourceFeeStroops: 0n,
   functionName: "create_invoice",
   expectedResult: { ok: true },
   footprintSize: 3,
-};
+  requiredAuthorization: [],
+  failureDetails: null,
+} satisfies SimulationResult;
 
 describe("SimulationPreview", () => {
   it("renders the transaction preview with valid details", () => {

@@ -1,5 +1,6 @@
 export * from "./config.js";
 export * from "./amounts.js";
+export * from "./pagination.js";
 export * from "./base.js";
 export * from "./read-only.js";
 export * from "./types/index.js";

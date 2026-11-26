@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { toUsdc, fromUsdc } from "./amounts.js";
+import {
+  toUsdc,
+  fromUsdc,
+  calculateAdvance,
+  calculateDiscount,
+  calculateEarlyRepaymentRefund,
+  calculateNetProceeds,
+} from "./amounts.js";
 
 describe("toUsdc", () => {
   it('converts 1 USDC (10_000_000 stroops) to "1.00"', () => {
@@ -124,4 +131,35 @@ describe("round-trip consistency", () => {
       expect(roundTripped).toBe(stroops);
     },
   );
+});
+
+describe("invoice cash-flow helpers", () => {
+  it("calculates a rounded discount and initial advance with bigint precision", () => {
+    const faceValue = 9_007_199_254_741_001n;
+    const discount = calculateDiscount(faceValue, 125);
+
+    expect(discount).toBe(
+      (faceValue * 125n + 9_999n) / 10_000n,
+    );
+    expect(calculateAdvance(faceValue, 125)).toBe(faceValue - discount);
+  });
+
+  it("refunds the proportional discount for the remaining term and adds it to proceeds", () => {
+    const refund = calculateEarlyRepaymentRefund(100_000n, 30n, 120n);
+
+    expect(refund).toBe(25_000n);
+    expect(calculateNetProceeds(950_000n, refund)).toBe(975_000n);
+    expect(calculateNetProceeds(950_000n)).toBe(950_000n);
+  });
+
+  it("rejects invalid discount rates and repayment terms", () => {
+    expect(() => calculateDiscount(1_000n, 10_001)).toThrow(RangeError);
+    expect(() => calculateDiscount(-1n, 100)).toThrow(RangeError);
+    expect(() => calculateEarlyRepaymentRefund(1_000n, 2n, 1n)).toThrow(
+      RangeError,
+    );
+    expect(() => calculateEarlyRepaymentRefund(1_000n, 0n, 0n)).toThrow(
+      RangeError,
+    );
+  });
 });

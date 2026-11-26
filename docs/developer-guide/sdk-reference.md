@@ -61,6 +61,70 @@ const agents = new AgentRegistryClient(
 
 > **Note:** All write methods (`writeContract`) require a `signerPublicKey` argument — the Freighter wallet address that will sign the transaction. All read methods (`readContract`) also require it to build and simulate the transaction.
 
+## Simulation and pagination helpers
+
+Simulations estimate the base and resource fees, footprint, decoded return
+value, and authorization entries without preparing, signing, or submitting a
+transaction. Successful calls return a `SimulationResult`; rejected
+simulations throw `SimulationError`, whose `failureDetails` contains the method
+and RPC failure message.
+
+```typescript
+const preview = await invoice.simulateTransaction(
+  "list_for_financing",
+  args,
+  signerPublicKey,
+);
+preview.resourceFeeStroops; // bigint, resource fee only
+preview.requiredAuthorization; // Soroban authorization entries
+preview.failureDetails; // null on success
+```
+
+The invoice and event iterators accept a page-fetch function so applications
+can adapt their own cursor-based API. Pass each supplied cursor to the next
+request and forward the optional signal to `fetch` (or the chosen transport):
+
+```typescript
+import { iterateInvoices, iterateEvents } from "@trusttrove/sdk";
+
+for await (const item of iterateInvoices(
+  (cursor, signal) => fetchInvoiceCursorPage(cursor, signal),
+  { signal: abortController.signal },
+)) {
+  // Invoice IDs repeated across overlapping pages are yielded once.
+}
+
+for await (const event of iterateEvents(
+  (cursor, signal) => fetchEventCursorPage(cursor, signal),
+  { signal: abortController.signal },
+)) {
+  // `event` is an EventEntry.
+}
+```
+
+Each fetcher returns `{ items, nextCursor }`, where `nextCursor` is a non-empty
+string or `null` at the end. Missing/invalid cursors and cursor loops throw;
+abort signals stop traversal and are forwarded to the fetcher.
+
+Cash-flow helpers operate entirely on bigint stroops. Discounts round up to a
+stroop (matching the web preview), early-repayment refunds are proportional to
+the remaining term and round down, and net proceeds equal the initial advance
+plus that refund:
+
+```typescript
+import {
+  calculateAdvance,
+  calculateDiscount,
+  calculateEarlyRepaymentRefund,
+  calculateNetProceeds,
+} from "@trusttrove/sdk";
+
+const discount = calculateDiscount(faceValue, discountBps);
+const advance = calculateAdvance(faceValue, discountBps);
+const refund = calculateEarlyRepaymentRefund(discount, remainingTerm, totalTerm);
+const proceeds = calculateNetProceeds(advance, refund);
+```
+
 ---
 
 ## Read-only client factory
