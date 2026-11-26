@@ -118,7 +118,7 @@ describe("round-trip consistency", () => {
 
   it.each(cases)(
     "fromUsdc(toUsdc(%s)) preserves the stroop value for %s USDC",
-    (stroops, _expected) => {
+    (stroops) => {
       const formatted = toUsdc(stroops);
       const roundTripped = fromUsdc(formatted);
       expect(roundTripped).toBe(stroops);
