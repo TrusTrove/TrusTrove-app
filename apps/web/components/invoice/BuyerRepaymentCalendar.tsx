@@ -21,15 +21,14 @@ function dueDateKey(dueDate: number, timeZone: string): string {
   }).format(new Date(dueDate * 1000));
 }
 
-function formatGroupLabel(
-  key: string,
-  timeZone: string,
-  locale: string,
-): string {
+function formatGroupLabel(key: string, locale: string): string {
   const [y, m, d] = key.split("-").map(Number);
+  // `key` is already the calendar day in the requested timezone, so format it
+  // as a UTC date. Re-applying the timezone would shift the label by a day for
+  // timezones behind UTC.
   const date = new Date(Date.UTC(y, m - 1, d));
   return new Intl.DateTimeFormat(locale, {
-    timeZone,
+    timeZone: "UTC",
     weekday: "long",
     month: "long",
     day: "numeric",
@@ -95,7 +94,7 @@ export function BuyerRepaymentCalendar({
             >
               <div className="mb-2 flex items-center justify-between">
                 <h3 className="text-xs font-bold text-foreground">
-                  {formatGroupLabel(key, timezone, locale)}
+                  {formatGroupLabel(key, locale)}
                 </h3>
                 {overdue && (
                   <span className="text-[10px] font-bold uppercase text-rose-400">
