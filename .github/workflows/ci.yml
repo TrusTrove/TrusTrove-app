@@ -73,7 +73,7 @@ jobs:
         run: pnpm --filter web lint
 
       - name: Check Formatting
-        run: npx prettier --check .
+        run: npx --yes prettier@3.10.1 --check .
 
   e2e-web:
     name: Web E2E Tests (Playwright)

@@ -76,14 +76,14 @@ trusttrove lp position G... \
   --network mainnet
 ```
 
-| Flag                      | Description                                                                                                                                 |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `<address>`               | LP Stellar account address (`G...`). Required.                                                                                              |
-| `--public-key <key>`      | Public key for the read-only simulation. Defaults to `TRUSTTROVE_PUBLIC_KEY`, `NEXT_PUBLIC_PUBLIC_KEY`, `PUBLIC_KEY`, then the LP address.   |
-| `--pool-contract-id <id>` | Pool contract ID. Defaults to `TRUSTTROVE_POOL_CONTRACT_ID`, `NEXT_PUBLIC_POOL_CONTRACT_ID`, `POOL_CONTRACT_ID`, then the SDK config.       |
-| `--network <network>`     | `testnet` or `mainnet`. See [Network selection](#network-selection).                                                                         |
-| `--rpc-url <url>`         | Custom Soroban RPC endpoint.                                                                                                                 |
-| `--json`                  | Emit errors as structured JSON on stderr.                                                                                                    |
+| Flag                      | Description                                                                                                                                |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `<address>`               | LP Stellar account address (`G...`). Required.                                                                                             |
+| `--public-key <key>`      | Public key for the read-only simulation. Defaults to `TRUSTTROVE_PUBLIC_KEY`, `NEXT_PUBLIC_PUBLIC_KEY`, `PUBLIC_KEY`, then the LP address. |
+| `--pool-contract-id <id>` | Pool contract ID. Defaults to `TRUSTTROVE_POOL_CONTRACT_ID`, `NEXT_PUBLIC_POOL_CONTRACT_ID`, `POOL_CONTRACT_ID`, then the SDK config.      |
+| `--network <network>`     | `testnet` or `mainnet`. See [Network selection](#network-selection).                                                                       |
+| `--rpc-url <url>`         | Custom Soroban RPC endpoint.                                                                                                               |
+| `--json`                  | Emit errors as structured JSON on stderr.                                                                                                  |
 
 Shares are printed as raw share units, not USDC. Principal is the estimated
 original deposit (`usdc_value - yield_earned`) and is floored at zero. An
@@ -115,14 +115,14 @@ trusttrove invoice export \
   --output invoices.csv
 ```
 
-| Flag                  | Description                                                                                             |
-| --------------------- | ------------------------------------------------------------------------------------------------------- |
-| `--status <status>`   | One of `Created`, `Listed`, `Funded`, `Active`, `Confirmed`, `Repaid`, `Defaulted` (case-insensitive).  |
-| `--issuer <address>`  | Filter by issuer Stellar account address.                                                               |
-| `--buyer <address>`   | Filter by buyer Stellar account address.                                                                |
-| `--api-url <url>`     | Indexer base URL. Defaults to `TRUSTTROVE_API_URL`, then `http://localhost:8080`.                       |
-| `--output <file>`     | Write the CSV to a file instead of stdout.                                                              |
-| `--json`              | Emit errors as structured JSON on stderr.                                                               |
+| Flag                 | Description                                                                                            |
+| -------------------- | ------------------------------------------------------------------------------------------------------ |
+| `--status <status>`  | One of `Created`, `Listed`, `Funded`, `Active`, `Confirmed`, `Repaid`, `Defaulted` (case-insensitive). |
+| `--issuer <address>` | Filter by issuer Stellar account address.                                                              |
+| `--buyer <address>`  | Filter by buyer Stellar account address.                                                               |
+| `--api-url <url>`    | Indexer base URL. Defaults to `TRUSTTROVE_API_URL`, then `http://localhost:8080`.                      |
+| `--output <file>`    | Write the CSV to a file instead of stdout.                                                             |
+| `--json`             | Emit errors as structured JSON on stderr.                                                              |
 
 Filters are optional and can be combined. The indexer supports `status` and
 `issuer` server-side; because `GET /invoices` has no buyer parameter, a
