@@ -10,7 +10,7 @@ export * from "./clients/escrow.js";
 export * from "./clients/token.js";
 export * from "./clients/agentRegistry.js";
 export * from "./types/schemas.js";
-export { isValidContractId } from "./config.js";
+export { isValidContractId, validateContractAddress } from "./config.js";
 export type { SimulationResult } from "./base.js";
 export type { DocumentHash } from "./types/index.js";
 export {
@@ -19,8 +19,9 @@ export {
   isTransitionAllowed,
 } from "./types/index.js";
 export type { InvoiceStatus } from "./types/index.js";
-export {
-  parseContractEvents,
-  parseSorobanEvents,
+export { parseContractEvents, parseSorobanEvents } from "./base.js";
+export type {
+  PreflightResult,
   TrusTroveEvent,
+  WalletSignTransaction,
 } from "./base.js";
