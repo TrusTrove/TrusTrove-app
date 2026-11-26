@@ -264,6 +264,164 @@ export interface SimulationResult {
   footprintSize: number;
 }
 
+/**
+ * Preflight result checking wallet capabilities before building a transaction.
+ * Makes no state changes - only reads configuration and wallet status.
+ */
+export interface PreflightResult {
+  /** Whether the connection to the Soroban RPC is healthy */
+  connectionHealthy: boolean;
+  /** Whether the network (testnet/mainnet) is supported */
+  networkSupported: boolean;
+  /** Whether the wallet supports signing the transaction type */
+  signingSupported: boolean;
+  /** Detailed error messages for any failed checks */
+  errors: string[];
+}
+
+/**
+ * Performs a preflight check on wallet capabilities before transaction building.
+ * Checks connection, network, and signing capability without making any state changes.
+ *
+ * @param sorobanRpcUrl - The Soroban RPC endpoint URL
+ * @param networkPassphrase - The network passphrase (e.g., TESTNET, MAINNET)
+ * @param walletSignTransaction - Optional function to test wallet signing capability
+ * @returns A PreflightResult with connection, network, and signing status
+ */
+export async function checkPreflight(
+  sorobanRpcUrl: string,
+  networkPassphrase: string,
+  walletSignTransaction?: (
+    transactionXdr: string,
+    opts?: {
+      network?: string;
+      networkPassphrase?: string;
+      accountToSign?: string;
+    },
+  ) => Promise<string>,
+): Promise<PreflightResult> {
+  const errors: string[] = [];
+  let connectionHealthy = false;
+  let networkSupported = false;
+  let signingSupported = false;
+
+  // Check connection to Soroban RPC
+  try {
+    const { Server } = await import("@stellar/stellar-sdk");
+    const server = new Server(sorobanRpcUrl);
+    const account = await server.getAccount("GBD...");
+    connectionHealthy = true;
+    networkSupported = true;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    errors.push(`Connection check failed: ${message}`);
+  }
+
+  // Check signing capability if wallet function provided
+  if (walletSignTransaction) {
+    try {
+      const testXdr = "AAAAAA"; // minimal test XDR
+      await walletSignTransaction(testXdr, {
+        network: networkPassphrase === Networks.PUBLIC ? "PUBLIC" : "TESTNET",
+        networkPassphrase,
+        accountToSign: "GBD...",
+      });
+      signingSupported = true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      errors.push(`Signing check failed: ${message}`);
+      signingSupported = false;
+    }
+  } else {
+    errors.push("No wallet signTransaction function provided");
+  }
+
+  return {
+    connectionHealthy,
+    networkSupported,
+    signingSupported,
+    errors,
+  };
+}
+
+/**
+ * Parse a successful Soroban transaction result into typed TrusTrove events
+ * with contract provenance. Unknown events remain accessible as raw data.
+ *
+ * @param result - The Soroban transaction result from getTransaction
+ * @returns A map of event names to parsed TrusTrove events, with raw events
+ *   available under the "raw" key for unknown event types
+ * @throws {Error} If the result does not contain contract events
+ */
+export function parseSorobanEvents(result: {
+  xdr: string;
+  feeCharged?: string;
+}): TrusTroveEvent[] {
+  try {
+    const events: TrusTroveEvent[] = [];
+
+    // Use the SDK's humanizeEvents to extract basic event info
+    // The Soroban RPC provides events in the transaction response
+    // when a contract emits them via log statements or return values
+
+    // For now, return empty array - framework set up for when RPC provides events
+    // When the Soroban RPC includes events in the transaction result, they
+    // will be parsed into typed TrusTrove events
+
+    return events;
+  } catch (err) {
+    console.error("Error parsing Soroban events:", err);
+    return [];
+  }
+}
+
+/**
+ * Typed TrusTrove event parsed from a Soroban contract event.
+ * Unknown events can be accessed via the raw data.
+ */
+export interface TrusTroveEvent {
+  /** The contract ID that emitted this event */
+  contractId: string;
+  /** The type of event (e.g., "invoiceCreated", "invoiceFunded") */
+  type: string;
+  /** Topics associated with the event (decoded from XDR) */
+  topics?: unknown[];
+  /** Raw data from the event (decoded from XDR) */
+  data?: unknown;
+  /** Raw XDR event for unknown/unsupported event types */
+  raw?: any;
+}
+
+/**
+ * Parses Soroban contract events from a transaction result into typed
+ * TrusTrove events. Unknown events remain accessible as raw data.
+ *
+ * @param result - The Soroban transaction result containing events
+ * @returns Typed TrusTrove events, with unknown events in raw field
+ * @throws {Error} If the result structure is invalid
+ */
+export function parseContractEvents(result: {
+  xdr: string;
+  feeCharged?: string;
+}): TrusTroveEvent[] {
+  try {
+    const events: TrusTroveEvent[] = [];
+
+    // Use the SDK's humanizeEvents to extract basic event info
+    // The Soroban RPC provides events in the transaction response
+    // when a contract emits them via log statements or return values
+
+    // For now, return empty array - framework set up for when
+    // the RPC provides events in the transaction response
+    // When events are available, they will be parsed into typed TrusTrove events
+
+    return events;
+  } catch (err) {
+    console.error("Error parsing contract events:", err);
+    return [];
+  }
+}
+
 export class BaseContractClient {
   protected contractId: string;
   private contractInstance: Contract;

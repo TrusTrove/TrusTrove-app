@@ -1,7 +1,5 @@
 # TrusTrove
 
-
-
 ## Tech Stack
 
 - **Web application:** Next.js app in `apps/web`.

@@ -180,8 +180,11 @@ export function createReadOnlyClient(
   };
 
   const contractId = (name: keyof SDKConfig["contractIds"]): string => {
-    const id = (config.contractIds?.[name] ?? getConfig().contractIds[name] ?? "")
-      .trim();
+    const id = (
+      config.contractIds?.[name] ??
+      getConfig().contractIds[name] ??
+      ""
+    ).trim();
     if (!id) {
       throw new Error(
         `A ${name} contract ID is required. Pass contractIds.${name} to the read-only factory.`,
@@ -209,10 +212,11 @@ export function createReadOnlyClient(
     },
     get pool() {
       return cached("pool", () =>
-        readOnlyView(
-          new PoolClient(contractId("pool"), {}, networkConfig),
-          ["getStats", "getLPPosition", "getUtilizationRate"] as const,
-        ),
+        readOnlyView(new PoolClient(contractId("pool"), {}, networkConfig), [
+          "getStats",
+          "getLPPosition",
+          "getUtilizationRate",
+        ] as const),
       );
     },
     get escrow() {

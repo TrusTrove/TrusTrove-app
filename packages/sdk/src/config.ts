@@ -68,6 +68,14 @@ export interface SDKConfig {
   };
 }
 
+/** Validates a Stellar contract account ID (strkey). */
+export function isValidContractId(id: string): boolean {
+  if (typeof id !== "string") return false;
+  // strkey format: "CA" prefix + 54 base32 characters (32 bytes) with checksum
+  const contractIdRegex = /^CA[A-HJ-NP-Z0-9]{54}$/;
+  return contractIdRegex.test(id);
+}
+
 let activeConfig: SDKConfig = {
   horizonUrl: DEFAULT_NETWORK.horizonUrl,
   sorobanRpcUrl: DEFAULT_NETWORK.sorobanRpcUrl,

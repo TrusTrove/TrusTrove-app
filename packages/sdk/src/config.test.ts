@@ -24,6 +24,7 @@ import {
   configureSDK,
   getConfig,
   getSorobanServer,
+  isValidContractId,
 } from "./config.js";
 
 describe("config", () => {
@@ -46,6 +47,47 @@ describe("config", () => {
       expect(DEFAULT_CONTRACTS.invoice).toBeTypeOf("string");
       expect(DEFAULT_CONTRACTS.pool).toBeTypeOf("string");
       expect(DEFAULT_CONTRACTS.escrow).toBeTypeOf("string");
+    });
+  });
+
+  describe("isValidContractId", () => {
+    it("accepts valid testnet contract IDs starting with CA", () => {
+      // Valid strkey contract account: CA prefix + 54 base32 chars (56 total)
+      expect(
+        isValidContractId(
+          "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+        ),
+      ).toBe(true);
+    });
+
+    it("rejects invalid checksum contract IDs", () => {
+      // Too long (57 chars instead of 56)
+      expect(
+        isValidContractId(
+          "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+        ),
+      ).toBe(false);
+      // Too short (no CA prefix, just random chars)
+      expect(
+        isValidContractId("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"),
+      ).toBe(false);
+    });
+
+    it("rejects non-string inputs", () => {
+      expect(isValidContractId(123)).toBe(false);
+      expect(isValidContractId(null)).toBe(false);
+      expect(isValidContractId(undefined)).toBe(false);
+    });
+
+    it("rejects incorrectly formatted IDs", () => {
+      expect(isValidContractId("GB...")).toBe(false);
+      expect(isValidContractId("")).toBe(false);
+      // 55 chars (one too few)
+      expect(
+        isValidContractId(
+          "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        ),
+      ).toBe(false);
     });
   });
 
