@@ -32,7 +32,6 @@ export interface ContractIdsConfig {
   readonly invoice: string;
   readonly pool: string;
   readonly escrow: string;
-  readonly token: string;
   readonly agentRegistry: string;
 }
 
@@ -44,13 +43,7 @@ export interface AppConfig {
   readonly CONTRACT_IDS: ContractIdsConfig;
 }
 
-export interface ContractIds {
-  registry: string;
-  invoice: string;
-  pool: string;
-  escrow: string;
-  agentRegistry: string;
-}
+export type ContractIds = ContractIdsConfig;
 
 export const HORIZON_URL = Object.freeze(
   (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_HORIZON_URL) ||
