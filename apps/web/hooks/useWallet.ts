@@ -10,12 +10,12 @@ import { useBalances } from "./useBalances";
 import { createErrorHandler } from "@/lib/errors";
 
 const { captureError } = createErrorHandler("useWallet");
-const REQUIRED_NETWORK = "testnet";
+import { getExpectedNetwork } from "@/lib/config";
 
-const EXPECTED_NETWORK = "testnet";
+const EXPECTED_NETWORK = getExpectedNetwork().name;
 const WRONG_NETWORK_ERROR_CODE = "wrong_network";
 const WRONG_NETWORK_ERROR_MESSAGE =
-  "Your Freighter wallet is connected to the wrong network. Please switch Freighter to Stellar Testnet and try again.";
+  `Your Freighter wallet is connected to the wrong network. Please switch Freighter to Stellar ${getExpectedNetwork().name.toUpperCase()} and try again.`;
 
 interface FreighterNetworkDetails {
   network?: string;

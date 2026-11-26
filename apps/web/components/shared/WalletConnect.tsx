@@ -15,6 +15,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { truncateAddress } from "@/lib/format";
+import { getExpectedNetwork } from "@/lib/config";
 import { getErrorMessage } from "@/lib/errors";
 
 interface FreighterNetworkApi {
@@ -61,7 +62,7 @@ export function WalletConnect() {
     }
   };
 
-  const handleSwitchToTestnet = async () => {
+  const handleSwitchNetwork = async () => {
     setSwitchingNetwork(true);
     setNetworkSwitchError(null);
 
@@ -75,7 +76,9 @@ export function WalletConnect() {
         );
       }
 
-      const response = await freighter.setNetwork("TESTNET");
+      const { getExpectedNetwork } = await import("@/lib/config");
+      const expected = getExpectedNetwork();
+      const response = await freighter.setNetwork(expected.freighterNetwork);
       if (
         response &&
         typeof response === "object" &&
@@ -117,28 +120,23 @@ export function WalletConnect() {
       {connected && (
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2">
-            {network === "testnet" ? (
+            {network === getExpectedNetwork().name ? (
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 font-mono">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                Testnet
-              </span>
-            ) : network === "mainnet" ? (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 font-mono">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Mainnet
+                {getExpectedNetwork().label.split(" ")[1] || getExpectedNetwork().name}
               </span>
             ) : (
               <Button
                 variant="outline"
                 size="sm"
                 className="text-xs border-amber-500/30 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10 rounded-md font-mono"
-                onClick={handleSwitchToTestnet}
+                onClick={handleSwitchNetwork}
                 disabled={switchingNetwork}
               >
                 {switchingNetwork && (
                   <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                 )}
-                {switchingNetwork ? "SWITCHING..." : "Switch to Testnet"}
+                {switchingNetwork ? "SWITCHING..." : `Switch to ${getExpectedNetwork().name.toUpperCase()}`}
               </Button>
             )}
           </div>
@@ -148,7 +146,7 @@ export function WalletConnect() {
               <span className="flex items-start gap-1.5">
                 <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                 <span>
-                  Open Freighter, switch its network to Testnet, then reconnect
+                  Open Freighter, switch its network to the expected network, then reconnect
                   your wallet.
                 </span>
               </span>
