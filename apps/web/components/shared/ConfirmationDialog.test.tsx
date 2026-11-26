@@ -4,6 +4,7 @@ import { describe, it, expect, vi } from "vitest";
 import { ConfirmationDialog } from "./ConfirmationDialog";
 import { useConfirmDialogStore } from "@/store/confirmDialog";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
+import { renderWithProviders } from "@/test-utils/renderWithProviders";
 import { renderWithProviders as render } from "@/test-utils/renderWithProviders";
 
 vi.mock("@/store/confirmDialog", () => ({
@@ -38,7 +39,7 @@ describe("ConfirmationDialog", () => {
       request: vi.fn(),
     });
 
-    render(<ConfirmationDialog />);
+    renderWithProviders(<ConfirmationDialog />);
 
     // Verify it renders dialog title with action label
     expect(screen.getByText("Confirm Repay Debt")).toBeInTheDocument();
@@ -63,7 +64,7 @@ describe("ConfirmationDialog", () => {
       request: vi.fn(),
     });
 
-    const { container } = render(<ConfirmationDialog />);
+    const { container } = renderWithProviders(<ConfirmationDialog />);
     expect(container.firstChild).toBeNull();
   });
 
@@ -78,7 +79,7 @@ describe("ConfirmationDialog", () => {
       request: vi.fn(),
     });
 
-    render(<ConfirmationDialog />);
+    renderWithProviders(<ConfirmationDialog />);
     expect(screen.getByText("Confirm Fund Invoice")).toBeInTheDocument();
   });
 
@@ -94,7 +95,7 @@ describe("ConfirmationDialog", () => {
       request: vi.fn(),
     });
 
-    render(<ConfirmationDialog />);
+    renderWithProviders(<ConfirmationDialog />);
 
     // Click Close X button
     const closeBtn = screen.getByLabelText("Close confirmation dialog");
@@ -119,7 +120,7 @@ describe("ConfirmationDialog", () => {
       request: vi.fn(),
     });
 
-    render(<ConfirmationDialog />);
+    renderWithProviders(<ConfirmationDialog />);
 
     // Click dialog overlay backdrop
     const dialogRoot = screen.getByRole("dialog");
@@ -128,6 +129,19 @@ describe("ConfirmationDialog", () => {
   });
 
   it("renders confirmation dialog", () => {
+    vi.mocked(useConfirmDialogStore).mockReturnValue({
+      pendingAction: {
+        label: "Confirm Delivery",
+        invoiceId: "invoice_xyz",
+        fn: vi.fn().mockResolvedValue(undefined),
+      },
+      cancel: vi.fn(),
+      request: vi.fn(),
+    });
+
+    renderWithProviders(<ConfirmationDialog />);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText("Confirm Confirm Delivery")).toBeInTheDocument();
     const mockCancel = vi.fn();
     vi.mocked(useConfirmDialogStore).mockReturnValue({
       pendingAction: {

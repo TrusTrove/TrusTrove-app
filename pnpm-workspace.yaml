@@ -17,8 +17,6 @@ auditConfig:
     - GHSA-m99w-x7hq-7vfj
     - GHSA-89xv-2m56-2m9x
     - GHSA-p9j2-gv94-2wf4
-    - GHSA-82x6-q7mm-w9cf
-    - GHSA-v5mp-jgw5-2x6j
     - GHSA-c29m-xwm3-cm6r
     - GHSA-mghh-pgcx-3jjj
     - GHSA-3pq3-5fj3-cg6v
@@ -29,11 +27,6 @@ auditConfig:
     # braces: build-time only (tailwindcss/fast-glob/chokidar/micromatch); the
     # advisory has no patched release yet, so there is nothing to override to
     - GHSA-vfj7-8cjw-p6xm
-    # toml 3.x is pinned by Stellar SDK 13; resolving these advisories requires
-    # the SDK's major-version upgrade rather than a lockfile-only override.
-    - GHSA-4qx8-w7c3-pj3p
-    - GHSA-9j65-hcg3-gc64
-    - GHSA-9qmh-m7c6-f92p
     # next 14.2.35: both advisories are patched only in next >=15.5.28, so they
     # are triaged with the Next 15 upgrade rather than a cross-major override
     # SDK Zod 3.25.76 is patched in patches/zod@3.25.76.patch; see SECURITY.md.
@@ -45,13 +38,12 @@ auditConfig:
     - GHSA-p3m5-59mp-jv5r
     # braces is build-time only; no patched release is available yet.
     - GHSA-vfj7-8cjw-p6xm
-    # toml 3.0.0 via @stellar/stellar-sdk; the workspace override selects 5.0.1.
-    - GHSA-4qx8-w7c3-pj3p
-    - GHSA-9j65-hcg3-gc64
-    - GHSA-9qmh-m7c6-f92p
-    - GHSA-mrv2-3pqr-j5jr
     # dompurify via jspdf; the workspace override selects fixed 3.4.17.
     - GHSA-cg2g-xh64-v4q7
+    # postcss bundled inside next@15; the outer package resolves >=8.5.31 but
+    # next's own peer dependency pins an older copy that cannot be overridden.
+    - GHSA-6g55-p6wh-862q
+    - GHSA-r28c-9q8g-f849
 overrides:
   postcss: ">=8.5.18 <9"
   nanoid: ">=3.3.18 <4"

@@ -19,6 +19,7 @@ Before opening or requesting review of a pull request, confirm the following:
 - [ ] Code compiles without errors (`pnpm build` / `go build -v .`)
 - [ ] TypeScript type-checking passes with no errors (`pnpm typecheck`)
 - [ ] Linting passes (`pnpm --filter web lint` / `go vet ./...` and `golangci-lint run`)
+- [ ] Code is formatted with Prettier (`pnpm format:check`)
 - [ ] All existing and new tests pass (`pnpm test` / `go test -race ./...`)
 - [ ] No `TODO`, stub, or placeholder code is present
 - [ ] TypeScript changes use strict types (no `any`)
@@ -115,6 +116,16 @@ golangci-lint run
 ```
 
 `golangci-lint` runs the linters enabled in [`indexer/.golangci.yml`](indexer/.golangci.yml) (`errcheck`, `staticcheck`, `govet`, `ineffassign`, `unused`, `errorlint`) with a 5 minute timeout. Install it from <https://golangci-lint.run/welcome/install/> (CI pins the same version the workflow downloads), then run it from the `indexer/` directory. CI runs it on every pull request, so fix (or explicitly annotate with `//nolint:<linter> // <reason>`) every reported issue before opening a PR.
+
+Formatting is enforced with Prettier across the TypeScript workspaces:
+
+```bash
+# Check formatting (CI runs this)
+pnpm format:check
+
+# Auto-fix formatting
+pnpm format
+```
 
 ### 4. Testing
 

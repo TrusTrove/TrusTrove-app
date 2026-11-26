@@ -15,7 +15,7 @@ import { getErrorMessage } from "@/lib/errors";
  */
 export function useInvoiceDetailActions(
   invoiceId: string,
-  refetch: () => Promise<unknown>,
+  refetch: () => void | Promise<unknown>,
 ) {
   const { shipInvoice, confirmDelivery, repayInvoice, defaultInvoice } =
     useInvoiceActions();
