@@ -82,8 +82,10 @@ interface RawEventLog {
   data: Record<string, unknown>;
 }
 
+import { API_BASE_URL } from "@/lib/env";
+
 const getApiUrl = () => {
-  return process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
+  return API_BASE_URL;
 };
 
 /**
