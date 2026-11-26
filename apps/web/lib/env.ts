@@ -83,7 +83,7 @@ export const APP_URL = Object.freeze(
         process.env.NEXT_PUBLIC_APP_URL === "")
     ) {
       console.warn(
-        "[Warning] NEXT_PUBLIC_APP_URL is not set in production. Falling back to http://localhost:3000"
+        "[Warning] NEXT_PUBLIC_APP_URL is not set in production. Falling back to http://localhost:3000",
       );
 }
     return url;
