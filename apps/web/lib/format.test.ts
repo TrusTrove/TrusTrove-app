@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { truncateAddress } from "./format";
+import { describe, it, expect } from 'vitest';
+import { truncateAddress } from './format';
 
 describe("truncateAddress", () => {
   it("handles undefined or empty input", () => {
@@ -10,6 +10,7 @@ describe("truncateAddress", () => {
   it("returns short strings of length 10 or less unchanged", () => {
     expect(truncateAddress("GABCD")).toBe("GABCD");
     expect(truncateAddress("1234567890")).toBe("1234567890");
+    expect(truncateAddress("A")).toBe("A");
   });
 
   it("truncates strings of length 11 or more", () => {
