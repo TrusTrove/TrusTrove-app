@@ -7,14 +7,14 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { useWalletStore } from "@/store/wallet";
 import type { TxHistoryItem } from "@/types";
 
-import { getConfig } from "@trusttrove/sdk";
-const HORIZON_URL = getConfig().horizonUrl;
+import { HORIZON_URL, CONTRACT_IDS as ENV_CONTRACT_IDS } from "@/lib/env";
 
 const CONTRACT_IDS = [
-  process.env.NEXT_PUBLIC_REGISTRY_CONTRACT_ID,
-  process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID,
-  process.env.NEXT_PUBLIC_POOL_CONTRACT_ID,
-  process.env.NEXT_PUBLIC_ESCROW_CONTRACT_ID,
+  ENV_CONTRACT_IDS.registry,
+  ENV_CONTRACT_IDS.invoice,
+  ENV_CONTRACT_IDS.pool,
+  ENV_CONTRACT_IDS.escrow,
+  ENV_CONTRACT_IDS.agentRegistry,
 ].filter(Boolean) as string[];
 
 let horizonServer: Horizon.Server | undefined;

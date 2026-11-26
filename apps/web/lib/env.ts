@@ -44,38 +44,85 @@ export interface AppConfig {
   readonly CONTRACT_IDS: ContractIdsConfig;
 }
 
-export const HORIZON_URL: string = Object.freeze(
-  process.env.NEXT_PUBLIC_HORIZON_URL || "https://horizon-testnet.stellar.org"
-);
-
-export const API_BASE_URL: string = Object.freeze(
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080"
-);
-
-export const APP_URL: string = Object.freeze(
-  process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
-);
-
-export const USDC_ISSUER: string = Object.freeze(
-  process.env.NEXT_PUBLIC_USDC_ISSUER || "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
-);
-
-if (process.env.NODE_ENV === "production") {
-  if (!process.env.NEXT_PUBLIC_API_BASE_URL) {
-    console.warn("WARNING: NEXT_PUBLIC_API_BASE_URL is not set in production.");
-  }
-  if (!process.env.NEXT_PUBLIC_APP_URL) {
-    console.warn("WARNING: NEXT_PUBLIC_APP_URL is not set in production.");
-  }
+export interface ContractIds {
+  registry: string;
+  invoice: string;
+  pool: string;
+  escrow: string;
+  agentRegistry: string;
 }
 
-export const CONTRACT_IDS: ContractIdsConfig = Object.freeze({
-  registry: process.env.NEXT_PUBLIC_REGISTRY_CONTRACT_ID || "",
-  invoice: process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID || "",
-  pool: process.env.NEXT_PUBLIC_POOL_CONTRACT_ID || "",
-  escrow: process.env.NEXT_PUBLIC_ESCROW_CONTRACT_ID || "",
-  token: process.env.NEXT_PUBLIC_TOKEN_CONTRACT_ID || "",
-  agentRegistry: process.env.NEXT_PUBLIC_AGENT_REGISTRY_CONTRACT_ID || "",
+export const HORIZON_URL = Object.freeze(
+  (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_HORIZON_URL) ||
+    "https://horizon-testnet.stellar.org"
+);
+
+export const API_BASE_URL = Object.freeze(
+  (() => {
+    const url =
+      (typeof process !== "undefined" &&
+        process.env?.NEXT_PUBLIC_API_BASE_URL) ||
+      "http://localhost:8080";
+    if (
+      typeof process !== "undefined" &&
+      process.env?.NODE_ENV === "production" &&
+      (!process.env.NEXT_PUBLIC_API_BASE_URL ||
+        process.env.NEXT_PUBLIC_API_BASE_URL === "")
+    ) {
+      console.warn(
+        "[Warning] NEXT_PUBLIC_API_BASE_URL is not set in production. Falling back to http://localhost:8080"
+);
+    }
+    return url;
+  })()
+);
+
+export const APP_URL = Object.freeze(
+  (() => {
+    const url =
+      (typeof process !== "undefined" &&
+        process.env?.NEXT_PUBLIC_APP_URL) ||
+      "http://localhost:3000";
+    if (
+      typeof process !== "undefined" &&
+      process.env?.NODE_ENV === "production" &&
+      (!process.env.NEXT_PUBLIC_APP_URL ||
+        process.env.NEXT_PUBLIC_APP_URL === "")
+    ) {
+      console.warn(
+        "[Warning] NEXT_PUBLIC_APP_URL is not set in production. Falling back to http://localhost:3000"
+      );
+}
+    return url;
+  })()
+);
+
+export const USDC_ISSUER = Object.freeze(
+  (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_USDC_ISSUER) ||
+    "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
+);
+
+export const CONTRACT_IDS: ContractIds = Object.freeze({
+  registry:
+    (typeof process !== "undefined" &&
+      process.env?.NEXT_PUBLIC_REGISTRY_CONTRACT_ID) ||
+    "",
+  invoice:
+    (typeof process !== "undefined" &&
+      process.env?.NEXT_PUBLIC_INVOICE_CONTRACT_ID) ||
+    "",
+  pool:
+    (typeof process !== "undefined" &&
+      process.env?.NEXT_PUBLIC_POOL_CONTRACT_ID) ||
+    "",
+  escrow:
+    (typeof process !== "undefined" &&
+      process.env?.NEXT_PUBLIC_ESCROW_CONTRACT_ID) ||
+    "",
+  agentRegistry:
+    (typeof process !== "undefined" &&
+      process.env?.NEXT_PUBLIC_AGENT_REGISTRY_CONTRACT_ID) ||
+    "",
 });
 
 export const env: AppConfig = Object.freeze({
