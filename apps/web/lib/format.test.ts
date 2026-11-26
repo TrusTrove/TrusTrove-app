@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import { truncateAddress } from "./format";
 
 describe("truncateAddress", () => {
-  it("returns empty string for empty input", () => {
+  it("handles undefined or empty input", () => {
+    expect(truncateAddress(undefined)).toBe("");
     expect(truncateAddress("")).toBe("");
   });
 
@@ -11,14 +12,12 @@ describe("truncateAddress", () => {
     expect(truncateAddress("1234567890")).toBe("1234567890");
   });
 
-  it("returns short strings of length 1 unchanged", () => {
-    expect(truncateAddress("G")).toBe("G");
+  it("truncates strings of length 11 or more", () => {
+    expect(truncateAddress("12345678901")).toBe("123456...8901");
   });
 
-  it("truncates strings of length 11 or more, including 56-character Stellar addresses", () => {
-    const stellarAddr = "GABCD1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890ABCDE";
-    const truncated = truncateAddress(stellarAddr);
-    expect(truncated).toBe("GABCD1...BCDE");
-    expect(stellarAddr.length).toBe(56);
+  it("truncates a full 56-character Stellar address correctly", () => {
+    const addr = "GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASWCGXC7V2H";
+    expect(truncateAddress(addr)).toBe("GBRPYH...CV2H");
   });
 });
