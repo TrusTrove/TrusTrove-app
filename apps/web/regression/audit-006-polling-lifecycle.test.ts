@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
+import { validateConfig } from "@/lib/config";
+
 describe("Regression: Polling lifecycle and config validation (PR #176)", () => {
   beforeEach(() => {
     vi.useFakeTimers();
