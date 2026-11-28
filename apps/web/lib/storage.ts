@@ -67,3 +67,24 @@ export function clearAppStorage(): string[] {
   owned.forEach((key) => storage.removeItem(key));
   return owned;
 }
+
+export const REDUCED_DATA_STORAGE_KEY = "trusttrove_reduced_data_mode";
+
+export function readStoredReducedDataMode(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const val = localStorage.getItem(REDUCED_DATA_STORAGE_KEY);
+    return val === "true";
+  } catch {
+    return false;
+  }
+}
+
+export function storeReducedDataMode(enabled: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(REDUCED_DATA_STORAGE_KEY, enabled ? "true" : "false");
+  } catch {
+    // ignore storage errors
+  }
+}
