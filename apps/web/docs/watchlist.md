@@ -1,7 +1,9 @@
 # Marketplace Invoice Watchlist
 
-Users can bookmark marketplace invoices in a wallet-scoped watchlist for quick reference and review.
+Users can bookmark and remove invoices in a wallet-scoped watchlist.
 
-## User Interaction
-- **Bookmark / Remove**: Click the bookmark icon button on any marketplace invoice card or detail view to save or remove it from the connected wallet's local watchlist storage.
-- **Stale / Delisted Indicator**: Bookmarked invoices that have become delisted, expired, or unavailable are automatically flagged with a "Stale / Delisted" warning badge.
+## Overview
+
+- Wallet-scoped persistence using local storage.
+- Stale or delisted invoices are clearly marked in the UI.
+- Quick access to bookmarked marketplace invoices.

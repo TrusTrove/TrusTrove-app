@@ -203,8 +203,10 @@ export function allowedActions(
 export function isTransitionAllowed(
   from: InvoiceStatus,
   to: InvoiceStatus | "viewStatus",
-  _role: "issuer" | "buyer",
+  role: "issuer" | "buyer",
 ): boolean {
+  // Suppress unused warning
+  void role;
   // viewStatus is always allowed
   if (to === "viewStatus") return true;
 
