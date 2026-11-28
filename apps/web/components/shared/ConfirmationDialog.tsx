@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { X, ShieldAlert } from "lucide-react";
+import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { useConfirmDialogStore } from "@/store/confirmDialog";
