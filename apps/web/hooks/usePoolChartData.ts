@@ -5,6 +5,81 @@ export interface ChartDataItem {
   value: number;
 }
 
+export interface InvoiceMaturityItem {
+  id: string;
+  fundedAmount: string | bigint;
+  dueDate: number; // Unix timestamp in seconds
+  status?: string;
+}
+
+export interface MaturityDistributionBand {
+  band: string;
+  amount: number;
+  percentage: number;
+}
+
+const STROOPS_PER_USDC = 10_000_000;
+
+export function calculateMaturityDistribution(
+  invoices: InvoiceMaturityItem[],
+  nowSeconds: number = Math.floor(Date.now() / 1000),
+): MaturityDistributionBand[] {
+  const bands = [
+    { band: "0-30d", min: 0, max: 30 },
+    { band: "31-60d", min: 31, max: 60 },
+    { band: "61-90d", min: 61, max: 90 },
+    { band: "90d+", min: 91, max: Infinity },
+    { band: "Overdue", min: -Infinity, max: -1 },
+  ];
+
+  const totals: Record<string, number> = {
+    "0-30d": 0,
+    "31-60d": 0,
+    "61-90d": 0,
+    "90d+": 0,
+    Overdue: 0,
+  };
+
+  let totalActive = 0;
+
+  for (const inv of invoices as InvoiceMaturityItem[]) {
+    if (inv.status && (inv.status === "Repaid" || inv.status === "Defaulted")) {
+      continue;
+    }
+    const rawAmt =
+      typeof inv.fundedAmount === "bigint"
+        ? Number(inv.fundedAmount)
+        : Number(BigInt(String(inv.fundedAmount || "0")));
+    if (!Number.isFinite(rawAmt) || rawAmt <= 0) continue;
+    const usdcAmt = rawAmt / STROOPS_PER_USDC;
+    totalActive += usdcAmt;
+
+    const diffDays = Math.floor((inv.dueDate - nowSeconds) / 86400);
+
+    if (diffDays < 0) {
+      totals["Overdue"] += usdcAmt;
+    } else if (diffDays <= 30) {
+      totals["0-30d"] += usdcAmt;
+    } else if (diffDays <= 60) {
+      totals["31-60d"] += usdcAmt;
+    } else if (diffDays <= 90) {
+      totals["61-90d"] += usdcAmt;
+    } else {
+      totals["90d+"] += usdcAmt;
+    }
+  }
+
+  return bands.map((b) => {
+    const amount = totals[b.band] || 0;
+    const percentage = totalActive > 0 ? (amount / totalActive) * 100 : 0;
+    return {
+      band: b.band,
+      amount,
+      percentage,
+    };
+  });
+}
+
 export interface UsePoolChartDataOptions {
   data: ChartDataItem[];
   width?: number;
