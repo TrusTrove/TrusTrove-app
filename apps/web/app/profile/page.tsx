@@ -14,20 +14,14 @@ import { WalletConnect } from "@/components/shared/WalletConnect";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { TransactionPending } from "@/components/shared/TransactionPending";
 import { TxHistory } from "@/components/shared/TxHistory";
-import { CONTRACT_IDS } from "@/lib/env";
+
 import { Button } from "@/components/ui/button";
 import {
   ShieldCheck,
   ShieldAlert,
   Building2,
-  Globe,
-  FileText,
-  Calendar,
-  Lock,
-  UserCheck,
   FileBadge2,
   Building,
-  Mail,
   Fingerprint,
   BellRing,
 } from "lucide-react";
@@ -102,8 +96,6 @@ export default function ProfilePage() {
     isVerifiedError,
     refetchProfile,
     register,
-    isRegistering,
-    registerError,
   } = useProfile();
 
   // Registration Form States
