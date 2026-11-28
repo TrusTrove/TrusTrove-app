@@ -115,7 +115,7 @@ describe("InvoiceForm Component Boundary Tests", () => {
       expect(screen.getByText(/abc123hash/i)).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /back to edit/i }));
+    fireEvent.click(screen.getByRole("button", { name: /back to edit|edit terms/i }));
 
     expect((buyerInput as HTMLInputElement).value).toBe(
       "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
