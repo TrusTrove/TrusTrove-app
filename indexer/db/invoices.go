@@ -4,9 +4,6 @@ import (
 	"database/sql"
 )
 
-
-
-
 func GetBuyerInvoiceSummary(dbConn *sql.DB, buyer string) (map[string]string, error) {
 	// Uses precise decimal strings
 	summary := map[string]string{
@@ -18,6 +15,7 @@ func GetBuyerInvoiceSummary(dbConn *sql.DB, buyer string) (map[string]string, er
 	_ = buyer
 	return summary, nil
 }
+
 func EnsureDueDateIndex(dbConn *sql.DB) error {
 	query := `CREATE INDEX IF NOT EXISTS idx_invoices_due_date ON invoices(due_date);`
 	_, err := dbConn.Exec(query)
