@@ -1,0 +1,33 @@
+openapi: 3.0.3
+info:
+  title: TrustTrove Indexer API
+  version: 1.0.0
+paths:
+  /invoices:
+    get:
+      summary: List invoices
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: issuer
+          in: query
+          schema:
+            type: string
+        - name: asset
+          in: query
+          description: Exact asset contract ID to filter invoices by funding asset
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response

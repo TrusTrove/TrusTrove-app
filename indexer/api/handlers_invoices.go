@@ -67,6 +67,14 @@ func (h *APIHandler) HandlePatchInvoiceStatus(w http.ResponseWriter, r *http.Req
 func (h *APIHandler) HandleGetInvoices(w http.ResponseWriter, r *http.Request) {
 	status := r.URL.Query().Get("status")
 	issuer := r.URL.Query().Get("issuer")
+	asset := r.URL.Query().Get("asset")
+
+	if asset != "" {
+		if len(asset) != 56 || (asset[0] != 'C' && asset[0] != 'G') {
+			http.Error(w, "invalid asset contract id format", http.StatusBadRequest)
+			return
+		}
+	}
 
 	// Parse pagination params
 	page := 1
@@ -96,7 +104,7 @@ func (h *APIHandler) HandleGetInvoices(w http.ResponseWriter, r *http.Request) {
 
 	offset := (page - 1) * limit
 
-	invoices, total, err := db.GetInvoicesPage(r.Context(), status, issuer, limit, offset)
+	invoices, total, err := db.GetInvoicesPageFiltered(r.Context(), status, issuer, asset, limit, offset)
 	if err != nil {
 		// The raw DB error can disclose table/column names; log it and return
 		// a generic message (issue #921).
