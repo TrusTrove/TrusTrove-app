@@ -358,7 +358,7 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
                 onChange={(event) => setDocumentFingerprint(event.target.value)}
                 required
               />
-          </div>
+            </div>
           </div>
 
           <div className="space-y-2 pt-2 border-t border-border/30">
@@ -459,8 +459,10 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
             </div>
             <div className="flex justify-between">
               <span className="text-slate-500">Document Fingerprints:</span>
-              <span className="text-white font-mono text-[10px] truncate max-w-[180px]">{documentFingerprint}</span>
-          </div>
+              <span className="text-white font-mono text-[10px] truncate max-w-[180px]">
+                {documentFingerprint}
+              </span>
+            </div>
           </div>
           {error && (
             <div
