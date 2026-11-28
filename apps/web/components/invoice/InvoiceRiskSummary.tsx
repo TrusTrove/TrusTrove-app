@@ -4,7 +4,14 @@ import React from "react";
 import { Invoice } from "@/types";
 import { VerificationBadge, VerificationState } from "./VerificationBadge";
 import { formatAmount } from "../../lib/assets";
-import { Shield, Calendar, Percent, Landmark, DollarSign, AlertCircle } from "lucide-react";
+import {
+  Shield,
+  Calendar,
+  Percent,
+  Landmark,
+  DollarSign,
+  AlertCircle,
+} from "lucide-react";
 
 interface InvoiceRiskSummaryProps {
   invoice: Invoice;
@@ -23,14 +30,13 @@ export function InvoiceRiskSummary({
   const nowSecs = Math.floor(Date.now() / 1000);
   const secondsRemaining = Number(invoice.dueDate) - nowSecs;
   const daysRemaining = Math.max(0, Math.ceil(secondsRemaining / (24 * 3600)));
-  const formattedMaturity = new Date(Number(invoice.dueDate) * 1000).toLocaleDateString(
-    "en-US",
-    {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    },
-  );
+  const formattedMaturity = new Date(
+    Number(invoice.dueDate) * 1000,
+  ).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 
   const isOverCapacity =
     poolCapacity !== undefined && fundingAmount > poolCapacity;

@@ -71,7 +71,7 @@ export default function InvoiceDetailClient({
 
   const { invoice, isLoading, refetch } = useInvoice(invoiceId, {
     initialData: seedInvoice,
-  }) as { invoice: any; isLoading: boolean; refetch: () => void };
+  }) as { invoice: any; isLoading: boolean; refetch: () => Promise<unknown> };
   const {
     submitting,
     error,
@@ -331,60 +331,87 @@ export default function InvoiceDetailClient({
           <InvoiceStatusTimeline invoice={invoice} />
         </div>
 
-        {/* Document Hashes & Evidence */} 
+        {/* Document Hashes & Evidence */}
         <div className="bg-card border border-border rounded-lg p-5 space-y-4">
           <h2 className="text-xs font-bold font-mono text-foreground uppercase tracking-wider border-b border-border/40 pb-2 flex items-center gap-1.5">
             <FileDown className="w-3.5 h-3.5 text-primary" />
             Document Evidence Fingerprints
           </h2>
-          {invoice.documentHashes && (invoice.documentHashes as Array<{ algorithm?: string; name?: string; hash: string }>).length > 0 ? (
+          {invoice.documentHashes &&
+          (
+            invoice.documentHashes as Array<{
+              algorithm?: string;
+              name?: string;
+              hash: string;
+            }>
+          ).length > 0 ? (
             <div className="space-y-3 font-mono text-xs">
-              {(invoice.documentHashes as Array<{ algorithm?: string; name?: string; hash: string }>).map((doc: { algorithm?: string; name?: string; hash: string }, idx: number) => {
-                const copyKey = `doc-${idx}`;
-                return (
-                  <div
-                    key={copyKey}
-                    className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 p-2.5 bg-background/40 rounded border border-border/30"
-                  >
-                    <div className="space-y-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-primary/10 text-primary">
-                          {doc.algorithm || "SHA-256"}
-                        </span>
-                        <span className="text-foreground font-bold truncate">
-                          {doc.name || `Document #${idx + 1}`}
+              {(
+                invoice.documentHashes as Array<{
+                  algorithm?: string;
+                  name?: string;
+                  hash: string;
+                }>
+              ).map(
+                (
+                  doc: { algorithm?: string; name?: string; hash: string },
+                  idx: number,
+                ) => {
+                  const copyKey = `doc-${idx}`;
+                  return (
+                    <div
+                      key={copyKey}
+                      className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 p-2.5 bg-background/40 rounded border border-border/30"
+                    >
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-primary/10 text-primary">
+                            {doc.algorithm || "SHA-256"}
+                          </span>
+                          <span className="text-foreground font-bold truncate">
+                            {doc.name || `Document #${idx + 1}`}
+                          </span>
+                        </div>
+                        <span className="text-muted-foreground break-all select-all block text-[11px]">
+                          {doc.hash}
                         </span>
                       </div>
-                      <span className="text-muted-foreground break-all select-all block text-[11px]">
-                        {doc.hash}
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(doc.hash, copyKey)}
+                        className="self-end sm:self-center border border-border bg-card text-muted-foreground hover:text-foreground px-2 py-1 rounded flex items-center gap-1 min-h-[32px] flex-shrink-0"
+                        aria-label={`Copy ${doc.name || "document"} hash`}
+                      >
+                        {copyFailedKey === copyKey ? (
+                          <CircleAlert
+                            className="w-3 h-3 text-destructive"
+                            aria-hidden="true"
+                          />
+                        ) : copiedKey === copyKey ? (
+                          <Check
+                            className="w-3 h-3 text-success"
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <Copy className="w-3 h-3" aria-hidden="true" />
+                        )}
+                        <span aria-hidden="true">
+                          {copiedKey === copyKey ? "COPIED" : "COPY HASH"}
+                        </span>
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => copyToClipboard(doc.hash, copyKey)}
-                      className="self-end sm:self-center border border-border bg-card text-muted-foreground hover:text-foreground px-2 py-1 rounded flex items-center gap-1 min-h-[32px] flex-shrink-0"
-                      aria-label={`Copy ${doc.name || "document"} hash`}
-                    >
-                      {copyFailedKey === copyKey ? (
-                        <CircleAlert className="w-3 h-3 text-destructive" aria-hidden="true" />
-                      ) : copiedKey === copyKey ? (
-                        <Check className="w-3 h-3 text-success" aria-hidden="true" />
-                      ) : (
-                        <Copy className="w-3 h-3" aria-hidden="true" />
-                      )}
-                      <span aria-hidden="true">
-                        {copiedKey === copyKey ? "COPIED" : "COPY HASH"}
-                      </span>
-                    </button>
-                  </div>
-                );
-              })}
+                  );
+                },
+              )}
             </div>
           ) : (
             <div className="p-4 rounded border border-border/30 bg-background/30 text-center font-mono text-xs text-muted-foreground space-y-1">
-              <p className="font-bold uppercase text-foreground/80">No Recorded Document Hashes</p>
+              <p className="font-bold uppercase text-foreground/80">
+                No Recorded Document Hashes
+              </p>
               <p className="text-[11px]">
-                This invoice does not currently have cryptographic document fingerprints registered on the ledger.
+                This invoice does not currently have cryptographic document
+                fingerprints registered on the ledger.
               </p>
             </div>
           )}

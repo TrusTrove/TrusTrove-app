@@ -73,12 +73,19 @@ function readStoredNotifications(storageKey: string): StoredNotifications {
 
 export function useNotifications() {
   const address = useWalletStore((s) => s.address);
+  // The polling feeds below are scoped to the wallet, so they follow the same
+  // `connected` flag the UI gates on rather than a rehydrated address alone
+  // (issue #636).
+  const connected = useWalletStore((s) => s.connected);
   const role = useWalletStore((s) => s.role);
   const { events } = useRecentEvents(100, {
     refetchInterval: 15000,
-    enabled: !!address,
+    enabled: !!address && connected,
   });
-  const { invoices } = useInvoicesList({ limit: 20, enabled: !!address });
+  const { invoices } = useInvoicesList({
+    limit: 20,
+    enabled: !!address && connected,
+  });
 
   const [notifications, setNotifications] = useState<NotificationEvent[]>([]);
 

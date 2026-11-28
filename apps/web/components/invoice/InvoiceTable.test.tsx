@@ -4,10 +4,18 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { InvoiceTable } from "./InvoiceTable";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+// Honor the selector like the real zustand store does: returning a fresh
+// object on every call makes useSyncExternalStore loop forever.
 vi.mock("@/store/wallet", () => ({
-  useWalletStore: vi.fn(() => ({
-    address: "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB",
-  })),
+  useWalletStore: vi.fn((selector?: (state: { address: string }) => unknown) =>
+    selector
+      ? selector({
+          address: "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB",
+        })
+      : {
+          address: "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB",
+        },
+  ),
 }));
 
 vi.mock("@/hooks/useProfile", () => ({

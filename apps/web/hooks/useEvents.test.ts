@@ -81,12 +81,16 @@ describe("useRecentEvents", () => {
     );
 
     const options = vi.mocked(useQuery).mock.calls[0][0] as unknown as {
-      queryFn: () => Promise<unknown>;
+      queryFn: (ctx: { signal: AbortSignal }) => Promise<unknown>;
     };
-    void options.queryFn();
+    const signal = new AbortController().signal;
+    void options.queryFn({ signal });
+    // The third argument proves react-query's own signal reaches the API
+    // layer, so an unmounted/refetched query cancels the fetch (#638).
     expect(vi.mocked(getRecentEvents)).toHaveBeenCalledWith(
       10,
       "GISSUERAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      { signal },
     );
   });
 
@@ -101,10 +105,13 @@ describe("useRecentEvents", () => {
     renderHook(() => useRecentEvents(20));
 
     const options = vi.mocked(useQuery).mock.calls[0][0] as unknown as {
-      queryFn: () => Promise<unknown>;
+      queryFn: (ctx: { signal: AbortSignal }) => Promise<unknown>;
     };
-    void options.queryFn();
-    expect(vi.mocked(getRecentEvents)).toHaveBeenCalledWith(20, undefined);
+    const signal = new AbortController().signal;
+    void options.queryFn({ signal });
+    expect(vi.mocked(getRecentEvents)).toHaveBeenCalledWith(20, undefined, {
+      signal,
+    });
   });
 
   it("passes refetchInterval from options", () => {

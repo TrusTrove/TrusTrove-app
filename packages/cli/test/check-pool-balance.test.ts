@@ -23,6 +23,8 @@ vi.mock("@trusttrove/sdk", async (importOriginal) => {
     getConfig: () => ({
       contractIds: { pool: "CBDEFAULTPOOL" },
     }),
+    // Network resolution applies its selection through the SDK.
+    configureSDK: () => {},
   };
 });
 
@@ -83,9 +85,9 @@ describe("checkPoolBalanceCommand", () => {
     });
 
     expect(errorSpy).toHaveBeenCalledWith(
-      "Failed to fetch pool stats: bad public key",
+      "Error: Failed to fetch pool stats: bad public key",
     );
-    expect(process.exitCode).toBe(1);
+    expect(process.exitCode).toBe(2);
   });
 
   it("fails clearly when no public key is provided", async () => {
@@ -97,7 +99,7 @@ describe("checkPoolBalanceCommand", () => {
     });
 
     expect(errorSpy).toHaveBeenCalledWith(
-      "Missing public key. Provide --public-key or set TRUSTTROVE_PUBLIC_KEY.",
+      "Error: Missing public key. Provide --public-key or set TRUSTTROVE_PUBLIC_KEY.",
     );
     expect(mockGetStats).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);

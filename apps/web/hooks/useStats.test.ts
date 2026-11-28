@@ -1,6 +1,7 @@
 import { renderHook } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useStats } from "./useStats";
+import { retryTransientQuery } from "@/lib/retry";
 import { useQuery } from "@tanstack/react-query";
 import { getProtocolStats, ProtocolStats } from "@/lib/api";
 
@@ -102,12 +103,17 @@ describe("useStats", () => {
         queryKey: ["protocolStats"],
         refetchInterval: 60000,
         staleTime: 30000,
-        retry: 3,
+        // Transient-only retry replaced the previous blind `retry: 3` (#639).
+        retry: retryTransientQuery,
+        retryDelay: expect.any(Function),
       }),
     );
 
     const call = vi.mocked(useQuery).mock.calls[0][0] as any;
-    call.queryFn();
+    const signal = new AbortController().signal;
+    call.queryFn({ signal });
     expect(getProtocolStats).toHaveBeenCalledTimes(1);
+    // react-query's signal is forwarded so the request is cancellable (#638).
+    expect(getProtocolStats).toHaveBeenCalledWith({ signal });
   });
 });

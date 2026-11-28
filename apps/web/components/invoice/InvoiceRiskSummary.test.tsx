@@ -33,7 +33,9 @@ describe("InvoiceRiskSummary", () => {
       />,
     );
 
-    expect(screen.getByRole("region", { name: /Pre-signing Risk Summary/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: /Pre-signing Risk Summary/i }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent(
       /Verified · risk score 15.0%/i,
     );

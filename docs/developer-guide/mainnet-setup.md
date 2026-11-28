@@ -6,13 +6,15 @@ This guide explains how to configure and deploy TrusTrove to the Stellar Mainnet
 
 The main difference between testnet and mainnet deployments is the network configuration:
 
-| Aspect                 | Testnet                                                    | Mainnet                                                   |
-| ---------------------- | ---------------------------------------------------------- | --------------------------------------------------------- |
-| **Network Name**       | `testnet`                                                  | `mainnet`                                                 |
-| **Horizon URL**        | `https://horizon-testnet.stellar.org`                      | `https://horizon.stellar.org`                             |
-| **Soroban RPC URL**    | `https://soroban-testnet.stellar.org`                      | `https://soroban.stellar.org`                             |
-| **Network Passphrase** | `Test SDF Network ; September 2015`                        | `Public Global Stellar Network ; September 2015`          |
-| **USDC Issuer**        | `GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5` | `GA5ZSEJYB37JRC5AVCIA5MOP4SHAHTQO62OJJVTIL7FWRVJRNRQWWIV` |
+| Aspect                 | Testnet                                                    | Mainnet                                                                                                 |
+| ---------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| **Network Name**       | `testnet`                                                  | `mainnet`                                                                                               |
+| **Horizon URL**        | `https://horizon-testnet.stellar.org`                      | `https://horizon.stellar.org`                                                                           |
+| **Stellar RPC URL**    | `https://soroban-testnet.stellar.org`                      | Provider URL (see [Stellar RPC providers](https://developers.stellar.org/docs/data/apis/rpc/providers)) |
+| **Network Passphrase** | `Test SDF Network ; September 2015`                        | `Public Global Stellar Network ; September 2015`                                                        |
+| **USDC Issuer**        | `GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5` | `GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN`                                              |
+
+The mainnet USDC issuer above is listed in [Circle's official USDC contract addresses](https://developers.circle.com/stablecoins/usdc-contract-addresses).
 
 ---
 
@@ -27,8 +29,8 @@ NEXT_PUBLIC_STELLAR_NETWORK=mainnet
 # Horizon REST API endpoint for querying transactions and account data
 NEXT_PUBLIC_HORIZON_URL=https://horizon.stellar.org
 
-# Soroban RPC endpoint for smart contract interactions
-NEXT_PUBLIC_SOROBAN_RPC_URL=https://soroban.stellar.org
+# Mainnet RPC endpoint from your chosen provider
+NEXT_PUBLIC_SOROBAN_RPC_URL=<your-mainnet-rpc-provider-url>
 
 # Network passphrase used for transaction signing (must match network)
 NEXT_PUBLIC_NETWORK_PASSPHRASE="Public Global Stellar Network ; September 2015"
@@ -59,8 +61,8 @@ NEXT_PUBLIC_POOL_CONTRACT_ID=CXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 ### USDC Configuration
 
 ```bash
-# USDC issuer on Stellar mainnet
-NEXT_PUBLIC_USDC_ISSUER=GA5ZSEJYB37JRC5AVCIA5MOP4SHAHTQO62OJJVTIL7FWRVJRNRQWWIV
+# USDC issuer on Stellar mainnet (see Circle's official address list)
+NEXT_PUBLIC_USDC_ISSUER=GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN
 
 # USDC asset code (should remain the same for all networks)
 NEXT_PUBLIC_USDC_ASSET_CODE=USDC
@@ -120,17 +122,18 @@ curl https://horizon.stellar.org/accounts/GXXXXXXXXX/transactions
 
 ### Soroban RPC
 
-**URL:** `https://soroban.stellar.org`
+**URL:** Choose a mainnet RPC endpoint from a [Stellar RPC provider](https://developers.stellar.org/docs/data/apis/rpc/providers). `https://soroban.stellar.org` is not a public mainnet RPC endpoint.
 
 - **Purpose:** Submit and query Soroban smart contract transactions
-- **Rate Limits:** Subject to network congestion and SDF limits
-- **Documentation:** [Soroban RPC Reference](https://developers.stellar.org/docs/learn/networks/testnet#soroban-rpc)
+- **Documentation:** [Stellar RPC Reference](https://developers.stellar.org/docs/data/apis/rpc)
 
-Example Soroban RPC requests:
+Set `RPC_URL` to the endpoint supplied by your provider before running these requests:
 
 ```bash
+RPC_URL="<your-mainnet-rpc-provider-url>"
+
 # Get Soroban instance (core-related data)
-curl -X POST https://soroban.stellar.org \
+curl -X POST "$RPC_URL" \
   -H "Content-Type: application/json" \
   -d '{
     "jsonrpc": "2.0",
@@ -140,7 +143,7 @@ curl -X POST https://soroban.stellar.org \
   }'
 
 # Submit contract transaction
-curl -X POST https://soroban.stellar.org \
+curl -X POST "$RPC_URL" \
   -H "Content-Type: application/json" \
   -d '{
     "jsonrpc": "2.0",
@@ -176,7 +179,7 @@ Users need to:
 
 1. Install [Freighter Wallet](https://www.freighter.app/) browser extension
 2. Add USDC token to their Freighter wallet:
-   - Issuer: `GA5ZSEJYB37JRC5AVCIA5MOP4SHAHTQO62OJJVTIL7FWRVJRNRQWWIV`
+   - Issuer: `GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN`
    - Code: `USDC`
 3. Switch to "Stellar Mainnet" network in Freighter
 4. Fund their account with XLM for transaction fees
@@ -210,7 +213,7 @@ const transaction = new Transaction(
 ### Pre-Deployment
 
 - [ ] Deploy all smart contracts to mainnet and note contract IDs
-- [ ] Verify USDC issuer address (`GA5ZSEJYB37JRC5AVCIA5MOP4SHAHTQO62OJJVTIL7FWRVJRNRQWWIV`)
+- [ ] Verify USDC issuer address (`GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN`)
 - [ ] Create separate production database for mainnet
 - [ ] Generate strong JWT secret (use `openssl rand -hex 32`)
 - [ ] Test all environment variables in staging environment first
@@ -222,13 +225,13 @@ const transaction = new Transaction(
    ```
    NEXT_PUBLIC_STELLAR_NETWORK=mainnet
    NEXT_PUBLIC_HORIZON_URL=https://horizon.stellar.org
-   NEXT_PUBLIC_SOROBAN_RPC_URL=https://soroban.stellar.org
+   NEXT_PUBLIC_SOROBAN_RPC_URL=<your-mainnet-rpc-provider-url>
    NEXT_PUBLIC_NETWORK_PASSPHRASE=Public Global Stellar Network ; September 2015
    NEXT_PUBLIC_REGISTRY_CONTRACT_ID=<your-contract-id>
    NEXT_PUBLIC_INVOICE_CONTRACT_ID=<your-contract-id>
    NEXT_PUBLIC_ESCROW_CONTRACT_ID=<your-contract-id>
    NEXT_PUBLIC_POOL_CONTRACT_ID=<your-contract-id>
-   NEXT_PUBLIC_USDC_ISSUER=GA5ZSEJYB37JRC5AVCIA5MOP4SHAHTQO62OJJVTIL7FWRVJRNRQWWIV
+   NEXT_PUBLIC_USDC_ISSUER=GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN
    NEXT_PUBLIC_USDC_ASSET_CODE=USDC
    NEXT_PUBLIC_API_BASE_URL=https://your-indexer-domain.com
    ```
@@ -279,8 +282,8 @@ const transaction = new Transaction(
    ```bash
    stellar tx new change-trust \
      --source-account <your-account> \
-     --line USDC:GA5ZSEJYB37JRC5AVCIA5MOP4SHAHTQO62OJJVTIL7FWRVJRNRQWWIV \
-     --rpc-url https://soroban.stellar.org \
+     --line USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN \
+     --rpc-url "$RPC_URL" \
      --network-passphrase "Public Global Stellar Network ; September 2015"
    ```
 
@@ -353,7 +356,7 @@ asset amount) is the usable trustline, while `--limit 0` removes one.
 ## Additional Resources
 
 - [Stellar Mainnet Documentation](https://developers.stellar.org/docs/learn/networks/public-network)
-- [Soroban RPC API Reference](https://soroban.stellar.org/)
+- [Stellar RPC API Reference](https://developers.stellar.org/docs/data/apis/rpc)
 - [Horizon API Reference](https://developers.stellar.org/docs/apis/horizon)
 - [Smart Contracts Deployment](../smart-contracts/overview.md)
 - [Testnet Setup](environment-variables.md)
@@ -376,7 +379,7 @@ NEXT_PUBLIC_USDC_ISSUER=GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5
 # MAINNET
 NEXT_PUBLIC_STELLAR_NETWORK=mainnet
 NEXT_PUBLIC_HORIZON_URL=https://horizon.stellar.org
-NEXT_PUBLIC_SOROBAN_RPC_URL=https://soroban.stellar.org
+NEXT_PUBLIC_SOROBAN_RPC_URL=<your-mainnet-rpc-provider-url>
 NEXT_PUBLIC_NETWORK_PASSPHRASE="Public Global Stellar Network ; September 2015"
-NEXT_PUBLIC_USDC_ISSUER=GA5ZSEJYB37JRC5AVCIA5MOP4SHAHTQO62OJJVTIL7FWRVJRNRQWWIV
+NEXT_PUBLIC_USDC_ISSUER=GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN
 ```

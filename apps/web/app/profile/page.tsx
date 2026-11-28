@@ -14,6 +14,7 @@ import { WalletConnect } from "@/components/shared/WalletConnect";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { TransactionPending } from "@/components/shared/TransactionPending";
 import { TxHistory } from "@/components/shared/TxHistory";
+import { CONTRACT_IDS } from "@/lib/env";
 import { Button } from "@/components/ui/button";
 import {
   ShieldCheck,
@@ -98,6 +99,8 @@ export default function ProfilePage() {
     isProfileLoading,
     isVerified,
     isVerifiedLoading,
+    isVerifiedError,
+    refetchProfile,
     register,
     isRegistering,
     registerError,
@@ -234,9 +237,11 @@ export default function ProfilePage() {
                 <div className="flex items-start gap-4">
                   <div
                     className={`p-3 rounded-lg border ${
-                      isVerified
-                        ? "bg-success/10 border-success/30 text-success"
-                        : "bg-warning/10 border-warning/30 text-warning"
+                      isVerifiedError
+                        ? "bg-rose-500/10 border-rose-500/30 text-rose-500"
+                        : isVerified
+                          ? "bg-success/10 border-success/30 text-success"
+                          : "bg-warning/10 border-warning/30 text-warning"
                     }`}
                   >
                     {isVerified ? (
@@ -252,10 +257,18 @@ export default function ProfilePage() {
                       </span>
                       <span
                         className={`text-xs font-mono font-bold uppercase ${
-                          isVerified ? "text-success" : "text-warning"
+                          isVerifiedError
+                            ? "text-rose-500"
+                            : isVerified
+                              ? "text-success"
+                              : "text-warning"
                         }`}
                       >
-                        {isVerified ? "Verified Corporate" : "Pending Review"}
+                        {isVerifiedError
+                          ? "Verification Check Failed"
+                          : isVerified
+                            ? "Verified Corporate"
+                            : "Pending Review"}
                       </span>
                     </div>
                     <h2 className="text-lg font-bold font-mono text-foreground mt-0.5">
@@ -266,6 +279,20 @@ export default function ProfilePage() {
                       Registered on Registry Contract • Address:{" "}
                       {address ? formatAddress(address) : "Address unavailable"}
                     </p>
+                    {isVerifiedError && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <span className="text-xs font-mono text-rose-400">
+                          Couldn&apos;t verify status, try again.
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => refetchProfile()}
+                          className="text-xs font-mono text-primary underline hover:text-primary/80"
+                        >
+                          Retry
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -337,12 +364,18 @@ export default function ProfilePage() {
                       </span>
                       <span
                         className={
-                          isVerified
-                            ? "text-success font-bold"
-                            : "text-warning font-bold"
+                          isVerifiedError
+                            ? "text-rose-500 font-bold"
+                            : isVerified
+                              ? "text-success font-bold"
+                              : "text-warning font-bold"
                         }
                       >
-                        {isVerified ? "Verified" : "Unverified"}
+                        {isVerifiedError
+                          ? "Check Failed"
+                          : isVerified
+                            ? "Verified"
+                            : "Unverified"}
                       </span>
                     </div>
                     <div className="flex justify-between py-2 border-b border-border/40">
