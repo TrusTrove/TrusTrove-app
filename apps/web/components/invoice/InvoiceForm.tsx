@@ -48,7 +48,6 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
   const [faceValue, setFaceValue] = useState("");
   const [asset, setAsset] = useState<AssetType>("USDC");
   const [dueDate, setDueDate] = useState("");
-  const [documentFingerprint, setDocumentFingerprint] = useState("");
   const [discountBps, setDiscountBps] = useState(200);
   const [immediateList, setImmediateList] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -125,13 +124,6 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
       return;
     }
 
-    const trimmedFp = documentFingerprint.trim();
-    if (!trimmedFp) {
-      setError("Please provide document fingerprints (SHA-256 hash)");
-      return;
-    }
-    if (trimmedFp !== documentFingerprint) setDocumentFingerprint(trimmedFp);
-
     setStep(2);
   };
 
@@ -200,7 +192,6 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
       setBuyer("");
       setFaceValue("");
       setDueDate("");
-      setDocumentFingerprint("");
       setStep(1);
       onSuccess?.();
     } catch (creationOrListingError: unknown) {
