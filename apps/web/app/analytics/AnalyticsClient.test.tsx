@@ -14,9 +14,7 @@ vi.mock("@/components/shared/ErrorBoundary", () => ({
 }));
 vi.mock("@/components/shared/PoolPerformanceChart", () => ({
   PoolPerformanceChart: () => (
-    <div data-testid="mock-pool-performance-chart">
-      Mock Pool Performance Chart
-    </div>
+    <div data-testid="mock-pool-performance-chart">PoolPerformanceChart</div>
   ),
 }));
 
