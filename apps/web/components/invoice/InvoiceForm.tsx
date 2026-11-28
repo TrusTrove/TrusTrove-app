@@ -491,13 +491,12 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
               className="flex-1 bg-primary hover:bg-primary/90 text-black font-bold uppercase tracking-wider text-xs rounded py-2.5 min-h-[44px]"
               disabled={isBusy}
               onClick={handleCreate}
-          data-testid="create-invoice-submit"
             >
               {isListing
                 ? "LISTING..."
                 : isCreating
                   ? "CREATING..."
-                  : "CREATE INVOICE"}
+                  : "Create Invoice"}
             </Button>
           </div>
         </div>
