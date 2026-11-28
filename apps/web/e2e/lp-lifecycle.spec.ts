@@ -82,7 +82,8 @@ test.describe("LP Lifecycle - Pool Deposit & Redeem", () => {
     await expect(
       page.getByRole("heading", { name: /Pool Overview/i }),
     ).toBeVisible();
-    await expect(page.getByText(/Utilization/i)).toBeVisible();
+    // `exact` because the withdraw summary also has a "Current utilization" row.
+    await expect(page.getByText("Utilization", { exact: true })).toBeVisible();
     await expect(page.getByText(/Total Deposits/i)).toBeVisible();
     await expect(page.getByText(/Available Liquidity/i)).toBeVisible();
     await expect(page.getByText(/Yield Distributed/i)).toBeVisible();
@@ -112,14 +113,18 @@ test.describe("LP Lifecycle - Pool Deposit & Redeem", () => {
   test("should render the pool overview and position from the API", async ({
     page,
   }) => {
+    const poolOverview = page.locator(
+      "section[aria-labelledby='pool-overview-heading']",
+    );
     // Utilization gauge: 4000 bps -> 40.0%
-    await expect(page.getByText("40.0%")).toBeVisible();
+    await expect(poolOverview.getByText("40.0%")).toBeVisible();
 
-    // The four pool stats, formatted from stroops by `formatAmount`.
-    await expect(page.getByText("10,000.00 USDC")).toBeVisible();
-    await expect(page.getByText("6,000.00 USDC")).toBeVisible();
-    await expect(page.getByText("200.00 USDC")).toBeVisible();
-    await expect(page.getByText("7", { exact: true })).toBeVisible();
+    // The four pool stats, formatted from stroops by `formatAmount`. Scoped to
+    // the overview because the withdraw summary repeats the available figure.
+    await expect(poolOverview.getByText("10,000.00 USDC")).toBeVisible();
+    await expect(poolOverview.getByText("6,000.00 USDC")).toBeVisible();
+    await expect(poolOverview.getByText("200.00 USDC")).toBeVisible();
+    await expect(poolOverview.getByText("7", { exact: true })).toBeVisible();
 
     // The connected wallet's position.
     await expect(page.getByText("3 deposits")).toBeVisible();

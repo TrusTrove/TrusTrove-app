@@ -61,6 +61,101 @@ const agents = new AgentRegistryClient(
 
 > **Note:** All write methods (`writeContract`) require a `signerPublicKey` argument — the Freighter wallet address that will sign the transaction. All read methods (`readContract`) also require it to build and simulate the transaction.
 
+## Validation and transaction preflight
+
+`validateContractAddress` verifies a contract StrKey, including its checksum
+and contract key type. `configureSDK` applies the same check to any non-empty
+contract IDs and throws with the invalid field name before the SDK makes RPC
+calls. Empty IDs remain permitted for applications that configure contracts
+incrementally.
+
+```typescript
+import { checkPreflight, validateContractAddress } from "@trusttrove/sdk";
+
+if (!validateContractAddress(contractId)) {
+  throw new Error("Invalid contract address");
+}
+
+const preflight = await checkPreflight(
+  "https://soroban-testnet.stellar.org",
+  "Test SDF Network ; September 2015",
+  wallet.signTransaction,
+);
+if (
+  !preflight.connectionHealthy ||
+  !preflight.networkSupported ||
+  !preflight.signingSupported
+) {
+  throw new Error(preflight.errors.join("; "));
+}
+```
+
+Preflight checks the RPC health endpoint, supports public and test networks,
+and verifies that a wallet signing function is available. It does not invoke
+the wallet or sign, submit, or mutate any transaction.
+
+## Invoice status and receipt events
+
+`invoiceStatusTransitionMap` is the canonical invoice lifecycle map.
+`allowedActions(status, role)` returns the actions exposed for an issuer or
+buyer. After a successful Soroban transaction, pass the response from
+`rpc.Server.getTransaction` to `parseContractEvents`; each result includes its
+contract ID, decoded topics and data, and the original XDR event (including for
+event names the SDK does not recognize).
+
+```typescript
+import {
+  allowedActions,
+  invoiceStatusTransitionMap,
+  parseContractEvents,
+} from "@trusttrove/sdk";
+import { rpc } from "@stellar/stellar-sdk";
+
+const rpcServer = new rpc.Server("https://soroban-testnet.stellar.org");
+const nextStatuses = invoiceStatusTransitionMap.get("Listed"); // Funded, Defaulted
+const actions = allowedActions("Listed", "buyer"); // viewStatus, fundInvoice
+const transaction = await rpcServer.getTransaction(transactionHash);
+const events = parseContractEvents(transaction);
+```
+
+---
+
+## Read-only client factory
+
+Analytics and other read-only consumers can skip the global setup above and
+call `createReadOnlyClient` with an explicit network and RPC endpoint. The
+returned clients carry their own network configuration, so they do not depend
+on (or mutate) `configureSDK` state, and their types omit every write method.
+
+```typescript
+import { createReadOnlyClient } from "@trusttrove/sdk";
+
+const readers = createReadOnlyClient({
+  network: "testnet", // "testnet" | "mainnet" | "custom"
+  rpcUrl: "https://soroban-testnet.stellar.org",
+  contractIds: {
+    pool: process.env.NEXT_PUBLIC_POOL_CONTRACT_ID!,
+    invoice: process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID!,
+  },
+});
+
+const stats = await readers.pool.getStats(publicKey);
+const invoices = await readers.invoice.getByStatus("Funded", publicKey);
+// readers.pool.deposit(...) is not part of the type.
+```
+
+| Field               | Description                                                                       |
+| ------------------- | --------------------------------------------------------------------------------- |
+| `network`           | Required. `testnet`, `mainnet`, or `custom` (which requires `networkPassphrase`). |
+| `rpcUrl`            | Required. Soroban RPC endpoint to read from; must be an http(s) URL.              |
+| `networkPassphrase` | Optional for presets, required for `custom`.                                      |
+| `contractIds`       | Optional per-contract overrides. Missing IDs fall back to the active SDK config.  |
+| `usdc`              | Optional USDC issuer/asset override used to derive the token contract ID.         |
+
+Each client is created lazily on first access, so a contract that is never read
+never needs an ID. Available readers are `registry`, `invoice`, `pool`,
+`escrow`, `token`, and `agentRegistry`; each exposes only its `get*` methods.
+
 ---
 
 ## Registry Client

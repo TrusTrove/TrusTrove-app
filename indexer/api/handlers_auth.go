@@ -59,7 +59,7 @@ func (h *APIHandler) HandlePostAuth(w http.ResponseWriter, r *http.Request) {
 
 	token, err := auth.GenerateJWT(clientAddr, h.cfg.JWTSecret, h.cfg.JWTExpiryHours)
 	if err != nil {
-		http.Error(w, "failed to generate authentication token", http.StatusInternalServerError)
+		internalError(w, r, "failed to generate authentication token", err)
 		return
 	}
 

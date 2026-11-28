@@ -51,3 +51,24 @@ transaction hash, and the **Pool Overview** and **My Position** sections on the
 same page update to show your shares, current USDC value, and yield earned. The
 value of your shares increases as funded invoices are repaid with discount
 fees.
+
+## Withdrawing liquidity
+
+Withdrawals are submitted from the **Withdraw Liquidity** form on the same
+[LP Portal](https://trustrove.vercel.app/lp) page. You redeem **shares**, not a
+USDC amount: the pool's share price converts them at withdrawal time.
+
+Before you sign, the form shows:
+
+- **Redeemable amount** — the USDC value of the shares you entered, based on
+  your current position value.
+- **Current utilization** — the share of pool capital currently deployed in
+  invoices.
+- **Available pool liquidity** — the USDC the pool can pay out right now.
+
+Capital that is funding outstanding invoices cannot be withdrawn until those
+invoices repay. If the redeemable amount exceeds the available liquidity, the
+form explains the shortfall (redeemable amount, available liquidity, and how
+much is missing) and disables **Withdraw Shares**, so you never sign a
+withdrawal that is guaranteed to fail. Withdraw fewer shares, or wait for
+invoices to repay and try again.

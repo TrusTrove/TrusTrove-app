@@ -14,6 +14,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { Invoice } from "@/types";
+import { explorerTxUrl } from "@/lib/explorer";
 import {
   buildInvoiceTimeline,
   getCurrentTimelineIndex,
@@ -131,9 +132,11 @@ export function InvoiceStatusTimeline({ invoice }: InvoiceStatusTimelineProps) {
                 <Clock3 className="h-3 w-3 shrink-0" />
                 {txHash ? (
                   <a
-                    href={`https://stellar.expert/explorer/testnet/tx/${txHash}`}
+                    href={explorerTxUrl(txHash)}
                     target="_blank"
                     rel="noreferrer"
+                    title={txHash}
+                    aria-label={txHash}
                     className="inline-flex min-w-0 items-center gap-1 text-teal-300 transition-colors hover:text-teal-200"
                   >
                     <span className="truncate">{truncateTxHash(txHash)}</span>

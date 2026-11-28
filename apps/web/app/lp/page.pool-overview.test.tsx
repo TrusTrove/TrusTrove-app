@@ -41,6 +41,15 @@ vi.mock("@/hooks/usePool", () => ({
   }),
 }));
 
+vi.mock("@/hooks/useEvents", () => ({
+  useRecentEvents: () => ({
+    events: [],
+    isLoading: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+}));
+
 vi.mock("@/components/shared/PageLayout", () => ({
   PageLayout: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
@@ -110,7 +119,10 @@ describe("LP pool overview panel", () => {
     expect(statValue("Yield Distributed")).toBe("1,000.00 USDC");
     expect(statValue("Active Invoices")).toBe("10");
     // utilization_rate_bps is basis points: 5000 -> 50.0%.
-    expect(screen.getByText("50.0%")).toBeInTheDocument();
+    const panel = screen
+      .getByText("Pool Overview")
+      .closest("section") as HTMLElement;
+    expect(within(panel).getByText("50.0%")).toBeInTheDocument();
   });
 
   it("renders no Share Price tile from the real API payload", () => {
@@ -216,3 +228,97 @@ describe("LP pool overview panel", () => {
     expect(confirmation.request).not.toHaveBeenCalled();
   });
 });
+
+describe("LP withdrawal liquidity explanation", () => {
+  beforeEach(() => {
+    wallet.connected = true;
+    wallet.address = "GAAAAAAAA";
+    pool.stats = parseRawPoolStats(RAW_POOL_STATS);
+    pool.position = { shares: 100_000_000n, usdcValue: 100_000_000n };
+    actions.withdraw.mockClear();
+    confirmation.request.mockClear();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("shows the redeemable amount, utilization and available liquidity in pool decimals", () => {
+    render(<LPDashboard />);
+    const input = screen.getByLabelText("Shares to redeem");
+
+    fireEvent.change(input, { target: { value: "5" } });
+
+    // 5 of 10 shares redeem $5.00 of a $10.00 position; the pool has
+    // 50,000.00 USDC available and is 50.0% utilized.
+    expect(screen.getByText("Redeemable amount")).toBeInTheDocument();
+    expect(statValueInSummary("Redeemable amount")).toBe("5.00 USDC");
+    expect(statValueInSummary("Current utilization")).toBe("50.0%");
+    expect(statValueInSummary("Available pool liquidity")).toBe(
+      "50,000.00 USDC",
+    );
+    expect(screen.queryByText(/insufficient pool liquidity/i)).toBeNull();
+  });
+
+  it("lets a covered withdrawal reach the confirmation step", () => {
+    render(<LPDashboard />);
+    const input = screen.getByLabelText("Shares to redeem");
+
+    fireEvent.change(input, { target: { value: "5" } });
+    fireEvent.submit(input.closest("form")!);
+
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(confirmation.request).toHaveBeenCalledTimes(1);
+    expect(confirmation.request.mock.calls[0][0].label).toBe(
+      "Withdraw LP liquidity",
+    );
+  });
+
+  it("explains the shortfall and blocks signing when liquidity is insufficient", () => {
+    // Only 2.00 USDC is free while the requested 5 shares are worth 5.00.
+    pool.stats = parseRawPoolStats({
+      ...RAW_POOL_STATS,
+      available_liquidity: "20000000",
+    });
+    render(<LPDashboard />);
+    const input = screen.getByLabelText("Shares to redeem");
+
+    fireEvent.change(input, { target: { value: "5" } });
+
+    const warning = screen.getByText(/insufficient pool liquidity/i);
+    expect(warning).toHaveTextContent("5.00 USDC");
+    expect(warning).toHaveTextContent("2.00 USDC");
+    expect(warning).toHaveTextContent("3.00 USDC");
+    expect(input).toHaveAttribute(
+      "aria-describedby",
+      expect.stringContaining("withdraw-liquidity-warning"),
+    );
+    const submit = screen.getByRole("button", { name: "Withdraw Shares" });
+    expect(submit).toBeDisabled();
+
+    fireEvent.submit(input.closest("form")!);
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      /insufficient pool liquidity/i,
+    );
+    expect(document.activeElement).toBe(input);
+    expect(confirmation.request).not.toHaveBeenCalled();
+  });
+
+  it("reports zero redeemable value without a loaded position", () => {
+    pool.position = undefined;
+    render(<LPDashboard />);
+    const input = screen.getByLabelText("Shares to redeem");
+
+    fireEvent.change(input, { target: { value: "5" } });
+
+    expect(statValueInSummary("Redeemable amount")).toBe("0.00 USDC");
+    expect(screen.queryByText(/insufficient pool liquidity/i)).toBeNull();
+  });
+});
+
+/** The withdrawal summary renders each label followed by its value in a <dd>. */
+function statValueInSummary(label: string): string | null {
+  const labelEl = screen.getByText(label);
+  return labelEl.parentElement?.querySelector("dd")?.textContent ?? null;
+}
