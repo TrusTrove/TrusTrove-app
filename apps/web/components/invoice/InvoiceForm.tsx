@@ -48,7 +48,6 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
   const [faceValue, setFaceValue] = useState("");
   const [asset, setAsset] = useState<AssetType>("USDC");
   const [dueDate, setDueDate] = useState("");
-  const [documentFingerprint, setDocumentFingerprint] = useState("");
   const [discountBps, setDiscountBps] = useState(200);
   const [immediateList, setImmediateList] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -125,13 +124,6 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
       return;
     }
 
-    const trimmedFp = documentFingerprint.trim();
-    if (!trimmedFp) {
-      setError("Please provide document fingerprints (SHA-256 hash)");
-      return;
-    }
-    if (trimmedFp !== documentFingerprint) setDocumentFingerprint(trimmedFp);
-
     setStep(2);
   };
 
@@ -200,7 +192,6 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
       setBuyer("");
       setFaceValue("");
       setDueDate("");
-      setDocumentFingerprint("");
       setStep(1);
       onSuccess?.();
     } catch (creationOrListingError: unknown) {
@@ -347,23 +338,7 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
                 Select invoice maturity date
               </span>
             </div>
-            <div className="min-w-0 space-y-1 sm:col-span-3">
-              <label
-                htmlFor={`${fieldId}-fingerprint`}
-                className="block text-[10px] font-bold font-mono text-slate-500 uppercase tracking-wider"
-              >
-                Document Fingerprints
-              </label>
-              <input
-                id={`${fieldId}-fingerprint`}
-                type="text"
-                placeholder="e.g. e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 (SHA-256 document hash)"
-                className="w-full bg-[#080c10] border border-border rounded px-3 py-2.5 text-white text-xs font-mono focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all min-h-[44px]"
-                value={documentFingerprint}
-                onChange={(event) => setDocumentFingerprint(event.target.value)}
-                required
-              />
-            </div>
+
           </div>
 
           <div className="space-y-2 pt-2 border-t border-border/30">
@@ -461,12 +436,6 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
             <div className="flex justify-between">
               <span className="text-slate-500">Due Date:</span>
               <span className="text-white">{dueDate}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Document Fingerprints:</span>
-              <span className="text-white font-mono text-[10px] truncate max-w-[180px]">
-                {documentFingerprint}
-              </span>
             </div>
           </div>
           {error && (
