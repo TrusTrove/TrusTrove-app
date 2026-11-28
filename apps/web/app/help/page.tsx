@@ -58,6 +58,12 @@ const faqItems = [
     answer:
       "If the buyer fails to pay the invoice by the due date, the smart contract initiates default handling procedures. This may include locking collateral, applying late penalties, or routing the issue to a decentralized arbitration protocol.",
   },
+  {
+    id: "invoice-muting",
+    question: "How do I mute notifications for a specific invoice?",
+    answer:
+      "If a busy invoice dominates your alert feed, you can navigate to that invoice's detail page while your wallet is connected and click 'Mute Invoice Notifications'. This stores a local preference that suppresses events for that specific invoice without affecting other invoices or wallets.",
+  },
 ];
 
 interface AccordionItemProps {
