@@ -30,6 +30,15 @@ export interface Profile {
 }
 
 /**
+ * Represents a document hash representation.
+ */
+export interface DocumentHash {
+  hash: string;
+  algorithm?: string;
+  name?: string;
+}
+
+/**
  * Details of a factoring invoice including financial terms and timeline.
  */
 export interface Invoice {
@@ -76,7 +85,11 @@ export interface Invoice {
   /** Document hash details. */
   documentHash?: DocumentHash | null;
   /** Recorded cryptographic hashes of invoice evidence documents. */
-  documentHashes?: Array<{ algorithm?: string; name?: string; hash: string }> | null;
+  documentHashes?: Array<{
+    algorithm?: string;
+    name?: string;
+    hash: string;
+  }> | null;
   /** Unix timestamp (seconds) when the attestation was provided. */
   attestedAt?: number | null;
 }
@@ -111,22 +124,13 @@ export interface LPPosition {
   usdcValue: bigint;
   /** Total yield earned by this LP over time. */
   yieldEarned: bigint;
-  /** The total number of deposits made by this LP. */
+  /** The total number of deposits made by the LP. */
   depositCount: number;
 }
 
 /**
  * Defines a registered underwriter agent authorized to attest invoices.
  */
-/**
- * Represents a document hash representation.
- */
-export interface DocumentHash {
-  hash: string;
-  algorithm?: string;
-  name?: string;
-}
-
 export interface Agent {
   /** The agent's on-chain identifier (Symbol). */
   agentId: string;
@@ -136,4 +140,77 @@ export interface Agent {
   active: boolean;
   /** Unix timestamp (seconds) when the agent was registered. */
   registeredAt: number;
+}
+
+/**
+ * Canonical invoice status transition map.
+ * Defines valid transitions between invoice statuses.
+ */
+export const invoiceStatusTransitionMap: ReadonlyMap<
+  InvoiceStatus,
+  readonly InvoiceStatus[]
+> = new Map<InvoiceStatus, InvoiceStatus[]>([
+  ["Created", ["Listed"]],
+  ["Listed", ["Funded", "Defaulted"]],
+  ["Funded", ["Active", "Repaid", "Defaulted"]],
+  ["Active", ["Confirmed", "Repaid", "Defaulted"]],
+  ["Confirmed", ["Repaid", "Defaulted"]],
+  ["Repaid", []],
+  ["Defaulted", []],
+]);
+
+/**
+ * Returns allowed actions for a given invoice status and user role.
+ * @param status - Current invoice status
+ * @param role - User role ("issuer" or "buyer")
+ * @returns List of allowed action strings
+ */
+export function allowedActions(
+  status: InvoiceStatus,
+  role: "issuer" | "buyer",
+): string[] {
+  const roleSpecific: string[] = [];
+
+  // All statuses allow viewing status
+  roleSpecific.push("viewStatus");
+
+  if (role === "issuer") {
+    // Issuer-specific actions based on status
+    if (status === "Created") roleSpecific.push("listInvoice");
+    if (status === "Listed" || status === "Funded")
+      roleSpecific.push("cancelInvoice");
+    if (status === "Active") roleSpecific.push("completeInvoice");
+    if (status === "Confirmed") roleSpecific.push("shipGoods");
+    if (status === "Repaid" || status === "Defaulted")
+      roleSpecific.push("resetInvoice");
+  } else if (role === "buyer") {
+    // Buyer-specific actions based on status
+    if (status === "Listed") roleSpecific.push("fundInvoice");
+    if (status === "Funded" || status === "Active" || status === "Confirmed")
+      roleSpecific.push("confirmReceipt");
+  }
+
+  return [...new Set(roleSpecific)];
+}
+
+/**
+ * Checks whether a status transition exists in the canonical transition map.
+ * @param from - Current invoice status
+ * @param to - Target invoice status
+ * @param role - User role ("issuer" or "buyer")
+ * @returns Whether the transition is allowed
+ */
+export function isTransitionAllowed(
+  from: InvoiceStatus,
+  to: InvoiceStatus | "viewStatus",
+  _role: "issuer" | "buyer",
+): boolean {
+  // viewStatus is always allowed
+  if (to === "viewStatus") return true;
+
+  // Check if the target status is a valid transition from the current status
+  const allowedNext = invoiceStatusTransitionMap.get(from) ?? [];
+  if (!allowedNext.includes(to)) return false;
+
+  return true;
 }

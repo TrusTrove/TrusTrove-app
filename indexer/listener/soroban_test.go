@@ -1,10 +1,12 @@
 package listener
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -960,5 +962,128 @@ func TestStart_ReorgOnFinalizedLedgerHaltsListener(t *testing.T) {
 	}
 	if l.health.IsHealthy() {
 		t.Error("expected listener health to report the halt")
+	}
+}
+
+// ------------------------------------------------------------------
+// coalesced pool-stats sync (#943)
+// ------------------------------------------------------------------
+
+// fundedEventFor builds a getEvents entry whose topic[0] is the invoice
+// funded symbol. The poll-loop tests below inject handleEventFn, so the value
+// payload does not need to be a real contract event.
+func fundedEventFor(id string) map[string]any {
+	ev := rpcEventFor(id, "fund_invoice")
+	ev["topic"] = []string{encodeSymbol("fund_invoice"), encodeSymbol("unused")}
+	return ev
+}
+
+// TestPollEvents_CoalescesPoolStatsSync covers #943: a batch of several
+// pool-changing events must produce exactly one SyncPoolStats call at the end
+// of the poll, not one per event.
+func TestPollEvents_CoalescesPoolStatsSync(t *testing.T) {
+	eventIDs := []string{"124-000001", "124-000002", "124-000003"}
+	events := make([]any, 0, len(eventIDs))
+	for _, id := range eventIDs {
+		events = append(events, fundedEventFor(id))
+	}
+
+	server := stubSorobanRPC(t, func(method string) (any, int) {
+		if method != "getEvents" {
+			t.Errorf("unexpected RPC method: %s", method)
+			return nil, http.StatusOK
+		}
+		return map[string]any{
+			"events":       events,
+			"latestLedger": uint32(300),
+			"cursor":       "",
+		}, http.StatusOK
+	})
+
+	l := newTestEventListener(t, func(c *config.Config) {
+		c.SorobanRPCURL = server.URL
+		c.InvoiceContractID = "CA4O3MR7LWHRSUDBNU6FY6UDFFYBN7TGBZXBDZB4OYYXFYXIFJ6RJF6B"
+	})
+	l.handleEventFn = func(_ context.Context, ev SorobanEvent) error {
+		l.markPoolStatsDirty(ev.ID)
+		return nil
+	}
+
+	var syncs int32
+	l.syncPoolStatsFn = func(ctx context.Context) error {
+		atomic.AddInt32(&syncs, 1)
+		if _, ok := ctx.Deadline(); !ok {
+			t.Error("expected the pool stats sync to run under a timeout")
+		}
+		return nil
+	}
+
+	if _, err := l.pollEvents(context.Background(), 100); err != nil {
+		t.Fatalf("pollEvents: %v", err)
+	}
+
+	if got := atomic.LoadInt32(&syncs); got != 1 {
+		t.Errorf("expected one coalesced pool stats sync for %d events, got %d", len(eventIDs), got)
+	}
+	if l.poolStatsDirty {
+		t.Error("expected the dirty flag to be cleared after the sync")
+	}
+	if len(l.poolStatsPendingEvents) != 0 {
+		t.Errorf("expected no pending event ids after the sync, got %v", l.poolStatsPendingEvents)
+	}
+}
+
+// TestPollEvents_PoolStatsSyncFailureIsNonFatal covers #943's other half: a
+// failed sync is logged with the triggering event id but does not fail the
+// poll, so the already-indexed events are not retried.
+func TestPollEvents_PoolStatsSyncFailureIsNonFatal(t *testing.T) {
+	const eventID = "124-000009"
+
+	var logBuf bytes.Buffer
+	prevLogger := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{
+		Level: slog.LevelWarn,
+	})))
+	t.Cleanup(func() { slog.SetDefault(prevLogger) })
+
+	server := stubSorobanRPC(t, func(method string) (any, int) {
+		if method != "getEvents" {
+			return nil, http.StatusOK
+		}
+		return map[string]any{
+			"events":       []any{fundedEventFor(eventID)},
+			"latestLedger": uint32(300),
+			"cursor":       "",
+		}, http.StatusOK
+	})
+
+	l := newTestEventListener(t, func(c *config.Config) {
+		c.SorobanRPCURL = server.URL
+		c.InvoiceContractID = "CA4O3MR7LWHRSUDBNU6FY6UDFFYBN7TGBZXBDZB4OYYXFYXIFJ6RJF6B"
+	})
+	l.handleEventFn = func(_ context.Context, ev SorobanEvent) error {
+		l.markPoolStatsDirty(ev.ID)
+		return nil
+	}
+	l.syncPoolStatsFn = func(context.Context) error {
+		return errors.New("soroban RPC unavailable")
+	}
+
+	if _, err := l.pollEvents(context.Background(), 100); err != nil {
+		t.Fatalf("a failed pool stats sync must not fail the poll, got %v", err)
+	}
+
+	logged := logBuf.String()
+	if !strings.Contains(logged, "pool stats sync failed") {
+		t.Errorf("expected a warning about the failed sync, got %q", logged)
+	}
+	if !strings.Contains(logged, eventID) {
+		t.Errorf("expected the triggering event id %q in the warning, got %q", eventID, logged)
+	}
+	if !strings.Contains(logged, "soroban RPC unavailable") {
+		t.Errorf("expected the sync error in the warning, got %q", logged)
+	}
+	if l.poolStatsDirty {
+		t.Error("expected the dirty flag to be cleared even when the sync fails")
 	}
 }

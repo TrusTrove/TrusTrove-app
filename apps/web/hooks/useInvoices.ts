@@ -101,6 +101,10 @@ export function computeInvoiceStats(invoices: Invoice[]): InvoiceStats {
  * stats (issue #874).
  *
  * @param issuer - The issuer's Stellar address; query is disabled without it.
+ *   The only caller passes the connected wallet's address, so the query is
+ *   additionally gated on the store's `connected` flag: a reload rehydrates the
+ *   store as disconnected and no address-keyed query may fire while the UI
+ *   shows a disconnected wallet (issue #636).
  * @returns An object containing:
  *   - `stats` — {@link InvoiceStats} over the full set (zeros while loading).
  *   - `isLoading` — `true` while the first full-set fetch is in flight.
@@ -108,10 +112,13 @@ export function computeInvoiceStats(invoices: Invoice[]): InvoiceStats {
  *   - `refetch` — Function to manually re-trigger the query.
  */
 export function useInvoiceStats(issuer?: string) {
+  const connected = useWalletStore((s) => s.connected);
+
   const statsQuery = useQuery<InvoiceStats>({
     queryKey: ["invoiceStats", issuer],
-    queryFn: async () => computeInvoiceStats(await getAllInvoices({ issuer })),
-    enabled: !!issuer,
+    queryFn: async ({ signal }) =>
+      computeInvoiceStats(await getAllInvoices({ issuer }, { signal })),
+    enabled: !!issuer && connected,
     refetchInterval: 15000,
     staleTime: 15000,
   });
@@ -133,7 +140,7 @@ export function useInvoicesList(filters?: {
 }) {
   const invoicesQuery = useQuery<PaginatedInvoices>({
     queryKey: ["invoices", filters],
-    queryFn: () => getInvoices(filters),
+    queryFn: ({ signal }) => getInvoices(filters, { signal }),
     refetchInterval: 15000,
     staleTime: 15000,
     enabled: filters?.enabled ?? true,
@@ -263,7 +270,16 @@ export function useInvoiceActions() {
       if (!address) throw new Error("Wallet not connected");
       const invoice = await getInvoiceByID(invoiceId);
       const client = await getInvoiceClient();
-      return client.confirmDelivery(invoiceId, invoice.buyer, address);
+      const onChainInvoice = await client.get(invoiceId, address);
+      if (
+        onChainInvoice.buyer !== invoice.buyer ||
+        onChainInvoice.status !== "Active" ||
+        invoice.status !== "Active" ||
+        onChainInvoice.status !== invoice.status
+      ) {
+        throw new Error("Invoice changed, please retry");
+      }
+      return client.confirmDelivery(invoiceId, onChainInvoice.buyer, address);
     },
     onSuccess: () => {
       invalidateInvoiceQueries(queryClient, address);
@@ -458,7 +474,7 @@ export function useInvoice(
 ) {
   const invoiceQuery = useQuery({
     queryKey: ["invoice", id],
-    queryFn: () => getInvoiceByID(id),
+    queryFn: ({ signal }) => getInvoiceByID(id, { signal }),
     enabled: !!id,
     staleTime: 60000,
     initialData: options?.initialData,

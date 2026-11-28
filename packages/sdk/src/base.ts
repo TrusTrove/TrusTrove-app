@@ -8,9 +8,10 @@ import {
   BASE_FEE,
   xdr,
   scValToNative,
+  StrKey,
 } from "@stellar/stellar-sdk";
 import * as freighterApi from "@stellar/freighter-api";
-import { getConfig, getSorobanServer } from "./config.js";
+import { getConfig, getSorobanServer, type SDKConfig } from "./config.js";
 
 const signTransactionFn =
   (
@@ -240,6 +241,17 @@ async function withRetry<T>(
 }
 
 /**
+ * Network settings a client can bind to at construction time instead of
+ * reading from the process-wide SDK configuration. Used by the read-only
+ * factory so analytics callers can select a network and RPC endpoint
+ * explicitly without calling {@link configureSDK}.
+ */
+export interface ContractClientNetworkConfig {
+  sorobanRpcUrl: string;
+  networkPassphrase: string;
+}
+
+/**
  * Result type returned by transaction simulations.
  */
 export interface SimulationResult {
@@ -253,15 +265,149 @@ export interface SimulationResult {
   footprintSize: number;
 }
 
+/**
+ * Preflight result checking wallet capabilities before building a transaction.
+ * Makes no state changes - only reads configuration and wallet status.
+ */
+export interface PreflightResult {
+  /** Whether the connection to the Soroban RPC is healthy */
+  connectionHealthy: boolean;
+  /** Whether the network (testnet/mainnet) is supported */
+  networkSupported: boolean;
+  /** Whether the wallet supports signing the transaction type */
+  signingSupported: boolean;
+  /** Detailed error messages for any failed checks */
+  errors: string[];
+}
+
+export type WalletSignTransaction = (
+  transactionXdr: string,
+  opts?: {
+    network?: string;
+    networkPassphrase?: string;
+    accountToSign?: string;
+  },
+) => Promise<string>;
+
+/**
+ * Performs a preflight check on wallet capabilities before transaction building.
+ * Checks connection, network, and signing capability without making any state changes.
+ *
+ * @param sorobanRpcUrl - The Soroban RPC endpoint URL
+ * @param networkPassphrase - The network passphrase (e.g., TESTNET, MAINNET)
+ * @param walletSignTransaction - Optional function to test wallet signing capability
+ * @returns A PreflightResult with connection, network, and signing status
+ */
+export async function checkPreflight(
+  sorobanRpcUrl: string,
+  networkPassphrase: string,
+  walletSignTransaction?: WalletSignTransaction,
+): Promise<PreflightResult> {
+  const errors: string[] = [];
+  const networkSupported =
+    networkPassphrase === Networks.PUBLIC ||
+    networkPassphrase === Networks.TESTNET;
+
+  if (!networkSupported) {
+    errors.push("Unsupported network passphrase");
+  }
+
+  let connectionHealthy: boolean;
+  try {
+    await new rpc.Server(sorobanRpcUrl).getHealth();
+    connectionHealthy = true;
+  } catch (error) {
+    connectionHealthy = false;
+    const message = error instanceof Error ? error.message : "Unknown error";
+    errors.push(`Connection check failed: ${message}`);
+  }
+
+  const signingSupported = typeof walletSignTransaction === "function";
+  if (!signingSupported) {
+    errors.push("Wallet does not provide a signTransaction function");
+  }
+
+  return {
+    connectionHealthy,
+    networkSupported,
+    signingSupported,
+    errors,
+  };
+}
+
+/**
+ * Typed TrusTrove event parsed from a Soroban contract event.
+ * Unknown events can be accessed via the raw data.
+ */
+export interface TrusTroveEvent {
+  /** The contract ID that emitted this event */
+  contractId: string | null;
+  /** The type of event (e.g., "invoiceCreated", "invoiceFunded") */
+  type: string;
+  /** Topics associated with the event (decoded from XDR) */
+  topics: unknown[];
+  /** Raw data from the event (decoded from XDR) */
+  data: unknown;
+  /** Raw XDR event for unknown/unsupported event types */
+  raw: xdr.ContractEvent;
+}
+
+/**
+ * Parses contract events from a successful Soroban transaction response.
+ * Unknown event names retain their decoded values and original XDR in `raw`.
+ *
+ * @param result - The Soroban transaction result containing events
+ * @returns Typed TrusTrove events, with unknown events in raw field
+ * @throws {Error} If the transaction failed or event data is malformed
+ */
+export function parseContractEvents(
+  result: rpc.Api.GetTransactionResponse,
+): TrusTroveEvent[] {
+  if (result.status !== rpc.Api.GetTransactionStatus.SUCCESS) {
+    throw new Error(
+      `Cannot parse contract events from transaction with status ${result.status}`,
+    );
+  }
+
+  const transactionMeta = result.resultMetaXdr.v3();
+  const contractEvents = transactionMeta?.sorobanMeta()?.events() ?? [];
+
+  return contractEvents.map((event) => {
+    const eventBody = event.body().v0();
+    if (!eventBody) {
+      throw new Error("Unsupported Soroban contract event version");
+    }
+
+    const topics = eventBody.topics().map((topic) => scValToNative(topic));
+    const type = typeof topics[0] === "string" ? topics[0] : "unknown";
+    const rawContractId = event.contractId();
+
+    return {
+      contractId: rawContractId
+        ? StrKey.encodeContract(Buffer.from(rawContractId))
+        : null,
+      type,
+      topics,
+      data: scValToNative(eventBody.data()),
+      raw: event,
+    };
+  });
+}
+
+export const parseSorobanEvents = parseContractEvents;
+
 export class BaseContractClient {
   protected contractId: string;
   private contractInstance: Contract;
   /** Broadcast policy for this client's mutating calls. */
   readonly mutationRetryPolicy: MutationRetryPolicy;
+  /** Per-client network override; `undefined` means use the active SDK config. */
+  private readonly networkConfig?: ContractClientNetworkConfig;
 
   constructor(
     contractId: string,
     mutationRetryPolicy: Partial<MutationRetryPolicy> = {},
+    networkConfig?: ContractClientNetworkConfig,
   ) {
     if (!contractId) throw new Error("Contract ID is required");
     this.contractId = contractId;
@@ -270,10 +416,33 @@ export class BaseContractClient {
       ...DEFAULT_MUTATION_RETRY_POLICY,
       ...mutationRetryPolicy,
     };
+    this.networkConfig = networkConfig;
   }
 
   protected get contract(): Contract {
     return this.contractInstance;
+  }
+
+  /**
+   * The SDK config this client reads through. When the client was constructed
+   * with an explicit network, its RPC URL and passphrase take precedence over
+   * the active global configuration; everything else (contract IDs, USDC) is
+   * inherited so callers only have to state what they are overriding.
+   */
+  protected get sdkConfig(): SDKConfig {
+    const config = getConfig();
+    if (!this.networkConfig) return config;
+    return {
+      ...config,
+      sorobanRpcUrl: this.networkConfig.sorobanRpcUrl,
+      networkPassphrase: this.networkConfig.networkPassphrase,
+    };
+  }
+
+  private get sorobanServer(): rpc.Server {
+    return this.networkConfig
+      ? new rpc.Server(this.networkConfig.sorobanRpcUrl)
+      : getSorobanServer();
   }
 
   protected async readContract<T>(
@@ -282,8 +451,8 @@ export class BaseContractClient {
     publicKey: string,
     parse: (val: xdr.ScVal) => T,
   ): Promise<T> {
-    const config = getConfig();
-    const server = getSorobanServer();
+    const config = this.sdkConfig;
+    const server = this.sorobanServer;
     const account = await withRetry(() => server.getAccount(publicKey));
     const tx = new TransactionBuilder(account, {
       fee: BASE_FEE,
@@ -307,8 +476,8 @@ export class BaseContractClient {
     args: xdr.ScVal[],
     publicKey: string,
   ): Promise<string> {
-    const config = getConfig();
-    const server = getSorobanServer();
+    const config = this.sdkConfig;
+    const server = this.sorobanServer;
     const account = await withRetry(() => server.getAccount(publicKey));
     const tx = new TransactionBuilder(account, {
       fee: BASE_FEE,
@@ -400,8 +569,8 @@ export class BaseContractClient {
     args: xdr.ScVal[],
     publicKey: string,
   ): Promise<SimulationResult> {
-    const config = getConfig();
-    const server = getSorobanServer();
+    const config = this.sdkConfig;
+    const server = this.sorobanServer;
     const account = await withRetry(() => server.getAccount(publicKey));
     const tx = new TransactionBuilder(account, {
       fee: BASE_FEE,

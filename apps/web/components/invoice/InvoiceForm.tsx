@@ -12,7 +12,9 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { getErrorMessage } from "@/lib/errors";
 import { updateInvoiceStatus } from "@/lib/api";
 
-const invoiceContractID = process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID || "";
+import { CONTRACT_IDS } from "@/lib/env";
+
+const invoiceContractID = CONTRACT_IDS.invoice;
 
 const getStellarSdk = () => import("@stellar/stellar-sdk");
 const getTrustroveSdk = () => import("@trusttrove/sdk");
@@ -365,7 +367,8 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
                 Financing Cost
               </span>
               <span className="text-primary font-bold">
-                {discountBps} bps ({(discountBps / 100).toFixed(2)}%) • {discountPaid.toLocaleString()} {asset}
+                {discountBps} bps ({(discountBps / 100).toFixed(2)}%) •{" "}
+                {discountPaid.toLocaleString()} {asset}
               </span>
             </div>
             <input
@@ -430,7 +433,10 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
             {immediateList && (
               <>
                 <div className="flex justify-between text-rose-400">
-                  <span>Discount ({discountBps} bps / {(discountBps / 100).toFixed(2)}%):</span>
+                  <span>
+                    Discount ({discountBps} bps /{" "}
+                    {(discountBps / 100).toFixed(2)}%):
+                  </span>
                   <span>
                     -{discountPaid.toLocaleString()} {asset}
                   </span>

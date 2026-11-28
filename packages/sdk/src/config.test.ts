@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { rpc, Networks } from "@stellar/stellar-sdk";
+import { Networks } from "@stellar/stellar-sdk";
 
 vi.mock("@stellar/stellar-sdk", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@stellar/stellar-sdk")>();
@@ -24,7 +24,12 @@ import {
   configureSDK,
   getConfig,
   getSorobanServer,
+  isValidContractId,
+  validateContractAddress,
 } from "./config.js";
+
+const VALID_CONTRACT_ID =
+  "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4";
 
 describe("config", () => {
   describe("DEFAULT_NETWORK", () => {
@@ -46,6 +51,47 @@ describe("config", () => {
       expect(DEFAULT_CONTRACTS.invoice).toBeTypeOf("string");
       expect(DEFAULT_CONTRACTS.pool).toBeTypeOf("string");
       expect(DEFAULT_CONTRACTS.escrow).toBeTypeOf("string");
+    });
+  });
+
+  describe("isValidContractId", () => {
+    it("accepts valid testnet contract IDs starting with CA", () => {
+      expect(isValidContractId(VALID_CONTRACT_ID)).toBe(true);
+    });
+
+    it("rejects invalid checksum contract IDs", () => {
+      expect(
+        validateContractAddress(`${VALID_CONTRACT_ID.slice(0, -1)}D`),
+      ).toBe(false);
+      expect(
+        validateContractAddress(
+          "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+        ),
+      ).toBe(false);
+    });
+
+    it("rejects non-string inputs", () => {
+      expect(isValidContractId(123)).toBe(false);
+      expect(isValidContractId(null)).toBe(false);
+      expect(isValidContractId(undefined)).toBe(false);
+    });
+
+    it("rejects incorrectly formatted IDs", () => {
+      expect(isValidContractId("GB...")).toBe(false);
+      expect(isValidContractId("")).toBe(false);
+      expect(
+        isValidContractId(
+          "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        ),
+      ).toBe(false);
+    });
+
+    it("rejects valid account StrKeys because they are not contract IDs", () => {
+      expect(
+        validateContractAddress(
+          "GACR43ILX6H4PGAOO5QKSZLU4ZJMGT3E66EAUDPLM5J6YTP4Y3PSHWGB",
+        ),
+      ).toBe(false);
     });
   });
 
@@ -87,23 +133,29 @@ describe("config", () => {
     it("deep-merges contractIds via configureSDK", () => {
       configureSDK({
         contractIds: {
-          registry: "C_NEW_REG",
+          registry: VALID_CONTRACT_ID,
           invoice: "",
           pool: "",
           escrow: "",
         },
-      } as any);
+      });
       const config = getConfig();
-      expect(config.contractIds.registry).toBe("C_NEW_REG");
+      expect(config.contractIds.registry).toBe(VALID_CONTRACT_ID);
       expect(config.contractIds.invoice).toBe(DEFAULT_CONTRACTS.invoice);
       expect(config.contractIds.pool).toBe(DEFAULT_CONTRACTS.pool);
       expect(config.contractIds.escrow).toBe(DEFAULT_CONTRACTS.escrow);
     });
 
+    it("rejects invalid contract IDs without changing the active config", () => {
+      const before = getConfig();
+      expect(() =>
+        configureSDK({ contractIds: { invoice: "not-a-contract" } }),
+      ).toThrow('Invalid Stellar contract address for "invoice"');
+      expect(getConfig()).toEqual(before);
+    });
+
     it("deep-merges usdc via configureSDK", () => {
-      configureSDK({
-        usdc: { issuer: "G_NEW_ISSUER", assetCode: DEFAULT_USDC.assetCode },
-      } as any);
+      configureSDK({ usdc: { issuer: "G_NEW_ISSUER" } });
       const config = getConfig();
       expect(config.usdc.issuer).toBe("G_NEW_ISSUER");
       expect(config.usdc.assetCode).toBe(DEFAULT_USDC.assetCode);
