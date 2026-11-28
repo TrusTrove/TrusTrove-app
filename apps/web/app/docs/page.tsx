@@ -10,11 +10,7 @@ export default function DocsPage() {
   const [bootFinished, setBootFinished] = useState(false);
   const docUrl = "https://k1ngd4vid.gitbook.io/trustrove/";
 
-  const goToDocs = () => {
-    if (typeof window !== "undefined") {
-      window.location.href = docUrl;
-    }
-  };
+
 
   useEffect(() => {
     const logMessages = [
