@@ -56,7 +56,7 @@ type invoicesPageFunc func(status, issuer string, limit, offset int) ([]*db.DbIn
 func invoiceHandlerUnderTest(fn invoicesPageFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		status := r.URL.Query().Get("status")
-		issue := r.URL.Query().Get("issuer")
+		issuer := r.URL.Query().Get("issuer")
 
 		page := 1
 		limit := 20
