@@ -12,7 +12,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { getPoolSnapshots } from "@/lib/api";
+import { getInvoices, getPoolSnapshots } from "@/lib/api";
+import { calculateMaturityDistribution } from "@/hooks/usePoolChartData";
 import type { PoolSnapshot } from "@/types";
 import { SkeletonShimmer } from "./SkeletonLoader";
 
@@ -61,6 +62,124 @@ export function formatSnapshotPoint(snapshot: PoolSnapshot): ChartPoint {
  * / error states render graceful fallbacks. A visually-hidden text summary
  * keeps the trend accessible to screen readers.
  */
+export interface MaturityDistributionItem {
+  id: string;
+  fundedAmount: string | bigint;
+  dueDate: number;
+  status?: string;
+}
+
+export interface PoolMaturityDistributionChartProps {
+  invoices?: MaturityDistributionItem[];
+  isLoading?: boolean;
+  error?: unknown;
+  title?: string;
+}
+
+export function PoolMaturityDistributionChart({
+  invoices: invoicesProp,
+  isLoading: isLoadingProp = false,
+  error: errorProp = null,
+  title = "Pool Maturity Distribution",
+}: PoolMaturityDistributionChartProps) {
+  const invoicesQuery = useQuery({
+    queryKey: ["invoices", "maturityDistribution"],
+    queryFn: async () =>
+      (await getInvoices()).data as unknown as MaturityDistributionItem[],
+    enabled: invoicesProp === undefined,
+    staleTime: 60000,
+    retry: 2,
+  });
+
+  const invoices = useMemo(
+    () => invoicesProp ?? invoicesQuery.data ?? [],
+    [invoicesProp, invoicesQuery.data],
+  );
+  const queryLoading = invoicesProp === undefined && invoicesQuery.isLoading;
+  const queryError = invoicesProp === undefined ? invoicesQuery.error : null;
+  const isLoading = isLoadingProp || queryLoading;
+  const error = errorProp ?? queryError;
+
+  const distribution = useMemo(() => {
+    return calculateMaturityDistribution(invoices);
+  }, [invoices]);
+
+  const totalActiveExposure = useMemo(() => {
+    return distribution.reduce((acc, b) => acc + b.amount, 0);
+  }, [distribution]);
+
+  if (error) {
+    return (
+      <section aria-label={`${title} (error)`}>
+        <h2 className="text-sm font-bold uppercase tracking-wider text-foreground">
+          {title}
+        </h2>
+        <p className="mt-3 rounded-lg border border-border bg-card p-6 text-center text-sm text-muted-foreground">
+          Maturity distribution is temporarily unavailable. Please try again
+          later.
+        </p>
+      </section>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <section aria-label={`${title} (loading)`}>
+        <h2 className="text-sm font-bold uppercase tracking-wider text-foreground">
+          {title}
+        </h2>
+        <div className="mt-3 space-y-2" data-testid="pool-maturity-skeleton">
+          <SkeletonShimmer className="h-4 w-40" />
+          <SkeletonShimmer className="h-64 w-full" />
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section aria-label={title}>
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-bold uppercase tracking-wider text-foreground">
+          {title}
+        </h2>
+        <span className="text-xs font-mono text-muted-foreground">
+          Active Exposure: $
+          {totalActiveExposure.toLocaleString("en-US", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}{" "}
+          USDC
+        </span>
+      </div>
+      <div className="mt-3 rounded-lg border border-border bg-card p-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          {distribution.map((band) => (
+            <div
+              key={band.band}
+              className="bg-background border border-border/40 p-3 rounded"
+            >
+              <span className="text-[10px] font-mono text-muted-foreground uppercase block">
+                {band.band}
+              </span>
+              <span className="text-sm font-mono font-bold text-foreground mt-1 block">
+                $
+                {band.amount.toLocaleString("en-US", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}{" "}
+                USDC
+              </span>
+              <span className="text-[10px] font-mono text-primary block mt-0.5">
+                ({band.percentage.toFixed(1)}%)
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function PoolPerformanceChart({
   snapshots: snapshotsProp,
   isLoading: isLoadingProp = false,
