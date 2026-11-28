@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useId } from "react";
 import { Sparkles } from "lucide-react";
 import { AnimatedValue } from "./DiscountCalculator";
 
@@ -20,6 +20,7 @@ export function SmeCalculator() {
   const [faceValue, setFaceValue] = useState<number>(50000);
   const [paymentTerms, setPaymentTerms] = useState<number>(60);
   const [discountRate, setDiscountRate] = useState<number>(2.0);
+  const paymentTermsId = useId();
 
   const { discountPaid, fundedAmount } = useSmeDerivedValues(
     faceValue,
@@ -51,7 +52,7 @@ export function SmeCalculator() {
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
       {/* Inputs Column */}
       <div className="space-y-6">
-        <h3 className="text-xs font-bold font-mono text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+        <h3 className="text-xs font-bold font-mono text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
           <Sparkles className="w-3.5 h-3.5 text-primary" />
           Configure Invoice parameters
         </h3>
@@ -59,7 +60,7 @@ export function SmeCalculator() {
         {/* Slider 1: Face Value */}
         <div className="space-y-2">
           <div className="flex justify-between text-xs font-mono">
-            <span className="text-slate-400">Invoice Face Value</span>
+            <span className="text-muted-foreground">Invoice Face Value</span>
             <span className="text-primary font-bold">
               {faceValue.toLocaleString()} USDC
             </span>
@@ -72,13 +73,13 @@ export function SmeCalculator() {
             step="1000"
             value={faceValue}
             onChange={handleFaceValueChange}
-            className="w-full accent-primary bg-slate-900 h-1.5 rounded"
+            className="w-full accent-primary bg-border h-1.5 rounded"
             aria-label="Invoice Face Value"
             aria-valuenow={faceValue}
             aria-valuemin={1000}
             aria-valuemax={500000}
           />
-          <div className="flex justify-between text-[10px] text-slate-600 font-mono">
+          <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
             <span>$1K USDC</span>
             <span>$500K USDC</span>
           </div>
@@ -86,13 +87,17 @@ export function SmeCalculator() {
 
         {/* Dropdown: Payment Terms */}
         <div className="space-y-2">
-          <label className="block text-xs font-mono text-slate-400">
+          <label
+            htmlFor={paymentTermsId}
+            className="block text-xs font-mono text-muted-foreground"
+          >
             Payment Due Terms
           </label>
           <select
+            id={paymentTermsId}
             value={paymentTerms}
             onChange={handlePaymentTermsChange}
-            className="w-full bg-[#080c10] border border-border rounded px-3 py-2 text-slate-200 font-mono text-xs focus:outline-none focus:border-primary"
+            className="w-full bg-background border border-border rounded px-3 py-2 text-foreground font-mono text-xs focus:outline-none focus:border-primary"
           >
             <option value="30">Net 30 (30 days maturity)</option>
             <option value="60">Net 60 (60 days maturity)</option>
@@ -103,7 +108,9 @@ export function SmeCalculator() {
         {/* Slider 2: Discount Rate */}
         <div className="space-y-2">
           <div className="flex justify-between text-xs font-mono">
-            <span className="text-slate-400">Financing Discount Rate</span>
+            <span className="text-muted-foreground">
+              Financing Discount Rate
+            </span>
             <span className="text-primary font-bold">
               {discountRate.toFixed(1)}% ({Math.round(discountRate * 100)} bps)
             </span>
@@ -116,13 +123,13 @@ export function SmeCalculator() {
             step="0.1"
             value={discountRate}
             onChange={handleDiscountRateChange}
-            className="w-full accent-primary bg-slate-900 h-1.5 rounded"
+            className="w-full accent-primary bg-border h-1.5 rounded"
             aria-label="Financing Discount Rate"
             aria-valuenow={discountRate}
             aria-valuemin={0.5}
             aria-valuemax={5.0}
           />
-          <div className="flex justify-between text-[10px] text-slate-600 font-mono">
+          <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
             <span>0.5% (50 bps)</span>
             <span>5.0% (500 bps)</span>
           </div>
@@ -132,44 +139,44 @@ export function SmeCalculator() {
       {/* Outputs Column */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Without TrusTrove */}
-        <div className="bg-[#080c10] border border-border p-4 rounded-lg flex flex-col justify-between">
+        <div className="bg-background border border-border p-4 rounded-lg flex flex-col justify-between">
           <div>
-            <div className="text-[10px] font-bold font-mono text-slate-500 uppercase tracking-wider mb-3">
+            <div className="text-[10px] font-bold font-mono text-muted-foreground uppercase tracking-wider mb-3">
               Without TrusTrove
             </div>
             <div className="space-y-4">
               <div>
-                <span className="text-[10px] text-slate-500 font-mono block">
+                <span className="text-[10px] text-muted-foreground font-mono block">
                   You wait:
                 </span>
-                <span className="text-lg font-bold font-mono text-amber-500">
+                <span className="text-lg font-bold font-mono text-amber-700 dark:text-amber-500">
                   {paymentTerms} Days
                 </span>
               </div>
               <div>
-                <span className="text-[10px] text-slate-500 font-mono block">
+                <span className="text-[10px] text-muted-foreground font-mono block">
                   You receive:
                 </span>
-                <span className="text-md font-bold text-slate-300 font-mono">
+                <span className="text-base font-bold text-foreground font-mono">
                   {faceValue.toLocaleString()} USDC
                 </span>
-                <span className="text-[9px] text-slate-600 block leading-tight mt-1">
+                <span className="text-[9px] text-muted-foreground block leading-tight mt-1">
                   Full payment received late, freezing working capital.
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="border-t border-border/30 pt-3 mt-4 text-[10px] font-mono space-y-1.5 text-slate-500">
+          <div className="border-t border-border/30 pt-3 mt-4 text-[10px] font-mono space-y-1.5 text-muted-foreground">
             <div className="flex justify-between">
               <span>Opportunity cost:</span>
-              <span className="text-slate-400 text-right">
+              <span className="text-muted-foreground text-right">
                 Lost production orders
               </span>
             </div>
             <div className="flex justify-between">
               <span>Bank alternative:</span>
-              <span className="text-slate-400 text-right">
+              <span className="text-muted-foreground text-right">
                 8–15% APR, 3-week wait
               </span>
             </div>
@@ -177,14 +184,14 @@ export function SmeCalculator() {
         </div>
 
         {/* With TrusTrove */}
-        <div className="bg-[#080c10] border border-primary/20 p-4 rounded-lg flex flex-col justify-between shadow-[inset_0_0_15px_rgba(0,212,170,0.02)]">
+        <div className="bg-background border border-primary/20 p-4 rounded-lg flex flex-col justify-between shadow-[inset_0_0_15px_rgba(0,212,170,0.02)]">
           <div>
             <div className="text-[10px] font-bold font-mono text-primary uppercase tracking-wider mb-3">
               With TrusTrove
             </div>
             <div className="space-y-4">
               <div>
-                <span className="text-[10px] text-slate-500 font-mono block">
+                <span className="text-[10px] text-muted-foreground font-mono block">
                   You wait:
                 </span>
                 <span className="text-lg font-bold font-mono text-primary">
@@ -192,13 +199,13 @@ export function SmeCalculator() {
                 </span>
               </div>
               <div>
-                <span className="text-[10px] text-slate-500 font-mono block">
+                <span className="text-[10px] text-muted-foreground font-mono block">
                   You receive today:
                 </span>
-                <span className="text-md font-bold text-emerald-400 font-mono">
+                <span className="text-base font-bold text-emerald-700 dark:text-emerald-400 font-mono">
                   <AnimatedValue value={fundedAmount} suffix=" USDC" />
                 </span>
-                <span className="text-[9px] text-slate-500 block leading-tight mt-1">
+                <span className="text-[9px] text-muted-foreground block leading-tight mt-1">
                   Face Value minus{" "}
                   <AnimatedValue
                     value={discountPaid}
@@ -211,10 +218,10 @@ export function SmeCalculator() {
             </div>
           </div>
 
-          <div className="border-t border-border/30 pt-3 mt-4 text-[10px] font-mono space-y-1.5 text-slate-500">
+          <div className="border-t border-border/30 pt-3 mt-4 text-[10px] font-mono space-y-1.5 text-muted-foreground">
             <div className="flex justify-between">
               <span>Discount paid:</span>
-              <span className="text-slate-300 font-bold">
+              <span className="text-foreground font-bold">
                 <AnimatedValue value={discountPaid} suffix=" USDC" />
               </span>
             </div>
@@ -226,7 +233,7 @@ export function SmeCalculator() {
             </div>
             <div className="flex justify-between">
               <span>Buyer obligation:</span>
-              <span className="text-slate-300">
+              <span className="text-foreground">
                 {faceValue.toLocaleString()} USDC
               </span>
             </div>

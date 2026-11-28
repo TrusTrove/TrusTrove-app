@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { PageLayout } from "@/components/shared/PageLayout";
 import { WalletConnect } from "@/components/shared/WalletConnect";
 import { SimulationPreview } from "@/components/shared/SimulationPreview";
@@ -9,35 +9,24 @@ import {
   PoolStatsPanelSkeleton,
 } from "@/components/shared/SkeletonLoader";
 import { usePool } from "@/hooks/usePool";
+import { useRecentEvents } from "@/hooks/useEvents";
 import { useWalletStore } from "@/store/wallet";
 import { useConfirmDialogStore } from "@/store/confirmDialog";
 import { PoolClient, type SimulationResult } from "@trusttrove/sdk";
 import { Address, nativeToScVal } from "@stellar/stellar-sdk";
 import { formatAmount } from "@/lib/assets";
+import {
+  assessWithdrawal,
+  formatPoolAmount,
+  formatUtilization,
+  sharesInputToStroops,
+} from "@/lib/poolWithdrawal";
+import { getEventDataString } from "@/types";
 
-const poolContractID = process.env.NEXT_PUBLIC_POOL_CONTRACT_ID || "";
+import { CONTRACT_IDS } from "@/lib/env";
+
+const poolContractID = CONTRACT_IDS.pool;
 const STROOPS_PER_UNIT = 10_000_000;
-
-type StatsWithSharePrice = {
-  totalDeposits?: bigint;
-  availableLiquidity?: bigint;
-  totalFunded?: bigint;
-  totalYieldDistributed?: bigint;
-  activeInvoiceCount?: number;
-  utilizationRateBps?: number;
-  sharePrice?: bigint | number | string;
-};
-
-function formatSharePrice(
-  value: bigint | number | string | undefined,
-): number | null {
-  if (value === undefined) return null;
-  const numericValue = Number(value);
-  if (!Number.isFinite(numericValue) || numericValue <= 0) return null;
-  return typeof value === "bigint" || numericValue >= STROOPS_PER_UNIT
-    ? numericValue / STROOPS_PER_UNIT
-    : numericValue;
-}
 
 function formatShareValue(value: bigint | undefined): string {
   return formatAmount(value ?? 0n);
@@ -46,6 +35,9 @@ function formatShareValue(value: bigint | undefined): string {
 export default function LPDashboard() {
   const connected = useWalletStore((s) => s.connected);
   const address = useWalletStore((s) => s.address);
+  const { events: indexedEvents } = useRecentEvents(1000);
+  const [statementStart, setStatementStart] = useState("");
+  const [statementEnd, setStatementEnd] = useState("");
   const {
     deposit,
     withdraw,
@@ -62,6 +54,10 @@ export default function LPDashboard() {
   const [simDetails, setSimDetails] = useState<SimulationResult | null>(null);
   const [simError, setSimError] = useState<string | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
+  const [depositError, setDepositError] = useState<string | null>(null);
+  const [withdrawError, setWithdrawError] = useState<string | null>(null);
+  const depositInputRef = useRef<HTMLInputElement>(null);
+  const withdrawInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const amount = Number(depositAmount);
@@ -104,11 +100,84 @@ export default function LPDashboard() {
     };
   }, [address, depositAmount]);
 
+  const statement = useMemo(() => {
+    const startTs = statementStart
+      ? Math.floor(new Date(statementStart).getTime() / 1000)
+      : 0;
+    const endTs = statementEnd
+      ? Math.floor(new Date(statementEnd).getTime() / 1000) + 86399
+      : Number.MAX_SAFE_INTEGER;
+
+    let deposits = 0n;
+    let withdrawals = 0n;
+    let yieldEarned = 0n;
+    const rows: Array<{
+      date: string;
+      type: string;
+      amount: string;
+      cashFlow: string;
+      yield: string;
+    }> = [];
+
+    for (const event of indexedEvents) {
+      if (event.ledger_closed_at < startTs || event.ledger_closed_at > endTs)
+        continue;
+      const account = getEventDataString(event, "account");
+      const amount = getEventDataString(event, "amount") ?? "0";
+      const yieldAmount = getEventDataString(event, "yield_amount") ?? "0";
+      const type = event.event_type.toLowerCase();
+
+      if (
+        (type === "deposit" || type === "lp_deposited") &&
+        account === address
+      ) {
+        deposits += BigInt(amount);
+        rows.push({
+          date: new Date(event.ledger_closed_at * 1000).toISOString(),
+          type: "Deposit",
+          amount,
+          cashFlow: `-${amount}`,
+          yield: "0",
+        });
+      } else if (
+        (type === "withdraw" || type === "lp_withdrawn") &&
+        account === address
+      ) {
+        withdrawals += BigInt(amount);
+        rows.push({
+          date: new Date(event.ledger_closed_at * 1000).toISOString(),
+          type: "Withdrawal",
+          amount,
+          cashFlow: amount,
+          yield: "0",
+        });
+      } else if (
+        type === "receive_repayment" ||
+        type === "repayment_received" ||
+        type === "yield_distribution"
+      ) {
+        yieldEarned += BigInt(yieldAmount);
+        rows.push({
+          date: new Date(event.ledger_closed_at * 1000).toISOString(),
+          type: "Yield",
+          amount: yieldAmount,
+          cashFlow: "0",
+          yield: yieldAmount,
+        });
+      }
+    }
+
+    const netCashFlow = withdrawals - deposits;
+    return { deposits, withdrawals, yieldEarned, netCashFlow, rows };
+  }, [indexedEvents, address, statementStart, statementEnd]);
+
   if (!connected) {
     return (
       <PageLayout>
         <div className="flex min-h-[70vh] flex-col items-center justify-center gap-6">
-          <h1 className="text-2xl font-bold text-white">Connect Your Wallet</h1>
+          <h1 className="text-2xl font-bold text-foreground">
+            Connect Your Wallet
+          </h1>
           <WalletConnect />
         </div>
       </PageLayout>
@@ -118,7 +187,12 @@ export default function LPDashboard() {
   const handleDeposit = async (event: React.FormEvent) => {
     event.preventDefault();
     const amount = Number(depositAmount);
-    if (!Number.isFinite(amount) || amount <= 0) return;
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setDepositError("Enter an amount greater than zero.");
+      depositInputRef.current?.focus();
+      return;
+    }
+    setDepositError(null);
 
     await deposit({
       amount: BigInt(Math.floor(amount * STROOPS_PER_UNIT)),
@@ -127,12 +201,46 @@ export default function LPDashboard() {
     setDepositAmount("");
   };
 
+  const withdrawal = assessWithdrawal({
+    shares: sharesInputToStroops(withdrawShares),
+    position,
+    stats,
+  });
+
+  const redeemableLabel = formatPoolAmount(withdrawal.redeemable);
+  const availableLabel = formatPoolAmount(withdrawal.availableLiquidity);
+  const shortfallLabel = formatPoolAmount(withdrawal.shortfall);
+  const utilizationLabel = formatUtilization(withdrawal.utilizationRateBps);
+
+  const liquidityWarning = withdrawal.insufficientLiquidity
+    ? `Insufficient pool liquidity: this withdrawal needs ${redeemableLabel} but only ${availableLabel} is currently available, leaving a shortfall of ${shortfallLabel}. Most pool capital is deployed in invoices at ${utilizationLabel} utilization. Withdraw fewer shares or wait for invoices to repay before withdrawing this amount.`
+    : "";
+
   const handleWithdraw = (event: React.FormEvent) => {
     event.preventDefault();
-    const shares = Number(withdrawShares);
-    if (!Number.isFinite(shares) || shares <= 0) return;
+    const shareAmount = sharesInputToStroops(withdrawShares);
+    if (shareAmount === null) {
+      setWithdrawError("Enter an amount greater than zero.");
+      withdrawInputRef.current?.focus();
+      return;
+    }
+    if (shareAmount > (position?.shares ?? 0n)) {
+      setWithdrawError("Amount exceeds your redeemable shares.");
+      withdrawInputRef.current?.focus();
+      return;
+    }
+    // The pool can only pay out liquidity that is not currently deployed.
+    // Block here so the user never signs a withdrawal that is guaranteed to
+    // fail, and explain the shortfall before the wallet prompt.
+    if (withdrawal.insufficientLiquidity) {
+      setWithdrawError(
+        `Insufficient pool liquidity: this withdrawal needs ${redeemableLabel} but only ${availableLabel} is available. Withdraw fewer shares or wait for invoices to repay.`,
+      );
+      withdrawInputRef.current?.focus();
+      return;
+    }
+    setWithdrawError(null);
 
-    const shareAmount = BigInt(Math.floor(shares * STROOPS_PER_UNIT));
     requestConfirmation({
       label: "Withdraw LP liquidity",
       invoiceId: address || "LP position",
@@ -143,21 +251,41 @@ export default function LPDashboard() {
     });
   };
 
-  const typedStats: StatsWithSharePrice | undefined = stats;
   const utilization = Math.min(
     100,
-    Math.max(0, (typedStats?.utilizationRateBps ?? 0) / 100),
+    Math.max(0, (stats?.utilizationRateBps ?? 0) / 100),
   );
-  const sharePrice = formatSharePrice(typedStats?.sharePrice);
+
+  const handleExportStatement = () => {
+    const header = ["date", "type", "amount", "cash_flow", "yield"];
+    const lines = [header.join(",")];
+    for (const row of statement.rows) {
+      lines.push(
+        [row.date, row.type, row.amount, row.cashFlow, row.yield].join(","),
+      );
+    }
+    const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "lp-position-statement.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Both arcs come from the theme. `--muted` equals `--card` in the dark theme,
+  // so the empty arc uses muted-foreground at low opacity instead of vanishing;
+  // the ring border below is the border token.
+  const donutBackground = `conic-gradient(hsl(var(--primary)) ${utilization}%, hsl(var(--muted-foreground) / 0.35) ${utilization}% 100%)`;
 
   return (
     <PageLayout>
       <div className="mx-auto max-w-5xl space-y-6 py-4">
         <div>
-          <h1 className="text-xl font-bold uppercase text-white">
+          <h1 className="text-xl font-bold uppercase text-foreground">
             Liquidity Provider Portal
           </h1>
-          <p className="mt-1 text-sm text-slate-400">
+          <p className="mt-1 text-sm text-muted-foreground">
             Supply USDC liquidity, track pool performance, and manage your
             position.
           </p>
@@ -166,7 +294,7 @@ export default function LPDashboard() {
         <section aria-labelledby="pool-overview-heading" className="space-y-3">
           <h2
             id="pool-overview-heading"
-            className="text-sm font-bold uppercase tracking-wider text-white"
+            className="text-sm font-bold uppercase tracking-wider text-foreground"
           >
             Pool Overview
           </h2>
@@ -175,16 +303,14 @@ export default function LPDashboard() {
           ) : (
             <div className="bg-card border border-border rounded-lg p-6 flex flex-col md:flex-row items-center gap-8">
               <div
-                className="relative flex h-36 w-36 shrink-0 items-center justify-center rounded-full border-[8px] border-slate-900"
-                style={{
-                  background: `conic-gradient(#00d4aa ${utilization}%, #17212b ${utilization}% 100%)`,
-                }}
+                className="relative flex h-36 w-36 shrink-0 items-center justify-center rounded-full border-[8px] border-border"
+                style={{ background: donutBackground }}
               >
                 <div className="flex h-28 w-28 flex-col items-center justify-center rounded-full bg-card">
-                  <span className="text-2xl font-bold text-white">
+                  <span className="text-2xl font-bold text-foreground">
                     {utilization.toFixed(1)}%
                   </span>
-                  <span className="text-[10px] uppercase text-slate-500">
+                  <span className="text-[10px] uppercase text-muted-foreground">
                     Utilization
                   </span>
                 </div>
@@ -192,26 +318,20 @@ export default function LPDashboard() {
               <div className="grid w-full grid-cols-2 gap-6">
                 <Stat
                   label="Total Deposits"
-                  value={formatShareValue(typedStats?.totalDeposits)}
+                  value={formatShareValue(stats?.totalDeposits)}
                 />
                 <Stat
                   label="Available Liquidity"
-                  value={formatShareValue(typedStats?.availableLiquidity)}
+                  value={formatShareValue(stats?.availableLiquidity)}
                 />
                 <Stat
                   label="Yield Distributed"
-                  value={formatShareValue(typedStats?.totalYieldDistributed)}
+                  value={formatShareValue(stats?.totalYieldDistributed)}
                 />
                 <Stat
                   label="Active Invoices"
-                  value={String(typedStats?.activeInvoiceCount ?? 0)}
+                  value={String(stats?.activeInvoiceCount ?? 0)}
                 />
-                {sharePrice !== null && (
-                  <Stat
-                    label="Share Price"
-                    value={`${sharePrice.toFixed(4)} USDC`}
-                  />
-                )}
               </div>
             </div>
           )}
@@ -220,19 +340,19 @@ export default function LPDashboard() {
         <section aria-labelledby="position-heading" className="space-y-3">
           <h2
             id="position-heading"
-            className="text-sm font-bold uppercase tracking-wider text-white"
+            className="text-sm font-bold uppercase tracking-wider text-foreground"
           >
             My Position
           </h2>
           {isPositionLoading ? (
             <LPPositionCardSkeleton />
           ) : (
-            <div className="bg-[#0d131a] border border-border rounded-lg p-5 space-y-4">
+            <div className="bg-card border border-border rounded-lg p-5 space-y-4">
               <div className="flex items-center justify-between border-b border-border/40 pb-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-white">
+                <span className="text-xs font-bold uppercase tracking-wider text-foreground">
                   Active LP Position
                 </span>
-                <span className="text-[10px] text-slate-500">
+                <span className="text-[10px] text-muted-foreground">
                   {position?.depositCount ?? 0} deposits
                 </span>
               </div>
@@ -254,29 +374,102 @@ export default function LPDashboard() {
           )}
         </section>
 
+        <section aria-labelledby="statement-heading" className="space-y-3">
+          <h2
+            id="statement-heading"
+            className="text-sm font-bold uppercase tracking-wider text-foreground"
+          >
+            Position Statement
+          </h2>
+          <div className="bg-card border border-border rounded-lg p-5 space-y-4">
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="space-y-1">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Start date
+                </span>
+                <input
+                  type="date"
+                  value={statementStart}
+                  onChange={(e) => setStatementStart(e.target.value)}
+                  className="rounded border border-input bg-background px-3 py-2 text-foreground"
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  End date
+                </span>
+                <input
+                  type="date"
+                  value={statementEnd}
+                  onChange={(e) => setStatementEnd(e.target.value)}
+                  className="rounded border border-input bg-background px-3 py-2 text-foreground"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={handleExportStatement}
+                className="rounded bg-primary px-4 py-2 font-semibold text-primary-foreground"
+              >
+                Export CSV
+              </button>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-4">
+              <Stat label="Deposits" value={statement.deposits.toString()} />
+              <Stat
+                label="Withdrawals"
+                value={statement.withdrawals.toString()}
+              />
+              <Stat
+                label="Realized Yield"
+                value={statement.yieldEarned.toString()}
+              />
+              <Stat
+                label="Net Cash Flow"
+                value={statement.netCashFlow.toString()}
+              />
+            </div>
+          </div>
+        </section>
+
         <div className="grid gap-6 lg:grid-cols-2">
           <form
             onSubmit={handleDeposit}
             className="space-y-4 rounded-lg border border-border bg-card p-6"
           >
-            <h2 className="text-sm font-bold uppercase tracking-wider text-white">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-foreground">
               Deposit USDC
             </h2>
             <label
               htmlFor="deposit-amount"
-              className="block text-sm text-slate-300"
+              className="block text-sm text-foreground"
             >
               Deposit amount
             </label>
             <input
+              ref={depositInputRef}
               id="deposit-amount"
               type="number"
-              min="0"
               step="any"
               value={depositAmount}
-              onChange={(event) => setDepositAmount(event.target.value)}
-              className="w-full rounded border border-border bg-slate-950 px-3 py-2 text-white"
+              aria-invalid={depositError ? "true" : undefined}
+              aria-describedby={
+                depositError ? "deposit-amount-error" : undefined
+              }
+              onChange={(event) => {
+                setDepositAmount(event.target.value);
+                setDepositError(null);
+              }}
+              className="w-full rounded border border-input bg-background px-3 py-2 text-foreground"
             />
+            {depositError && (
+              <p
+                id="deposit-amount-error"
+                role="alert"
+                className="text-sm text-rose-300"
+              >
+                {depositError}
+              </p>
+            )}
             <SimulationPreview
               details={simDetails}
               error={simError}
@@ -285,7 +478,7 @@ export default function LPDashboard() {
             <button
               type="submit"
               disabled={isDepositing}
-              className="rounded bg-primary px-4 py-2 font-semibold text-black disabled:opacity-50"
+              className="rounded bg-primary px-4 py-2 font-semibold text-primary-foreground disabled:opacity-50"
             >
               {isDepositing ? "Depositing..." : "Deposit USDC"}
             </button>
@@ -295,31 +488,95 @@ export default function LPDashboard() {
             onSubmit={handleWithdraw}
             className="space-y-4 rounded-lg border border-border bg-card p-6"
           >
-            <h2 className="text-sm font-bold uppercase tracking-wider text-white">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-foreground">
               Withdraw Liquidity
             </h2>
             <label
               htmlFor="withdraw-shares"
-              className="block text-sm text-slate-300"
+              className="block text-sm text-foreground"
             >
               Shares to redeem
             </label>
             <input
+              ref={withdrawInputRef}
               id="withdraw-shares"
               type="number"
-              min="0"
               step="any"
               value={withdrawShares}
-              onChange={(event) => setWithdrawShares(event.target.value)}
-              className="w-full rounded border border-border bg-slate-950 px-3 py-2 text-white"
+              aria-invalid={withdrawError ? "true" : undefined}
+              aria-describedby={[
+                "withdraw-available",
+                "withdraw-liquidity-summary",
+                withdrawal.insufficientLiquidity
+                  ? "withdraw-liquidity-warning"
+                  : null,
+                withdrawError ? "withdraw-shares-error" : null,
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              onChange={(event) => {
+                setWithdrawShares(event.target.value);
+                setWithdrawError(null);
+              }}
+              className="w-full rounded border border-input bg-background px-3 py-2 text-foreground"
             />
-            <p className="text-xs text-slate-500">
+            {withdrawError && (
+              <p
+                id="withdraw-shares-error"
+                role="alert"
+                className="text-sm text-rose-300"
+              >
+                {withdrawError}
+              </p>
+            )}
+            <p
+              id="withdraw-available"
+              className="text-xs text-muted-foreground"
+            >
               Available: {formatShareValue(position?.shares)}
             </p>
+
+            {/* Pre-signing liquidity summary: what these shares redeem, how
+                much of the pool is deployed, and what it can pay right now. */}
+            <dl
+              id="withdraw-liquidity-summary"
+              className="space-y-1 rounded border border-border/40 bg-background/40 p-3 font-mono text-xs"
+            >
+              <div className="flex justify-between gap-2">
+                <dt className="text-muted-foreground">Redeemable amount</dt>
+                <dd className="font-bold text-foreground">{redeemableLabel}</dd>
+              </div>
+              <div className="flex justify-between gap-2">
+                <dt className="text-muted-foreground">Current utilization</dt>
+                <dd className="font-bold text-foreground">
+                  {utilizationLabel}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-2">
+                <dt className="text-muted-foreground">
+                  Available pool liquidity
+                </dt>
+                <dd className="font-bold text-foreground">{availableLabel}</dd>
+              </div>
+            </dl>
+
+            {withdrawal.insufficientLiquidity && (
+              <p
+                id="withdraw-liquidity-warning"
+                role="status"
+                className="rounded border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400"
+              >
+                {liquidityWarning}
+              </p>
+            )}
             <button
               type="submit"
-              disabled={isWithdrawing || !position?.shares}
-              className="rounded border border-rose-500/60 px-4 py-2 font-semibold text-rose-300 disabled:opacity-50"
+              disabled={
+                isWithdrawing ||
+                !position?.shares ||
+                withdrawal.insufficientLiquidity
+              }
+              className="rounded border border-destructive/60 px-4 py-2 font-semibold text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
             >
               {isWithdrawing ? "Withdrawing..." : "Withdraw Shares"}
             </button>
@@ -333,10 +590,12 @@ export default function LPDashboard() {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="space-y-1">
-      <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+      <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
         {label}
       </span>
-      <span className="block text-sm font-semibold text-white">{value}</span>
+      <span className="block text-sm font-semibold text-foreground">
+        {value}
+      </span>
     </div>
   );
 }

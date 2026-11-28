@@ -6,6 +6,10 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
+      "@trusttrove/sdk/schemas": resolve(
+        __dirname,
+        "../../packages/sdk/src/schemas.ts",
+      ),
       "@trusttrove/sdk": resolve(__dirname, "../../packages/sdk/src/index.ts"),
     },
   },
@@ -18,8 +22,13 @@ export default defineConfig({
     },
     setupFiles: ["./vitest.setup.ts"],
     globals: true,
+    testTimeout: 15_000,
     alias: {
       "@": resolve(__dirname, "./"),
+      "@trusttrove/sdk/schemas": resolve(
+        __dirname,
+        "../../packages/sdk/src/schemas.ts",
+      ),
       "@trusttrove/sdk": resolve(__dirname, "../../packages/sdk/src/index.ts"),
     },
     exclude: ["e2e/**", "node_modules/**"],

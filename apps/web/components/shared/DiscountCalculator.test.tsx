@@ -16,7 +16,7 @@ describe("DiscountCalculator", () => {
     const { container } = render(<DiscountCalculator />);
 
     expect(
-      screen.getByRole("button", { name: "SME Financing Calculator" }),
+      screen.getByRole("tab", { name: "SME Financing Calculator" }),
     ).toBeInTheDocument();
 
     const faceValue = screen.getByRole("slider", {
@@ -120,7 +120,7 @@ describe("DiscountCalculator", () => {
   it("switches to the LP yield estimator and displays its controls", () => {
     render(<DiscountCalculator />);
 
-    fireEvent.click(screen.getByRole("button", { name: "LP Yield Estimator" }));
+    fireEvent.click(screen.getByRole("tab", { name: "LP Yield Estimator" }));
 
     expect(
       screen.queryByRole("slider", { name: "Invoice Face Value" }),
@@ -139,7 +139,7 @@ describe("DiscountCalculator", () => {
   it("LP tab displays default values without NaN or errors", () => {
     const { container } = render(<DiscountCalculator />);
 
-    fireEvent.click(screen.getByRole("button", { name: "LP Yield Estimator" }));
+    fireEvent.click(screen.getByRole("tab", { name: "LP Yield Estimator" }));
 
     // Verify LP values are displayed and correct
     expect(container).toHaveTextContent("10,000 USDC");
@@ -147,6 +147,40 @@ describe("DiscountCalculator", () => {
     expect(container).toHaveTextContent("2%");
     expect(container).toHaveTextContent("60");
     expect(container).not.toHaveTextContent("NaN");
+  });
+
+  it("exposes tablist/tab semantics with aria-selected matching the active tab", () => {
+    render(<DiscountCalculator />);
+
+    const tablist = screen.getByRole("tablist", { name: /Calculator type/i });
+    expect(tablist).toBeInTheDocument();
+
+    const smeTab = screen.getByRole("tab", {
+      name: "SME Financing Calculator",
+    });
+    const lpTab = screen.getByRole("tab", { name: "LP Yield Estimator" });
+
+    // SME is active by default
+    expect(smeTab).toHaveAttribute("aria-selected", "true");
+    expect(lpTab).toHaveAttribute("aria-selected", "false");
+
+    // Each tab points at its panel via aria-controls
+    expect(smeTab).toHaveAttribute("aria-controls", "tabpanel-sme");
+    expect(lpTab).toHaveAttribute("aria-controls", "tabpanel-lp");
+
+    // The active panel is exposed as a tabpanel
+    const smePanel = document.getElementById("tabpanel-sme");
+    expect(smePanel).toHaveAttribute("role", "tabpanel");
+    expect(smePanel).toHaveAttribute("aria-labelledby", "tab-sme");
+
+    // Switching tabs flips aria-selected
+    fireEvent.click(lpTab);
+    expect(lpTab).toHaveAttribute("aria-selected", "true");
+    expect(smeTab).toHaveAttribute("aria-selected", "false");
+
+    const lpPanel = document.getElementById("tabpanel-lp");
+    expect(lpPanel).toHaveAttribute("role", "tabpanel");
+    expect(lpPanel).toHaveAttribute("aria-labelledby", "tab-lp");
   });
 });
 

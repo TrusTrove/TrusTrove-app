@@ -1,6 +1,6 @@
-import { Networks, rpc } from "@stellar/stellar-sdk";
+import { Networks, rpc, StrKey } from "@stellar/stellar-sdk";
 
-export const DEFAULT_NETWORK = {
+export const DEFAULT_NETWORK = Object.freeze({
   network:
     (typeof process !== "undefined" &&
       process.env?.NEXT_PUBLIC_STELLAR_NETWORK) ||
@@ -16,9 +16,9 @@ export const DEFAULT_NETWORK = {
     (typeof process !== "undefined" &&
       process.env?.NEXT_PUBLIC_NETWORK_PASSPHRASE) ||
     Networks.TESTNET,
-};
+});
 
-export const DEFAULT_CONTRACTS = {
+export const DEFAULT_CONTRACTS = Object.freeze({
   registry:
     (typeof process !== "undefined" &&
       process.env?.NEXT_PUBLIC_REGISTRY_CONTRACT_ID) ||
@@ -39,9 +39,9 @@ export const DEFAULT_CONTRACTS = {
     (typeof process !== "undefined" &&
       process.env?.NEXT_PUBLIC_AGENT_REGISTRY_CONTRACT_ID) ||
     "",
-};
+});
 
-export const DEFAULT_USDC = {
+export const DEFAULT_USDC = Object.freeze({
   issuer:
     (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_USDC_ISSUER) ||
     "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
@@ -49,7 +49,7 @@ export const DEFAULT_USDC = {
     (typeof process !== "undefined" &&
       process.env?.NEXT_PUBLIC_USDC_ASSET_CODE) ||
     "USDC",
-};
+});
 
 export interface SDKConfig {
   horizonUrl: string;
@@ -66,6 +66,22 @@ export interface SDKConfig {
     issuer: string;
     assetCode: string;
   };
+}
+
+/** Validates a Stellar contract StrKey, including its checksum and key type. */
+export function validateContractAddress(address: unknown): address is string {
+  return typeof address === "string" && StrKey.isValidContract(address);
+}
+
+/** @deprecated Use {@link validateContractAddress}. */
+export const isValidContractId = validateContractAddress;
+
+for (const [name, address] of Object.entries(DEFAULT_CONTRACTS)) {
+  if (address && !validateContractAddress(address)) {
+    throw new Error(
+      `Invalid Stellar contract address in configuration: ${name}`,
+    );
+  }
 }
 
 let activeConfig: SDKConfig = {
@@ -85,7 +101,22 @@ let activeConfig: SDKConfig = {
   },
 };
 
-export function configureSDK(config: Partial<SDKConfig>) {
+export function configureSDK(
+  config: Partial<Omit<SDKConfig, "contractIds" | "usdc">> & {
+    contractIds?: Partial<SDKConfig["contractIds"]>;
+    usdc?: Partial<SDKConfig["usdc"]>;
+  },
+) {
+  for (const [name, address] of Object.entries(config.contractIds ?? {})) {
+    if (
+      address !== undefined &&
+      address !== "" &&
+      !validateContractAddress(address)
+    ) {
+      throw new Error(`Invalid Stellar contract address for "${name}"`);
+    }
+  }
+
   activeConfig = {
     ...activeConfig,
     ...config,
@@ -101,7 +132,14 @@ export function configureSDK(config: Partial<SDKConfig>) {
 }
 
 export function getConfig(): SDKConfig {
-  return activeConfig;
+  // A copy, not `activeConfig` itself: callers that write to a nested field
+  // (`contractIds.pool`, `usdc.issuer`) would otherwise silently repoint every
+  // later contract call, bypassing configureSDK's merge semantics.
+  return {
+    ...activeConfig,
+    contractIds: { ...activeConfig.contractIds },
+    usdc: { ...activeConfig.usdc },
+  };
 }
 
 export function getSorobanServer(): rpc.Server {

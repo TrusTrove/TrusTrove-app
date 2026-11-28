@@ -2,11 +2,16 @@ import { renderHook, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useWallet } from "./useWallet";
 import { useWalletStore } from "@/store/wallet";
-import { connectFreighter, FreighterError } from "@/lib/freighter";
+import {
+  connectFreighter,
+  watchFreighterChanges,
+  FreighterError,
+} from "@/lib/freighter";
 import { useBalances } from "./useBalances";
 
 vi.mock("@/lib/freighter", () => ({
   connectFreighter: vi.fn(),
+  watchFreighterChanges: vi.fn(),
   FreighterError: class FreighterError extends Error {
     readonly code: string;
     constructor(code: string, message: string) {
@@ -33,6 +38,9 @@ describe("useWallet", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useWalletStore.getState().disconnect();
+    // Default watcher wiring: capture the change callback so tests can drive
+    // it, and hand back a stop spy for cleanup assertions.
+    vi.mocked(watchFreighterChanges).mockImplementation(() => () => {});
     vi.mocked(useBalances).mockReturnValue({
       balances: [],
       loading: false,
@@ -265,5 +273,221 @@ describe("useWallet", () => {
     expect(result.current.balances).toEqual({ usdc: "100", xlm: "50" });
     expect(result.current.balancesLoading).toBe(false);
     expect(result.current.balancesError).toBeNull();
+  });
+});
+
+interface WalletChange {
+  address?: string;
+  disconnected?: boolean;
+  network?: string;
+  previous: { address: string | null; network: string | null };
+}
+
+interface WatchCapture {
+  stop: ReturnType<typeof vi.fn>;
+  change: (change: WalletChange) => void;
+}
+
+/**
+ * Replaces the default watcher mock with one that captures the change
+ * callback (issue #873's "mock the watcher callback") and returns a stop spy.
+ */
+function captureWatcher(): WatchCapture {
+  const stop = vi.fn();
+  let captured: ((change: WalletChange) => void) | undefined;
+  vi.mocked(watchFreighterChanges).mockImplementation((_base, onChange) => {
+    captured = onChange;
+    return stop;
+  });
+  return {
+    stop,
+    change: (change) => {
+      if (!captured) {
+        throw new Error("watchFreighterChanges callback was not captured");
+      }
+      captured(change);
+    },
+  };
+}
+
+describe("useWallet Freighter change watching (#873)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useWalletStore.getState().disconnect();
+    vi.mocked(watchFreighterChanges).mockImplementation(() => () => {});
+    vi.mocked(useBalances).mockReturnValue({
+      balances: [],
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    } as any);
+  });
+
+  it("does not watch Freighter while disconnected", () => {
+    renderHook(() => useWallet());
+
+    expect(watchFreighterChanges).not.toHaveBeenCalled();
+  });
+
+  it("starts watching from the store snapshot once connected", () => {
+    act(() => {
+      useWalletStore.getState().connect("G12345", "testnet");
+    });
+
+    renderHook(() => useWallet());
+
+    expect(watchFreighterChanges).toHaveBeenCalledTimes(1);
+    expect(watchFreighterChanges).toHaveBeenCalledWith(
+      { address: "G12345", network: "testnet" },
+      expect.any(Function),
+      expect.objectContaining({ onError: expect.any(Function) }),
+    );
+  });
+
+  it("adopts a changed Freighter address and drops the previous token", async () => {
+    act(() => {
+      useWalletStore.getState().connect("G12345", "testnet");
+      useWalletStore.getState().setToken("jwt-for-G12345");
+    });
+    const watcher = captureWatcher();
+
+    renderHook(() => useWallet());
+
+    await act(async () => {
+      watcher.change({
+        address: "GCHANGED",
+        previous: { address: "G12345", network: "testnet" },
+      });
+    });
+
+    const state = useWalletStore.getState();
+    expect(state.address).toBe("GCHANGED");
+    expect(state.connected).toBe(true);
+    expect(state.token).toBeNull();
+  });
+
+  it("disconnects the wallet and clears the token when Freighter reports no account", async () => {
+    act(() => {
+      useWalletStore.getState().connect("G12345", "testnet");
+      useWalletStore.getState().setToken("jwt-for-G12345");
+    });
+    const watcher = captureWatcher();
+
+    renderHook(() => useWallet());
+
+    await act(async () => {
+      watcher.change({
+        disconnected: true,
+        previous: { address: "G12345", network: "testnet" },
+      });
+    });
+
+    const state = useWalletStore.getState();
+    expect(state.connected).toBe(false);
+    expect(state.address).toBeNull();
+    expect(state.token).toBeNull();
+  });
+
+  it("restarts the watcher from the new address after a change", () => {
+    act(() => {
+      useWalletStore.getState().connect("G12345", "testnet");
+    });
+    const watcher = captureWatcher();
+
+    renderHook(() => useWallet());
+    expect(watchFreighterChanges).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      watcher.change({
+        address: "GCHANGED",
+        previous: { address: "G12345", network: "testnet" },
+      });
+    });
+
+    expect(watchFreighterChanges).toHaveBeenCalledTimes(2);
+    expect(watchFreighterChanges).toHaveBeenLastCalledWith(
+      { address: "GCHANGED", network: "testnet" },
+      expect.any(Function),
+      expect.objectContaining({ onError: expect.any(Function) }),
+    );
+  });
+
+  it("surfaces the wrong-network error when Freighter leaves testnet", () => {
+    act(() => {
+      useWalletStore.getState().connect("G12345", "testnet");
+    });
+    const watcher = captureWatcher();
+
+    const { result } = renderHook(() => useWallet());
+
+    act(() => {
+      watcher.change({
+        network: "public",
+        previous: { address: "G12345", network: "testnet" },
+      });
+    });
+
+    expect(useWalletStore.getState().network).toBe("public");
+    expect(result.current.error).toMatch(/wrong network/i);
+    expect(result.current.errorCode).toBe("wrong_network");
+  });
+
+  it("clears the watcher's wrong-network error when Freighter returns to testnet", () => {
+    act(() => {
+      useWalletStore.getState().connect("G12345", "testnet");
+    });
+    const watcher = captureWatcher();
+
+    const { result } = renderHook(() => useWallet());
+
+    act(() => {
+      watcher.change({
+        network: "public",
+        previous: { address: "G12345", network: "testnet" },
+      });
+    });
+    expect(result.current.errorCode).toBe("wrong_network");
+
+    act(() => {
+      watcher.change({
+        network: "testnet",
+        previous: { address: "G12345", network: "public" },
+      });
+    });
+
+    expect(useWalletStore.getState().network).toBe("testnet");
+    expect(result.current.error).toBeNull();
+    expect(result.current.errorCode).toBeNull();
+  });
+
+  it("stops watching when the hook unmounts", () => {
+    act(() => {
+      useWalletStore.getState().connect("G12345", "testnet");
+    });
+    const watcher = captureWatcher();
+
+    const { unmount } = renderHook(() => useWallet());
+    expect(watcher.stop).not.toHaveBeenCalled();
+
+    unmount();
+
+    expect(watcher.stop).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops watching after disconnect", () => {
+    act(() => {
+      useWalletStore.getState().connect("G12345", "testnet");
+    });
+    const watcher = captureWatcher();
+
+    const { result } = renderHook(() => useWallet());
+    expect(watcher.stop).not.toHaveBeenCalled();
+
+    act(() => {
+      result.current.disconnectWallet();
+    });
+
+    expect(watcher.stop).toHaveBeenCalledTimes(1);
+    expect(watchFreighterChanges).toHaveBeenCalledTimes(1);
   });
 });

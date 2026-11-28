@@ -98,3 +98,92 @@ describe("InvoiceFeed", () => {
     expect(screen.getByText("Awaiting on-chain activity")).toBeInTheDocument();
   });
 });
+
+// #991: the feed needs region/list semantics and a polite status, not a flat run
+// of divs.
+describe("InvoiceFeed accessibility semantics", () => {
+  const events = [
+    {
+      id: 1,
+      event_id: "evt_1",
+      contract_id: "contract_example",
+      ledger: 100,
+      event_type: "InvoiceFunded",
+      ledger_closed_at: Math.floor(Date.now() / 1000) - 120,
+      data: { invoice_id: "abcdef1234567890" },
+    },
+    {
+      id: 2,
+      event_id: "evt_2",
+      contract_id: "contract_example",
+      ledger: 101,
+      event_type: "InvoiceCreated",
+      ledger_closed_at: Math.floor(Date.now() / 1000) - 300,
+      data: { invoice_id: "0000001234567890" },
+    },
+  ] as any[];
+
+  it("names the container as a region through its heading", () => {
+    vi.mocked(useRecentEvents).mockReturnValue({
+      events,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(<InvoiceFeed />);
+
+    const region = screen.getByRole("region", { name: "Live Financing Feed" });
+    expect(region).toBeInTheDocument();
+    const heading = screen.getByRole("heading", {
+      name: "Live Financing Feed",
+    });
+    expect(heading).toHaveProperty("tagName", "H2");
+    expect(region.contains(heading)).toBe(true);
+  });
+
+  it("renders events as a list of list items", () => {
+    vi.mocked(useRecentEvents).mockReturnValue({
+      events,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(<InvoiceFeed />);
+
+    expect(screen.getByRole("list")).toBeInTheDocument();
+    expect(screen.getAllByRole("listitem")).toHaveLength(events.length);
+  });
+
+  it("announces the newest event and count in a polite status, not on the list", () => {
+    vi.mocked(useRecentEvents).mockReturnValue({
+      events,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(<InvoiceFeed />);
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "2 recent events. Newest: Invoice Funded, 2 min ago.",
+    );
+    expect(screen.getByRole("list")).not.toHaveAttribute("aria-live");
+  });
+
+  it("exposes the empty state as status text", () => {
+    vi.mocked(useRecentEvents).mockReturnValue({
+      events: [],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    render(<InvoiceFeed />);
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Awaiting on-chain activity",
+    );
+  });
+});

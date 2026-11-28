@@ -1,7 +1,7 @@
-import { useMemo } from "react";
+import { useCallback, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getPoolStats, getLPPosition } from "@/lib/api";
-import { PoolClient } from "@trusttrove/sdk";
+import type { PoolClient } from "@trusttrove/sdk";
 import { useWalletStore } from "@/store/wallet";
 import { showSuccessToast } from "@/lib/toast";
 import { createErrorHandler } from "@/lib/errors";
@@ -11,7 +11,9 @@ import type { AssetType } from "@/types";
 
 const { handleMutationError } = createErrorHandler("usePool");
 
-const poolContractID = process.env.NEXT_PUBLIC_POOL_CONTRACT_ID || "";
+import { CONTRACT_IDS } from "@/lib/env";
+
+const poolContractID = CONTRACT_IDS.pool;
 
 interface DepositArguments {
   amount: bigint;
@@ -28,28 +30,37 @@ interface DepositArguments {
 export function usePool() {
   const queryClient = useQueryClient();
   const address = useWalletStore((s) => s.address);
+  // A reload rehydrates the store as disconnected, so gating on the address
+  // alone would let this query fire while the UI renders as disconnected
+  // (issue #636). `connected` is the same signal the UI reads.
+  const connected = useWalletStore((s) => s.connected);
   const { ensureAllowance } = useTokenAllowance();
   const { error: appError, handleError, clearError } = useAppError();
 
-  const poolClient = useMemo(() => {
-    try {
-      return new PoolClient(poolContractID);
-    } catch {
-      return null;
+  // Construction (and the SDK import itself) is deferred until a write runs:
+  // the landing page and marketplace only read pool stats from the indexer,
+  // so a visitor never needs the contract client (#995).
+  const poolClientPromise = useRef<Promise<PoolClient> | null>(null);
+  const getPoolClient = useCallback(() => {
+    if (!poolClientPromise.current) {
+      poolClientPromise.current = import("@trusttrove/sdk").then(
+        ({ PoolClient }) => new PoolClient(poolContractID),
+      );
     }
+    return poolClientPromise.current;
   }, []);
 
   const statsQuery = useQuery({
     queryKey: ["poolStats"],
-    queryFn: () => getPoolStats(),
+    queryFn: ({ signal }) => getPoolStats({ signal }),
     refetchInterval: 45000,
     staleTime: 45000,
   });
 
   const positionQuery = useQuery({
     queryKey: ["lpPosition", address],
-    queryFn: () => getLPPosition(address!),
-    enabled: !!address,
+    queryFn: ({ signal }) => getLPPosition(address!, { signal }),
+    enabled: !!address && connected,
   });
 
   const depositMutation = useMutation({
@@ -63,7 +74,7 @@ export function usePool() {
         await ensureAllowance(poolContractID, amount);
       }
 
-      if (!poolClient) throw new Error("Pool client not available");
+      const poolClient = await getPoolClient();
       return poolClient.deposit(address, amount, address);
     },
     onSuccess: (txHash: string) => {
@@ -83,7 +94,7 @@ export function usePool() {
       if (!address) {
         throw new Error("Wallet not connected");
       }
-      if (!poolClient) throw new Error("Pool client not available");
+      const poolClient = await getPoolClient();
       return poolClient.withdraw(address, shares, address);
     },
     onSuccess: (txHash: string) => {

@@ -12,8 +12,17 @@ vi.mock("@stellar/freighter-api", () => ({
 vi.mock("@/lib/api", () => ({
   fetchChallenge: vi.fn(),
   verifyChallenge: vi.fn(),
-  initApiClientWithToken: vi.fn(),
 }));
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
 
 describe("useAuth", () => {
   beforeEach(() => {
@@ -202,5 +211,99 @@ describe("useAuth", () => {
     expect(result.current.isAuthenticated).toBe(false);
     expect(result.current.token).toBeNull();
     expect(useWalletStore.getState().address).toBeNull();
+  });
+
+  it("logout clears a loading flag left by an in-flight login", () => {
+    vi.mocked(fetchChallenge).mockImplementation(() => new Promise(() => {}));
+
+    act(() => {
+      useWalletStore.getState().connect("G123", "TESTNET");
+    });
+
+    const { result } = renderHook(() => useAuth());
+
+    act(() => {
+      void result.current.login();
+    });
+    expect(result.current.loading).toBe(true);
+
+    act(() => {
+      result.current.logout();
+    });
+
+    expect(result.current.loading).toBe(false);
+  });
+
+  it("does not apply a token from a login that was in flight at logout", async () => {
+    const verify = deferred<{ token: string }>();
+    vi.mocked(fetchChallenge).mockResolvedValue({
+      transaction: "xdr_data",
+      network_passphrase: "Test SDF Network ; September 2015",
+    });
+    vi.mocked(signTransaction).mockResolvedValue("signed_xdr");
+    vi.mocked(verifyChallenge).mockReturnValue(verify.promise);
+
+    act(() => {
+      useWalletStore.getState().connect("G123", "TESTNET");
+    });
+
+    const { result } = renderHook(() => useAuth());
+
+    let pending!: Promise<void>;
+    act(() => {
+      pending = result.current.login();
+    });
+
+    act(() => {
+      result.current.logout();
+    });
+
+    await act(async () => {
+      verify.resolve({ token: "late_jwt_token" });
+      await pending;
+    });
+
+    expect(result.current.token).toBeNull();
+    expect(result.current.isAuthenticated).toBe(false);
+    expect(useWalletStore.getState().token).toBeNull();
+  });
+
+  it("does not surface or clear state for a login that failed after logout", async () => {
+    const challenge = deferred<{
+      transaction: string;
+      network_passphrase: string;
+    }>();
+    vi.mocked(fetchChallenge).mockReturnValue(challenge.promise);
+
+    act(() => {
+      useWalletStore.getState().connect("G123", "TESTNET");
+    });
+
+    const { result } = renderHook(() => useAuth());
+
+    let pending!: Promise<void>;
+    act(() => {
+      pending = result.current.login();
+    });
+
+    act(() => {
+      result.current.logout();
+    });
+
+    // A newer session is already authenticated by the time the abandoned
+    // attempt fails; its late failure must not wipe that token or raise a
+    // banner the user never triggered.
+    act(() => {
+      useWalletStore.getState().connect("G456", "TESTNET");
+      useWalletStore.getState().setToken("new_session_jwt");
+    });
+
+    await act(async () => {
+      challenge.reject(new Error("Fetch failed"));
+      await pending;
+    });
+
+    expect(result.current.error).toBeNull();
+    expect(useWalletStore.getState().token).toBe("new_session_jwt");
   });
 });

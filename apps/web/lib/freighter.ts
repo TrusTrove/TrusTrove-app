@@ -2,6 +2,7 @@ import {
   isConnected,
   requestAccess,
   getPublicKey,
+  getNetworkDetails,
 } from "@stellar/freighter-api";
 
 /**
@@ -36,17 +37,33 @@ export class FreighterError extends Error {
 
 function classifyFreighterError(err: unknown): FreighterErrorCode {
   if (err instanceof FreighterError) return err.code;
+  let msg = "";
   if (err instanceof Error) {
-    const msg = err.message.toLowerCase();
+    msg = err.message;
+  } else if (typeof err === "string") {
+    msg = err;
+  } else if (err && typeof err === "object") {
     if (
-      msg.includes("user rejected") ||
-      msg.includes("user rejected this request")
+      "message" in err &&
+      typeof (err as { message?: unknown }).message === "string"
     ) {
-      return "user_rejected";
+      msg = (err as { message: string }).message;
+    } else if (
+      "error" in err &&
+      typeof (err as { error?: unknown }).error === "string"
+    ) {
+      msg = (err as { error: string }).error;
     }
-    if (msg.includes("not installed") || msg.includes("internal error")) {
-      return "not_installed";
-    }
+  }
+  msg = msg.toLowerCase();
+  if (
+    msg.includes("user rejected") ||
+    msg.includes("user rejected this request")
+  ) {
+    return "user_rejected";
+  }
+  if (msg.includes("not installed") || msg.includes("internal error")) {
+    return "not_installed";
   }
   return "unknown";
 }
@@ -54,7 +71,28 @@ function classifyFreighterError(err: unknown): FreighterErrorCode {
 function mapFreighterError(err: unknown): FreighterError {
   if (err instanceof FreighterError) return err;
   const code = classifyFreighterError(err);
-  const message = err instanceof Error ? err.message : String(err);
+  let message = "";
+  if (err instanceof Error) {
+    message = err.message;
+  } else if (typeof err === "string") {
+    message = err;
+  } else if (err && typeof err === "object") {
+    if (
+      "message" in err &&
+      typeof (err as { message?: unknown }).message === "string"
+    ) {
+      message = (err as { message: string }).message;
+    } else if (
+      "error" in err &&
+      typeof (err as { error?: unknown }).error === "string"
+    ) {
+      message = (err as { error: string }).error;
+    } else {
+      message = String(err);
+    }
+  } else {
+    message = String(err);
+  }
   return new FreighterError(code, message);
 }
 
@@ -143,6 +181,142 @@ export async function connectFreighter(): Promise<string> {
     console.error("Failed to connect to Freighter:", err);
     throw mapFreighterError(err);
   }
+}
+
+/**
+ * A snapshot of what Freighter currently reports for the connected session.
+ * `address` is the selected account, `network` the lower-cased network name
+ * (e.g. `'testnet'`, `'public'`), or `null` when unreadable.
+ */
+export interface FreighterSnapshot {
+  address: string | null;
+  network: string | null;
+}
+
+/**
+ * A difference reported by {@link watchFreighterChanges}. Only the fields that
+ * actually changed are populated; `previous` is the snapshot the watcher
+ * started from (i.e. the state the app believed until this change).
+ */
+export interface FreighterWalletChange {
+  address?: string;
+  /**
+   * `true` when Freighter no longer reports a selected account (extension
+   * locked or site access revoked) after one had been selected. `address` is
+   * left unset in that case.
+   */
+  disconnected?: boolean;
+  network?: string;
+  previous: FreighterSnapshot;
+}
+
+/** Options accepted by {@link watchFreighterChanges}. */
+export interface WatchFreighterOptions {
+  /** Poll interval in milliseconds. Defaults to `3000`. */
+  intervalMs?: number;
+  /** Receives failures from a poll. Polling keeps running after an error. */
+  onError?: (error: unknown) => void;
+}
+
+const DEFAULT_WATCH_INTERVAL_MS = 3000;
+
+/** Normalizes a Freighter network name to a trimmed, lower-cased string. */
+function normalizeNetwork(network?: string): string | null {
+  const normalized = network?.trim().toLowerCase();
+  return normalized ? normalized : null;
+}
+
+/**
+ * Polls Freighter for account/network changes and reports diffs — the
+ * equivalent of the `WatchWalletChanges` helper (not exported by the pinned
+ * `@stellar/freighter-api` v2 API), which issue #873 requires so the app never
+ * keeps a stale address or a stale "Testnet" badge after the user switches
+ * accounts or networks inside the extension.
+ *
+ * The first poll runs immediately, comparing against `baseline`; afterwards it
+ * runs every `intervalMs`. Overlapping polls are skipped, poll failures are
+ * routed to `onError` without stopping the watcher, and a stopped watcher
+ * never fires `onChange` again.
+ *
+ * @param baseline — Snapshot captured at connect time (usually the store's
+ *   current `address`/`network`).
+ * @param onChange — Called once per detected difference. `disconnected` is set
+ *   when the selected account disappears (locked extension or revoked access).
+ * @param options — See {@link WatchFreighterOptions}.
+ * @returns A stop function that clears the timer and silences in-flight polls.
+ *
+ * @example
+ * ```ts
+ * const stop = watchFreighterChanges({ address, network }, (change) => {
+ *   if (change.address) useWalletStore.getState().setAddress(change.address);
+ * });
+ * // later
+ * stop();
+ * ```
+ */
+export function watchFreighterChanges(
+  baseline: FreighterSnapshot,
+  onChange: (change: FreighterWalletChange) => void,
+  options: WatchFreighterOptions = {},
+): () => void {
+  const intervalMs = options.intervalMs ?? DEFAULT_WATCH_INTERVAL_MS;
+  let previous: FreighterSnapshot = {
+    address: baseline.address,
+    network: baseline.network,
+  };
+  let stopped = false;
+  let polling = false;
+
+  const poll = async () => {
+    if (stopped || polling) return;
+    polling = true;
+    try {
+      const [address, details] = await Promise.all([
+        getPublicKey(),
+        getNetworkDetails(),
+      ]);
+      if (stopped) return;
+
+      const next: FreighterSnapshot = {
+        address: address || null,
+        network: normalizeNetwork(details?.network),
+      };
+      const change: FreighterWalletChange = { previous };
+      let changed = false;
+
+      if (next.address && next.address !== previous.address) {
+        change.address = next.address;
+        changed = true;
+      } else if (!next.address && previous.address) {
+        // Locked extension / revoked access: Freighter reports no account.
+        change.disconnected = true;
+        changed = true;
+      }
+      if (next.network && next.network !== previous.network) {
+        change.network = next.network;
+        changed = true;
+      }
+
+      if (changed) {
+        previous = next;
+        onChange(change);
+      }
+    } catch (error) {
+      options.onError?.(error);
+    } finally {
+      polling = false;
+    }
+  };
+
+  void poll();
+  const timer = setInterval(() => {
+    void poll();
+  }, intervalMs);
+
+  return () => {
+    stopped = true;
+    clearInterval(timer);
+  };
 }
 
 /**

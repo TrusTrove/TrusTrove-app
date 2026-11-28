@@ -14,7 +14,7 @@ func TestCallSorobanRPC_Timeout(t *testing.T) {
 	slowServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(500 * time.Millisecond)
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":{}}`))
+		_, _ = w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":{}}`))
 	}))
 	defer slowServer.Close()
 

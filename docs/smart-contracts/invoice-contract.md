@@ -6,18 +6,25 @@ consumed by the Go indexer.
 ### initialize
 
 ```rust
-initialize(env: Env, admin: Address, agent_registry: Address)
+initialize(env: Env, admin: Address, registry_contract: Address)
 ```
 
-Sets the admin address and the Underwrite `agent-registry` contract address.
-Can only be called once. Panics if called again. The stored agent-registry
-address is what `submit_attestation` calls cross-contract to verify the
-recovered signer key (see below). The SDK wrapper is
-`InvoiceClient.initialize(adminAddress, signerPublicKey)` —
-`packages/sdk/src/clients/invoice.ts` — which passes the admin address; the
-agent-registry address wiring is a deploy-time step (confirm the exact argument
-order against the `TrusTrove-contract` repo, which is the source of truth for
-contract signatures).
+Sets the admin address and the registry contract address that `create` checks
+issuer and buyer enrollment against, and resets the invoice counter. Can only be
+called once; a second call panics with `AlreadyInitialized`.
+
+The Underwrite `agent-registry` address that `submit_attestation` calls
+cross-contract is **not** a parameter of `initialize`. It is wired afterwards by
+the admin-only `set_agent_registry_contract(env, agent_registry_contract: Address)`
+and read back with `get_agent_registry_contract()` (see
+[submit_attestation](#submit_attestation) below).
+
+The SDK wrapper is
+`InvoiceClient.initialize(adminAddress, registryContractAddress, signerPublicKey)` —
+`packages/sdk/src/clients/invoice.ts` — which encodes both addresses in contract
+order. `packages/sdk/src/clients/invoice.test.ts` keeps this document and the
+wrapper's argument counts in sync; the upstream source of truth remains the
+`TrusTrove-contract` repo (`contracts/invoice/src/lib.rs`).
 
 ### create
 
@@ -69,8 +76,9 @@ Permissionless — no `require_auth` on the caller. Trust comes entirely from th
 signature: the contract recovers the signer's public key and checks it against
 the agent's registered pubkey via a cross-contract call to `agent-registry`
 (`AGENT_REGISTRY_CONTRACT`, deployed from the separate `underwrite-contract`
-repo — the address this contract calls is read from its own storage, set once
-at `initialize`). The agent must exist, be `active`, and its stored pubkey must
+repo — the address this contract calls is read from its own storage, set by the
+admin through `set_agent_registry_contract`). The agent must exist, be `active`,
+and its stored pubkey must
 match the recovered key, or the call panics with `UntrustedSigner`.
 
 One attestation per invoice — a second call for the same `invoice_id` panics

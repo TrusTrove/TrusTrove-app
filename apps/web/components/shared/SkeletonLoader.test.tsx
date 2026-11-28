@@ -79,3 +79,61 @@ describe("SkeletonLoader", () => {
     ).toBeGreaterThanOrEqual(5);
   });
 });
+
+// #990: a placeholder that only shimmers tells an assistive-tech user nothing.
+// Each named skeleton is now a polite status region that says what is loading,
+// and the shimmer blocks themselves are decorative.
+describe("SkeletonLoader loading semantics", () => {
+  const skeletons: Array<{
+    name: string;
+    label: string;
+    Component: () => React.ReactElement;
+  }> = [
+    {
+      name: "InvoiceCardSkeleton",
+      label: "Loading invoices",
+      Component: InvoiceCardSkeleton,
+    },
+    {
+      name: "PoolStatsPanelSkeleton",
+      label: "Loading pool statistics",
+      Component: PoolStatsPanelSkeleton,
+    },
+    {
+      name: "InvoiceFeedSkeleton",
+      label: "Loading recent activity",
+      Component: InvoiceFeedSkeleton,
+    },
+    {
+      name: "InvoiceTableSkeleton",
+      label: "Loading invoices",
+      Component: InvoiceTableSkeleton,
+    },
+    {
+      name: "LPPositionCardSkeleton",
+      label: "Loading your position",
+      Component: LPPositionCardSkeleton,
+    },
+    {
+      name: "ActivityTimelineSkeleton",
+      label: "Loading activity timeline",
+      Component: ActivityTimelineSkeleton,
+    },
+  ];
+
+  it.each(skeletons)(
+    "$name is a busy status region",
+    ({ label, Component }) => {
+      render(<Component />);
+
+      const status = screen.getByRole("status", { name: label });
+      expect(status).toHaveAttribute("aria-busy", "true");
+    },
+  );
+
+  it("marks the shimmer primitive as decorative", () => {
+    const { container } = render(<SkeletonShimmer className="h-4 w-32" />);
+
+    expect(container.firstChild).toHaveAttribute("aria-hidden", "true");
+  });
+});

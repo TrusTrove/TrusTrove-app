@@ -11,92 +11,6 @@ import (
 	rl "trusttrove/indexer/middleware"
 )
 
-// ----------------------------------------------------------------- helpers --
-
-// newLimiterAndHandler returns a rate limiter, the middleware-wrapped stub
-// handler, and a cleanup func.
-func newLimiterAndHandler() (*rl.InvoiceRateLimiter, http.Handler, func()) {
-	limiter := rl.NewInvoiceRateLimiter()
-	stub := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusCreated)
-		w.Write([]byte(`{"invoice_id":"test-123"}`)) //nolint:errcheck
-	})
-	handler := rl.InvoiceRateLimitMiddleware(limiter)(stub)
-	return limiter, handler, limiter.Stop
-}
-
-// makeReq builds a request whose context carries the given clientAddress.
-func makeReq(clientAddress string) *http.Request {
-	r := httptest.NewRequest(http.MethodPost, "/invoices", nil)
-	ctx := r.Context()
-	// Use the exported helper — in real code the JWT middleware does this.
-	// Here we inject directly via the same context key used by the middleware.
-	type ctxKey string
-	ctx = contextWithAddress(ctx, clientAddress)
-	return r.WithContext(ctx)
-}
-
-// contextWithAddress injects "clientAddress" into a context, matching the key
-// the middleware reads.  We replicate the unexported contextKey type here.
-func contextWithAddress(ctx interface{ Value(interface{}) interface{} }, addr string) interface {
-	Deadline() (time.Time, bool)
-	Done() <-chan struct{}
-	Err() error
-	Value(key interface{}) interface{}
-} {
-	// httptest.NewRequest gives us a *http.Request; rebuild a context by
-	// round-tripping through a request clone.
-	r := httptest.NewRequest(http.MethodPost, "/invoices", nil)
-	// The middleware package exposes contextKey as unexported, so we call
-	// the middleware handler indirectly — our test requests omit the
-	// clientAddress and will get 401 if we don't set it.
-	// Instead, use the public test helper approach: wrap a handler that
-	// adds the address before passing to the rate-limit middleware.
-	_ = ctx
-	_ = addr
-	_ = r
-	panic("use newReqWithAddress instead")
-}
-
-// newReqWithAddress is the correct helper: we insert the address via a
-// wrapping handler so the inner middleware sees it in context.
-func newReqWithAddress(addr string) (*http.Request, func(http.Handler) http.Handler) {
-	r := httptest.NewRequest(http.MethodPost, "/invoices", nil)
-	injector := func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			// Mimic what JWTAuthMiddleware does: store clientAddress in ctx.
-			type cKey string
-			ctx := req.Context()
-			ctx = withValue(ctx, "clientAddress", addr)
-			next.ServeHTTP(w, req.WithContext(ctx))
-		})
-	}
-	return r, injector
-}
-
-// withValue is a minimal stand-in for context.WithValue using a string key
-// that matches the middleware's unexported contextKey type.
-// Because the middleware package uses type contextKey string and resolves via
-// r.Context().Value(contextKey("clientAddress")), we must match that exact
-// dynamic type.  We do so by calling the package-level helper exposed via the
-// test build tag (see below).
-//
-// For simplicity in this test file, we directly construct the request context
-// by wrapping requests in an injector middleware (see newReqWithAddress).
-func withValue(parent interface {
-	Deadline() (time.Time, bool)
-	Done() <-chan struct{}
-	Err() error
-	Value(key interface{}) interface{}
-}, _ string, _ string) interface {
-	Deadline() (time.Time, bool)
-	Done() <-chan struct{}
-	Err() error
-	Value(key interface{}) interface{}
-} {
-	return parent
-}
-
 // ----------------------------------------------------------- actual tests ---
 
 // TestAllow_UnderLimit verifies that up to InvoiceRateLimit requests per client
@@ -104,25 +18,6 @@ func withValue(parent interface {
 func TestAllow_UnderLimit(t *testing.T) {
 	limiter := rl.NewInvoiceRateLimiter()
 	defer limiter.Stop()
-
-	stub := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusCreated)
-	})
-
-	// Wrap: address injector → rate limiter → stub
-	buildHandler := func(addr string) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			type cKey string
-			// We piggyback on the fact that InvoiceRateLimitMiddleware reads
-			// context key contextKey("clientAddress").  We reproduce the same
-			// key by using the same underlying type via httptest injection.
-			// Simplest approach: call Allow directly and hand-roll a fake
-			// request through the full middleware chain.
-			_ = addr
-			stub.ServeHTTP(w, r)
-		})
-	}
-	_ = buildHandler
 
 	// Unit-test Allow() directly — cleaner and does not depend on context wiring.
 	const client = "GTEST_CLIENT_ADDR_001"
@@ -346,7 +241,6 @@ func TestAllow_SlidingWindowExpiry(t *testing.T) {
 // This replicates what JWTAuthMiddleware does in production.
 func withAddressInjector(addr string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		type cKey string
 		// The middleware reads contextKey("clientAddress").
 		// contextKey is defined as `type contextKey string` in the middleware
 		// package. Because it is unexported we cannot import it, but we can

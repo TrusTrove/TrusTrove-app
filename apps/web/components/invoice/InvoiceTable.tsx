@@ -16,6 +16,15 @@ import { Button } from "@/components/ui/button";
 import { InvoiceStatus } from "./InvoiceStatus";
 import { InvoiceCard } from "./InvoiceCard";
 import { truncateAddress } from "@/lib/format";
+import { useWalletStore } from "@/store/wallet";
+import {
+  DEFAULT_INVOICE_COLUMNS,
+  INVOICE_COLUMNS,
+  type InvoiceColumnId,
+  invoiceColumnsKey,
+  readStoredInvoiceColumns,
+  writeStoredInvoiceColumns,
+} from "@/lib/invoice-columns";
 import {
   ChevronLeft,
   ChevronRight,
@@ -73,7 +82,7 @@ const ROW_HEIGHT = 72;
 const SELECT_COL_FLEX = "0 0 2.5rem";
 
 const CHECKBOX_CLASSES =
-  "h-4 w-4 cursor-pointer accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 focus-visible:ring-offset-[#080c10]";
+  "h-4 w-4 cursor-pointer accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 focus-visible:ring-offset-background";
 
 // Shared flex proportions matching the 6-column layout.
 const COL_FLEX = ["1.15", "1.15", "1", "0.8", "0.95", "0.75"] as const;
@@ -100,7 +109,7 @@ function InvoiceEmptyState({
   const actionNode = action?.href ? (
     <Link
       href={action.href}
-      className={`${actionClasses} bg-primary text-black hover:bg-primary-hover shadow-[0_0_15px_rgba(0,212,170,0.1)]`}
+      className={`${actionClasses} bg-primary text-primary-foreground hover:bg-primary/95 shadow-[0_0_15px_rgba(0,212,170,0.1)]`}
     >
       <FilePlus2 className="w-4 h-4" />
       <span>{action.label}</span>
@@ -109,7 +118,7 @@ function InvoiceEmptyState({
     <Button
       type="button"
       onClick={action?.onClick}
-      className={`${actionClasses} bg-primary text-black hover:bg-primary-hover shadow-[0_0_15px_rgba(0,212,170,0.1)] border-0`}
+      className={`${actionClasses} bg-primary text-primary-foreground hover:bg-primary/95 shadow-[0_0_15px_rgba(0,212,170,0.1)] border-0`}
     >
       <FilePlus2 className="w-4 h-4" />
       <span>{action?.label ?? "Create Your First Invoice"}</span>
@@ -120,19 +129,21 @@ function InvoiceEmptyState({
     <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
       <div className="relative mb-6">
         <div className="absolute inset-0 rounded-full bg-primary/10 blur-2xl" />
-        <div className="relative flex h-20 w-20 items-center justify-center rounded-full border border-primary/20 bg-[#0d131a] shadow-[0_0_30px_rgba(0,212,170,0.08)]">
+        <div className="relative flex h-20 w-20 items-center justify-center rounded-full border border-primary/20 bg-card shadow-[0_0_30px_rgba(0,212,170,0.08)]">
           <Inbox className="h-9 w-9 text-primary" />
         </div>
       </div>
 
       <div className="max-w-md space-y-3">
-        <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-500">
+        <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-muted-foreground">
           Empty Ledger
         </p>
-        <h3 className="text-sm font-bold uppercase tracking-wider text-white">
+        <h3 className="text-sm font-bold uppercase tracking-wider text-foreground">
           {title}
         </h3>
-        <p className="text-xs leading-relaxed text-slate-500">{description}</p>
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          {description}
+        </p>
       </div>
 
       <div className="mt-8">{actionNode}</div>
@@ -175,16 +186,20 @@ function InvoicePagination({
   }, [limit, pageSizeOptions]);
 
   return (
-    <div className="border-t border-border/60 bg-[#080c10]/55 px-4 py-4 sm:px-5">
+    <div className="border-t border-border/60 bg-background/55 px-4 py-4 sm:px-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="space-y-1.5">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+          <label
+            htmlFor="items-per-page-select"
+            className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+          >
             Items per page
-          </p>
+          </label>
           <select
+            id="items-per-page-select"
             value={limit}
             onChange={(event) => onLimitChange(Number(event.target.value))}
-            className="min-w-[140px] rounded border border-border bg-[#0b1117] px-3 py-2 font-mono text-xs text-white outline-none transition-colors focus:border-primary"
+            className="min-w-[140px] rounded border border-border bg-background px-3 py-2 font-mono text-xs text-foreground outline-none transition-colors focus:border-primary"
           >
             {options.map((option) => (
               <option key={option} value={option}>
@@ -196,7 +211,7 @@ function InvoicePagination({
 
         <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end lg:justify-end">
           <label className="space-y-1.5">
-            <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+            <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
               Jump to page
             </span>
             <input
@@ -212,12 +227,12 @@ function InvoicePagination({
                   handleCommitPage();
                 }
               }}
-              className="w-28 rounded border border-border bg-[#0b1117] px-3 py-2 font-mono text-xs text-white outline-none transition-colors focus:border-primary"
+              className="w-28 rounded border border-border bg-background px-3 py-2 font-mono text-xs text-foreground outline-none transition-colors focus:border-primary"
             />
           </label>
 
           <div className="space-y-1.5">
-            <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+            <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
               Navigation
             </span>
             <div className="flex items-center gap-2">
@@ -225,7 +240,7 @@ function InvoicePagination({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="border-border bg-[#0b1117] text-slate-200 hover:bg-slate-900 hover:text-white"
+                className="border-border bg-background text-foreground hover:bg-muted hover:text-foreground"
                 onClick={() => onPageChange(clampPage(page - 1, totalPages))}
                 disabled={page <= 1}
               >
@@ -236,7 +251,7 @@ function InvoicePagination({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="border-border bg-[#0b1117] text-slate-200 hover:bg-slate-900 hover:text-white"
+                className="border-border bg-background text-foreground hover:bg-muted hover:text-foreground"
                 onClick={() => onPageChange(clampPage(page + 1, totalPages))}
                 disabled={page >= totalPages}
               >
@@ -248,7 +263,7 @@ function InvoicePagination({
         </div>
       </div>
 
-      <div className="mt-4 flex flex-col gap-1 border-t border-border/30 pt-3 text-[10px] font-mono uppercase tracking-wider text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mt-4 flex flex-col gap-1 border-t border-border/30 pt-3 text-[10px] font-mono uppercase tracking-wider text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
         <span>
           Showing {startItem}-{endItem} of {total} invoices
         </span>
@@ -279,6 +294,23 @@ export function InvoiceTable({
   // imperatively focus the newly active row after an arrow-key press.
   const rowRefs = useRef<Map<number, HTMLTableRowElement>>(new Map());
   const [focusedIndex, setFocusedIndex] = useState(0);
+
+  const address = useWalletStore((s) => s.address);
+  const [visibleColumns, setVisibleColumns] = useState<InvoiceColumnId[]>([
+    ...DEFAULT_INVOICE_COLUMNS,
+  ]);
+  const [showColumnChooser, setShowColumnChooser] = useState(false);
+
+  useEffect(() => {
+    if (!address) return;
+    const stored = readStoredInvoiceColumns(invoiceColumnsKey(address));
+    if (stored) setVisibleColumns(stored);
+  }, [address]);
+
+  useEffect(() => {
+    if (!address) return;
+    writeStoredInvoiceColumns(invoiceColumnsKey(address), visibleColumns);
+  }, [address, visibleColumns]);
   // Uncontrolled fallback: used only while `selectedIds` is not supplied.
   const [internalSelectedIds, setInternalSelectedIds] = useState<string[]>([]);
   const selectAllRef = useRef<HTMLInputElement | null>(null);
@@ -421,20 +453,20 @@ export function InvoiceTable({
 
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-card">
-      <div className="border-b border-border/60 bg-[#080c10]/70 px-4 py-4 sm:px-5">
+      <div className="border-b border-border/60 bg-background/70 px-4 py-4 sm:px-5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-0.5">
-            <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.3em] text-slate-500">
+            <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.3em] text-muted-foreground">
               <ReceiptText className="h-3.5 w-3.5 text-primary" />
               Invoice Ledger
             </p>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted-foreground">
               Browse, filter, and inspect tokenized trade obligations.
             </p>
           </div>
 
           {pagination && invoices.length > 0 && (
-            <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500">
+            <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
               {pagination.total} matching invoices
             </div>
           )}
@@ -443,11 +475,11 @@ export function InvoiceTable({
 
       {selectable && (
         <div
-          className="flex items-center justify-between gap-3 border-b border-border/60 bg-[#080c10]/50 px-4 py-2.5 sm:px-5"
+          className="flex items-center justify-between gap-3 border-b border-border/60 bg-background/50 px-4 py-2.5 sm:px-5"
           role="status"
           aria-live="polite"
         >
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
             {selection.length} selected
           </span>
           {selection.length > 0 && (
@@ -455,7 +487,7 @@ export function InvoiceTable({
               type="button"
               variant="outline"
               size="sm"
-              className="border-border bg-[#0b1117] text-[10px] font-bold uppercase tracking-wider text-slate-200 hover:bg-slate-900 hover:text-white"
+              className="border-border bg-background text-[10px] font-bold uppercase tracking-wider text-foreground hover:bg-muted hover:text-foreground"
               onClick={clearSelection}
             >
               Clear selection
@@ -465,10 +497,113 @@ export function InvoiceTable({
       )}
 
       {invoices.length === 0 ? (
-        <div className="bg-[#080c10]/40">{emptyNode}</div>
+        <div className="bg-background/40">{emptyNode}</div>
       ) : (
         <>
-          <div className="overflow-x-auto">
+          <div className="border-b border-border/60 bg-background/50 px-4 py-2.5 sm:px-5">
+            <div className="relative inline-block">
+              <button
+                type="button"
+                onClick={() => setShowColumnChooser((v) => !v)}
+                className="rounded border border-border bg-background px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-foreground"
+                aria-expanded={showColumnChooser}
+                aria-haspopup="true"
+              >
+                Columns
+              </button>
+              {showColumnChooser && (
+                <div className="absolute z-20 mt-2 w-56 rounded border border-border bg-card p-3 shadow-lg">
+                  <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Show / hide columns
+                  </p>
+                  <div className="space-y-2">
+                    {INVOICE_COLUMNS.filter((c) => !c.essential).map((col) => (
+                      <label
+                        key={col.id}
+                        className="flex items-center gap-2 text-xs text-foreground"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={visibleColumns.includes(col.id)}
+                          onChange={() => {
+                            setVisibleColumns((prev) =>
+                              prev.includes(col.id)
+                                ? prev.filter((id) => id !== col.id)
+                                : [...prev, col.id],
+                            );
+                          }}
+                        />
+                        {col.label}
+                      </label>
+                    ))}
+                  </div>
+                  <div className="mt-3 space-y-1">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Reorder
+                    </p>
+                    {visibleColumns
+                      .filter((id) =>
+                        INVOICE_COLUMNS.find(
+                          (c) => c.id === id && !c.essential,
+                        ),
+                      )
+                      .map((id, idx, arr) => (
+                        <div
+                          key={id}
+                          className="flex items-center justify-between text-xs"
+                        >
+                          <span>{id}</span>
+                          <div className="flex gap-1">
+                            <button
+                              type="button"
+                              disabled={idx === 0}
+                              onClick={() =>
+                                setVisibleColumns((prev) => {
+                                  // move within full array is complex; do simple swap of positions in visibleColumns
+                                  const i = prev.indexOf(id);
+                                  if (i <= 0) return prev;
+                                  const next = [...prev];
+                                  [next[i - 1], next[i]] = [
+                                    next[i],
+                                    next[i - 1],
+                                  ];
+                                  return next;
+                                })
+                              }
+                            >
+                              ↑
+                            </button>
+                            <button
+                              type="button"
+                              disabled={idx === arr.length - 1}
+                              onClick={() =>
+                                setVisibleColumns((prev) => {
+                                  const i = prev.indexOf(id);
+                                  if (i < 0 || i >= prev.length - 1)
+                                    return prev;
+                                  const next = [...prev];
+                                  [next[i], next[i + 1]] = [
+                                    next[i + 1],
+                                    next[i],
+                                  ];
+                                  return next;
+                                })
+                              }
+                            >
+                              ↓
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Desktop table: hidden below md so phones don't get a
+              horizontally-scrolling table *and* duplicate mobile cards. */}
+          <div className="overflow-x-auto hidden md:block">
             {/* display:block overrides UA table layout so thead/tbody can use
                 flex rows whose column widths are kept in sync via COL_FLEX. */}
             <table
@@ -478,7 +613,7 @@ export function InvoiceTable({
               aria-label="Invoice Ledger"
             >
               <thead style={{ display: "block" }}>
-                <tr className="flex border-b border-border/60 bg-[#080c10]/80 px-5 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                <tr className="flex border-b border-border/60 bg-background/80 px-5 py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                   {selectable && (
                     <th
                       scope="col"
@@ -495,48 +630,31 @@ export function InvoiceTable({
                       />
                     </th>
                   )}
-                  <th
-                    scope="col"
-                    style={{ flex: COL_FLEX[0] }}
-                    className="text-left"
-                  >
-                    Invoice ID
-                  </th>
-                  <th
-                    scope="col"
-                    style={{ flex: COL_FLEX[1] }}
-                    className="text-left"
-                  >
-                    Buyer
-                  </th>
-                  <th
-                    scope="col"
-                    style={{ flex: COL_FLEX[2] }}
-                    className="text-left"
-                  >
-                    Face Value
-                  </th>
-                  <th
-                    scope="col"
-                    style={{ flex: COL_FLEX[3] }}
-                    className="text-left"
-                  >
-                    Discount
-                  </th>
-                  <th
-                    scope="col"
-                    style={{ flex: COL_FLEX[4] }}
-                    className="text-left"
-                  >
-                    Due Date
-                  </th>
-                  <th
-                    scope="col"
-                    style={{ flex: COL_FLEX[5] }}
-                    className="text-left"
-                  >
-                    Status
-                  </th>
+                  {visibleColumns.map((colId) => {
+                    const meta = INVOICE_COLUMNS.find((c) => c.id === colId)!;
+                    const flex =
+                      colId === "invoiceId"
+                        ? COL_FLEX[0]
+                        : colId === "buyer"
+                          ? COL_FLEX[1]
+                          : colId === "faceValue"
+                            ? COL_FLEX[2]
+                            : colId === "discount"
+                              ? COL_FLEX[3]
+                              : colId === "dueDate"
+                                ? COL_FLEX[4]
+                                : COL_FLEX[5];
+                    return (
+                      <th
+                        key={colId}
+                        scope="col"
+                        style={{ flex }}
+                        className="text-left"
+                      >
+                        {meta.label}
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
 
@@ -587,7 +705,7 @@ export function InvoiceTable({
                       } ${
                         isActive
                           ? "bg-primary/5 text-primary"
-                          : "hover:bg-slate-900/50"
+                          : "hover:bg-muted/50"
                       } ${
                         isFocusable
                           ? "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
@@ -614,44 +732,88 @@ export function InvoiceTable({
                           />
                         </td>
                       )}
-                      <td
-                        style={{ flex: COL_FLEX[0] }}
-                        className="font-bold text-primary"
-                      >
-                        {truncateAddress(invoice.id)}
-                      </td>
-                      <td
-                        style={{ flex: COL_FLEX[1] }}
-                        className="text-slate-400"
-                      >
-                        {truncateAddress(invoice.buyer)}
-                      </td>
-                      <td
-                        style={{ flex: COL_FLEX[2] }}
-                        className="font-bold text-white"
-                      >
-                        {formatAmount(invoice.faceValue, invoice.asset)}
-                      </td>
-                      <td
-                        style={{ flex: COL_FLEX[3] }}
-                        className="text-slate-300"
-                      >
-                        {invoice.discountBps > 0
-                          ? `${(invoice.discountBps / 100).toFixed(2)}%`
-                          : "—"}
-                      </td>
-                      <td
-                        style={{ flex: COL_FLEX[4] }}
-                        className="text-slate-400"
-                      >
-                        {new Date(invoice.dueDate * 1000).toLocaleDateString()}
-                      </td>
-                      <td
-                        style={{ flex: COL_FLEX[5] }}
-                        className="flex justify-start"
-                      >
-                        <InvoiceStatus status={invoice.status} />
-                      </td>
+                      {visibleColumns.map((colId) => {
+                        const flex =
+                          colId === "invoiceId"
+                            ? COL_FLEX[0]
+                            : colId === "buyer"
+                              ? COL_FLEX[1]
+                              : colId === "faceValue"
+                                ? COL_FLEX[2]
+                                : colId === "discount"
+                                  ? COL_FLEX[3]
+                                  : colId === "dueDate"
+                                    ? COL_FLEX[4]
+                                    : COL_FLEX[5];
+                        if (colId === "invoiceId") {
+                          return (
+                            <td
+                              key={colId}
+                              style={{ flex }}
+                              className="font-bold text-primary"
+                            >
+                              {truncateAddress(invoice.id)}
+                            </td>
+                          );
+                        }
+                        if (colId === "buyer") {
+                          return (
+                            <td
+                              key={colId}
+                              style={{ flex }}
+                              className="text-muted-foreground"
+                            >
+                              {truncateAddress(invoice.buyer)}
+                            </td>
+                          );
+                        }
+                        if (colId === "faceValue") {
+                          return (
+                            <td
+                              key={colId}
+                              style={{ flex }}
+                              className="font-bold text-foreground"
+                            >
+                              {formatAmount(invoice.faceValue, invoice.asset)}
+                            </td>
+                          );
+                        }
+                        if (colId === "discount") {
+                          return (
+                            <td
+                              key={colId}
+                              style={{ flex }}
+                              className="text-foreground"
+                            >
+                              {invoice.discountBps > 0
+                                ? `${(invoice.discountBps / 100).toFixed(2)}%`
+                                : "—"}
+                            </td>
+                          );
+                        }
+                        if (colId === "dueDate") {
+                          return (
+                            <td
+                              key={colId}
+                              style={{ flex }}
+                              className="text-muted-foreground"
+                            >
+                              {new Date(
+                                invoice.dueDate * 1000,
+                              ).toLocaleDateString()}
+                            </td>
+                          );
+                        }
+                        return (
+                          <td
+                            key={colId}
+                            style={{ flex }}
+                            className="flex justify-start"
+                          >
+                            <InvoiceStatus status={invoice.status} />
+                          </td>
+                        );
+                      })}
                     </tr>
                   );
                 })}

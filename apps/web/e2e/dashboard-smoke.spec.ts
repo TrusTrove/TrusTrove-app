@@ -136,14 +136,17 @@ async function setupDashboardApiMocks(page: Page) {
 async function connectAsIssuer(page: Page) {
   await page.goto("/dashboard");
 
-  const connectBtn = page.getByRole("button", { name: /Connect Wallet/i });
+  // Scoped to the Navbar: the page body renders its own connect button too.
+  const connectBtn = page
+    .getByRole("navigation")
+    .getByRole("button", { name: /Connect Wallet/i });
   if (await connectBtn.isVisible()) {
     await connectBtn.click();
   }
 
-  await expect(page.getByText(/GBMOCK\.\.\.XXXX/i)).toBeVisible({
-    timeout: 15000,
-  });
+  await expect(
+    page.getByRole("navigation").getByText("GBMOCK...XXXX", { exact: true }),
+  ).toBeVisible({ timeout: 15000 });
   await expect(
     page.getByRole("heading", { name: /SME Financing Dashboard/i }),
   ).toBeVisible();
@@ -169,7 +172,9 @@ test.describe("Dashboard Smoke Test", () => {
     await expect(
       page.getByRole("heading", { name: /On-Chain Activity Logs/i }),
     ).toBeVisible();
-    await expect(page.getByText(/No events recorded yet/i)).toBeVisible();
+    await expect(
+      page.getByText(/No activity on your invoices yet/i),
+    ).toBeVisible();
 
     // Assert issued invoices section renders
     await expect(

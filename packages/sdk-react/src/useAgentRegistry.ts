@@ -44,7 +44,17 @@ export function useAgent(
   signerPublicKey: string,
   options: UseAgentRegistryOptions,
 ): AsyncQueryState<Agent> {
-  const client = useMemo(() => agentRegistryClient(options), [options]);
+  // Memoize on the option *contents* (client identity / contractId value), not
+  // the options object identity, so inline `{ contractId }` literals don't
+  // re-create the client — and re-trigger queries — on every render.
+  const client = useMemo(
+    () =>
+      agentRegistryClient({
+        client: options.client,
+        contractId: options.contractId,
+      }),
+    [options.client, options.contractId],
+  );
   return useAsyncQuery(
     () => client.getAgent(agentId, signerPublicKey),
     [client, agentId, signerPublicKey],

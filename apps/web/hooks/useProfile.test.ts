@@ -1,15 +1,28 @@
-import { renderHook, act } from "@testing-library/react";
+import { renderHook, act, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import React from "react";
 import { useProfile } from "./useProfile";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  QueryClient,
+  QueryClientProvider,
+} from "@tanstack/react-query";
 import { RegistryClient } from "@trusttrove/sdk";
 import { useWalletStore } from "@/store/wallet";
 
-vi.mock("@tanstack/react-query", () => ({
-  useQuery: vi.fn(),
-  useMutation: vi.fn(),
-  useQueryClient: vi.fn(),
-}));
+vi.mock("@tanstack/react-query", async () => {
+  const actual = await vi.importActual<typeof import("@tanstack/react-query")>(
+    "@tanstack/react-query",
+  );
+  return {
+    ...actual,
+    useQuery: vi.fn((options) => actual.useQuery(options)),
+    useMutation: vi.fn((options) => actual.useMutation(options)),
+    useQueryClient: vi.fn(() => actual.useQueryClient()),
+  };
+});
 
 vi.mock("@trusttrove/sdk", () => ({
   RegistryClient: vi.fn(function () {}),
@@ -33,6 +46,29 @@ function mockMutation() {
         error: null,
       }) as any,
   );
+}
+
+/** Serve a cached profile for the `["profile"]` query, verified for the other. */
+function mockRegisteredProfile(role: "issuer" | "buyer") {
+  vi.mocked(useQuery).mockImplementation(((args: any) =>
+    args.queryKey[0] === "profile"
+      ? {
+          data: {
+            address: "G123",
+            role,
+            verified: true,
+            registeredAt: 1000,
+          },
+          isLoading: false,
+          error: null,
+          refetch: vi.fn(),
+        }
+      : {
+          data: true,
+          isLoading: false,
+          error: null,
+          refetch: vi.fn(),
+        }) as any);
 }
 
 describe("useProfile", () => {
@@ -199,6 +235,64 @@ describe("useProfile", () => {
     });
   });
 
+  it("refuses a second register call for an already registered buyer", async () => {
+    act(() => {
+      useWalletStore.getState().connect("G123", "testnet");
+    });
+    mockRegisteredProfile("buyer");
+
+    const mockRegisterIssuer = vi.fn();
+    const mockRegisterBuyer = vi.fn();
+    vi.mocked(RegistryClient).mockImplementation(function () {
+      return {
+        registerIssuer: mockRegisterIssuer,
+        registerBuyer: mockRegisterBuyer,
+      };
+    } as any);
+
+    const { result } = renderHook(() => useProfile());
+
+    // The old update path submitted role "issuer" for a buyer profile, which
+    // the contract answers with AlreadyRegistered (issue #1109).
+    await expect(
+      act(async () => {
+        await result.current.register({
+          role: "issuer",
+          metadata: { companyName: "Acme" },
+        });
+      }),
+    ).rejects.toThrow(/already registered as buyer/);
+
+    expect(mockRegisterIssuer).not.toHaveBeenCalled();
+    expect(mockRegisterBuyer).not.toHaveBeenCalled();
+    expect(mockInvalidateQueries).not.toHaveBeenCalled();
+  });
+
+  it("refuses a matching-role register for an existing profile", async () => {
+    act(() => {
+      useWalletStore.getState().connect("G123", "testnet");
+    });
+    mockRegisteredProfile("issuer");
+
+    const mockRegisterIssuer = vi.fn();
+    vi.mocked(RegistryClient).mockImplementation(function () {
+      return { registerIssuer: mockRegisterIssuer };
+    } as any);
+
+    const { result } = renderHook(() => useProfile());
+
+    await expect(
+      act(async () => {
+        await result.current.register({
+          role: "issuer",
+          metadata: { companyName: "Acme" },
+        });
+      }),
+    ).rejects.toThrow(/already registered as issuer/);
+
+    expect(mockRegisterIssuer).not.toHaveBeenCalled();
+  });
+
   it("register mutation fails if no wallet", async () => {
     const { result } = renderHook(() => useProfile());
 
@@ -235,7 +329,7 @@ describe("useProfile", () => {
     ).rejects.toThrow("On-chain error");
   });
 
-  it("constructs exactly one RegistryClient instance per mount", async () => {
+  it("lazily constructs and reuses one RegistryClient instance per mount", async () => {
     act(() => {
       useWalletStore.getState().connect("G123", "testnet");
     });
@@ -251,12 +345,20 @@ describe("useProfile", () => {
 
     const { result, rerender, unmount } = renderHook(() => useProfile());
 
-    // Re-renders, refetches, and mutations must all reuse the memoized client.
+    // Mounting the hook (which the Navbar does on every route) must not import
+    // or construct the SDK client (#995).
+    expect(vi.mocked(RegistryClient)).not.toHaveBeenCalled();
+
+    // Re-renders, refetches, and every mutation reuse the memoized client.
     rerender();
     await act(async () => {
       await result.current.register({
         role: "issuer",
         metadata: { name: "Test Issuer" },
+      });
+      await result.current.register({
+        role: "issuer",
+        metadata: { name: "Second Attempt" },
       });
       await result.current.refetchProfile();
     });
@@ -266,10 +368,10 @@ describe("useProfile", () => {
       process.env.NEXT_PUBLIC_REGISTRY_CONTRACT_ID || "",
     );
 
-    // A fresh mount constructs a new (single) client instance.
+    // A fresh mount stays lazy too; it only builds a new client when used.
     unmount();
     renderHook(() => useProfile());
-    expect(vi.mocked(RegistryClient)).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(RegistryClient)).toHaveBeenCalledTimes(1);
   });
 
   it("refetchProfile refetches both queries", async () => {
@@ -293,5 +395,54 @@ describe("useProfile", () => {
 
     expect(refetch1).toHaveBeenCalled();
     expect(refetch2).toHaveBeenCalled();
+  });
+
+  it("surfaces isVerifiedError when verification check fails via queryFn re-throw", async () => {
+    act(() => {
+      useWalletStore.getState().connect("G123", "testnet");
+    });
+
+    const verificationError = new Error("RPC timeout or network blip");
+
+    vi.mocked(RegistryClient).mockImplementation(function () {
+      return {
+        getProfile: vi.fn().mockResolvedValue(null),
+        isVerified: vi.fn().mockRejectedValue(verificationError),
+      };
+    } as any);
+
+    const actualQuery = await vi.importActual<
+      typeof import("@tanstack/react-query")
+    >("@tanstack/react-query");
+    vi.mocked(useQuery).mockImplementation((options) =>
+      actualQuery.useQuery(options),
+    );
+    vi.mocked(useQueryClient).mockImplementation(() =>
+      actualQuery.useQueryClient(),
+    );
+
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+          gcTime: 0,
+        },
+      },
+    });
+
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      React.createElement(
+        QueryClientProvider,
+        { client: queryClient },
+        children,
+      );
+
+    const { result } = renderHook(() => useProfile(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isVerifiedError).toEqual(verificationError);
+    });
+
+    expect(result.current.isVerified).toBe(false);
   });
 });
