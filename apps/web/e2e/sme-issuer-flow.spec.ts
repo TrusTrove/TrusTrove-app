@@ -393,6 +393,7 @@ test.describe("SME Issuer Flow - Happy Path", () => {
     await page.getByPlaceholder(/Stellar Public Key/i).fill(MOCK_BUYER);
     await page.getByPlaceholder(/50,000\.00/i).fill("1000");
     await selectDueDate(page, invoiceMocks.dueDate.input);
+    await page.getByPlaceholder(/SHA-256 document hash/i).fill("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
 
     await page
       .getByRole("checkbox", {
@@ -435,6 +436,7 @@ test.describe("SME Issuer Flow - Happy Path", () => {
     await page.getByPlaceholder(/Stellar Public Key/i).fill(MOCK_BUYER);
     await page.getByPlaceholder(/50,000\.00/i).fill("1000");
     await selectDueDate(page, invoiceMocks.dueDate.input);
+    await page.getByPlaceholder(/SHA-256 document hash/i).fill("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
     await page
       .getByRole("checkbox", {
         name: /List for immediate LP financing at creation/i,

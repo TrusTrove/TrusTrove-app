@@ -68,10 +68,60 @@ describe("InvoiceForm Component Boundary Tests", () => {
     expect(screen.getByLabelText(/^due date$/i)).toHaveAccessibleDescription(
       /select invoice maturity date/i,
     );
+    expect(screen.getByLabelText(/document fingerprints/i)).toBeInTheDocument();
     expect(screen.getByText(/face value/i)).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /review financing terms/i }),
     ).toBeInTheDocument();
+  });
+
+  it("shows review step with buyer address, face value, asset, due date, and document fingerprints, and preserves data on back edit", async () => {
+    renderWithProviders(<InvoiceForm />);
+
+    const buyerInput = screen.getByPlaceholderText(/stellar public key/i);
+    fireEvent.change(buyerInput, {
+      target: {
+        value: "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+      },
+    });
+
+    const dateInput = screen.getByTestId("date-picker") as HTMLInputElement;
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 10);
+    const dateStr = tomorrow.toISOString().split("T")[0];
+    fireEvent.change(dateInput, {
+      target: { value: dateStr },
+    });
+
+    const faceValueInput = screen.getByPlaceholderText(/50,000\.00/i);
+    fireEvent.change(faceValueInput, { target: { value: "2500" } });
+
+    const fpInput = screen.getByPlaceholderText(/sha-256 document hash/i);
+    fireEvent.change(fpInput, { target: { value: "abc123hash" } });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /review financing terms/i }),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          /GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF/i,
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getAllByText(/2,500/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/USDC/i).length).toBeGreaterThan(0);
+      expect(screen.getByText(dateStr)).toBeInTheDocument();
+      expect(screen.getByText(/abc123hash/i)).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /back to edit|edit terms/i }));
+
+    expect((buyerInput as HTMLInputElement).value).toBe(
+      "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+    );
+    expect((faceValueInput as HTMLInputElement).value).toBe("2500");
+    expect((fpInput as HTMLInputElement).value).toBe("abc123hash");
   });
 
   it("shows error for invalid buyer address on next step", async () => {
@@ -263,7 +313,7 @@ describe("InvoiceForm Component Boundary Tests", () => {
 
     // Step 2: trigger creation (immediate list is on by default).
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /create invoice/i }));
+      fireEvent.click(screen.getByTestId("create-invoice-submit"));
     });
 
     // The rollback must call PATCH /invoices/:id/status (not a 404ing path).
