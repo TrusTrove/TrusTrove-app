@@ -233,6 +233,11 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
 
   return (
     <div className="space-y-5">
+      {error && (
+        <div role="alert" className="p-3 bg-destructive/10 border border-destructive/30 rounded text-destructive text-xs font-mono">
+          {error}
+        </div>
+      )}
       <div className="flex items-center gap-2 mb-4 border-b border-border/40 pb-3">
         <PlusCircle className="w-4 h-4 text-primary shrink-0" />
         <h2 className="text-sm font-bold font-mono tracking-wider uppercase text-white">
