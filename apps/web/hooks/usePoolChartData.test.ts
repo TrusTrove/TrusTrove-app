@@ -97,3 +97,84 @@ describe("usePoolChartData", () => {
     expect(yValues[1]).toBe(yValues[2]);
   });
 });
+
+describe("calculateMaturityDistribution", () => {
+  const now = 1700000000;
+
+  it("groups active funded principal into due-date bands and overdue band summing to active exposure", () => {
+    const invoices = [
+      {
+        id: "1",
+        fundedAmount: "1000000000" as const,
+        dueDate: now + 10 * 86400,
+        status: "Funded",
+      },
+      {
+        id: "2",
+        fundedAmount: "2000000000" as const,
+        dueDate: now + 40 * 86400,
+        status: "Funded",
+      },
+      {
+        id: "3",
+        fundedAmount: "3000000000" as const,
+        dueDate: now + 70 * 86400,
+        status: "Funded",
+      },
+      {
+        id: "4",
+        fundedAmount: "4000000000" as const,
+        dueDate: now + 100 * 86400,
+        status: "Funded",
+      },
+      {
+        id: "5",
+        fundedAmount: "5000000000" as const,
+        dueDate: now - 5 * 86400,
+        status: "Funded",
+      },
+      {
+        id: "6",
+        fundedAmount: "999999900000" as const,
+        dueDate: now + 5 * 86400,
+        status: "Repaid",
+      },
+    ];
+
+    const distribution = calculateMaturityDistribution(invoices, now);
+
+    const totalAmount = distribution.reduce(
+      (acc: number, b: { amount: number }) => acc + b.amount,
+      0,
+    );
+    expect(totalAmount).toBe(1500); // 100 + 200 + 300 + 400 + 500 = 1500 USDC
+
+    const bandMap = Object.fromEntries(
+      distribution.map(
+        (b: { band: string; amount: number; percentage: number }) => [
+          b.band,
+          b,
+        ],
+      ),
+    );
+
+    expect(bandMap["0-30d"].amount).toBe(100);
+    expect(bandMap["31-60d"].amount).toBe(200);
+    expect(bandMap["61-90d"].amount).toBe(300);
+    expect(bandMap["90d+"].amount).toBe(400);
+    expect(bandMap["Overdue"].amount).toBe(500);
+
+    expect(bandMap["0-30d"].percentage).toBeCloseTo((100 / 1500) * 100);
+    expect(bandMap["Overdue"].percentage).toBeCloseTo((500 / 1500) * 100);
+  });
+
+  it("handles empty and permission boundary / invalid inputs gracefully", () => {
+    const distribution = calculateMaturityDistribution([], now);
+
+    expect(distribution).toHaveLength(5);
+    distribution.forEach((b: { amount: number; percentage: number }) => {
+      expect(b.amount).toBe(0);
+      expect(b.percentage).toBe(0);
+    });
+  });
+});
