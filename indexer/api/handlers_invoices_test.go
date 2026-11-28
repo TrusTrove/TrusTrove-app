@@ -26,10 +26,12 @@ import (
 
 
 func TestHandleGetInvoices_InvalidAssetReturns400(t *testing.T) {
-	handler := &APIHandler{}
+	handler := invoiceHandlerUnderTest(func(status, issuer string, limit, offset int) ([]*db.DbInvoice, int, error) {
+		return nil, 0, nil
+	})
 	req := httptest.NewRequest(http.MethodGet, "/invoices?asset=invalid", nil)
 	rr := httptest.NewRecorder()
-	handler.HandleGetInvoices(rr, req)
+	handler.ServeHTTP(rr, req)
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected status 400 for invalid asset, got %d", rr.Code)
 	}
