@@ -74,7 +74,7 @@ describe("BuyerConcentrationChart", () => {
   it("renders empty state when no invoices are funded", () => {
     renderWithClient(<BuyerConcentrationChart invoices={[]} />);
     expect(
-      screen.getByText(/no funded buyer exposure recorded yet/i),
+      screen.getByText((content, node) => node?.textContent?.includes("No funded buyer exposure recorded yet") ?? false),
     ).toBeInTheDocument();
   });
 
