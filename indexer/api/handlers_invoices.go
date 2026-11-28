@@ -66,7 +66,7 @@ func (h *APIHandler) HandlePatchInvoiceStatus(w http.ResponseWriter, r *http.Req
 // GET /invoices
 func (h *APIHandler) HandleGetInvoices(w http.ResponseWriter, r *http.Request) {
 	status := r.URL.Query().Get("status")
-	issue := r.URL.Query().Get("issuer")
+	issuer := r.URL.Query().Get("issuer")
 	asset := r.URL.Query().Get("asset")
 
 	if asset != "" {
