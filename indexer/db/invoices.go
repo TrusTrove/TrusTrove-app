@@ -21,5 +21,3 @@ func EnsureDueDateIndex(dbConn *sql.DB) error {
 	_, err := dbConn.Exec(query)
 	return err
 }
-
-
