@@ -1,6 +1,6 @@
 import { renderHook } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
-import { usePoolChartData } from "./usePoolChartData";
+import { usePoolChartData, calculateMaturityDistribution } from "./usePoolChartData";
 import type { ChartDataItem } from "./usePoolChartData";
 
 function makeData(values: number[]): ChartDataItem[] {
