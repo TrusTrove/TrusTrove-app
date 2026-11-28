@@ -27,6 +27,8 @@ when LPs or pool managers call `fund_invoice()`.
 To redeem your liquidity, use the **Withdraw Liquidity** form on the same page:
 enter the number of shares to redeem and click **Withdraw Shares**, then confirm
 in the dialog and sign with Freighter. Withdrawal is subject to available
-liquidity — see [Withdrawal](../protocol/liquidity-pool.md#withdrawal) for how
-utilization limits what you can pull out, and
+liquidity — see [Exit and Liquidity](exit-and-liquidity.md) for the share-price
+math, partial withdrawals, and recovery steps, and
+[Withdrawal](../protocol/liquidity-pool.md#withdrawal) for how
+utilization limits what you can pull out. See also
 [Understanding Yield](understanding-yield.md) for when yield is realized.

@@ -12,6 +12,8 @@ the whole thing.
 
 If you are an SME looking to finance an invoice → [For SMEs](for-smes/getting-started.md)
 
+If you are a buyer repaying an invoice → [For Buyers](for-buyers/repay-an-invoice.md)
+
 If you want to provide liquidity and earn yield → [For LPs](for-lps/getting-started.md)
 
 If you want to build on or contribute to TrusTrove → [Developer Guide](developer-guide/local-setup.md)

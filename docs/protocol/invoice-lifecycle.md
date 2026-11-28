@@ -93,3 +93,10 @@ funded amount is not recovered. The pool's total deposits are reduced by the
 full funded amount, and that principal loss is shared across all LP shares via
 a lower share price. (The $200 of expected yield in a 2%-on-$10,000 example
 never materializes either, but it is dwarfed by the $9,800 principal loss.)
+
+## Operational walkthroughs
+
+- [Repay an Invoice](../for-buyers/repay-an-invoice.md) — the buyer's wallet,
+  allowance, signing, and receipt steps.
+- [Reconcile an Invoice](../for-smes/reconcile-invoice.md) — the issuer's cash,
+  discount, and accounting entries after a normal repayment.

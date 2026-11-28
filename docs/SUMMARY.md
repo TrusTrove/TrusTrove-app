@@ -29,12 +29,18 @@
 - [Getting Started](for-smes/getting-started.md)
 - [Create Your First Invoice](for-smes/create-your-first-invoice.md)
 - [Understanding the Discount](for-smes/understanding-the-discount.md)
+- [Reconcile an Invoice](for-smes/reconcile-invoice.md)
+
+## For Buyers
+
+- [Repay an Invoice](for-buyers/repay-an-invoice.md)
 
 ## For Liquidity Providers
 
 - [Getting Started](for-lps/getting-started.md)
 - [Deposit USDC](for-lps/deposit-usdc.md)
 - [Understanding Yield](for-lps/understanding-yield.md)
+- [Exit and Liquidity](for-lps/exit-and-liquidity.md)
 
 ## Developer Guide
 
@@ -46,6 +52,7 @@
 - [Indexer API Reference](developer-guide/indexer-api-reference.md)
 - [CLI Usage](cli.md)
 - [Webhooks](webhooks.md)
+- [Webhook Operations Runbook](developer-guide/webhook-operations-runbook.md)
 - [Security Headers](developer-guide/security-headers.md)
 - [Internationalization (i18n)](developer-guide/i18n.md)
 

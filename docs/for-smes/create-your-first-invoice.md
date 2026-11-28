@@ -71,3 +71,9 @@ Both you and your buyer need to confirm delivery. Ask your buyer to log in to
 TrusTrove and click **Confirm Delivery** on the invoice.
 
 Once both confirmations are recorded, the invoice is ready for repayment.
+
+### Step 6 — Reconcile the repayment
+
+When the buyer repays, the pool receives the face value; you do not receive a
+second payment. Reconcile the funding cash receipt and the discount using
+[Reconcile an Invoice](reconcile-invoice.md).

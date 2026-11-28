@@ -56,3 +56,8 @@ If you try to withdraw more than what is available, the transaction fails.
 
 There is no lock-up period. There is no penalty for early withdrawal. But you cannot
 withdraw capital that is currently deployed in funded invoices.
+
+## Operational walkthrough
+
+- [Exit and Liquidity](../for-lps/exit-and-liquidity.md) — share price,
+  utilization, partial withdrawals, and a worked numeric example.
