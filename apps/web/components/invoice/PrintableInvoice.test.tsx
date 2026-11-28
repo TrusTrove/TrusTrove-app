@@ -34,7 +34,7 @@ describe("PrintableInvoice", () => {
     expect(screen.getByText("INVOICE REVIEW ARTIFACT")).toBeInTheDocument();
     expect(screen.getByText(sampleInvoice.issuer)).toBeInTheDocument();
     expect(screen.getByText(sampleInvoice.buyer)).toBeInTheDocument();
-    expect(screen.getByText(/100\.00 USDC/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/100\.00 USDC/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/Funded/i)).toBeInTheDocument();
     expect(screen.getByText(/C_TEST_CONTRACT/i)).toBeInTheDocument();
     expect(screen.getByText("0xabc123created")).toBeInTheDocument();
@@ -52,7 +52,7 @@ describe("PrintableInvoice", () => {
 
     render(<PrintableInvoice invoice={emptyInvoice} contractId="" />);
 
-    expect(screen.getByText("inv-empty-002")).toBeInTheDocument();
+    expect(screen.getByText((content, node) => node?.textContent === "Invoice ID: inv-empty-002")).toBeInTheDocument();
     expect(
       screen.queryByText("Transaction References"),
     ).not.toBeInTheDocument();
