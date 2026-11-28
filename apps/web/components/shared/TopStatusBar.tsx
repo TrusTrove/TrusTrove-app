@@ -9,6 +9,7 @@ import {
   getEventDataString,
   type EventLog,
 } from "@/types";
+import { getExpectedNetwork } from "@/lib/config";
 
 interface TickerItem {
   id: string;
@@ -173,8 +174,8 @@ export function TopStatusBar() {
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
           <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
         </span>
-        <span className="text-[10px] font-bold font-mono tracking-widest text-primary uppercase">
-          SOROBAN TESTNET — PROTOCOL V1.0
+        <span className="font-mono text-xs font-medium text-primary tracking-wider">
+          {getExpectedNetwork().label} — PROTOCOL V1.0
         </span>
       </div>
 

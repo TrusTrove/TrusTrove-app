@@ -4,6 +4,9 @@ env:
   # Review and bump this pin on a regular schedule.
   GOVULNCHECK_VERSION: v1.1.4
 
+# Any future job needing more permissions (for example commenting on PRs) must request it at job level
+permissions:
+  contents: read
 on:
   workflow_dispatch:
   push:
@@ -11,10 +14,15 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   verify-frontend-and-sdk:
     name: Verify TypeScript Frontend & SDK
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Checkout Code
@@ -145,7 +153,8 @@ jobs:
 
   verify-go-indexer:
     name: Verify Go Indexer & API
-    runs-on: ubuntu-24.04
+runs-on: ubuntu-24.04
+    timeout-minutes: 15
 
     services:
       postgres:

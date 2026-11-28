@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Loader2, ExternalLink, ShieldCheck } from "lucide-react";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
+import { getExpectedNetwork } from "@/lib/config";
 import { explorerTxUrl } from "@/lib/explorer";
 
 interface TransactionPendingProps {
@@ -129,13 +130,13 @@ export function TransactionPending({
           <div className="w-full bg-background-secondary border border-border/40 rounded p-3 text-left font-mono text-[10px] space-y-2 mb-6">
             <div className="flex justify-between text-foreground/70 font-bold uppercase tracking-wider">
               <span>TX HASH</span>
-              <span className="text-primary">TESTNET</span>
+              <span className="text-primary">{getExpectedNetwork().label.toUpperCase()}</span>
             </div>
             <div className="text-foreground break-all bg-muted/50 p-2 border border-border/20 rounded select-all">
               {txHash}
             </div>
             <a
-              href={explorerTxUrl(txHash)}
+href={explorerTxUrl(txHash)}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-primary hover:underline hover:text-primary-hover font-bold"

@@ -1,3 +1,31 @@
+export interface NetworkConfig {
+  name: string;
+  freighterNetwork: string;
+  label: string;
+}
+
+export function getExpectedNetwork(): NetworkConfig {
+  const raw = (process.env.NEXT_PUBLIC_STELLAR_NETWORK || "testnet").toLowerCase();
+  if (raw === "mainnet" || raw === "pubnet") {
+    return {
+      name: "mainnet",
+      freighterNetwork: "PUBLIC",
+      label: "SOROBAN MAINNET",
+    };
+  }
+  return {
+    name: "testnet",
+    freighterNetwork: "TESTNET",
+    label: "SOROBAN TESTNET — PROTOCOL V1.0",
+  };
+}
+
+const REQUIRED_ENV_VARS = [
+  "NEXT_PUBLIC_INVOICE_CONTRACT_ID",
+  "NEXT_PUBLIC_POOL_CONTRACT_ID",
+  "NEXT_PUBLIC_REGISTRY_CONTRACT_ID",
+  "NEXT_PUBLIC_STAKING_CONTRACT_ID",
+] as const;
 /**
  * Result of validating the required environment variables.
  *

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { getExpectedNetwork, validateConfig } from "./config";
 
 describe("config helpers", () => {
   const ORIGINAL_ENV = process.env;
@@ -22,8 +23,6 @@ describe("config helpers", () => {
     process.env.NEXT_PUBLIC_REGISTRY_CONTRACT_ID = "C789";
 
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const { validateConfig } = await import("./config");
-
     const result = validateConfig();
 
     expect(result).toEqual({
@@ -35,13 +34,9 @@ describe("config helpers", () => {
 
   it("identifies missing environment variables and logs a warning", async () => {
     process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID = "C123";
-    // NEXT_PUBLIC_POOL_CONTRACT_ID is missing
-    // NEXT_PUBLIC_REGISTRY_CONTRACT_ID is empty string
     process.env.NEXT_PUBLIC_REGISTRY_CONTRACT_ID = "";
 
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const { validateConfig } = await import("./config");
-
     const result = validateConfig();
 
     expect(result.isConfigured).toBe(false);
@@ -61,11 +56,8 @@ describe("config helpers", () => {
     process.env.NEXT_PUBLIC_REGISTRY_CONTRACT_ID = "C789";
 
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const { validateConfig } = await import("./config");
-
     const firstResult = validateConfig();
 
-    // Mutate env vars after initial validation to prove cached result is returned
     delete process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID;
 
     const secondResult = validateConfig();
@@ -73,5 +65,58 @@ describe("config helpers", () => {
     expect(secondResult).toBe(firstResult);
     expect(secondResult.isConfigured).toBe(true);
     expect(warnSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("getExpectedNetwork", () => {
+  const originalEnv = process.env.NEXT_PUBLIC_STELLAR_NETWORK;
+
+  beforeEach(() => {
+    delete process.env.NEXT_PUBLIC_STELLAR_NETWORK;
+  });
+
+  afterEach(() => {
+    if (originalEnv !== undefined) {
+      process.env.NEXT_PUBLIC_STELLAR_NETWORK = originalEnv;
+    } else {
+      delete process.env.NEXT_PUBLIC_STELLAR_NETWORK;
+    }
+  });
+
+  it("defaults to testnet when env var is unset", () => {
+    const net = getExpectedNetwork();
+    expect(net.name).toBe("testnet");
+    expect(net.freighterNetwork).toBe("TESTNET");
+    expect(net.label).toBe("SOROBAN TESTNET — PROTOCOL V1.0");
+  });
+
+  it("recognizes testnet config", () => {
+    process.env.NEXT_PUBLIC_STELLAR_NETWORK = "testnet";
+    const net = getExpectedNetwork();
+    expect(net.name).toBe("testnet");
+    expect(net.freighterNetwork).toBe("TESTNET");
+  });
+
+  it("recognizes mainnet config", () => {
+    process.env.NEXT_PUBLIC_STELLAR_NETWORK = "mainnet";
+    const net = getExpectedNetwork();
+    expect(net.name).toBe("mainnet");
+    expect(net.freighterNetwork).toBe("PUBLIC");
+    expect(net.label).toBe("SOROBAN MAINNET");
+  });
+
+  it("recognizes public config as mainnet", () => {
+    process.env.NEXT_PUBLIC_STELLAR_NETWORK = "PUBLIC";
+    const net = getExpectedNetwork();
+    expect(net.name).toBe("mainnet");
+    expect(net.freighterNetwork).toBe("PUBLIC");
+  });
+
+  it("recognizes mainnet config and exposes expected properties", () => {
+    process.env.NEXT_PUBLIC_STELLAR_NETWORK = "mainnet";
+    const net = getExpectedNetwork();
+    expect(net.name).toBe("mainnet");
+    expect(net.freighterNetwork).toBe("PUBLIC");
+    expect(net.label).toBe("SOROBAN MAINNET");
   });
 });

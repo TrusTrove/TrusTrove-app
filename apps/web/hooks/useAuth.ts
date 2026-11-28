@@ -3,6 +3,7 @@ import { useWalletStore } from "@/store/wallet";
 import { signTransaction } from "@stellar/freighter-api";
 import { fetchChallenge, verifyChallenge } from "@/lib/api";
 import { createErrorHandler } from "@/lib/errors";
+import { getExpectedNetwork } from "@/lib/config";
 import { useAppError } from "./useAppError";
 
 const { captureError } = createErrorHandler("useAuth");
@@ -73,11 +74,9 @@ export function useAuth() {
     try {
       const { transaction, network_passphrase } = await fetchChallenge(address);
 
-      const rawNetwork = process.env.NEXT_PUBLIC_STELLAR_NETWORK || "TESTNET";
-      const stellarNetwork =
-        rawNetwork.toUpperCase() === "PUBLIC" ? "PUBLIC" : "TESTNET";
+      const expected = getExpectedNetwork();
       const signedXdr = await signTransaction(transaction, {
-        network: "TESTNET",
+        network: expected.freighterNetwork,
         networkPassphrase: network_passphrase,
         accountToSign: address,
       });
