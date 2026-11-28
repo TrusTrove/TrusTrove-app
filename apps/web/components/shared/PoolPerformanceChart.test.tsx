@@ -2,7 +2,10 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi } from "vitest";
-import { PoolPerformanceChart } from "./PoolPerformanceChart";
+import {
+  PoolPerformanceChart,
+  PoolMaturityDistributionChart,
+} from "./PoolPerformanceChart";
 import type { PoolSnapshot } from "@/types";
 
 // ResponsiveContainer depends on ResizeObserver/layout and renders nothing
@@ -79,5 +82,52 @@ describe("PoolPerformanceChart", () => {
       "aria-label",
       expect.stringContaining("75.0 percent"),
     );
+  });
+});
+
+describe("PoolMaturityDistributionChart", () => {
+  it("renders active exposure reconciliation and all due-date bands plus overdue band", () => {
+    const now = Math.floor(Date.now() / 1000);
+    const invoices = [
+      {
+        id: "1",
+        fundedAmount: "1000000000",
+        dueDate: now + 10 * 86400,
+        status: "Funded",
+      },
+      {
+        id: "2",
+        fundedAmount: "2000000000",
+        dueDate: now - 5 * 86400,
+        status: "Funded",
+      },
+    ];
+
+    renderWithClient(<PoolMaturityDistributionChart invoices={invoices} />);
+
+    expect(
+      screen.getByRole("heading", { name: "Pool Maturity Distribution" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Active Exposure:\s*\$300\.00 USDC/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText("0-30d")).toBeInTheDocument();
+    expect(screen.getByText("Overdue")).toBeInTheDocument();
+    expect(screen.getByText((content, node) => node?.textContent === "$100.00 USDC (33.3%)")).toBeInTheDocument();
+    expect(screen.getByText((content, node) => node?.textContent === "$200.00 USDC (66.7%)")).toBeInTheDocument();
+  });
+
+  it("renders loading skeleton when loading", () => {
+    renderWithClient(<PoolMaturityDistributionChart isLoading />);
+    expect(screen.getByTestId("pool-maturity-skeleton")).toBeInTheDocument();
+  });
+
+  it("renders error state when error occurs", () => {
+    renderWithClient(
+      <PoolMaturityDistributionChart error={new Error("fail")} />,
+    );
+    expect(
+      screen.getByText(/Maturity distribution is temporarily unavailable/i),
+    ).toBeInTheDocument();
   });
 });
