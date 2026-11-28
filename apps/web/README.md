@@ -20,8 +20,8 @@ See the root [`README.md`](../../README.md) for the full project overview and de
 
 ## Prerequisites
 
-- Node.js 20+
-- pnpm 9+
+- Node.js 22+
+- pnpm 10+
 - Go 1.25+
 - PostgreSQL 15+ or Docker Compose
 - Freighter wallet configured for Stellar Testnet
@@ -114,6 +114,27 @@ From `apps/web`:
 | `pnpm start` | Start production server after build. |
 | `pnpm lint`  | Run Next lint.                       |
 | `pnpm test`  | Run Node test runner.                |
+
+## Routes
+
+| Route                  | Audience | Purpose                                                                                      |
+| ---------------------- | -------- | -------------------------------------------------------------------------------------------- |
+| `/dashboard`           | Issuers  | Create and list invoices, track funding, repayments, and activity.                           |
+| `/buyer`               | Buyers   | Invoices addressed to the connected wallet, grouped by next action (confirm delivery/repay). |
+| `/lp`                  | LPs      | Pool overview, deposit, and withdrawal with a pre-signing redeemable/liquidity summary.      |
+| `/marketplace`         | LPs      | Browse invoices listed for financing.                                                        |
+| `/invoice/[invoiceId]` | Everyone | Public invoice detail, lifecycle timeline, and role-gated actions.                           |
+
+The buyer workspace (`/buyer`) only renders invoices whose `buyer` matches
+the connected wallet. It fetches the invoice set from the indexer (the API
+filters by issuer, not buyer) and isolates this wallet's rows client-side, so
+switching wallets never shows another party's obligations.
+
+On `/lp`, the withdrawal form shows the **redeemable amount** for the entered
+shares, the pool's **current utilization**, and the **available pool
+liquidity** before the wallet prompt. If the shares redeem more than the pool
+can currently pay, the form explains the shortfall and blocks signing until
+the amount is reduced or invoices repay.
 
 ## Wallet setup
 

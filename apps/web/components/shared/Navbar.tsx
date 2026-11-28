@@ -25,6 +25,7 @@ import {
   BarChart2,
   User,
   Compass,
+  ShoppingBag,
 } from "lucide-react";
 import { NotificationBell } from "./NotificationBell";
 import { OnboardingTour } from "./OnboardingTour";
@@ -46,6 +47,7 @@ function isRole(value: string): value is Role {
 
 const NAV_ITEMS = [
   { key: "dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { key: "buyer", href: "/buyer", icon: ShoppingBag },
   { key: "lp", href: "/lp", icon: Factory },
   { key: "marketplace", href: "/marketplace", icon: BarChart2 },
   { key: "analytics", href: "/analytics", icon: BarChart3 },

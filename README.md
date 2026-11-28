@@ -11,6 +11,8 @@
 
 ## Local Setup
 
+Requires Node.js 22+ and pnpm 10+.
+
 Run `docker-compose up` to start the one-command stack.
 
 ## Repository layout

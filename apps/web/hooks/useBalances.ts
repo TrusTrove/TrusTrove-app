@@ -10,8 +10,7 @@ export interface Balances {
   xlm: string | null;
 }
 
-const HORIZON_URL =
-  process.env.NEXT_PUBLIC_HORIZON_URL || "https://horizon-testnet.stellar.org";
+import { HORIZON_URL } from "@/lib/env";
 
 export class OfflineError extends Error {
   readonly isOffline = true;

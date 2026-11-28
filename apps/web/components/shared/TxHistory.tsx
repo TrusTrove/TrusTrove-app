@@ -10,6 +10,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useTxHistory, isRateLimitError } from "@/hooks/useTxHistory";
+import { explorerTxUrl } from "@/lib/explorer";
 import { SkeletonShimmer } from "./SkeletonLoader";
 
 interface TxHistoryProps {
@@ -57,10 +58,6 @@ export function TxHistory({ address }: TxHistoryProps) {
     } catch {
       // fallback
     }
-  };
-
-  const getStellarExpertUrl = (hash: string) => {
-    return `https://stellar.expert/explorer/testnet/tx/${hash}`;
   };
 
   return (
@@ -156,7 +153,7 @@ export function TxHistory({ address }: TxHistoryProps) {
                       )}
                     </button>
                     <a
-                      href={getStellarExpertUrl(tx.hash)}
+                      href={explorerTxUrl(tx.hash)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-xs text-secondary hover:underline flex items-center gap-1 font-mono rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"

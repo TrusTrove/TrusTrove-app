@@ -17,7 +17,8 @@
     "test": "vitest run --passWithNoTests"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22",
+    "pnpm": ">=10"
   },
   "dependencies": {
     "@trusttrove/sdk": "workspace:*",

@@ -6,6 +6,7 @@
   "Navbar": {
     "nav": {
       "dashboard": "SME Dashboard",
+      "buyer": "Buyer Workspace",
       "lp": "LP Portal",
       "marketplace": "Marketplace",
       "analytics": "Analytics",

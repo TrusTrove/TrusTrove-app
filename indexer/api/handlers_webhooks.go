@@ -6,12 +6,18 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"trusttrove/indexer/db"
 	"trusttrove/indexer/netguard"
+)
+
+const (
+	defaultWebhookDeliveryLimit = 20
+	maxWebhookDeliveryLimit     = 100
 )
 
 type WebhookSubscription struct {
@@ -26,6 +32,24 @@ type WebhookSubscription struct {
 type CreateWebhookRequest struct {
 	URL        string   `json:"url"`
 	EventTypes []string `json:"event_types"`
+}
+
+// WebhookDeliveryAttempt is the redacted, owner-visible view of a delivery
+// row. It deliberately omits the target URL, signing secret, and payload:
+// delivery inspection needs outcome and timing, not destination credentials.
+type WebhookDeliveryAttempt struct {
+	ID             int64     `json:"id"`
+	SubscriptionID uuid.UUID `json:"subscription_id"`
+	EventType      string    `json:"event_type"`
+	EventID        string    `json:"event_id"`
+	Status         string    `json:"status"`
+	Attempts       int       `json:"attempts"`
+	MaxAttempts    int       `json:"max_attempts"`
+	NextAttemptAt  time.Time `json:"next_attempt_at"`
+	LastStatus     *int      `json:"last_status"`
+	LastError      *string   `json:"last_error"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 func generateSecret() (string, error) {
@@ -78,6 +102,60 @@ var getWebhookSubs = func(ctx context.Context, userAddr string) ([]WebhookSubscr
 		return nil, err
 	}
 	return subs, nil
+}
+
+// getWebhookDeliveryAttempts returns one subscription's deliveries newest
+// first. The boolean is false when the subscription does not exist or belongs
+// to another user, which lets the handler answer 404 without revealing whether
+// the ID exists. The join on user_address enforces ownership in the query
+// itself, not only in the existence check.
+var getWebhookDeliveryAttempts = func(ctx context.Context, id uuid.UUID, userAddr string, limit int) ([]WebhookDeliveryAttempt, bool, error) {
+	var exists bool
+	if err := db.Pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM webhook_subscriptions
+			WHERE id = $1 AND user_address = $2
+		)
+	`, id, userAddr).Scan(&exists); err != nil {
+		return nil, false, err
+	}
+	if !exists {
+		return nil, false, nil
+	}
+
+	rows, err := db.Pool.Query(ctx, `
+		SELECT wd.id, wd.subscription_id, wd.event_type, wd.event_id,
+		       wd.status, wd.attempts, wd.max_attempts, wd.next_attempt_at,
+		       wd.last_status, wd.last_error, wd.created_at, wd.updated_at
+		FROM webhook_deliveries wd
+		JOIN webhook_subscriptions ws ON ws.id = wd.subscription_id
+		WHERE wd.subscription_id = $1 AND ws.user_address = $2
+		ORDER BY wd.created_at DESC, wd.id DESC
+		LIMIT $3
+	`, id, userAddr, limit)
+	if err != nil {
+		return nil, true, err
+	}
+	defer rows.Close()
+
+	attempts := []WebhookDeliveryAttempt{}
+	for rows.Next() {
+		var attempt WebhookDeliveryAttempt
+		if err := rows.Scan(
+			&attempt.ID, &attempt.SubscriptionID, &attempt.EventType,
+			&attempt.EventID, &attempt.Status, &attempt.Attempts,
+			&attempt.MaxAttempts, &attempt.NextAttemptAt,
+			&attempt.LastStatus, &attempt.LastError,
+			&attempt.CreatedAt, &attempt.UpdatedAt,
+		); err != nil {
+			return nil, true, err
+		}
+		attempts = append(attempts, attempt)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, true, err
+	}
+	return attempts, true, nil
 }
 
 var deleteWebhookSub = func(ctx context.Context, id uuid.UUID, userAddr string) (int64, error) {
@@ -150,6 +228,45 @@ func (h *APIHandler) HandleGetWebhooks(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"data": subs,
+	})
+}
+
+func (h *APIHandler) HandleGetWebhookDeliveries(w http.ResponseWriter, r *http.Request) {
+	userAddr, ok := GetUserAddress(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+
+	limit := defaultWebhookDeliveryLimit
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 || parsed > maxWebhookDeliveryLimit {
+			http.Error(w, "invalid limit", http.StatusBadRequest)
+			return
+		}
+		limit = parsed
+	}
+
+	attempts, found, err := getWebhookDeliveryAttempts(r.Context(), id, userAddr, limit)
+	if err != nil {
+		http.Error(w, "failed to query webhook deliveries", http.StatusInternalServerError)
+		return
+	}
+	if !found {
+		http.Error(w, "webhook not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"data": attempts,
 	})
 }
 

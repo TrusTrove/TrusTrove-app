@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "description": "Decentralized Trade Finance on Stellar",
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=10"
+  },
   "scripts": {
     "dev": "pnpm --filter web dev",
     "build": "pnpm --filter @trusttrove/sdk build && pnpm --filter @trusttrove/sdk-react build && pnpm --filter @trusttrove/cli build && pnpm --filter web build",
