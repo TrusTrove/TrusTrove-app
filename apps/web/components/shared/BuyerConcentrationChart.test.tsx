@@ -124,7 +124,7 @@ describe("BuyerConcentrationChart", () => {
     );
     expect(
       screen.getByText(
-        /Notice: Some funded exposure lacks complete buyer identity data/i,
+        (content, node) => node?.textContent?.includes("Notice: Some funded exposure lacks complete buyer identity data") ?? false,
       ),
     ).toBeInTheDocument();
   });

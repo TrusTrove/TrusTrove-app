@@ -13,7 +13,11 @@ vi.mock("@/components/shared/ErrorBoundary", () => ({
   ErrorBoundary: ({ children }: { children: unknown }) => children,
 }));
 vi.mock("@/components/shared/PoolPerformanceChart", () => ({
-  PoolPerformanceChart: () => null,
+  PoolPerformanceChart: () => (
+    <div data-testid="mock-pool-performance-chart">
+      Mock Pool Performance Chart
+    </div>
+  ),
 }));
 
 const stats: ProtocolStats = {
