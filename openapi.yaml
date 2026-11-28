@@ -26,8 +26,11 @@ paths:
             type: integer
         - name: limit
           in: query
+          description: Maximum number of items to return
+          required: false
           schema:
             type: integer
+            default: 50
       responses:
         "200":
           description: Successful response
