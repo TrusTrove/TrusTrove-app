@@ -13,7 +13,9 @@ vi.mock("@/components/shared/ErrorBoundary", () => ({
   ErrorBoundary: ({ children }: { children: unknown }) => children,
 }));
 vi.mock("@/components/shared/PoolPerformanceChart", () => ({
-  PoolPerformanceChart: () => null,
+  PoolPerformanceChart: () => (
+    <div data-testid="mock-pool-performance-chart">PoolPerformanceChart</div>
+  ),
 }));
 
 const stats: ProtocolStats = {
@@ -30,6 +32,12 @@ const stats: ProtocolStats = {
 describe("AnalyticsClient", () => {
   beforeEach(() => {
     useStatsMock.mockReset();
+  });
+
+  it("renders statistics and new analytics sections", () => {
+    useStatsMock.mockReturnValue({ stats, isLoading: false, error: null });
+    render(<AnalyticsClient />);
+    expect(screen.getByTestId("mock-pool-performance-chart")).toBeInTheDocument();
   });
 
   it("renders all eight statistic labels and formatted values", () => {
