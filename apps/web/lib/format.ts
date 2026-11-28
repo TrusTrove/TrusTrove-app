@@ -19,7 +19,8 @@ export interface PoolLiquidityStats {
   maxCapacity: bigint;
 }
 
-export type FundingCapacityStatus = "fundable" | "capacity-limited" | "unavailable";
+export type FundingCapacityStatus =
+  "fundable" | "capacity-limited" | "unavailable";
 
 /**
  * Determines the funding capacity status for an invoice given pool stats.
@@ -30,7 +31,7 @@ export type FundingCapacityStatus = "fundable" | "capacity-limited" | "unavailab
  */
 export function getFundingCapacityStatus(
   requiredAmount: bigint,
-  poolStats?: PoolLiquidityStats | null
+  poolStats?: PoolLiquidityStats | null,
 ): FundingCapacityStatus {
   if (!poolStats || poolStats.availableLiquidity < 0n || requiredAmount < 0n) {
     return "unavailable";
@@ -43,4 +44,3 @@ export function getFundingCapacityStatus(
   }
   return "unavailable";
 }
-

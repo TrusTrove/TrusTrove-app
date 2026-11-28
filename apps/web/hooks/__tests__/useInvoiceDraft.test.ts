@@ -9,23 +9,23 @@ vi.mock("@/store/wallet", () => ({
   }),
 }));
 
-describe('useInvoiceDraft', () => {
+describe("useInvoiceDraft", () => {
   beforeEach(() => {
     localStorage.clear();
     vi.clearAllMocks();
   });
 
-  it('should detect no draft initially when wallet is not connected', () => {
+  it("should detect no draft initially when wallet is not connected", () => {
     const { result } = renderHook(() => useInvoiceDraft(undefined));
     expect(result.current.hasDraft).toBe(false);
   });
 
-  it('should save and restore draft per wallet correctly', () => {
-    const walletA = '0xWalletA';
+  it("should save and restore draft per wallet correctly", () => {
+    const walletA = "0xWalletA";
     const { result: hookA } = renderHook(() => useInvoiceDraft(walletA));
 
     act(() => {
-      hookA.current.saveDraft({ amount: '100', memo: 'Test Invoice' });
+      hookA.current.saveDraft({ amount: "100", memo: "Test Invoice" });
     });
 
     const { result: hookA_reload } = renderHook(() => useInvoiceDraft(walletA));
@@ -36,7 +36,7 @@ describe('useInvoiceDraft', () => {
       restoredData = hookA_reload.current.restoreDraft();
     });
 
-    expect(restoredData).toEqual({ amount: '100', memo: 'Test Invoice' });
+    expect(restoredData).toEqual({ amount: "100", memo: "Test Invoice" });
     expect(hookA_reload.current.hasDraft).toBe(false);
 
     act(() => {
@@ -45,13 +45,13 @@ describe('useInvoiceDraft', () => {
     expect(hookA_reload.current.hasDraft).toBe(false);
   });
 
-  it('should not leak drafts between different wallets (permission boundary)', () => {
-    const walletA = '0xWalletA';
-    const walletB = '0xWalletB';
+  it("should not leak drafts between different wallets (permission boundary)", () => {
+    const walletA = "0xWalletA";
+    const walletB = "0xWalletB";
 
     const { result: hookA } = renderHook(() => useInvoiceDraft(walletA));
     act(() => {
-      hookA.current.saveDraft({ amount: '500' });
+      hookA.current.saveDraft({ amount: "500" });
     });
 
     const { result: hookB } = renderHook(() => useInvoiceDraft(walletB));

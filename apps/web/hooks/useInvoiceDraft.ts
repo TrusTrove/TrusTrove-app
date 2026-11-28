@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from "react";
 
 export interface InvoiceDraftData {
   recipient?: string;
@@ -26,7 +26,7 @@ export function useInvoiceDraft(walletAddress: string | undefined) {
       const raw = localStorage.getItem(storageKey);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === 'object') {
+        if (parsed && typeof parsed === "object") {
           setHasDraft(true);
           setRestored(false);
         } else {
@@ -41,14 +41,17 @@ export function useInvoiceDraft(walletAddress: string | undefined) {
     }
   }, [storageKey]);
 
-  const saveDraft = useCallback((data: InvoiceDraftData) => {
-    if (!storageKey) return;
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(data));
-    } catch (e) {
-      console.error('Failed to save invoice draft', e);
-    }
-  }, [storageKey]);
+  const saveDraft = useCallback(
+    (data: InvoiceDraftData) => {
+      if (!storageKey) return;
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(data));
+      } catch (e) {
+        console.error("Failed to save invoice draft", e);
+      }
+    },
+    [storageKey],
+  );
 
   const clearDraft = useCallback(() => {
     if (!storageKey) return;
@@ -57,7 +60,7 @@ export function useInvoiceDraft(walletAddress: string | undefined) {
       setHasDraft(false);
       setRestored(false);
     } catch (e) {
-      console.error('Failed to clear invoice draft', e);
+      console.error("Failed to clear invoice draft", e);
     }
   }, [storageKey]);
 
@@ -72,7 +75,7 @@ export function useInvoiceDraft(walletAddress: string | undefined) {
         return parsed;
       }
     } catch (e) {
-      console.error('Failed to restore invoice draft', e);
+      console.error("Failed to restore invoice draft", e);
     }
     return null;
   }, [storageKey]);

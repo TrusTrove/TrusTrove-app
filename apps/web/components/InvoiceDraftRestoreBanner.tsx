@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 
 interface InvoiceDraftRestoreBannerProps {
   hasDraft: boolean;
@@ -6,18 +6,23 @@ interface InvoiceDraftRestoreBannerProps {
   onDiscard: () => void;
 }
 
-export const InvoiceDraftRestoreBanner: React.FC<InvoiceDraftRestoreBannerProps> = ({
-  hasDraft,
-  onRestore,
-  onDiscard,
-}) => {
+export const InvoiceDraftRestoreBanner: React.FC<
+  InvoiceDraftRestoreBannerProps
+> = ({ hasDraft, onRestore, onDiscard }) => {
   if (!hasDraft) return null;
 
   return (
-    <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 mb-4 rounded-md flex items-center justify-between shadow-sm" data-testid="invoice-draft-banner">
+    <div
+      className="bg-amber-50 border border-amber-200 text-amber-800 p-4 mb-4 rounded-md flex items-center justify-between shadow-sm"
+      data-testid="invoice-draft-banner"
+    >
       <div>
-        <p className="font-medium text-sm">We found a saved invoice draft for this wallet.</p>
-        <p className="text-xs text-amber-700">Would you like to restore your previous non-secret form fields?</p>
+        <p className="font-medium text-sm">
+          We found a saved invoice draft for this wallet.
+        </p>
+        <p className="text-xs text-amber-700">
+          Would you like to restore your previous non-secret form fields?
+        </p>
       </div>
       <div className="flex space-x-2">
         <button

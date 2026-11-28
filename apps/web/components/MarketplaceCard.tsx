@@ -1,5 +1,8 @@
 import React from "react";
-import { getFundingCapacityStatus, type PoolLiquidityStats } from "@/lib/format";
+import {
+  getFundingCapacityStatus,
+  type PoolLiquidityStats,
+} from "@/lib/format";
 
 interface MarketplaceCardProps {
   id: string;
@@ -52,9 +55,14 @@ export function MarketplaceCard({
   };
 
   return (
-    <div className="bg-card border border-border rounded-xl p-5 flex flex-col justify-between space-y-4" data-testid="marketplace-card">
+    <div
+      className="bg-card border border-border rounded-xl p-5 flex flex-col justify-between space-y-4"
+      data-testid="marketplace-card"
+    >
       <div className="flex items-center justify-between">
-        <span className="text-xs font-mono text-muted-foreground">Invoice #{id.slice(0, 8)}</span>
+        <span className="text-xs font-mono text-muted-foreground">
+          Invoice #{id.slice(0, 8)}
+        </span>
         <span
           data-testid="capacity-badge"
           className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${statusStyles[status]}`}
@@ -64,8 +72,12 @@ export function MarketplaceCard({
       </div>
 
       <div className="space-y-1">
-        <span className="text-[10px] text-muted-foreground font-mono uppercase block">Face Value</span>
-        <span className="text-lg font-bold font-mono text-foreground">{faceValue.toString()} USDC</span>
+        <span className="text-[10px] text-muted-foreground font-mono uppercase block">
+          Face Value
+        </span>
+        <span className="text-lg font-bold font-mono text-foreground">
+          {faceValue.toString()} USDC
+        </span>
       </div>
 
       {onFund && (

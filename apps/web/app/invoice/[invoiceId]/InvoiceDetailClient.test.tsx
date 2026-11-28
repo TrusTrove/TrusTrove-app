@@ -465,7 +465,9 @@ describe("InvoiceDetailClient", () => {
     });
     expect(refButton).toHaveTextContent("COPY");
     expect(
-      screen.getByText(/Off-chain fiat or wire transfers do not automatically settle/i),
+      screen.getByText(
+        /Off-chain fiat or wire transfers do not automatically settle/i,
+      ),
     ).toBeInTheDocument();
 
     fireEvent.click(refButton);
@@ -497,9 +499,7 @@ describe("InvoiceDetailClient", () => {
     expect(screen.getByText(/TT-PAY-SHORT/i)).toBeInTheDocument();
 
     fireEvent.click(refButton);
-    await waitFor(() =>
-      expect(writeText).toHaveBeenCalledWith("TT-PAY-SHORT"),
-    );
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("TT-PAY-SHORT"));
   });
 
   it("gives the issuer and buyer copy buttons distinct accessible names", () => {

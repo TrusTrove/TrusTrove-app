@@ -16,7 +16,7 @@ describe("MarketplaceCard funding capacity indicator", () => {
         poolStats={{ availableLiquidity: 2000n, maxCapacity: 5000n }}
         onFund={mockOnFund}
         onFunded={mockOnFunded}
-      />
+      />,
     );
 
     const badge = screen.getByTestId("capacity-status");
@@ -37,7 +37,7 @@ describe("MarketplaceCard funding capacity indicator", () => {
         faceValue={1000n}
         fundedAmount={0n}
         poolStats={{ availableLiquidity: 500n, maxCapacity: 5000n }}
-      />
+      />,
     );
 
     const badge = screen.getByTestId("capacity-status");
@@ -54,7 +54,7 @@ describe("MarketplaceCard funding capacity indicator", () => {
         faceValue={1000n}
         fundedAmount={0n}
         poolStats={{ availableLiquidity: 0n, maxCapacity: 5000n }}
-      />
+      />,
     );
 
     const badge = screen.getByTestId("capacity-status");
