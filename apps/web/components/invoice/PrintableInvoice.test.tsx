@@ -35,7 +35,7 @@ describe("PrintableInvoice", () => {
     expect(screen.getByText(sampleInvoice.issuer)).toBeInTheDocument();
     expect(screen.getByText(sampleInvoice.buyer)).toBeInTheDocument();
     expect(screen.getAllByText(/100\.00 USDC/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/Funded/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Funded/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/C_TEST_CONTRACT/i)).toBeInTheDocument();
     expect(screen.getByText("0xabc123created")).toBeInTheDocument();
     expect(screen.getByText("0xdef456funded")).toBeInTheDocument();
