@@ -13,7 +13,10 @@ import {
   Activity,
   Zap,
 } from "lucide-react";
+import { useState, useEffect } from "react";
 import { useRecentEvents } from "@/hooks/useEvents";
+import { readStoredReducedDataMode, storeReducedDataMode } from "@/lib/storage";
+import { RefreshCw, WifiOff } from "lucide-react";
 import { InvoiceFeedSkeleton } from "@/components/shared/SkeletonLoader";
 import { getEventDataString, type EventLog } from "@/types";
 
@@ -86,12 +89,38 @@ function toFeedEntry(event: EventLog): FeedEntry {
 }
 
 export function InvoiceFeed() {
-  const { events, isLoading } = useRecentEvents(FEED_LIMIT, {
-    refetchInterval: POLL_INTERVAL_MS,
+  const [reducedData, setReducedData] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
+  useEffect(() => {
+    setReducedData(readStoredReducedDataMode());
+    setLastUpdated(new Date());
+  }, []);
+
+  const { events, isLoading, refetch } = useRecentEvents(FEED_LIMIT, {
+    refetchInterval: reducedData ? undefined : POLL_INTERVAL_MS,
   });
 
+  useEffect(() => {
+    if (events && events.length > 0) {
+      setLastUpdated(new Date());
+    }
+  }, [events]);
+
+  const handleToggleReducedData = () => {
+    const next = !reducedData;
+    setReducedData(next);
+    storeReducedDataMode(next);
+    window.dispatchEvent(new Event("storage"));
+  };
+
+  const handleManualRefresh = async () => {
+    await refetch();
+    setLastUpdated(new Date());
+  };
+
   const items = useMemo(
-    () => events.slice(0, FEED_LIMIT).map(toFeedEntry),
+    () => events.slice(0, FEED_LIMIT).map((e) => toFeedEntry(e as EventLog)),
     [events],
   );
 
@@ -108,9 +137,29 @@ export function InvoiceFeed() {
           <Zap className="w-3.5 h-3.5" aria-hidden="true" />
           Live Financing Feed
         </h2>
-        <span className="text-[9px] font-mono text-muted-foreground uppercase">
-          Realtime testnet activity
-        </span>
+        <div className="flex items-center gap-3">
+          {lastUpdated && (
+            <span className="text-[9px] font-mono text-muted-foreground uppercase">
+              Updated {lastUpdated.toLocaleTimeString()}
+            </span>
+          )}
+          <button
+            onClick={handleManualRefresh}
+            className="text-[9px] font-mono text-primary flex items-center gap-1 hover:underline"
+            title="Refresh feed data"
+          >
+            <RefreshCw className="w-3 h-3" />
+            Refresh
+          </button>
+          <button
+            onClick={handleToggleReducedData}
+            className={`text-[9px] font-mono px-1.5 py-0.5 rounded border transition ${reducedData ? "bg-primary/25 border-primary text-primary" : "border-border text-muted-foreground hover:text-foreground"}`}
+            title="Toggle reduced-data mode"
+          >
+            <WifiOff className="w-3 h-3 inline mr-1" />
+            {reducedData ? "Reduced-Data On" : "Reduced-Data Off"}
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 p-4 relative overflow-hidden flex flex-col gap-3 justify-start">
