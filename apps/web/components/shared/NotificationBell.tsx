@@ -5,6 +5,29 @@ import { Bell } from "lucide-react";
 import { NotificationEvent } from "@/types/notifications";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 
+export type NotificationFilter = "all" | "invoice" | "funding" | "delivery";
+
+function matchesActivityFilter(
+  notif: NotificationEvent,
+  filter: NotificationFilter,
+): boolean {
+  if (filter === "all") return true;
+  const kind = notif.type.toLowerCase();
+  if (filter === "funding") {
+    return (
+      kind.includes("funded") ||
+      kind.includes("listed") ||
+      kind.includes("repaid") ||
+      kind.includes("defaulted") ||
+      kind.includes("pool")
+    );
+  }
+  if (filter === "delivery") {
+    return kind.includes("shipped") || kind.includes("delivery");
+  }
+  return kind.includes("invoice") || kind.includes("created");
+}
+
 export function NotificationBell({
   notifications = [],
   onOpen,
@@ -13,10 +36,14 @@ export function NotificationBell({
   onOpen?: () => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [filter, setFilter] = useState<NotificationFilter>("all");
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
+  const filteredNotifications = notifications.filter((n) =>
+    matchesActivityFilter(n, filter),
+  );
 
   const handleClose = () => setIsOpen(false);
 
@@ -83,13 +110,49 @@ export function NotificationBell({
               )}
             </div>
 
+            {notifications.length > 0 && (
+              <div
+                className="flex items-center gap-1 px-1 pb-2 mb-1 border-b border-border/30"
+                role="tablist"
+                aria-label="Filter notifications by activity"
+              >
+                {(
+                  [
+                    ["all", "All"],
+                    ["invoice", "Invoices"],
+                    ["funding", "Funding"],
+                    ["delivery", "Delivery"],
+                  ] as const
+                ).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    role="tab"
+                    aria-selected={filter === key}
+                    onClick={() => setFilter(key)}
+                    className={`px-2 py-0.5 rounded text-[10px] font-mono transition-colors ${
+                      filter === key
+                        ? "bg-primary/15 text-primary font-bold"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {notifications.length === 0 ? (
               <div className="px-4 py-8 text-center text-foreground/70 text-xs font-mono">
                 No notifications yet
               </div>
+            ) : filteredNotifications.length === 0 ? (
+              <div className="px-4 py-6 text-center text-foreground/70 text-xs font-mono">
+                No matching activity
+              </div>
             ) : (
               <div className="flex flex-col gap-1">
-                {notifications.map((notif) => (
+                {filteredNotifications.map((notif) => (
                   <div
                     key={notif.id}
                     className={`p-3 rounded-lg border text-left transition-colors ${

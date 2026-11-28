@@ -46,4 +46,39 @@ describe("NotificationBell", () => {
 
     expect(onOpen).toHaveBeenCalledTimes(1);
   });
+
+  it("filters notifications by activity category", () => {
+    const mockNotifs = [
+      {
+        id: "1",
+        type: "Invoice Funded",
+        invoiceId: "inv1",
+        message: "INV#1 funded",
+        timestamp: Date.now() / 1000 - 60,
+        read: false,
+      },
+      {
+        id: "2",
+        type: "Delivery Confirmed",
+        invoiceId: "inv2",
+        message: "INV#2 confirmed",
+        timestamp: Date.now() / 1000 - 120,
+        read: true,
+      },
+    ];
+
+    render(<NotificationBell notifications={mockNotifs} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /notifications/i }));
+    expect(screen.getByText("Invoice Funded")).toBeDefined();
+    expect(screen.getByText("Delivery Confirmed")).toBeDefined();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Delivery" }));
+    expect(screen.queryByText("Invoice Funded")).toBeNull();
+    expect(screen.getByText("Delivery Confirmed")).toBeDefined();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Funding" }));
+    expect(screen.getByText("Invoice Funded")).toBeDefined();
+    expect(screen.queryByText("Delivery Confirmed")).toBeNull();
+  });
 });
