@@ -8,7 +8,7 @@ import {
   numberToStroops,
   stroopsToNumber,
 } from "./assets";
-import { USDC_ISSUER } from "./env";
+
 
 describe("asset helpers", () => {
   it("formats default and asset-specific amounts", () => {

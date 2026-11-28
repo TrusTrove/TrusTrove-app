@@ -107,8 +107,8 @@ describe("parseInvoiceResponse", () => {
   });
 
   it("coerces missing discount_bps to 0", () => {
-    const { discount_bps: _discount, ...withoutDiscount } = VALID_RAW;
-    void _discount;
+    const { discount_bps: __, ...withoutDiscount } = VALID_RAW;
+    void __;
     const result = parseInvoiceResponse(withoutDiscount);
     expect(result.discountBps).toBe(0);
   });
