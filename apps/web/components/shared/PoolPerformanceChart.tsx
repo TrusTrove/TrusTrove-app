@@ -180,6 +180,60 @@ export function PoolMaturityDistributionChart({
   );
 }
 
+export function BuyerConcentrationChart({ data }: { data: Array<{ buyer: string; name?: string; fundedAmount: number; totalPoolAmount: number }> }) {
+  const totalFunded = data.reduce((acc, item) => acc + item.fundedAmount, 0);
+  return (
+    <div className="p-4 bg-card border border-border rounded-lg space-y-3">
+      <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-muted-foreground">Buyer Concentration</h3>
+      {data.length === 0 ? (
+        <div className="text-xs text-muted-foreground font-mono p-4 text-center">Buyer identity data unavailable or empty exposure</div>
+      ) : (
+        <div className="space-y-2">
+          {data.map((item) => {
+            const percentage = totalFunded > 0 ? (item.fundedAmount / totalFunded) * 100 : 0;
+            return (
+              <div key={item.buyer} className="space-y-1">
+                <div className="flex justify-between text-xs font-mono">
+                  <span className="text-foreground truncate max-w-[200px]" title={item.buyer}>{item.name || item.buyer}</span>
+                  <span className="text-muted-foreground">${item.fundedAmount.toLocaleString()} ({percentage.toFixed(1)}%)</span>
+                </div>
+                <div className="w-full bg-secondary h-2 rounded overflow-hidden">
+                  <div className="bg-primary h-full" style={{ width: `${Math.min(percentage, 100)}%` }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function PoolMaturityDistributionChart({ data }: { data: Array<{ band: string; amount: number }> }) {
+  const total = data.reduce((acc, item) => acc + item.amount, 0);
+  return (
+    <div className="p-4 bg-card border border-border rounded-lg space-y-3">
+      <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-muted-foreground">Pool Maturity Distribution & Overdue</h3>
+      <div className="space-y-2">
+        {data.map((item) => {
+          const pct = total > 0 ? (item.amount / total) * 100 : 0;
+          return (
+            <div key={item.band} className="space-y-1">
+              <div className="flex justify-between text-xs font-mono">
+                <span className="text-foreground uppercase">{item.band}</span>
+                <span className="text-muted-foreground">${item.amount.toLocaleString()} ({pct.toFixed(1)}%)</span>
+              </div>
+              <div className="w-full bg-secondary h-2 rounded overflow-hidden">
+                <div className={item.band.toLowerCase() === 'overdue' ? 'bg-destructive h-full' : 'bg-primary h-full'} style={{ width: `${Math.min(pct, 100)}%` }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function PoolPerformanceChart({
   snapshots: snapshotsProp,
   isLoading: isLoadingProp = false,

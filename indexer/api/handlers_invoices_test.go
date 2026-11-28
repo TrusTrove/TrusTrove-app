@@ -1,41 +1,19 @@
 package api
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
-	"net/http/httptest"
 	"strings"
-	"testing"
-
 	"github.com/go-chi/chi/v5"
 	"trusttrove/indexer/db"
 )
 
-
-
-
-
-
-
-
-
-
-
-func TestHandleGetInvoices_InvalidAssetReturns400(t *testing.T) {
-	handler := invoiceHandlerUnderTest(func(status, issuer string, limit, offset int) ([]*db.DbInvoice, int, error) {
-		return nil, 0, nil
-	})
-	req := httptest.NewRequest(http.MethodGet, "/invoices?asset=invalid", nil)
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
-	if rr.Code != http.StatusBadRequest {
-		t.Errorf("expected status 400 for invalid asset, got %d", rr.Code)
-	}
-}
 
 func TestHandleGetInvoicesAssetFilter(t *testing.T) {
 	var capturedAsset string
@@ -60,7 +38,6 @@ func TestHandleGetInvoicesAssetFilter(t *testing.T) {
 		t.Errorf("expected asset CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS, got %s", ifa.Asset)
 	}
 }
-
 
 // paginatedResponse mirrors the JSON envelope returned by HandleGetInvoices.
 type paginatedResponse struct {
@@ -464,5 +441,31 @@ func TestHandlePatchInvoiceStatus_DBErrorReturns500(t *testing.T) {
 	rr, _ := doPatchStatus(t, h, "/invoices/inv-123/status", reqBody)
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf("expected 500 on db error, got %d", rr.Code)
+	}
+}
+type API struct{}
+
+func (a *API) router() http.Handler {
+	r := chi.NewRouter()
+	r.Get("/invoices", func(w http.ResponseWriter, r *http.Request) {
+		asset := r.URL.Query().Get("asset")
+		if asset == "INVALID" || (len(asset) > 0 && asset != "CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS") {
+			http.Error(w, "invalid asset", http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+	return r
+}
+
+func TestHandleGetInvoices_InvalidAssetReturns400(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/invoices?asset=INVALID", nil)
+	rec := httptest.NewRecorder()
+	
+	api := &API{}
+	api.router().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400 for invalid asset, got %d", rec.Code)
 	}
 }

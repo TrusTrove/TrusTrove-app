@@ -7,6 +7,12 @@ paths:
     get:
       summary: List invoices
       parameters:
+        - name: asset
+          in: query
+          required: false
+          description: Exact funding asset contract ID to filter invoices by
+          schema:
+            type: string
         - name: status
           in: query
           schema:
