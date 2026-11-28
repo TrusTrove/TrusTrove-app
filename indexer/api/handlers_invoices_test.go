@@ -15,6 +15,37 @@ import (
 	"trusttrove/indexer/db"
 )
 
+func TestHandleGetInvoicesAssetFilter(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/invoices?asset=invalid", nil)
+	rr := httptest.NewRecorder()
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		asset := r.URL.Query().Get("asset")
+		if asset != "" {
+			if len(asset) != 56 || (asset[0] != 'C' && asset[0] != 'G') {
+				http.Error(w, "invalid asset contract id format", http.StatusBadRequest)
+				return
+			}
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400 for invalid asset format, got %d", rr.Code)
+	}
+}
+
+func TestHandleGetInvoices_InvalidAssetReturns400(t *testing.T) {
+	handler := &APIHandler{}
+	req := httptest.NewRequest(http.MethodGet, "/invoices?asset=invalid", nil)
+	rr := httptest.NewRecorder()
+	handler.HandleGetInvoices(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400 for invalid asset, got %d", rr.Code)
+	}
+}
+
 // paginatedResponse mirrors the JSON envelope returned by HandleGetInvoices.
 type paginatedResponse struct {
 	Data       []db.DbInvoice `json:"data"`
@@ -35,7 +66,7 @@ type invoicesPageFunc func(status, issuer string, limit, offset int) ([]*db.DbIn
 func invoiceHandlerUnderTest(fn invoicesPageFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		status := r.URL.Query().Get("status")
-		issuer := r.URL.Query().Get("issuer")
+		issue := r.URL.Query().Get("issuer")
 
 		page := 1
 		limit := 20
@@ -64,7 +95,7 @@ func invoiceHandlerUnderTest(fn invoicesPageFunc) http.HandlerFunc {
 
 		offset := (page - 1) * limit
 
-		invoices, total, err := fn(status, issuer, limit, offset)
+		invoices, total, err := fn(status, issue, limit, offset)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("failed to retrieve invoices: %s", err.Error()), http.StatusInternalServerError)
 			return
