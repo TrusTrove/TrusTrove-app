@@ -9,8 +9,12 @@ interface InvoiceWatchlistButtonProps {
   invoiceData?: { status?: string; exists?: boolean };
 }
 
-export function InvoiceWatchlistButton({ invoiceId, invoiceData }: InvoiceWatchlistButtonProps) {
-  const { isBookmarked, addBookmark, removeBookmark, checkInvoiceStatus } = useWatchlist();
+export function InvoiceWatchlistButton({
+  invoiceId,
+  invoiceData,
+}: InvoiceWatchlistButtonProps) {
+  const { isBookmarked, addBookmark, removeBookmark, checkInvoiceStatus } =
+    useWatchlist();
   const bookmarked = isBookmarked(invoiceId);
   const status = checkInvoiceStatus(invoiceData);
   const isStale = status === "stale";
@@ -28,7 +32,11 @@ export function InvoiceWatchlistButton({ invoiceId, invoiceData }: InvoiceWatchl
             addBookmark(invoiceId);
           }
         }}
-        aria-label={bookmarked ? "Remove invoice from watchlist" : "Bookmark invoice in watchlist"}
+        aria-label={
+          bookmarked
+            ? "Remove invoice from watchlist"
+            : "Bookmark invoice in watchlist"
+        }
         className={`inline-flex items-center justify-center p-2 rounded-md transition-colors border ${
           bookmarked
             ? "bg-teal-500/10 border-teal-500/30 text-teal-400 hover:bg-teal-500/20"

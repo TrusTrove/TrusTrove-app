@@ -580,8 +580,8 @@ export default function InvoiceDetailClient({
             </div>
 
             {address && (
-            <div className="bg-card border border-border rounded-lg p-5 space-y-4">
-              <h2 className="text-xs font-bold font-mono text-foreground uppercase tracking-wider border-b border-border/40 pb-2 flex items-center gap-1.5">
+              <div className="bg-card border border-border rounded-lg p-5 space-y-4">
+                <h2 className="text-xs font-bold font-mono text-foreground uppercase tracking-wider border-b border-border/40 pb-2 flex items-center gap-1.5">
                   <Activity className="w-3.5 h-3.5 text-primary" />
                   Notification Muting
                 </h2>
@@ -596,7 +596,9 @@ export default function InvoiceDetailClient({
                     className="w-full"
                     onClick={toggleMute}
                   >
-                    {muted ? "Unmute Invoice Notifications" : "Mute Invoice Notifications"}
+                    {muted
+                      ? "Unmute Invoice Notifications"
+                      : "Mute Invoice Notifications"}
                   </Button>
                 </div>
               </div>

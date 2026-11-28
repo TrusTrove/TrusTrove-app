@@ -55,7 +55,9 @@ export function readMutedInvoices(storageKey: string): string[] {
     if (stored) {
       const parsed = JSON.parse(stored);
       if (Array.isArray(parsed)) {
-        return parsed.filter((id): id is string => typeof id === "string" && id.length > 0);
+        return parsed.filter(
+          (id): id is string => typeof id === "string" && id.length > 0,
+        );
       }
     }
   } catch {

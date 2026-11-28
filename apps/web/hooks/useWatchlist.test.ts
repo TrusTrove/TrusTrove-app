@@ -14,7 +14,10 @@ describe("useWatchlist", () => {
   });
 
   it("returns empty watchlist when wallet is not connected", () => {
-    vi.mocked(useWallet).mockReturnValue({ connected: false, address: null } as any);
+    vi.mocked(useWallet).mockReturnValue({
+      connected: false,
+      address: null,
+    } as any);
     const { result } = renderHook(() => useWatchlist());
     expect(result.current.watchlist).toEqual([]);
   });
@@ -55,7 +58,11 @@ describe("useWatchlist", () => {
 
     expect(result.current.checkInvoiceStatus(null)).toBe("stale");
     expect(result.current.checkInvoiceStatus({ exists: false })).toBe("stale");
-    expect(result.current.checkInvoiceStatus({ status: "DELISTED" })).toBe("stale");
-    expect(result.current.checkInvoiceStatus({ status: "ACTIVE" })).toBe("active");
+    expect(result.current.checkInvoiceStatus({ status: "DELISTED" })).toBe(
+      "stale",
+    );
+    expect(result.current.checkInvoiceStatus({ status: "ACTIVE" })).toBe(
+      "active",
+    );
   });
 });

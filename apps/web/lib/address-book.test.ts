@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { getAddressBook, setAddressAlias, removeAddressAlias, resolveAddressAlias } from "./address-book";
+import {
+  getAddressBook,
+  setAddressAlias,
+  removeAddressAlias,
+  resolveAddressAlias,
+} from "./address-book";
 
 describe("Address Book Aliases", () => {
   const wallet = "GWALLET123";

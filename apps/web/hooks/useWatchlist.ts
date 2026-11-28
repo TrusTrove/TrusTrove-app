@@ -9,7 +9,8 @@ export function useWatchlist() {
   const { address, connected } = useWallet();
   const [watchlist, setWatchlist] = useState<string[]>([]);
 
-  const storageKey = connected && address ? `${WATCHLIST_STORAGE_PREFIX}${address}` : null;
+  const storageKey =
+    connected && address ? `${WATCHLIST_STORAGE_PREFIX}${address}` : null;
 
   useEffect(() => {
     if (!storageKey) {
@@ -41,7 +42,7 @@ export function useWatchlist() {
         // ignore quota or storage errors
       }
     },
-    [storageKey]
+    [storageKey],
   );
 
   const addBookmark = useCallback(
@@ -51,7 +52,7 @@ export function useWatchlist() {
         saveWatchlist([...watchlist, invoiceId]);
       }
     },
-    [storageKey, watchlist, saveWatchlist]
+    [storageKey, watchlist, saveWatchlist],
   );
 
   const removeBookmark = useCallback(
@@ -59,22 +60,31 @@ export function useWatchlist() {
       if (!storageKey) return;
       saveWatchlist(watchlist.filter((id) => id !== invoiceId));
     },
-    [storageKey, watchlist, saveWatchlist]
+    [storageKey, watchlist, saveWatchlist],
   );
 
   const isBookmarked = useCallback(
     (invoiceId: string) => {
       return watchlist.includes(invoiceId);
     },
-    [watchlist]
+    [watchlist],
   );
 
-  const checkInvoiceStatus = useCallback((invoice: { status?: string; exists?: boolean } | null | undefined) => {
-    if (!invoice || invoice.exists === false || invoice.status === "DELISTED" || invoice.status === "EXPIRED" || invoice.status === "STALE") {
-      return "stale";
-    }
-    return "active";
-  }, []);
+  const checkInvoiceStatus = useCallback(
+    (invoice: { status?: string; exists?: boolean } | null | undefined) => {
+      if (
+        !invoice ||
+        invoice.exists === false ||
+        invoice.status === "DELISTED" ||
+        invoice.status === "EXPIRED" ||
+        invoice.status === "STALE"
+      ) {
+        return "stale";
+      }
+      return "active";
+    },
+    [],
+  );
 
   return {
     watchlist,

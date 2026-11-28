@@ -52,7 +52,12 @@ describe("InvoiceWatchlistButton", () => {
   it("clearly marks stale or delisted invoices when bookmarked", () => {
     isBookmarked.mockReturnValue(true);
     checkInvoiceStatus.mockReturnValue("stale");
-    render(<InvoiceWatchlistButton invoiceId="inv-abc" invoiceData={{ status: "DELISTED" }} />);
+    render(
+      <InvoiceWatchlistButton
+        invoiceId="inv-abc"
+        invoiceData={{ status: "DELISTED" }}
+      />,
+    );
 
     expect(screen.getByText(/Stale \/ Delisted/i)).toBeInTheDocument();
   });

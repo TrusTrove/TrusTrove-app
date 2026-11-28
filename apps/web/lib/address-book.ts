@@ -6,7 +6,9 @@ export interface AddressBookEntry {
   updatedAt: number;
 }
 
-export function getAddressBook(address?: string | null): Record<string, string> {
+export function getAddressBook(
+  address?: string | null,
+): Record<string, string> {
   if (!address || typeof window === "undefined") return {};
   try {
     const raw = window.localStorage.getItem(addressBookKey(address));
@@ -27,7 +29,11 @@ export function getAddressBook(address?: string | null): Record<string, string> 
   return {};
 }
 
-export function setAddressAlias(address: string, targetAddress: string, alias: string): Record<string, string> {
+export function setAddressAlias(
+  address: string,
+  targetAddress: string,
+  alias: string,
+): Record<string, string> {
   if (!address || typeof window === "undefined") return {};
   const current = getAddressBook(address);
   const trimmed = alias.trim();
@@ -45,11 +51,17 @@ export function setAddressAlias(address: string, targetAddress: string, alias: s
   return next;
 }
 
-export function removeAddressAlias(address: string, targetAddress: string): Record<string, string> {
+export function removeAddressAlias(
+  address: string,
+  targetAddress: string,
+): Record<string, string> {
   return setAddressAlias(address, targetAddress, "");
 }
 
-export function resolveAddressAlias(address: string | null | undefined, targetAddress: string): string {
+export function resolveAddressAlias(
+  address: string | null | undefined,
+  targetAddress: string,
+): string {
   if (!address) return targetAddress;
   const book = getAddressBook(address);
   return book[targetAddress] || targetAddress;

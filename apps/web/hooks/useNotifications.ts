@@ -146,11 +146,17 @@ export function useNotifications() {
       if (p) prefs = JSON.parse(p);
     } catch {}
 
-    const mutedInvoicesSet = new Set(readMutedInvoices(mutedInvoicesStorageKey(address)));
+    const mutedInvoicesSet = new Set(
+      readMutedInvoices(mutedInvoicesStorageKey(address)),
+    );
 
     const allNotifs = Array.from(notifMap.values());
     const combined = allNotifs
-      .filter((n) => prefs[n.type] !== false && (!n.invoiceId || !mutedInvoicesSet.has(n.invoiceId)))
+      .filter(
+        (n) =>
+          prefs[n.type] !== false &&
+          (!n.invoiceId || !mutedInvoicesSet.has(n.invoiceId)),
+      )
       .sort((a, b) => b.timestamp - a.timestamp);
 
     setNotifications(combined);

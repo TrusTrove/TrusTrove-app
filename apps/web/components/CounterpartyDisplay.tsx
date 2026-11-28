@@ -19,12 +19,10 @@ export function CounterpartyDisplay({
 
   return (
     <div className="inline-flex flex-col">
-      {hasAlias && (
-        <span className="font-medium text-gray-900">
-          {alias}
-        </span>
-      )}
-      <span className={`${hasAlias ? "text-xs text-gray-500 font-mono" : "text-sm text-gray-900 font-mono"}`}>
+      {hasAlias && <span className="font-medium text-gray-900">{alias}</span>}
+      <span
+        className={`${hasAlias ? "text-xs text-gray-500 font-mono" : "text-sm text-gray-900 font-mono"}`}
+      >
         {counterpartyAddress}
       </span>
     </div>

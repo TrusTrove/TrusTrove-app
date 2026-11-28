@@ -1,7 +1,11 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { getAddressBook, setAddressAlias, removeAddressAlias } from "../lib/address-book";
+import {
+  getAddressBook,
+  setAddressAlias,
+  removeAddressAlias,
+} from "../lib/address-book";
 
 interface AddressBookManagerProps {
   walletAddress: string | null;
@@ -32,7 +36,11 @@ export function AddressBookManager({ walletAddress }: AddressBookManagerProps) {
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (!targetAddress.trim()) return;
-    const next = setAddressAlias(walletAddress, targetAddress.trim(), aliasInput);
+    const next = setAddressAlias(
+      walletAddress,
+      targetAddress.trim(),
+      aliasInput,
+    );
     setAliases(next);
     setTargetAddress("");
     setAliasInput("");
@@ -63,7 +71,9 @@ export function AddressBookManager({ walletAddress }: AddressBookManagerProps) {
         </h3>
         <form onSubmit={handleSave} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700">Counterparty Address</label>
+            <label className="block text-sm font-medium text-gray-700">
+              Counterparty Address
+            </label>
             <input
               type="text"
               disabled={Boolean(editingTarget)}
@@ -74,7 +84,9 @@ export function AddressBookManager({ walletAddress }: AddressBookManagerProps) {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Alias</label>
+            <label className="block text-sm font-medium text-gray-700">
+              Alias
+            </label>
             <input
               type="text"
               value={aliasInput}
@@ -108,16 +120,22 @@ export function AddressBookManager({ walletAddress }: AddressBookManagerProps) {
       </div>
 
       <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Saved Aliases</h3>
+        <h3 className="text-lg font-medium text-gray-900 mb-4">
+          Saved Aliases
+        </h3>
         {Object.keys(aliases).length === 0 ? (
-          <p className="text-sm text-gray-500">No aliases saved for this wallet yet.</p>
+          <p className="text-sm text-gray-500">
+            No aliases saved for this wallet yet.
+          </p>
         ) : (
           <ul className="divide-y divide-gray-200">
             {Object.entries(aliases).map(([addr, alias]) => (
               <li key={addr} className="py-4 flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-900">{alias}</p>
-                  <p className="text-xs text-gray-500 font-mono">Full Address: {addr}</p>
+                  <p className="text-xs text-gray-500 font-mono">
+                    Full Address: {addr}
+                  </p>
                 </div>
                 <div className="flex space-x-2">
                   <button
