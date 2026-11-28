@@ -17,7 +17,6 @@ import type { PoolSnapshot } from "@/types";
 import { SkeletonShimmer } from "./SkeletonLoader";
 import { calculateMaturityDistribution } from "@/hooks/usePoolChartData";
 
-
 export function BuyerConcentrationChart({ data }: { data: Array<{ buyer: string; name?: string; fundedAmount: number; totalPoolAmount: number }> }) {
   const totalFunded = data.reduce((acc, item) => acc + item.fundedAmount, 0);
   return (
