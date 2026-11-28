@@ -12,62 +12,10 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { getInvoices, getPoolSnapshots } from "@/lib/api";
-import { calculateMaturityDistribution } from "@/hooks/usePoolChartData";
+import { getPoolSnapshots } from "@/lib/api";
 import type { PoolSnapshot } from "@/types";
 import { SkeletonShimmer } from "./SkeletonLoader";
-
-const STROOPS_PER_USDC = 10_000_000;
-
-export interface PoolPerformanceChartProps {
-  /** Pre-loaded snapshots. When omitted, the chart fetches via getPoolSnapshots(). */
-  snapshots?: PoolSnapshot[];
-  /** Force the loading state (e.g. when the parent is still fetching). */
-  isLoading?: boolean;
-  /** Fetch/render error to surface gracefully instead of the chart. */
-  error?: unknown;
-  /** Optional heading override. */
-  title?: string;
-}
-
-interface ChartPoint {
-  date: string;
-  utilizationPct: number;
-  yieldUsdc: number;
-}
-
-function toMillis(ts: number): number {
-  // Snapshots may carry seconds or milliseconds; normalize defensively.
-  return ts > 1e12 ? ts : ts * 1000;
-}
-
-export function formatSnapshotPoint(snapshot: PoolSnapshot): ChartPoint {
-  const yieldRaw = Number(snapshot.totalYieldDistributed);
-  return {
-    date: new Date(toMillis(snapshot.timestamp)).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-    }),
-    utilizationPct: snapshot.utilizationRateBps / 100,
-    yieldUsdc: Number.isFinite(yieldRaw) ? yieldRaw / STROOPS_PER_USDC : 0,
-  };
-}
-
-/**
- * Reusable pool performance chart rendering utilization rate and cumulative
- * yield over time from indexer pool snapshots.
- *
- * Data can be supplied via `snapshots` or fetched internally with
- * `getPoolSnapshots()`. Loading uses the shared skeleton pattern, and empty
- * / error states render graceful fallbacks. A visually-hidden text summary
- * keeps the trend accessible to screen readers.
- */
-export interface MaturityDistributionItem {
-  id: string;
-  fundedAmount: string | bigint;
-  dueDate: number;
-  status?: string;
-}
+import { calculateMaturityDistribution } from "@/hooks/usePoolChartData";
 
 export interface PoolMaturityDistributionChartProps {
   invoices?: MaturityDistributionItem[];
@@ -233,6 +181,59 @@ export function PoolMaturityDistributionChart({ data }: { data: Array<{ band: st
     </div>
   );
 }
+const STROOPS_PER_USDC = 10_000_000;
+
+export interface PoolPerformanceChartProps {
+  /** Pre-loaded snapshots. When omitted, the chart fetches via getPoolSnapshots(). */
+  snapshots?: PoolSnapshot[];
+  /** Force the loading state (e.g. when the parent is still fetching). */
+  isLoading?: boolean;
+  /** Fetch/render error to surface gracefully instead of the chart. */
+  error?: unknown;
+  /** Optional heading override. */
+  title?: string;
+}
+
+interface ChartPoint {
+  date: string;
+  utilizationPct: number;
+  yieldUsdc: number;
+}
+
+function toMillis(ts: number): number {
+  // Snapshots may carry seconds or milliseconds; normalize defensively.
+  return ts > 1e12 ? ts : ts * 1000;
+}
+
+export function formatSnapshotPoint(snapshot: PoolSnapshot): ChartPoint {
+  const yieldRaw = Number(snapshot.totalYieldDistributed);
+  return {
+    date: new Date(toMillis(snapshot.timestamp)).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    }),
+    utilizationPct: snapshot.utilizationRateBps / 100,
+    yieldUsdc: Number.isFinite(yieldRaw) ? yieldRaw / STROOPS_PER_USDC : 0,
+  };
+}
+
+/**
+ * Reusable pool performance chart rendering utilization rate and cumulative
+ * yield over time from indexer pool snapshots.
+ *
+ * Data can be supplied via `snapshots` or fetched internally with
+ * `getPoolSnapshots()`. Loading uses the shared skeleton pattern, and empty
+ * / error states render graceful fallbacks. A visually-hidden text summary
+ * keeps the trend accessible to screen readers.
+ */
+export interface MaturityDistributionItem {
+  id: string;
+  fundedAmount: string | bigint;
+  dueDate: number;
+  status?: string;
+}
+
+
 
 export function PoolPerformanceChart({
   snapshots: snapshotsProp,
