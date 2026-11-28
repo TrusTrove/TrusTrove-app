@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { InvoiceFeed } from "./InvoiceFeed";
 import { useRecentEvents } from "@/hooks/useEvents";
@@ -185,5 +185,44 @@ describe("InvoiceFeed accessibility semantics", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "Awaiting on-chain activity",
     );
+  });
+});
+
+describe("InvoiceFeed reduced-data mode and refresh", () => {
+  it("exposes manual refresh and reduced-data toggle, displaying last updated time", () => {
+    const refetch = vi.fn();
+    vi.mocked(useRecentEvents).mockReturnValue({
+      events: [
+        {
+          id: 1,
+          event_id: "evt_1",
+          contract_id: "contract_example",
+          ledger: 100,
+          event_type: "InvoiceCreated",
+          ledger_closed_at: Math.floor(Date.now() / 1000) - 30,
+          data: { invoice_id: "abcdef1234567890" },
+        },
+      ] as any[],
+      isLoading: false,
+      error: null,
+      refetch,
+    });
+
+    render(<InvoiceFeed />);
+
+    expect(screen.getByText(/Updated/)).toBeInTheDocument();
+    const refreshBtn = screen.getByRole("button", { name: /Refresh/i });
+    expect(refreshBtn).toBeInTheDocument();
+
+    fireEvent.click(refreshBtn);
+    expect(refetch).toHaveBeenCalled();
+
+    const reducedDataBtn = screen.getByRole("button", {
+      name: /Reduced-Data/i,
+    });
+    expect(reducedDataBtn).toBeInTheDocument();
+
+    fireEvent.click(reducedDataBtn);
+    expect(screen.getByText(/Reduced-Data On/)).toBeInTheDocument();
   });
 });

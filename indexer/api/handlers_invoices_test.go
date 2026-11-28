@@ -15,6 +15,49 @@ import (
 	"trusttrove/indexer/db"
 )
 
+
+
+
+
+
+
+
+
+
+
+func TestHandleGetInvoices_InvalidAssetReturns400(t *testing.T) {
+	handler := invoiceHandlerUnderTest(func(status, issuer string, limit, offset int) ([]*db.DbInvoice, int, error) {
+		return nil, 0, nil
+	})
+	req := httptest.NewRequest(http.MethodGet, "/invoices?asset=invalid", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400 for invalid asset, got %d", rr.Code)
+	}
+}
+
+func TestHandleGetInvoicesAssetFilter(t *testing.T) {
+	handler := invoiceHandlerUnderTest(func(status, issuer string, limit, offset int) ([]*db.DbInvoice, int, error) {
+		return []*db.DbInvoice{{
+			ID:     "abc",
+			Asset:  "CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS",
+		}}, 1, nil
+	})
+	rr, resp, ok := doRequest(t, handler, "/invoices?asset=CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS")
+	if !ok {
+		t.Fatalf("expected status 200, got %d", rr.Code)
+	}
+	if len(resp.Data) != 1 {
+		t.Errorf("expected 1 invoice matching asset filter, got %d", len(resp.Data))
+	}
+	ifa := resp.Data[0]
+	if ifa.Asset != "CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS" {
+		t.Errorf("expected asset CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS, got %s", ifa.Asset)
+	}
+}
+
+
 // paginatedResponse mirrors the JSON envelope returned by HandleGetInvoices.
 type paginatedResponse struct {
 	Data       []db.DbInvoice `json:"data"`
