@@ -24,15 +24,7 @@ import (
 
 
 
-func TestHandleGetInvoicesAssetFilter(t *testing.T) {
-	handler := &APIHandler{}
-	req := httptest.NewRequest(http.MethodGet, "/invoices?asset=invalid", nil)
-	rr := httptest.NewRecorder()
-	handler.HandleGetInvoices(rr, req)
-	if rr.Code != http.StatusBadRequest {
-		t.Errorf("expected status 400 for invalid asset format, got %d", rr.Code)
-	}
-}
+
 func TestHandleGetInvoices_InvalidAssetReturns400(t *testing.T) {
 	handler := &APIHandler{}
 	req := httptest.NewRequest(http.MethodGet, "/invoices?asset=invalid", nil)
@@ -42,6 +34,16 @@ func TestHandleGetInvoices_InvalidAssetReturns400(t *testing.T) {
 		t.Errorf("expected status 400 for invalid asset, got %d", rr.Code)
 	}
 }
+func TestHandleGetInvoicesAssetFilter(t *testing.T) {
+	handler := &APIHandler{}
+	req := httptest.NewRequest(http.MethodGet, "/invoices?asset=invalid", nil)
+	rr := httptest.NewRecorder()
+	handler.HandleGetInvoices(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400 for invalid asset format, got %d", rr.Code)
+	}
+}
+
 
 // paginatedResponse mirrors the JSON envelope returned by HandleGetInvoices.
 type paginatedResponse struct {
