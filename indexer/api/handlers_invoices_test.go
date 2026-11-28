@@ -15,6 +15,27 @@ import (
 	"trusttrove/indexer/db"
 )
 
+
+
+func TestHandleGetInvoicesAssetFilter(t *testing.T) {
+	handler := &APIHandler{}
+	req := httptest.NewRequest(http.MethodGet, "/invoices?asset=invalid", nil)
+	rr := httptest.NewRecorder()
+	handler.HandleGetInvoices(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400 for invalid asset format, got %d", rr.Code)
+	}
+}
+func TestHandleGetInvoices_InvalidAssetReturns400(t *testing.T) {
+	handler := &APIHandler{}
+	req := httptest.NewRequest(http.MethodGet, "/invoices?asset=invalid", nil)
+	rr := httptest.NewRecorder()
+	handler.HandleGetInvoices(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400 for invalid asset, got %d", rr.Code)
+	}
+}
+
 // paginatedResponse mirrors the JSON envelope returned by HandleGetInvoices.
 type paginatedResponse struct {
 	Data       []db.DbInvoice `json:"data"`
@@ -64,7 +85,7 @@ func invoiceHandlerUnderTest(fn invoicesPageFunc) http.HandlerFunc {
 
 		offset := (page - 1) * limit
 
-		invoices, total, err := fn(status, issuer, limit, offset)
+		invoices, total, err := fn(status, issue, limit, offset)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("failed to retrieve invoices: %s", err.Error()), http.StatusInternalServerError)
 			return
