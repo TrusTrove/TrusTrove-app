@@ -27,7 +27,9 @@ const sampleInvoice: Invoice = {
 
 describe("PrintableInvoice", () => {
   it("renders parties, amounts, due date, lifecycle status, contract ID, and transaction references", () => {
-    render(<PrintableInvoice invoice={sampleInvoice} contractId="C_TEST_CONTRACT" />);
+    render(
+      <PrintableInvoice invoice={sampleInvoice} contractId="C_TEST_CONTRACT" />,
+    );
 
     expect(screen.getByText("INVOICE REVIEW ARTIFACT")).toBeInTheDocument();
     expect(screen.getByText(sampleInvoice.issuer)).toBeInTheDocument();
@@ -51,6 +53,8 @@ describe("PrintableInvoice", () => {
     render(<PrintableInvoice invoice={emptyInvoice} contractId="" />);
 
     expect(screen.getByText("inv-empty-002")).toBeInTheDocument();
-    expect(screen.queryByText("Transaction References")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Transaction References"),
+    ).not.toBeInTheDocument();
   });
 });

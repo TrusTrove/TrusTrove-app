@@ -56,7 +56,8 @@ export function StaleDataIndicator({
         className="inline-flex items-center gap-1.5 rounded bg-slate-800 px-2.5 py-1 font-sans text-xs font-medium text-slate-200 transition-colors hover:bg-slate-700 disabled:opacity-50"
         aria-label="Manual refresh indexed data"
       >
-        <RefreshCw className={`h-3 w-3 ${isRefreshing ? "animate-spin" : ""}`}
+        <RefreshCw
+          className={`h-3 w-3 ${isRefreshing ? "animate-spin" : ""}`}
         />
         <span>{isRefreshing ? "Refreshing..." : "Refresh"}</span>
       </button>

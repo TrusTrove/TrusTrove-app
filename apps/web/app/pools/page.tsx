@@ -1,10 +1,14 @@
-import React from 'react';
-import { StaleDataIndicator } from '../../components/shared/StaleDataIndicator';
+import React from "react";
+import { StaleDataIndicator } from "../../components/shared/StaleDataIndicator";
 
 export default function PoolsPage() {
   const [refreshing, setRefreshing] = React.useState(false);
-  const [lastLedger, setLastLedger] = React.useState<number | undefined>(654321);
-  const [lastTime, setLastTime] = React.useState<number | undefined>(Date.now() / 1000 - 120);
+  const [lastLedger, setLastLedger] = React.useState<number | undefined>(
+    654321,
+  );
+  const [lastTime, setLastTime] = React.useState<number | undefined>(
+    Date.now() / 1000 - 120,
+  );
   const [isStale, setIsStale] = React.useState(true);
 
   const handleRefresh = () => {

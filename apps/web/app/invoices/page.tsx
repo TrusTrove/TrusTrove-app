@@ -1,10 +1,14 @@
-import React from 'react';
-import { StaleDataIndicator } from '../../components/shared/StaleDataIndicator';
+import React from "react";
+import { StaleDataIndicator } from "../../components/shared/StaleDataIndicator";
 
 export default function InvoicesPage() {
   const [refreshing, setRefreshing] = React.useState(false);
-  const [lastLedger, setLastLedger] = React.useState<number | undefined>(123456);
-  const [lastTime, setLastTime] = React.useState<number | undefined>(Date.now() / 1000);
+  const [lastLedger, setLastLedger] = React.useState<number | undefined>(
+    123456,
+  );
+  const [lastTime, setLastTime] = React.useState<number | undefined>(
+    Date.now() / 1000,
+  );
   const [isStale, setIsStale] = React.useState(false);
 
   const handleRefresh = () => {

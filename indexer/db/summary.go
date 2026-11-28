@@ -6,15 +6,15 @@ import (
 )
 
 type BuyerInvoiceSummary struct {
-	Buyer           string `json:"buyer"`
-	ConfirmedTotal  string `json:"confirmed_total"`
-	ConfirmedCount  int    `json:"confirmed_count"`
-	DueSoonTotal    string `json:"due_soon_total"`
-	DueSoonCount    int    `json:"due_soon_count"`
-	OverdueTotal    string `json:"overdue_total"`
-	OverdueCount    int    `json:"overdue_count"`
-	RepaidTotal     string `json:"repaid_total"`
-	RepaidCount     int    `json:"repaid_count"`
+	Buyer          string `json:"buyer"`
+	ConfirmedTotal string `json:"confirmed_total"`
+	ConfirmedCount int    `json:"confirmed_count"`
+	DueSoonTotal   string `json:"due_soon_total"`
+	DueSoonCount   int    `json:"due_soon_count"`
+	OverdueTotal   string `json:"overdue_total"`
+	OverdueCount   int    `json:"overdue_count"`
+	RepaidTotal    string `json:"repaid_total"`
+	RepaidCount    int    `json:"repaid_count"`
 }
 
 // GetBuyerInvoiceSummary calculates counts and face value/funded totals for confirmed,

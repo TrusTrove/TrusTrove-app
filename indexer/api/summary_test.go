@@ -38,7 +38,11 @@ func TestHandleGetBuyerInvoiceSummary_Validation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.wantStatus == http.StatusOK && db.Pool == nil {
+				t.Skip("database pool not initialized; skipping DB integration test")
+			}
 			req := httptest.NewRequest(http.MethodGet, "/buyers/"+tt.address+"/invoice-summary", nil)
+			req = withURLParams(req, map[string]string{"address": tt.address})
 			recorder := httptest.NewRecorder()
 
 			h.HandleGetBuyerInvoiceSummary(recorder, req)
@@ -49,8 +53,7 @@ func TestHandleGetBuyerInvoiceSummary_Validation(t *testing.T) {
 
 			if tt.wantStatus == http.StatusOK {
 				var resp map[string]interface{}
-				if err := json.Unmarshal(recorder.Body.Bytes(), &resp);
-				err != nil {
+				if err := json.Unmarshal(recorder.Body.Bytes(), &resp); err != nil {
 					t.Fatalf("unmarshal response: %v", err)
 				}
 				if resp["buyer"] != tt.address {
