@@ -26,7 +26,7 @@ type paginatedResponse struct {
 
 // invoicesPageFunc is the signature of db.GetInvoicesPage-compatible functions
 // used by the handler via dependency injection.
-type invoicesPageFunc func(status, issuer string, limit, offset int) ([]*db.DbInvoice, int, error)
+type invoicesPageFunc func(status, issuer string, dueDateFrom, dueDateTo *int64, limit, offset int) ([]*db.DbInvoice, int, error)
 
 // invoiceHandlerUnderTest is a trimmed-down version of HandleGetInvoices that
 // accepts an injectable db function so tests don't need a live DB.
@@ -64,7 +64,7 @@ func invoiceHandlerUnderTest(fn invoicesPageFunc) http.HandlerFunc {
 
 		offset := (page - 1) * limit
 
-		invoices, total, err := fn(status, issuer, limit, offset)
+		invoices, total, err := fn(status, issuer, nil, nil, limit, offset)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("failed to retrieve invoices: %s", err.Error()), http.StatusInternalServerError)
 			return
@@ -113,7 +113,7 @@ func doRequest(t *testing.T, handler http.HandlerFunc, url string) (*httptest.Re
 // -----------------------------------------------------------------
 
 func TestHandleGetInvoices_Defaults(t *testing.T) {
-	handler := invoiceHandlerUnderTest(func(status, issuer string, limit, offset int) ([]*db.DbInvoice, int, error) {
+	handler := invoiceHandlerUnderTest(func(status, issuer string, dueDateFrom, dueDateTo *int64, limit, offset int) ([]*db.DbInvoice, int, error) {
 		if limit != 20 {
 			t.Errorf("expected default limit=20, got %d", limit)
 		}
@@ -143,7 +143,7 @@ func TestHandleGetInvoices_Defaults(t *testing.T) {
 
 func TestHandleGetInvoices_PageAndLimitPassedThrough(t *testing.T) {
 	called := false
-	handler := invoiceHandlerUnderTest(func(status, issuer string, limit, offset int) ([]*db.DbInvoice, int, error) {
+	handler := invoiceHandlerUnderTest(func(status, issuer string, dueDateFrom, dueDateTo *int64, limit, offset int) ([]*db.DbInvoice, int, error) {
 		called = true
 		if limit != 5 {
 			t.Errorf("expected limit=5, got %d", limit)
@@ -178,7 +178,7 @@ func TestHandleGetInvoices_PageAndLimitPassedThrough(t *testing.T) {
 }
 
 func TestHandleGetInvoices_LimitCappedAt100(t *testing.T) {
-	handler := invoiceHandlerUnderTest(func(status, issuer string, limit, offset int) ([]*db.DbInvoice, int, error) {
+	handler := invoiceHandlerUnderTest(func(status, issuer string, dueDateFrom, dueDateTo *int64, limit, offset int) ([]*db.DbInvoice, int, error) {
 		if limit != 100 {
 			t.Errorf("expected limit capped at 100, got %d", limit)
 		}
@@ -195,7 +195,7 @@ func TestHandleGetInvoices_LimitCappedAt100(t *testing.T) {
 }
 
 func TestHandleGetInvoices_InvalidPageReturns400(t *testing.T) {
-	handler := invoiceHandlerUnderTest(func(status, issuer string, limit, offset int) ([]*db.DbInvoice, int, error) {
+	handler := invoiceHandlerUnderTest(func(status, issuer string, dueDateFrom, dueDateTo *int64, limit, offset int) ([]*db.DbInvoice, int, error) {
 		t.Error("db should not be called on bad input")
 		return nil, 0, nil
 	})
@@ -216,7 +216,7 @@ func TestHandleGetInvoices_InvalidPageReturns400(t *testing.T) {
 }
 
 func TestHandleGetInvoices_InvalidLimitReturns400(t *testing.T) {
-	handler := invoiceHandlerUnderTest(func(status, issuer string, limit, offset int) ([]*db.DbInvoice, int, error) {
+	handler := invoiceHandlerUnderTest(func(status, issuer string, dueDateFrom, dueDateTo *int64, limit, offset int) ([]*db.DbInvoice, int, error) {
 		t.Error("db should not be called on bad input")
 		return nil, 0, nil
 	})
@@ -237,7 +237,7 @@ func TestHandleGetInvoices_InvalidLimitReturns400(t *testing.T) {
 }
 
 func TestHandleGetInvoices_FiltersPassedThrough(t *testing.T) {
-	handler := invoiceHandlerUnderTest(func(status, issuer string, limit, offset int) ([]*db.DbInvoice, int, error) {
+	handler := invoiceHandlerUnderTest(func(status, issuer string, dueDateFrom, dueDateTo *int64, limit, offset int) ([]*db.DbInvoice, int, error) {
 		if status != "funded" {
 			t.Errorf("expected status=funded, got %q", status)
 		}
@@ -270,7 +270,7 @@ func TestHandleGetInvoices_TotalPagesCalculation(t *testing.T) {
 	for _, tc := range cases {
 		tc := tc
 		t.Run(fmt.Sprintf("total=%d,limit=%d", tc.total, tc.limit), func(t *testing.T) {
-			handler := invoiceHandlerUnderTest(func(status, issuer string, limit, offset int) ([]*db.DbInvoice, int, error) {
+			handler := invoiceHandlerUnderTest(func(status, issuer string, dueDateFrom, dueDateTo *int64, limit, offset int) ([]*db.DbInvoice, int, error) {
 				return nil, tc.total, nil
 			})
 
@@ -288,7 +288,7 @@ func TestHandleGetInvoices_TotalPagesCalculation(t *testing.T) {
 }
 
 func TestHandleGetInvoices_DataNeverNull(t *testing.T) {
-	handler := invoiceHandlerUnderTest(func(status, issuer string, limit, offset int) ([]*db.DbInvoice, int, error) {
+	handler := invoiceHandlerUnderTest(func(status, issuer string, dueDateFrom, dueDateTo *int64, limit, offset int) ([]*db.DbInvoice, int, error) {
 		return nil, 0, nil // db returns nil slice
 	})
 

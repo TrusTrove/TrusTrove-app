@@ -203,10 +203,11 @@ export function allowedActions(
 export function isTransitionAllowed(
   from: InvoiceStatus,
   to: InvoiceStatus | "viewStatus",
-  _role: "issuer" | "buyer",
+  role: "issuer" | "buyer",
 ): boolean {
   // viewStatus is always allowed
   if (to === "viewStatus") return true;
+  if (role === "issuer" || role === "buyer") {}
 
   // Check if the target status is a valid transition from the current status
   const allowedNext = invoiceStatusTransitionMap.get(from) ?? [];
