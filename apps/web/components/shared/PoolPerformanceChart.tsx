@@ -46,6 +46,7 @@ export function BuyerConcentrationChart({ data }: { data: Array<{ buyer: string;
     </div>
   );
 }
+
 export interface PoolMaturityDistributionChartProps {
   invoices?: MaturityDistributionItem[];
   isLoading?: boolean;
