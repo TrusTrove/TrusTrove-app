@@ -10,7 +10,7 @@ paths:
         - name: asset
           in: query
           required: false
-          description: Exact funding asset contract ID to filter invoices by
+          description: Exact asset contract ID to filter invoices by funding asset
           schema:
             type: string
         - name: status
@@ -19,11 +19,6 @@ paths:
             type: string
         - name: issuer
           in: query
-          schema:
-            type: string
-        - name: asset
-          in: query
-          description: Exact asset contract ID to filter invoices by funding asset
           schema:
             type: string
         - name: page
