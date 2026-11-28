@@ -3,7 +3,10 @@
 import React from "react";
 import { PageLayout } from "@/components/shared/PageLayout";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
-import { PoolPerformanceChart } from "@/components/shared/PoolPerformanceChart";
+import {
+  PoolPerformanceChart,
+  PoolMaturityDistributionChart,
+} from "@/components/shared/PoolPerformanceChart";
 import { SkeletonShimmer } from "@/components/shared/SkeletonLoader";
 import { useStats } from "@/hooks/useStats";
 
@@ -145,6 +148,10 @@ export default function AnalyticsClient() {
 
         <ErrorBoundary context="PoolPerformanceChart">
           <PoolPerformanceChart />
+        </ErrorBoundary>
+
+        <ErrorBoundary context="PoolMaturityDistributionChart">
+          <PoolMaturityDistributionChart />
         </ErrorBoundary>
       </div>
     </PageLayout>
