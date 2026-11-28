@@ -2,6 +2,7 @@
 node_modules/
 /jspm_packages/
 .tools/
+__pycache__/
 
 # Build outputs
 **/dist/
