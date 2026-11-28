@@ -3,7 +3,7 @@ import { screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { ConfirmationDialog } from "./ConfirmationDialog";
 import { useConfirmDialogStore } from "@/store/confirmDialog";
-import { useFocusTrap } from "@/hooks/useFocusTrap";
+
 import { renderWithProviders as render } from "@/test-utils/renderWithProviders";
 
 vi.mock("@/store/confirmDialog", () => ({

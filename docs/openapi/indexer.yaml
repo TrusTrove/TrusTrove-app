@@ -160,6 +160,60 @@ paths:
         "429":
           $ref: "#/components/responses/RateLimited"
 
+  /buyers/{address}/invoice-summary:
+    get:
+      tags: [Invoices]
+      summary: Get buyer invoice summary
+      description: Returns confirmed, due soon, overdue, and repaid invoice totals and counts for a single buyer, using exact decimal strings for amounts.
+      security: []
+      parameters:
+        - name: address
+          in: path
+          required: true
+          schema:
+            type: string
+          example: GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF
+      responses:
+        "200":
+          description: Buyer invoice summary retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  buyer:
+                    type: string
+                  confirmed_total:
+                    type: string
+                  confirmed_count:
+                    type: integer
+                  due_soon_total:
+                    type: string
+                  due_soon_count:
+                    type: integer
+                  overdue_total:
+                    type: string
+                  overdue_count:
+                    type: integer
+                  repaid_total:
+                    type: string
+                  repaid_count:
+                    type: integer
+              examples:
+                summary:
+                  value:
+                    buyer: GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF
+                    confirmed_total: "5000000000"
+                    confirmed_count: 2
+                    due_soon_total: "1000000000"
+                    due_soon_count: 1
+                    overdue_total: "0"
+                    overdue_count: 0
+                    repaid_total: "12000000000"
+                    repaid_count: 3
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
   /invoices:
     get:
       tags: [Invoices]
@@ -185,6 +239,18 @@ paths:
             type: integer
             default: 1
             minimum: 1
+        - name: from
+          in: query
+          required: false
+          description: Inclusive Unix timestamp lower bound for due date
+          schema:
+            type: integer
+        - name: to
+          in: query
+          required: false
+          description: Inclusive Unix timestamp upper bound for due date
+          schema:
+            type: integer
       responses:
         "200":
           description: Invoice list
