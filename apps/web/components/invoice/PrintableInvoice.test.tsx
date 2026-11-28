@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { PrintableInvoice } from './PrintableInvoice';
-import type { Invoice } from "@/types";
+import type { Invoice } from "../../types";
 
 describe('PrintableInvoice', () => {
   const mockInvoice = {
