@@ -18,21 +18,10 @@ import (
 
 
 func TestHandleGetInvoicesAssetFilter(t *testing.T) {
+	handler := &APIHandler{}
 	req := httptest.NewRequest(http.MethodGet, "/invoices?asset=invalid", nil)
 	rr := httptest.NewRecorder()
-
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		asset := r.URL.Query().Get("asset")
-		if asset != "" {
-			if len(asset) != 56 || (asset[0] != 'C' && asset[0] != 'G') {
-				http.Error(w, "invalid asset contract id format", http.StatusBadRequest)
-				return
-			}
-		}
-		w.WriteHeader(http.StatusOK)
-	})
-
-	handler.ServeHTTP(rr, req)
+	handler.HandleGetInvoices(rr, req)
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected status 400 for invalid asset format, got %d", rr.Code)
 	}
