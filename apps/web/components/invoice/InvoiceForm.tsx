@@ -488,7 +488,7 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
             </Button>
             <Button
               type="button"
-              className="flex-1 bg-primary hover:bg-primary/90 text-black font-bold"
+              className="flex-1 bg-primary hover:bg-primary/90 text-black font-bold uppercase tracking-wider text-xs rounded py-2.5 min-h-[44px]"
               disabled={isBusy}
               onClick={handleCreate}
             >
