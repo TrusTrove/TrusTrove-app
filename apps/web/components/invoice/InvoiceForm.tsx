@@ -48,6 +48,7 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
   const [faceValue, setFaceValue] = useState("");
   const [asset, setAsset] = useState<AssetType>("USDC");
   const [dueDate, setDueDate] = useState("");
+  const [documentFingerprint, setDocumentFingerprint] = useState("");
   const [discountBps, setDiscountBps] = useState(200);
   const [immediateList, setImmediateList] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -124,6 +125,13 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
       return;
     }
 
+    const trimmedFp = documentFingerprint.trim();
+    if (!trimmedFp) {
+      setError("Please provide document fingerprints (SHA-256 hash)");
+      return;
+    }
+    if (trimmedFp !== documentFingerprint) setDocumentFingerprint(trimmedFp);
+
     setStep(2);
   };
 
@@ -192,6 +200,7 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
       setBuyer("");
       setFaceValue("");
       setDueDate("");
+      setDocumentFingerprint("");
       setStep(1);
       onSuccess?.();
     } catch (creationOrListingError: unknown) {
@@ -224,6 +233,11 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
 
   return (
     <div className="space-y-5">
+      {error && (
+        <div role="alert" className="p-3 bg-destructive/10 border border-destructive/30 rounded text-destructive text-xs font-mono">
+          {error}
+        </div>
+      )}
       <div className="flex items-center gap-2 mb-4 border-b border-border/40 pb-3">
         <PlusCircle className="w-4 h-4 text-primary shrink-0" />
         <h2 className="text-sm font-bold font-mono tracking-wider uppercase text-white">
@@ -333,6 +347,23 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
                 Select invoice maturity date
               </span>
             </div>
+            <div className="min-w-0 space-y-1 sm:col-span-3">
+              <label
+                htmlFor={`${fieldId}-fingerprint`}
+                className="block text-[10px] font-bold font-mono text-slate-500 uppercase tracking-wider"
+              >
+                Document Fingerprints
+              </label>
+              <input
+                id={`${fieldId}-fingerprint`}
+                type="text"
+                placeholder="e.g. e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 (SHA-256 document hash)"
+                className="w-full bg-[#080c10] border border-border rounded px-3 py-2.5 text-white text-xs font-mono focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all min-h-[44px]"
+                value={documentFingerprint}
+                onChange={(event) => setDocumentFingerprint(event.target.value)}
+                required
+              />
+            </div>
           </div>
 
           <div className="space-y-2 pt-2 border-t border-border/30">
@@ -431,6 +462,12 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
               <span className="text-slate-500">Due Date:</span>
               <span className="text-white">{dueDate}</span>
             </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Document Fingerprints:</span>
+              <span className="text-white font-mono text-[10px] truncate max-w-[180px]">
+                {documentFingerprint}
+              </span>
+            </div>
           </div>
           {error && (
             <div
@@ -452,11 +489,12 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
                 setStep(1);
               }}
             >
-              BACK
+              BACK TO EDIT
             </Button>
             <Button
               type="button"
-              className="flex-1 bg-primary hover:bg-primary/90 text-black font-bold"
+              data-testid="create-invoice-submit"
+              className="flex-1 bg-primary hover:bg-primary/90 text-black font-bold uppercase tracking-wider text-xs rounded py-2.5 min-h-[44px]"
               disabled={isBusy}
               onClick={handleCreate}
             >
@@ -464,7 +502,7 @@ export function InvoiceForm({ onSuccess }: InvoiceFormProps) {
                 ? "LISTING..."
                 : isCreating
                   ? "CREATING..."
-                  : "CREATE INVOICE"}
+                  : "Create Invoice"}
             </Button>
           </div>
         </div>
