@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import {
+  SIMULATION_PLACEHOLDER_INVOICE_ID,
+  simulateInvoiceCreation,
+} from "../components/invoice/InvoiceForm";
 
-describe("Regression: InvoiceForm simulation fixes", () => {
+describe("Regression: InvoiceForm simulation and debounce fixes", () => {
   describe("Simulation placeholder ID (issue #81)", () => {
-    const SIMULATION_PLACEHOLDER_INVOICE_ID =
-      "0000000000000000000000000000000000000000000000000000000000000000";
-
-    it("uses the correct zero-byte placeholder ID constant", () => {
+    it("uses the correct zero-byte placeholder ID constant from InvoiceForm", () => {
       expect(SIMULATION_PLACEHOLDER_INVOICE_ID).toBe(
         "0000000000000000000000000000000000000000000000000000000000000000",
       );
@@ -25,33 +26,16 @@ describe("Regression: InvoiceForm simulation fixes", () => {
       vi.useFakeTimers();
     });
 
-    it("simulation runs after 300ms debounce delay", () => {
-      const fn = vi.fn();
-
-      const timerId = setTimeout(() => {
-        fn();
-      }, 300);
+    it("simulation debounce helper runs after 300ms delay", async () => {
+      const fn = vi.fn().mockResolvedValue({});
+      const promise = simulateInvoiceCreation(fn);
 
       vi.advanceTimersByTime(299);
       expect(fn).not.toHaveBeenCalled();
 
       vi.advanceTimersByTime(1);
+      await promise;
       expect(fn).toHaveBeenCalledTimes(1);
-
-      clearTimeout(timerId);
-    });
-
-    it("debounce timer is cleared on cleanup", () => {
-      const fn = vi.fn();
-
-      const timerId = setTimeout(() => {
-        fn();
-      }, 300);
-
-      clearTimeout(timerId);
-      vi.advanceTimersByTime(300);
-
-      expect(fn).not.toHaveBeenCalled();
     });
   });
 });

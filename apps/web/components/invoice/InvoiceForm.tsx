@@ -14,6 +14,20 @@ import { updateInvoiceStatus } from "@/lib/api";
 
 import { CONTRACT_IDS } from "@/lib/env";
 
+export const SIMULATION_PLACEHOLDER_INVOICE_ID =
+  "0000000000000000000000000000000000000000000000000000000000000000";
+
+export async function simulateInvoiceCreation<T>(
+  fn: () => Promise<T>,
+): Promise<T> {
+  return new Promise((resolve) => {
+    setTimeout(async () => {
+      const res = await fn();
+      resolve(res);
+    }, 300);
+  });
+}
+
 const invoiceContractID = CONTRACT_IDS.invoice;
 
 const getStellarSdk = () => import("@stellar/stellar-sdk");
