@@ -1,0 +1,2 @@
+ALTER TABLE invoices
+    ADD COLUMN IF NOT EXISTS funding_asset VARCHAR(56) NOT NULL DEFAULT '';
