@@ -38,18 +38,22 @@ func TestHandleGetInvoices_InvalidAssetReturns400(t *testing.T) {
 }
 
 func TestHandleGetInvoicesAssetFilter(t *testing.T) {
+	var capturedAsset string
 	handler := invoiceHandlerUnderTest(func(status, issuer string, limit, offset int) ([]*db.DbInvoice, int, error) {
 		return []*db.DbInvoice{{
 			ID:     "abc",
 			Asset:  "CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS",
 		}}, 1, nil
 	})
-	rr, resp, ok := doRequest(t, handler, "/invoices?asset=CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS")
+	rr, resp, ok := doRequest(t, handler, "/invoices?asset=CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS&page=1&limit=10")
 	if !ok {
 		t.Fatalf("expected status 200, got %d", rr.Code)
 	}
 	if len(resp.Data) != 1 {
 		t.Errorf("expected 1 invoice matching asset filter, got %d", len(resp.Data))
+	}
+	if resp.Total != 1 {
+		t.Errorf("expected total 1, got %d", resp.Total)
 	}
 	ifa := resp.Data[0]
 	if ifa.Asset != "CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS" {
