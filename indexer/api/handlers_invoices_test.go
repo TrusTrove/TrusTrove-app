@@ -85,7 +85,7 @@ func invoiceHandlerUnderTest(fn invoicesPageFunc) http.HandlerFunc {
 
 		offset := (page - 1) * limit
 
-		invoices, total, err := fn(status, issue, limit, offset)
+		invoices, total, err := fn(status, issuer, limit, offset)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("failed to retrieve invoices: %s", err.Error()), http.StatusInternalServerError)
 			return
