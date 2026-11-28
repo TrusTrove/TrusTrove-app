@@ -453,6 +453,7 @@ func NewRouter(h *APIHandler) (*chi.Mux, func()) {
 		r.Get("/invoices/{id}", h.HandleGetInvoiceByID)
 		r.Get("/invoices/by-document-hash/{hash}", h.HandleGetInvoicesByDocumentHash)
 		r.Get("/invoices", h.HandleGetInvoices)
+		r.Get("/buyers/{address}/invoice-summary", h.HandleGetBuyerInvoiceSummary)
 		r.Get("/parties/{address}/history", h.HandleGetPartyHistory)
 		r.Get("/pool/stats", h.HandleGetPoolStats)
 		r.Get("/pool/snapshots", h.HandleGetPoolSnapshots)
