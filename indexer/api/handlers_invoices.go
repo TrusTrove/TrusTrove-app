@@ -67,19 +67,10 @@ func (h *APIHandler) HandlePatchInvoiceStatus(w http.ResponseWriter, r *http.Req
 func (h *APIHandler) HandleGetInvoices(w http.ResponseWriter, r *http.Request) {
 	status := r.URL.Query().Get("status")
 	issuer := r.URL.Query().Get("issuer")
+	cursor := r.URL.Query().Get("cursor")
 
 	// Parse pagination params
-	page := 1
 	limit := 20
-
-	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
-		if v, err := strconv.Atoi(pageStr); err == nil && v >= 1 {
-			page = v
-		} else {
-			http.Error(w, "invalid page parameter: must be a positive integer", http.StatusBadRequest)
-			return
-		}
-	}
 
 	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
 		if v, err := strconv.Atoi(limitStr); err == nil && v >= 1 {
@@ -94,13 +85,9 @@ func (h *APIHandler) HandleGetInvoices(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	offset := (page - 1) * limit
-
-	invoices, total, err := db.GetInvoicesPage(r.Context(), status, issuer, limit, offset)
+	invoices, nextCursor, err := db.GetInvoicesCursor(r.Context(), status, issuer, cursor, limit)
 	if err != nil {
-		// The raw DB error can disclose table/column names; log it and return
-		// a generic message (issue #921).
-		internalError(w, r, "failed to retrieve invoices", err)
+		http.Error(w, "invalid cursor format or query parameters: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -109,17 +96,10 @@ func (h *APIHandler) HandleGetInvoices(w http.ResponseWriter, r *http.Request) {
 		invoices = []*db.DbInvoice{}
 	}
 
-	totalPages := (total + limit - 1) / limit
-	if totalPages < 1 {
-		totalPages = 1
-	}
-
 	resp := map[string]interface{}{
 		"data":       invoices,
-		"total":      total,
-		"page":       page,
 		"limit":      limit,
-		"totalPages": totalPages,
+		"nextCursor": nextCursor,
 	}
 
 	writeJSON(w, http.StatusOK, resp)
