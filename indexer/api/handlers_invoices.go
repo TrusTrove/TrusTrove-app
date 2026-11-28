@@ -104,7 +104,7 @@ func (h *APIHandler) HandleGetInvoices(w http.ResponseWriter, r *http.Request) {
 
 	offset := (page - 1) * limit
 
-	invoices, total, err := db.GetInvoicesPageFiltered(r.Context(), status, issue, asset, limit, offset)
+	invoices, total, err := db.GetInvoicesPageFiltered(r.Context(), status, issuer, asset, limit, offset)
 	if err != nil {
 		// The raw DB error can disclose table/column names; log it and return
 		// a generic message (issue #921).

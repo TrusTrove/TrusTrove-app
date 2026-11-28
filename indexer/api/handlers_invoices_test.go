@@ -15,6 +15,8 @@ import (
 	"trusttrove/indexer/db"
 )
 
+
+
 func TestHandleGetInvoicesAssetFilter(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/invoices?asset=invalid", nil)
 	rr := httptest.NewRecorder()
@@ -35,7 +37,6 @@ func TestHandleGetInvoicesAssetFilter(t *testing.T) {
 		t.Errorf("expected status 400 for invalid asset format, got %d", rr.Code)
 	}
 }
-
 func TestHandleGetInvoices_InvalidAssetReturns400(t *testing.T) {
 	handler := &APIHandler{}
 	req := httptest.NewRequest(http.MethodGet, "/invoices?asset=invalid", nil)
