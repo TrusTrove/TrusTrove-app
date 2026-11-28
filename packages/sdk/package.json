@@ -25,7 +25,8 @@
     "build": "tsc",
     "lint": "eslint . --ext .ts",
     "test": "vitest run --passWithNoTests",
-    "test:coverage": "vitest run --coverage --passWithNoTests",
+    "test:coverage": "vitest run --coverage",
+    "test:ci": "vitest run --coverage",
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {
