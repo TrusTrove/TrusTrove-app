@@ -313,7 +313,7 @@ describe("InvoiceForm Component Boundary Tests", () => {
 
     // Step 2: trigger creation (immediate list is on by default).
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /CREATE INVOICE/ }));
+      fireEvent.click(screen.getByTestId("create-invoice-submit"));
     });
 
     // The rollback must call PATCH /invoices/:id/status (not a 404ing path).
