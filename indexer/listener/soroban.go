@@ -159,7 +159,6 @@ type EventListener struct {
 	upsertCheckpointFn         func(context.Context, int32) error
 	areEventsProcessedFn       func(context.Context, []string) (map[string]bool, error)
 	getLedgerHashFn            func(context.Context, int32) (string, error)
-	getPoolStatsFn             func(context.Context, *config.Config, *keypair.Full) error
 
 	// handleEventFn applies one event. It defaults to handleEvent; tests
 	// override it to exercise poll-loop bookkeeping (event de-duplication,

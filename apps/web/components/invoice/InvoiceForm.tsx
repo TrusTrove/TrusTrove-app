@@ -17,7 +17,9 @@ import { CONTRACT_IDS } from "@/lib/env";
 export const SIMULATION_PLACEHOLDER_INVOICE_ID =
   "0000000000000000000000000000000000000000000000000000000000000000";
 
-export async function simulateInvoiceCreation<T>(fn: () => Promise<T>): Promise<T> {
+export async function simulateInvoiceCreation<T>(
+  fn: () => Promise<T>,
+): Promise<T> {
   return new Promise((resolve) => {
     setTimeout(async () => {
       const res = await fn();

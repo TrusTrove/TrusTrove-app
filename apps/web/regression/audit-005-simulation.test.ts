@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { SIMULATION_PLACEHOLDER_INVOICE_ID, simulateInvoiceCreation } from "../components/invoice/InvoiceForm";
+import {
+  SIMULATION_PLACEHOLDER_INVOICE_ID,
+  simulateInvoiceCreation,
+} from "../components/invoice/InvoiceForm";
 
 describe("Regression: InvoiceForm simulation and debounce fixes", () => {
   describe("Simulation placeholder ID (issue #81)", () => {

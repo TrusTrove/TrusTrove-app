@@ -36,26 +36,18 @@ export function validateConfig(): ConfigValidation {
 
   // Next.js only inlines public variables referenced by name in client bundles.
   const requiredEnv: Record<string, string | undefined> = {
-    NEXT_PUBLIC_STELLAR_NETWORK:
-      process.env.NEXT_PUBLIC_STELLAR_NETWORK,
-    NEXT_PUBLIC_HORIZON_URL:
-      process.env.NEXT_PUBLIC_HORIZON_URL,
-    NEXT_PUBLIC_SOROBAN_RPC_URL:
-      process.env.NEXT_PUBLIC_SOROBAN_RPC_URL,
-    NEXT_PUBLIC_NETWORK_PASSPHRASE:
-      process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE,
+    NEXT_PUBLIC_STELLAR_NETWORK: process.env.NEXT_PUBLIC_STELLAR_NETWORK,
+    NEXT_PUBLIC_HORIZON_URL: process.env.NEXT_PUBLIC_HORIZON_URL,
+    NEXT_PUBLIC_SOROBAN_RPC_URL: process.env.NEXT_PUBLIC_SOROBAN_RPC_URL,
+    NEXT_PUBLIC_NETWORK_PASSPHRASE: process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE,
     NEXT_PUBLIC_REGISTRY_CONTRACT_ID:
       process.env.NEXT_PUBLIC_REGISTRY_CONTRACT_ID,
     NEXT_PUBLIC_INVOICE_CONTRACT_ID:
       process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID,
-    NEXT_PUBLIC_POOL_CONTRACT_ID:
-      process.env.NEXT_PUBLIC_POOL_CONTRACT_ID,
-    NEXT_PUBLIC_ESCROW_CONTRACT_ID:
-      process.env.NEXT_PUBLIC_ESCROW_CONTRACT_ID,
-    NEXT_PUBLIC_USDC_ISSUER:
-      process.env.NEXT_PUBLIC_USDC_ISSUER,
-    NEXT_PUBLIC_USDC_ASSET_CODE:
-      process.env.NEXT_PUBLIC_USDC_ASSET_CODE,
+    NEXT_PUBLIC_POOL_CONTRACT_ID: process.env.NEXT_PUBLIC_POOL_CONTRACT_ID,
+    NEXT_PUBLIC_ESCROW_CONTRACT_ID: process.env.NEXT_PUBLIC_ESCROW_CONTRACT_ID,
+    NEXT_PUBLIC_USDC_ISSUER: process.env.NEXT_PUBLIC_USDC_ISSUER,
+    NEXT_PUBLIC_USDC_ASSET_CODE: process.env.NEXT_PUBLIC_USDC_ASSET_CODE,
   };
   const missing = Object.entries(requiredEnv)
     .filter(([, value]) => !value)
@@ -108,8 +100,10 @@ export function validateConfig(): ConfigValidation {
     } else if (isTestnet) {
       if (
         passphrase.includes("Public Global") ||
-        (!horizonUrl.includes("testnet") && horizonUrl.includes("stellar.org")) ||
-        (!sorobanRpcUrl.includes("testnet") && sorobanRpcUrl.includes("stellar.org"))
+        (!horizonUrl.includes("testnet") &&
+          horizonUrl.includes("stellar.org")) ||
+        (!sorobanRpcUrl.includes("testnet") &&
+          sorobanRpcUrl.includes("stellar.org"))
       ) {
         invalid.push("NEXT_PUBLIC_STELLAR_NETWORK");
       }

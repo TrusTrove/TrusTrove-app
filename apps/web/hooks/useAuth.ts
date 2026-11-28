@@ -78,7 +78,9 @@ export function useAuth() {
     try {
       const { transaction, network_passphrase } = await fetchChallenge(address);
 
-      const stellarNetwork = normalizeNetworkForAuth(process.env.NEXT_PUBLIC_STELLAR_NETWORK);
+      const stellarNetwork = normalizeNetworkForAuth(
+        process.env.NEXT_PUBLIC_STELLAR_NETWORK,
+      );
       const signedXdr = await signTransaction(transaction, {
         network: "TESTNET",
         networkPassphrase: network_passphrase,

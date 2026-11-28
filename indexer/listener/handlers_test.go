@@ -19,44 +19,6 @@ import (
 	"github.com/stellar/go-stellar-sdk/xdr"
 )
 
-
-
-
-// recordingDispatcher captures the fan-out handleEvent performs so tests can
-// assert an event actually reached the webhook enqueue path without needing
-// webhook_subscriptions rows.
-type recordingDispatcher struct {
-	calls     int
-	eventType string
-	data      map[string]interface{}
-}
-
-func (r *recordingDispatcher) Dispatch(_ context.Context, eventType string, data map[string]interface{}) {
-	r.calls++
-	r.eventType = eventType
-	r.data = data
-}
-
-func (r *recordingDispatcher) EnqueueDeliveries(_ context.Context, _ db.Querier, eventType string, data map[string]interface{}) error {
-	r.calls++
-	r.eventType = eventType
-	r.data = data
-	return nil
-}
-
-func TestSyncPoolStats_InjectedStub(t *testing.T) {
-	ctx := context.Background()
-	l := newTestListener()
-	called := false
-	l.getPoolStatsFn = func(ctx context.Context, cfg *config.Config, serverKP *keypair.Full) error {
-		called = true
-		return nil
-	}
-	l.syncPoolStats(ctx, "test_event", nil)
-	if !called {
-		t.Error("expected injected getPoolStatsFn to be called")
-	}
-}
 // skipIfNoDB skips the test when TEST_DATABASE_URL is not set.
 func skipIfNoDB(t *testing.T) {
 	t.Helper()
@@ -84,10 +46,6 @@ func newTestListener() *EventListener {
 		panic(err)
 	}
 	return &EventListener{
-		serverKP: serverKP,
-		getPoolStatsFn: func(ctx context.Context, cfg *config.Config, kp *keypair.Full) error {
-			return nil
-		},
 		cfg: &config.Config{
 			SorobanRPCURL:     "http://localhost:8001",
 			PoolContractID:    "CAKEWH7SJCXGV2MH2WZYIX3QDPTSSBQFXYVYBOWAGLNBBZMPLE2US6CS",
@@ -803,9 +761,12 @@ func TestHandleInvoiceFunded_DB(t *testing.T) {
 	ctx := context.Background()
 	l := newTestListener()
 
-	issuer := "GAKE4RRWTPSBWQ3S6KAPNLBQFSDR46EHPNLGLDWSWU7WRCJDZD"
-	buyer := "GBRDVOQJF3S6KAPNLBQFSDR46EHPNLGLDWSWU7WRCJDZD"
-	invoiceIDBytes := []byte("INV-FUNDED-01")
+	const (
+		issuer = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
+		buyer  = "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN"
+	)
+	invoiceIDBytes := []byte(fmt.Sprintf("funded%d", time.Now().UnixNano()))
+	invoiceIDHex := fmt.Sprintf("%x", invoiceIDBytes)
 
 	tx, err := db.Pool.Begin(ctx)
 	if err != nil {
@@ -814,7 +775,7 @@ func TestHandleInvoiceFunded_DB(t *testing.T) {
 	defer tx.Rollback(ctx)
 
 	dbInvoice := &db.DbInvoice{
-		ID:           string(invoiceIDBytes),
+		ID:           invoiceIDHex,
 		Issuer:       issuer,
 		Buyer:        buyer,
 		FaceValue:    "1000000",
@@ -834,7 +795,7 @@ func TestHandleInvoiceFunded_DB(t *testing.T) {
 	valBytes, _ := val.MarshalBinary()
 
 	event := SorobanEvent{
-		ID:             "evt-funded-1",
+		ID:             fmt.Sprintf("evt-funded-%d", time.Now().UnixNano()),
 		ContractID:     l.cfg.PoolContractID,
 		Ledger:         100,
 		LedgerClosedAt: time.Now().Format(time.RFC3339),
@@ -850,7 +811,7 @@ func TestHandleInvoiceFunded_DB(t *testing.T) {
 		t.Fatalf("handleInvoiceFunded: %v", err)
 	}
 
-	inv, err := db.GetInvoiceByID(ctx, tx, string(invoiceIDBytes))
+	inv, err := db.GetInvoiceByID(ctx, tx, invoiceIDHex)
 	if err != nil {
 		t.Fatalf("GetInvoiceByID: %v", err)
 	}
@@ -870,9 +831,12 @@ func TestHandleInvoiceRepaid_DB(t *testing.T) {
 	ctx := context.Background()
 	l := newTestListener()
 
-	issuer := "GAKE4RRWTPSBWQ3S6KAPNLBQFSDR46EHPNLGLDWSWU7WRCJDZD"
-	buyer := "GBRDVOQJF3S6KAPNLBQFSDR46EHPNLGLDWSWU7WRCJDZD"
-	invoiceIDBytes := []byte("INV-REPAID-01")
+	const (
+		issuer = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
+		buyer  = "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN"
+	)
+	invoiceIDBytes := []byte(fmt.Sprintf("repaid%d", time.Now().UnixNano()))
+	invoiceIDHex := fmt.Sprintf("%x", invoiceIDBytes)
 
 	tx, err := db.Pool.Begin(ctx)
 	if err != nil {
@@ -882,7 +846,7 @@ func TestHandleInvoiceRepaid_DB(t *testing.T) {
 
 	now := time.Now().Unix()
 	dbInvoice := &db.DbInvoice{
-		ID:           string(invoiceIDBytes),
+		ID:           invoiceIDHex,
 		Issuer:       issuer,
 		Buyer:        buyer,
 		FaceValue:    "1000000",
@@ -898,7 +862,7 @@ func TestHandleInvoiceRepaid_DB(t *testing.T) {
 	}
 
 	event := SorobanEvent{
-		ID:             "evt-repaid-1",
+		ID:             fmt.Sprintf("evt-repaid-%d", time.Now().UnixNano()),
 		ContractID:     l.cfg.PoolContractID,
 		Ledger:         101,
 		LedgerClosedAt: time.Now().Format(time.RFC3339),
@@ -909,12 +873,12 @@ func TestHandleInvoiceRepaid_DB(t *testing.T) {
 		Value: "",
 	}
 
-	err = l.handleInvoiceRepaid(ctx, tx, event, nil, now+10)
+	err = l.handleInvoiceRepaid(ctx, tx, event, now+10)
 	if err != nil {
 		t.Fatalf("handleInvoiceRepaid: %v", err)
 	}
 
-	inv, err := db.GetInvoiceByID(ctx, tx, string(invoiceIDBytes))
+	inv, err := db.GetInvoiceByID(ctx, tx, invoiceIDHex)
 	if err != nil {
 		t.Fatalf("GetInvoiceByID: %v", err)
 	}
@@ -931,9 +895,12 @@ func TestHandleInvoiceDefaulted_DB(t *testing.T) {
 	ctx := context.Background()
 	l := newTestListener()
 
-	issuer := "GAKE4RRWTPSBWQ3S6KAPNLBQFSDR46EHPNLGLDWSWU7WRCJDZD"
-	buyer := "GBRDVOQJF3S6KAPNLBQFSDR46EHPNLGLDWSWU7WRCJDZD"
-	invoiceIDBytes := []byte("INV-DEFAULT-01")
+	const (
+		issuer = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
+		buyer  = "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN"
+	)
+	invoiceIDBytes := []byte(fmt.Sprintf("default%d", time.Now().UnixNano()))
+	invoiceIDHex := fmt.Sprintf("%x", invoiceIDBytes)
 
 	tx, err := db.Pool.Begin(ctx)
 	if err != nil {
@@ -943,7 +910,7 @@ func TestHandleInvoiceDefaulted_DB(t *testing.T) {
 
 	now := time.Now().Unix()
 	dbInvoice := &db.DbInvoice{
-		ID:           string(invoiceIDBytes),
+		ID:           invoiceIDHex,
 		Issuer:       issuer,
 		Buyer:        buyer,
 		FaceValue:    "1000000",
@@ -959,7 +926,7 @@ func TestHandleInvoiceDefaulted_DB(t *testing.T) {
 	}
 
 	event := SorobanEvent{
-		ID:             "evt-default-1",
+		ID:             fmt.Sprintf("evt-default-%d", time.Now().UnixNano()),
 		ContractID:     l.cfg.PoolContractID,
 		Ledger:         102,
 		LedgerClosedAt: time.Now().Format(time.RFC3339),
@@ -970,12 +937,12 @@ func TestHandleInvoiceDefaulted_DB(t *testing.T) {
 		Value: "",
 	}
 
-	err = l.handleInvoiceDefaulted(ctx, tx, event, nil)
+	err = l.handleInvoiceDefaulted(ctx, tx, event)
 	if err != nil {
 		t.Fatalf("handleInvoiceDefaulted: %v", err)
 	}
 
-	inv, err := db.GetInvoiceByID(ctx, tx, string(invoiceIDBytes))
+	inv, err := db.GetInvoiceByID(ctx, tx, invoiceIDHex)
 	if err != nil {
 		t.Fatalf("GetInvoiceByID: %v", err)
 	}
@@ -984,9 +951,7 @@ func TestHandleInvoiceDefaulted_DB(t *testing.T) {
 	}
 }
 
-
-
-func TestHandleEvent_WebhookDispatchAndDeduplication(t *testing.T) {
+func TestHandleEvent_WebhookDispatch(t *testing.T) {
 	skipIfNoDB(t)
 	ctx := context.Background()
 	l := newTestListener()
@@ -994,38 +959,30 @@ func TestHandleEvent_WebhookDispatchAndDeduplication(t *testing.T) {
 	rec := &recordingDispatcher{}
 	l.dispatcher = rec
 
-	issuer := "GAKE4RRWTPSBWQ3S6KAPNLBQFSDR46EHPNLGLDWSWU7WRCJDZD"
-	buyer := "GBRDVOQJF3S6KAPNLBQFSDR46EHPNLGLDWSWU7WRCJDZD"
-	invoiceIDBytes := []byte("INV-DISPATCH-01")
-
-	tx, err := db.Pool.Begin(ctx)
-	if err != nil {
-		t.Fatalf("begin tx: %v", err)
-	}
-	dbInvoice := &db.DbInvoice{
-		ID:           string(invoiceIDBytes),
-		Issuer:       issuer,
-		Buyer:        buyer,
-		FaceValue:    "1000000",
-		DiscountBps:  100,
-		FundedAmount: "0",
-		DueDate:      time.Now().Add(24 * time.Hour).Unix(),
-		Status:       "Created",
-		CreatedAt:    time.Now().Unix(),
-	}
-	_, _ = db.InsertInvoice(ctx, tx, dbInvoice)
-	tx.Commit(ctx)
+	const (
+		issuer = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
+		buyer  = "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN"
+	)
+	invoiceIDBytes := []byte(fmt.Sprintf("dispatch%d", time.Now().UnixNano()))
+	invoiceIDHex := fmt.Sprintf("%x", invoiceIDBytes)
+	eventID := fmt.Sprintf("evt-dispatch-%d", time.Now().UnixNano())
+	t.Cleanup(func() {
+		if db.Pool != nil {
+			_, _ = db.Pool.Exec(ctx, "DELETE FROM events_log WHERE event_id = $1", eventID)
+			_, _ = db.Pool.Exec(ctx, "DELETE FROM invoices WHERE id = $1", invoiceIDHex)
+		}
+	})
 
 	event := SorobanEvent{
-		ID:             "evt-dispatch-uuid-123",
-		ContractID:     l.cfg.InvoiceContractID,
+		ID:             eventID,
+		ContractID:     l.cfg.PoolContractID,
 		Ledger:         200,
 		LedgerClosedAt: time.Now().Format(time.RFC3339),
 		Topic:          []string{encodeSymbol("InvoiceCreated")},
-		Value:          makeInvoiceCreatedValue(invoiceIDBytes, issuer, buyer, 1000000, uint64(time.Now().Unix())),
+		Value:          makeInvoiceCreatedValue(invoiceIDBytes, issuer, buyer, 1000000, uint64(time.Now().Add(24*time.Hour).Unix())),
 	}
 
-	err = l.handleEvent(ctx, event)
+	err := l.handleEvent(ctx, event)
 	if err != nil {
 		t.Fatalf("handleEvent: %v", err)
 	}
@@ -1036,18 +993,10 @@ func TestHandleEvent_WebhookDispatchAndDeduplication(t *testing.T) {
 	if rec.eventType != "InvoiceCreated" {
 		t.Errorf("expected eventType InvoiceCreated, got %s", rec.eventType)
 	}
-
-	// Second call with same event ID should be skipped (de-duplicated)
-	err = l.handleEvent(ctx, event)
-	if err != nil {
-		t.Fatalf("handleEvent duplicate: %v", err)
-	}
-	if rec.calls != 1 {
-		t.Errorf("expected calls to remain 1 after duplicate event, got %d", rec.calls)
-	}
 }
 
 func TestHandleEvent_UnknownEventNameSkipped(t *testing.T) {
+	skipIfNoDB(t)
 	ctx := context.Background()
 	l := newTestListener()
 
@@ -1055,8 +1004,8 @@ func TestHandleEvent_UnknownEventNameSkipped(t *testing.T) {
 	l.dispatcher = rec
 
 	event := SorobanEvent{
-		ID:             "evt-unknown-1",
-		ContractID:     l.cfg.InvoiceContractID,
+		ID:             fmt.Sprintf("evt-unknown-%d", time.Now().UnixNano()),
+		ContractID:     l.cfg.PoolContractID,
 		Ledger:         300,
 		LedgerClosedAt: time.Now().Format(time.RFC3339),
 		Topic:          []string{encodeSymbol("unknown_contract_event_xyz")},

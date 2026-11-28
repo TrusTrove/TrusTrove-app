@@ -43,7 +43,8 @@ export function ConfigBanner() {
           )}
           {config.invalid.length > 0 && (
             <p className="text-amber-400/70 leading-relaxed">
-              Invalid or inconsistent environment variables (network/format mismatch):{" "}
+              Invalid or inconsistent environment variables (network/format
+              mismatch):{" "}
               {config.invalid.map((key) => envVarLabels[key] || key).join(", ")}
               .. Please check your configuration in{" "}
               <code className="text-amber-500 bg-black/30 px-1 rounded">
