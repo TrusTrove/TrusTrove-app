@@ -7,7 +7,6 @@ import { useInvoices } from "@/hooks/useInvoices";
 import { useWalletStore } from "@/store/wallet";
 
 export default function BuyerCalendarPage() {
-  const address = useWalletStore((s) => s.address);
   const { invoices } = useInvoices();
   return (
     <PageLayout>
