@@ -113,8 +113,8 @@ describe("PoolMaturityDistributionChart", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("0-30d")).toBeInTheDocument();
     expect(screen.getByText("Overdue")).toBeInTheDocument();
-    expect(screen.getByText((content, node) => node?.textContent?.includes("100.00") && node?.textContent?.includes("33.3%") ?? false)).toBeInTheDocument();
-    expect(screen.getByText((content, node) => node?.textContent?.includes("200.00") && node?.textContent?.includes("66.7%") ?? false)).toBeInTheDocument();
+    expect(screen.getByText((content, node) => (node?.textContent?.includes("100.00") && node?.textContent?.includes("33.3%")) ?? false)).toBeInTheDocument();
+    expect(screen.getByText((content, node) => (node?.textContent?.includes("200.00") && node?.textContent?.includes("66.7%")) ?? false)).toBeInTheDocument();
   });
 
   it("renders loading skeleton when loading", () => {
