@@ -201,9 +201,18 @@ func getProtocolStats(ctx context.Context, q Querier) (*ProtocolStats, error) {
 }
 
 // The Insert*/Update* invoice writers and LogEvent below take a Querier so
-// callers can run them against the shared pool (db.Pool) for standalone
+// callers can run them against the shared pool (Pool) for standalone
 // statements, or against a pgx.Tx when several statements must commit or
-// roll back together (see db.WithTx and the listener's event handling).
+// roll back together (see WithTx and the listener's event handling).
+
+// EnsureDatabaseSchema creates any required indices such as idx_invoices_due_date to avoid full-table scans.
+func EnsureDatabaseSchema(ctx context.Context, q Querier) error {
+	_, err := q.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_invoices_due_date ON invoices(due_date)`)
+	if err != nil {
+		return fmt.Errorf("queries: ensure database schema: %w", err)
+	}
+	return nil
+}
 
 func InsertInvoice(ctx context.Context, q Querier, inv *DbInvoice) (bool, error) {
 	query := `
@@ -270,8 +279,12 @@ func GetInvoiceByID(ctx context.Context, q Querier, id string) (*DbInvoice, erro
 }
 
 func GetInvoicesPage(ctx context.Context, status, issuer string, limit, offset int) ([]*DbInvoice, int, error) {
-	predicates := make([]string, 0, 2)
-	filterArgs := make([]any, 0, 2)
+	return GetInvoicesPageWithDueDateWindow(ctx, status, issuer, nil, nil, limit, offset)
+}
+
+func GetInvoicesPageWithDueDateWindow(ctx context.Context, status, issuer string, dueDateFrom, dueDateTo *int64, limit, offset int) ([]*DbInvoice, int, error) {
+	predicates := make([]string, 0, 4)
+	filterArgs := make([]any, 0, 4)
 
 	if status != "" {
 		predicates = append(predicates, fmt.Sprintf("status = $%d", len(filterArgs)+1))
@@ -280,6 +293,14 @@ func GetInvoicesPage(ctx context.Context, status, issuer string, limit, offset i
 	if issuer != "" {
 		predicates = append(predicates, fmt.Sprintf("issuer = $%d", len(filterArgs)+1))
 		filterArgs = append(filterArgs, issuer)
+	}
+	if dueDateFrom != nil {
+		predicates = append(predicates, fmt.Sprintf("due_date >= $%d", len(filterArgs)+1))
+		filterArgs = append(filterArgs, *dueDateFrom)
+	}
+	if dueDateTo != nil {
+		predicates = append(predicates, fmt.Sprintf("due_date <= $%d", len(filterArgs)+1))
+		filterArgs = append(filterArgs, *dueDateTo)
 	}
 
 	whereClause := ""
