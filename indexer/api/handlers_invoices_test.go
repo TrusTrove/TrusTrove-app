@@ -36,11 +36,11 @@ func TestHandleGetInvoices_InvalidAssetReturns400(t *testing.T) {
 }
 func TestHandleGetInvoicesAssetFilter(t *testing.T) {
 	handler := &APIHandler{}
-	req := httptest.NewRequest(http.MethodGet, "/invoices?asset=invalid", nil)
+	req := httptest.NewRequest(http.MethodGet, "/invoices?asset=INVALID", nil)
 	rr := httptest.NewRecorder()
 	handler.HandleGetInvoices(rr, req)
 	if rr.Code != http.StatusBadRequest {
-		t.Errorf("expected status 400 for invalid asset format, got %d", rr.Code)
+		t.Errorf("expected status 400 for invalid asset, got %d", rr.Code)
 	}
 }
 
